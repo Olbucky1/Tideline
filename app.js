@@ -418,7 +418,7 @@ function openLayersSheet() {
   html += '<div class="mo-h">Gauge style</div><div class="btheme-row">' + GTHEMES.map(([v, l, c]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div>' + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
   html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.miSize || 'l');
   html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['false', 'Only when I press and hold'], ['true', 'Also display it on each tap']], String(st.learnTips === true || st.learnTips === 'true'));
-  html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['true', 'Shows that spot\'s conditions'], ['false', 'Does nothing (press and hold instead)']], String(st.spotTap !== false));
+  html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['false', 'Tap and hold shows conditions'], ['true', 'A quick tap shows them']], String(st.spotTap === true || st.spotTap === 'true'));
   html += '<div class="mo-h">What are you doing today?</div><div class="btheme-row">' + ACTIVITY.map(([v, l, th]) => '<button type="button" data-activity="' + v + '" class="' + (st.activity === v ? 'on' : '') + '"><i style="background:' + (BTHEMES.find((x) => x[0] === th) || BTHEMES[0])[2] + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Sets the colors and the layers that matter for it. Change anything afterwards.</small>';
   html += '<div class="mo-h">Button theme</div><div class="btheme-row">' + BTHEMES.map(([v, l, c]) => '<button type="button" data-btheme="' + v + '" class="' + ((st.btheme || 'blue') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Day colors for the round buttons. Dusk and Night keep their dim look.</small>';
   html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
@@ -444,6 +444,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gArt') applyGArt();
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
+  if (k === 'spotTap') { S.settings.spotTap = v === 'true'; saveSettings(); }
   if (k === 'navaids') { NV.key = ''; drawNavaids(); }
   if (k === 'shallowStyle' || k === 'shallowLevel') { SH.drawnKey = ''; drawShallow(); }
   if (k === 'theme') { applyNight(); updateBoat(); }
@@ -2734,7 +2735,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 123. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 124. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -4983,7 +4984,9 @@ $('bottomStack').addEventListener('click', (e) => {
   }
 });
 map.on('dragstart', () => setFollow(false));
-map.on('contextmenu', (e) => openPointSheet(e.latlng));
+const spotOnTap = () => S.settings.spotTap === true || S.settings.spotTap === 'true';
+if (!S.settings.spotHoldSeeded) { S.settings.spotTap = false; S.settings.spotHoldSeeded = 1; saveSettings(); } // Andy: a plain tap popping a card is annoying; tap and hold is the default
+map.on('contextmenu', (e) => { if (RT.edit || S.measure.on) return; if (!spotOnTap()) { closeSheet(); openSpotCard(e.latlng); } else openPointSheet(e.latlng); });
 map.on('click', (e) => {
   if (Date.now() - (S.aisTapAt || 0) < 600) return; // that tap was on a ship: its sheet is open, not the spot card
   if (S.measure.on) { measureTap(e.latlng); return; }
@@ -4994,7 +4997,7 @@ map.on('click', (e) => {
   if (document.querySelector('.wx-pop:not([hidden])')) return; // that tap closes the weather buttons
   if (S.settings.view3d) { toast('Switch to the flat 2D view (press and hold the compass) to tap a spot.', 3000); return; }
   if (SPOT.el) { closeSpot(); return; } // a tap elsewhere just closes the spot card
-  if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openSpotCard(e.latlng); // tap any spot: a small card with wind, waves, current, tide, depth
+  if (spotOnTap()) openSpotCard(e.latlng); // tap any spot: a small card with wind, waves, current, tide, depth
 });
 
 
