@@ -3489,7 +3489,7 @@ function maintHtml() {
   const pill = (c) => ({ over: '<span class="badge" style="background:#FDE2E2;color:#9B1C1C">Overdue</span>', soon: '<span class="badge" style="background:var(--amber-bg);color:var(--amber-ink)">Due soon</span>', ok: '<span class="badge">OK</span>', unknown: '<span class="badge" style="background:var(--surface2);color:var(--ink2)">Not logged</span>' }[c]);
   const q = encodeURIComponent([S.boat.engineMake, S.boat.engineModel].filter(Boolean).join(' '));
   let h = '<div class="card" style="padding:4px 14px 12px"><h4>Maintenance</h4>';
-  h += '<div class="set-row"><div class="sr-text"><b>Engine hours</b><span>Update after each trip</span></div><input type="number" inputmode="decimal" id="mHours" value="' + Math.round(S.boat.engineHours || 0) + '" aria-label="Engine hours"></div>';
+  h += '<div class="set-row"><div class="sr-text"><b>Engine hours</b><span>Update after each trip</span></div><div class="stepper"><button type="button" data-mh="-1" aria-label="One hour less">−</button><input type="text" inputmode="decimal" id="mHours" value="' + (Math.round((S.boat.engineHours || 0) * 10) / 10) + '" aria-label="Engine hours"><button type="button" data-mh="1" aria-label="One hour more">+</button></div></div>' + logList(S.boat.hoursLog, (r) => (Math.round(r.v * 10) / 10) + ' h', () => '', 'hoursdel');
   if (!items.length) h += '<div class="empty">No tasks yet. Add the typical schedule for your boat, then edit it to match your manuals.</div>';
   const shown = maintAll ? items : items.slice(0, 5);
   h += shown.map((i) => { const d = dueInfo(i); return '<div class="li" style="align-items:flex-start"><div class="li-main"><b style="white-space:normal">' + esc(i.name) + '</b><span>' + pill(d.cls) + ' ' + esc(d.text) + '</span>' +
@@ -3506,8 +3506,27 @@ function maintHtml() {
 function batteryHtml() {
   const b = S.boat, age = b.batteryInstalled ? (Date.now() - Date.parse(b.batteryInstalled + '-01')) / (365.25 * 86400000) : null;
   return '<div class="card" style="padding:4px 14px 12px"><h4>Battery check</h4>' +
-    '<div class="set-row"><div class="sr-text"><b>Resting voltage</b><span>Measured after 2+ hours with nothing charging or running</span></div><input type="number" inputmode="decimal" step="0.01" id="battV" placeholder="12.6" aria-label="Battery voltage"></div>' +
-    '<div id="battOut" class="hint" style="margin:6px 0 4px">' + (age != null ? 'Installed ' + age.toFixed(1) + ' years ago. ' + (b.batteryKind === 'lifepo4' ? 'Lithium batteries often last 8 years or more.' : 'Lead-acid, AGM and gel batteries typically last 3 to 6 years.') : 'Add the install date in your boat profile to track its age.') + '</div></div>';
+    '<div class="set-row"><div class="sr-text"><b>Resting voltage</b><span>Measured after 2+ hours with nothing charging or running</span></div><div class="batt-in"><input type="text" inputmode="decimal" id="battV" placeholder="12.6" aria-label="Battery voltage"><button type="button" class="btn small" data-act="battsave">Save</button></div></div>' +
+    '<div id="battOut" class="hint" style="margin:6px 0 4px">' + (age != null ? 'Installed ' + age.toFixed(1) + ' years ago. ' + (b.batteryKind === 'lifepo4' ? 'Lithium batteries often last 8 years or more.' : 'Lead-acid, AGM and gel batteries typically last 3 to 6 years.') : 'Add the install date in your boat profile to track its age.') + '</div>' + logList(b.battLog, (r) => r.v.toFixed(2) + ' V', (r) => r.note, 'battdel') + '</div>';
+}
+// a dated record of readings, newest first, so you can see a battery or engine trend over the season
+function logList(arr, val, sub, delAct) {
+  if (!arr || !arr.length) return '';
+  return '<div class="rlog"><div class="rlog-h">Recorded</div>' + arr.slice().reverse().slice(0, 12).map((r) => '<div class="rlog-r"><span class="tnum">' + new Date(r.t).toLocaleDateString([], { month: 'short', day: 'numeric', year: new Date(r.t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) + ' ' + new Date(r.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</span><b class="tnum">' + esc(val(r)) + '</b><em>' + esc(sub(r) || '') + '</em><button type="button" class="rlog-x" data-act="' + delAct + '" data-t="' + r.t + '" aria-label="Delete this reading">×</button></div>').join('') + '</div>';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b || !$('panelBoat').contains(b)) return;
+  if (b.dataset.act === 'battsave') {
+    const v = parseFloat(($('battV').value || '').replace(',', '.'));
+    if (!(v > 5 && v < 20)) { toast('Enter the voltage you measured, such as 12.6'); return; }
+    S.boat.battLog = (S.boat.battLog || []).concat([{ t: Date.now(), v, note: (batteryVerdict(v) || '').split('.')[0] }]); saveBoat(); renderBoat(); toast('Saved: ' + v.toFixed(2) + ' V today');
+  }
+  if (b.dataset.act === 'battdel') { if (!armed(b, 'Tap again')) return; S.boat.battLog = (S.boat.battLog || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
+  if (b.dataset.act === 'hoursdel') { if (!armed(b, 'Tap again')) return; S.boat.hoursLog = (S.boat.hoursLog || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
+});
+function logHours(v) { // one entry per day: the latest reading that day
+  const L2 = S.boat.hoursLog = S.boat.hoursLog || [], last = L2[L2.length - 1];
+  if (last && new Date(last.t).toDateString() === new Date().toDateString()) { last.v = v; last.t = Date.now(); } else L2.push({ t: Date.now(), v });
 }
 function batteryVerdict(v) {
   const k = S.boat.batteryKind;
@@ -3570,7 +3589,15 @@ $('panelBoat').addEventListener('change', async (e) => {
     try { S.boat.photo = await resizePhoto(e.target.files[0]); saveBoat(); renderBoat(); } catch (err) { toast('Could not read that photo'); }
   }
   if (e.target.id === 'fogBox') { fogMode = e.target.checked; renderBoat(); }
-  if (e.target.id === 'mHours') { S.boat.engineHours = parseFloat(e.target.value) || 0; saveBoat(); renderBoat(); }
+  if (e.target.id === 'mHours') { S.boat.engineHours = Math.max(0, parseFloat(e.target.value) || 0); logHours(S.boat.engineHours); saveBoat(); renderBoat(); }
+});
+// engine hours stepper: changes the number in place, saves, and refreshes the due list once you stop tapping
+let mhT = null;
+$('panelBoat').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mh]'); if (!b) return;
+  const inp = $('mHours'), v = Math.max(0, Math.round(((parseFloat(inp.value) || 0) + +b.dataset.mh) * 10) / 10);
+  inp.value = v; S.boat.engineHours = v; logHours(v); saveBoat();
+  clearTimeout(mhT); mhT = setTimeout(() => { if (document.activeElement !== inp) renderBoat(); }, 1500);
 });
 $('panelBoat').addEventListener('change', (e) => {
   if (e.target.id !== 'bMake' && e.target.id !== 'bModel') return;
