@@ -1170,3 +1170,5 @@ html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
 .tc-notes { font-size: 12.5px; color: var(--ink2); margin: 4px 0; } .tc-notes p { margin: 3px 0; } .tc-notes b { color: var(--ink); }
 .pt-tide { border-top: 1px solid var(--line); padding: 8px 0; margin-top: 6px; } .pt-tide-h b { display: block; font-size: 14px; } .pt-tide-h span { font-size: 12.5px; color: var(--ink2); }
 .alert-bar { z-index: 1300 !important; }
+@media (hover: hover) and (pointer: fine) { .gauge[data-tip]:hover::after { right: auto; left: 50%; top: auto; bottom: 12px; transform: translateX(-50%); width: 80%; white-space: normal; text-align: center; z-index: 20; line-height: 1.35; } }
+.g-idle { font-style: normal; opacity: .6; margin-right: 2px; }

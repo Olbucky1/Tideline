@@ -1930,6 +1930,7 @@ sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sid
 function sideCols(n, W, H) { let best = 1, bs = 0; for (let c = 1; c <= Math.min(n, 5); c++) { const r = Math.ceil(n / c), sz = Math.min(W / c, (H / r) * 1.05); if (sz > bs + 1) { bs = sz; best = c; } } return best; }
 applySideWidth(); window.addEventListener('resize', () => { clearTimeout(window.__sgT); window.__sgT = setTimeout(() => { try { renderSide(); } catch (e) { /* later */ } }, 200); });
 function renderSide() {
+  CK_FALL.clear();
   const p = $('panelSide'); if (!p) return;
   if (S.settings.sideStyle !== 'text') {
     const ids = sideIds();
@@ -4619,7 +4620,7 @@ const G = { cx: 100, cy: 100 };
 function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [G.cx + r * Math.cos(a), G.cy + r * Math.sin(a)]; }
 function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
 const BEZEL = '<defs><linearGradient id="gChrome" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" class="ch1"/><stop offset="0.35" class="ch2"/><stop offset="0.5" class="ch3"/><stop offset="0.65" class="ch2"/><stop offset="1" class="ch1"/></linearGradient><radialGradient id="gFace" cx="0.5" cy="0.35" r="0.75"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient></defs><circle cx="100" cy="100" r="96" fill="url(#gFace)" stroke="url(#gChrome)" stroke-width="6" class="g-bezel"/><circle cx="100" cy="100" r="92.5" fill="none" class="g-bezel-in"/>';
-function gWrap(label, svg, foot, cls) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + BEZEL + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
+function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + BEZEL + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
   let ticks = '';
@@ -4671,7 +4672,7 @@ function anchorGauge(ft, radius) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, lim, A1) + '" class="g-danger"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (frac > 1 ? ' bad' : '') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + (ft == null ? '–' : Math.round(ftToLen(ft))) + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' of ' + fmtLen(radius) + '</text>';
 }
-const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
+const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['eta', 'Time to go (whole route)'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
 (() => { const a = S.settings.ckSlots; if (Array.isArray(a) && a.filter((x) => x === 'chart').length > 1) { let seen = false; S.settings.ckSlots = a.filter((x) => { if (x !== 'chart') return true; if (seen) return false; seen = true; return true; }); saveSettings(); } })();
 function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
@@ -4742,6 +4743,15 @@ function baroTrend() {
   const word = d == null ? '' : d <= -3 ? 'falling fast' : d <= -1 ? 'falling' : d >= 3 ? 'rising fast' : d >= 1 ? 'rising' : 'steady';
   return { p, d, f, word, warn: (d != null && d <= -3) || (f != null && f <= -3) };
 }
+function baroMeaning(b) {
+  if (!b || b.d == null) return { short: '', long: 'Barometric pressure. Watch the trend: falling pressure brings wind and weather, rising pressure brings clearing.' };
+  const low = b.p < 1000 ? ' Pressure is low: a storm system is close.' : b.p > 1025 ? ' Pressure is high: settled weather.' : '';
+  if (b.d <= -3) return { short: 'Storm likely within hours', long: 'Falling fast (3 hPa or more in 3 hours): strong wind, squalls or storms likely within hours. Reef early, secure the boat, head in if exposed.' + low };
+  if (b.d <= -1) return { short: 'Worsening: more wind coming', long: 'Falling: weather is worsening. Expect more wind, clouds and possibly rain in the next 6 to 24 hours.' + low };
+  if (b.d >= 3) return { short: 'Clearing, gusty winds', long: 'Rising fast: clearing behind a front, but a burst of strong, gusty wind often comes with it.' + low };
+  if (b.d >= 1) return { short: 'Improving, clearing', long: 'Rising: weather improving and clearing.' + low };
+  return { short: 'Little change expected', long: 'Steady: little change in the weather expected for now.' + low };
+}
 const inHg = () => S.settings.speedUnit === 'kn' || S.settings.speedUnit === 'mph';
 function baroGauge(b) {
   const lo = 980, hi = 1040, A0 = -135, A1 = 135, a = A0 + (A1 - A0) * Math.max(0, Math.min(1, (b.p - lo) / (hi - lo)));
@@ -4750,12 +4760,23 @@ function baroGauge(b) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (b.warn ? ' bad' : '') + '"/><circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="6" class="g-dot"/>' +
     '<text x="100" y="108" class="g-big sm">' + val + '</text><text x="100" y="132" class="g-unit">' + unit + ' · ' + arrow + ' ' + esc(b.word || '') + '</text>' + (b.d != null ? '<text x="100" y="156" class="g-unit">' + (b.d > 0 ? '+' : '') + b.d.toFixed(1) + ' hPa in 3 h</text>' : '');
 }
+const CK_FALL = new Set();
 function ckGauge(id) {
   const w = S.weather, tn = tideNow(), ob = nearestObs(), moving = (S.sog || 0) > 0.6;
   if (id === 'auto') id = S.goto && S.fix ? 'dest' : 'tide';
+  if ((id === 'dest' || id === 'eta') && !(S.goto && S.fix)) { // not navigating: these slots show the basics instead of sitting empty
+    const shown = ckSlots().concat(S.settings.sideSlots || []), alt = (S.settings.ckIdle ? [S.settings.ckIdle] : []).concat(['tide', 'wind', 'baro', 'weather', 'depth', 'time', 'waves']).find((x) => !shown.includes(x) && !CK_FALL.has(x)) || 'time'; CK_FALL.add(alt);
+    return ckGauge(alt).replace('<div class="g-lbl">', '<div class="g-lbl"><i class="g-idle" title="Shows your destination when you navigate">◇</i> ');
+  }
+  if (id === 'eta') {
+    const r = S.goto.route, pts = r ? r.pts.slice(r.i) : [S.goto], spd = (S.sog || 0) > 0.6 ? S.sog : navSpeed();
+    let d = distNm(S.fix, pts[0]); for (let i = 1; i < pts.length; i++) d += distNm(pts[i - 1], pts[i]);
+    const hrs = d / spd, stops = r ? pts.filter((p) => !p.turn).length : 1, [dv, du] = distParts(d), legs = r ? r.pts.length : 1;
+    return gWrap('TIME TO GO', '<path d="' + arcPath(84, -135, 135) + '" class="g-track"/><path d="' + arcPath(84, -135, -135 + 270 * (r ? Math.min(1, r.i / Math.max(1, legs - 1)) : 0)) + '" class="g-fill"/><text x="100" y="104" class="g-big sm">' + fmtDur(hrs).replace(' min', 'm') + '</text><text x="100" y="128" class="g-unit">' + dv + ' ' + du + ' · ' + stops + ' stop' + (stops === 1 ? '' : 's') + ' left</text><text x="100" y="150" class="g-unit">arrive ' + fmtClock(Date.now() + hrs * 3600000) + '</text>', 'At ' + fmtSpeed(spd) + ' ' + SPEED_LBL[S.settings.speedUnit] + ((S.sog || 0) > 0.6 ? ' (your speed now)' : ' (your usual speed)'));
+  }
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'depth') { maybeDepth(); return depthGauge(); }
-  if (id === 'baro') { const b = baroTrend(); return b ? gWrap('BAROMETER', baroGauge(b), b.warn ? 'Pressure dropping fast: expect wind and squalls' : 'Sea-level pressure · model, Open-Meteo', b.warn ? 'g-alarm' : '') : gWrap('BAROMETER', '<text x="100" y="108" class="g-unit">Waiting for pressure data</text>', ''); }
+  if (id === 'baro') { const b = baroTrend(), bm = baroMeaning(b); return b ? gWrap('BAROMETER', baroGauge(b), '<b class="' + (b.warn ? 'warn-t' : '') + '">' + esc(bm.short || 'Sea-level pressure') + '</b> · model, Open-Meteo', b.warn ? 'g-alarm' : '', bm.long) : gWrap('BAROMETER', '<text x="100" y="108" class="g-unit">Waiting for pressure data</text>', ''); }
   if (id === 'weather') {
     const c = w && w.cur; if (!c) return gWrap('WEATHER', '<text x="100" y="108" class="g-unit">Waiting for the forecast</text>', '');
     const [txt, ic] = wmo(c.code), now = Date.now(), hrs = (w.press || []).filter((x) => x.t > now - 1800000).slice(0, 12);
@@ -4768,14 +4789,14 @@ function ckGauge(id) {
       ALR.list.length ? '<b class="warn-t">⚠ ' + esc(ALR.list[0].event) + '</b>' : 'Next 12 hours around the dial · Open-Meteo', ALR.list.some((a2) => /warning/i.test(a2.event)) ? 'g-alarm' : '');
   }
   if (id === 'alerts') { const L2 = ALR.list; return '<div class="gauge wx-tile"><div class="g-lbl">WEATHER WARNINGS</div>' + (L2.length ? L2.slice(0, 3).map((a) => '<div class="wxt-al ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><span>until ' + (a.ends ? fmtClock(Date.parse(a.ends)) : '—') + '</span></div>').join('') : '<div class="wxt-ok">No active warnings here</div>') + '<div class="g-foot">National Weather Service · checked ' + (ALR.at ? agoTxt(ALR.at) : '—') + '</div></div>'; }
-  if (id === 'photo') { const ph = S.tilePhoto || S.boat.photo; return '<label class="gauge ph-tile"' + (ph ? ' style="background-image:url(' + ph + ')"' : '') + ' title="Tap to choose a photo"><input type="file" accept="image/*" data-tilephoto hidden>' + (ph ? '<span class="ph-change">Change photo</span>' : '<div class="g-lbl">PHOTO</div><p class="g-unit" style="margin:auto;text-align:center">Tap to choose any photo: your boat, your crew, a sunset</p>') + '</label>'; }
+  if (id === 'photo') { const P = PHT.list, ph = P.length ? P[PHT.i % P.length].src : null; return '<label class="gauge ph-tile"' + (ph ? ' style="background-image:url(' + ph + ')"' : '') + ' title="Choose one photo or many for a slideshow"><input type="file" accept="image/*" multiple data-tilephoto hidden>' + (ph ? '<span class="ph-change">' + (P.length > 1 ? P.length + ' photos · ' : '') + 'Add or change</span>' : '<div class="g-lbl">PHOTOS</div><p class="g-unit" style="margin:auto;text-align:center">Tap to choose photos. Pick several for a slideshow.</p>') + '</label>'; }
   if (id === 'waves') { const wv = w && w.wave; return gWrap('WAVES', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="108" class="g-big sm">' + (wv && wv.h != null ? waveLen(wv.h).replace(/\s*(ft|m)$/, '') : '–') + '</text><text x="100" y="132" class="g-unit">' + lenUnit() + (wv && wv.per ? ' · every ' + Math.round(wv.per) + ' s' : '') + '</text>' + (wv && wv.dir != null ? '<text x="100" y="156" class="g-unit">from ' + compass16(wv.dir) + '</text>' : ''), 'Model forecast · Open-Meteo'); }
   if (id === 'trip') { const t = S.trip || { dist: 0, moving: 0 }, [dv, du] = distParts(t.dist || 0); return gWrap('TRIP', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="104" class="g-big sm">' + dv + '</text><text x="100" y="128" class="g-unit">' + du + '</text><text x="100" y="156" class="g-unit">' + fmtDur((t.moving || 0) / 3600) + ' underway</text>', t.moving > 60 ? 'Average ' + fmtSpeed(t.dist / (t.moving / 3600)) + ' ' + SPEED_LBL[S.settings.speedUnit] : 'Since trip reset'); }
   if (id === 'temps') { const air = w && w.cur && w.cur.temp, water = S.waterObs && Date.now() - S.waterObs.t < 3 * 3600000 ? S.waterObs.f : w && w.sst; return gWrap('AIR · WATER', '<text x="100" y="66" class="g-unit">AIR</text><text x="100" y="112" class="g-big sm">' + tempTxt(air) + '</text><text x="100" y="146" class="g-unit">WATER ' + tempTxt(water) + '</text>', S.waterObs ? 'Water measured · NOAA' : 'Forecast'); }
   if (id === 'course') return gWrap('COURSE', compassGauge(moving ? S.cog : null), 'Course over ground');
   if (id === 'wind') { const wd = ob ? { dir: ob.dir, spd: ob.spd, gust: ob.gust, cap: 'Measured · ' + agoTxt(ob.t) } : w && w.cur ? { dir: w.cur.dir, spd: w.cur.spd, gust: w.cur.gust, cap: 'Forecast · ' + agoTxt(w.at) } : null; return gWrap('WIND ' + (wd ? compass16(wd.dir) : ''), windGauge(wd && wd.dir, wd && wd.spd, wd && wd.gust, moving ? S.cog : 0), wd ? wd.cap + (moving ? ' · arrow relative to bow' : ' · arrow: north up') : 'No wind data yet'); }
   if (id === 'tide') return tn ? gWrap('TIDE', tideGauge(tn), (S.wl && S.wl.diff != null && Math.abs(S.wl.diff) >= 0.4 ? '<b class="' + (Math.abs(S.wl.diff) >= 1 ? 'warn-t' : '') + '">Measured ' + Math.abs(S.wl.diff).toFixed(1) + ' ft ' + (S.wl.diff > 0 ? 'above' : 'below') + ' prediction</b> · ' : '') + (tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) : '') + ' · NOAA ' + esc(((S.tide.station || {}).name || '').replace(/,.*$/, ''))) : gWrap('TIDE', '<text x="100" y="108" class="g-unit">No tide station yet</text>', '');
-  if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); const gr = S.goto.route, onTurn = gr && gr.pts[gr.i] && gr.pts[gr.i].turn; return gWrap(onTurn ? 'NEXT TURN' : 'TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'ETA ' + fmtClock(Date.now() + li.hrs * 3600000) + ' · ' + fmtDur(li.hrs) : 'Steer to the arrow'); }
+  if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); const gr = S.goto.route, onTurn = gr && gr.pts[gr.i] && gr.pts[gr.i].turn; return gWrap(onTurn ? 'NEXT TURN' : gr ? 'NEXT MARK · ' + esc((S.goto.name.split(' · ')[0] || '').toUpperCase()) : 'TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'Time to mark ' + fmtDur(li.hrs) + ' · ETA ' + fmtClock(Date.now() + li.hrs * 3600000) : 'Steer to the arrow'); }
   if (id === 'anchor') return S.anchor ? gWrap('ANCHOR', anchorGauge(S.anchor.lastFt, S.anchor.radiusFt), S.alarmOn ? 'ALARM' : 'Distance from anchor', S.alarmOn ? 'g-alarm' : '') : gWrap('ANCHOR', '<text x="100" y="108" class="g-unit">Watch is off</text>', '');
   if (id === 'position') { const f = S.fix; return gWrap('GPS POSITION', '<text x="100" y="84" class="g-big pos">' + (f ? ddm(f.lat, true) : '–') + '</text><text x="100" y="124" class="g-big pos">' + (f ? ddm(f.lon, false) : '') + '</text><text x="100" y="156" class="g-unit">' + (f && f.acc ? '±' + Math.round(ftToLen(f.acc * 3.28084)) + ' ' + lenUnit() + ' accuracy' : 'No fix') + '</text>', S.lastFixAt ? 'Last fix ' + Math.max(0, Math.round((Date.now() - S.lastFixAt) / 1000)) + ' s ago' : ''); }
   if (id === 'time') { const now = Date.now(), ss = w && (w.sunset || []).find((t) => t > now), sr = w && (w.sunrise || []).find((t) => t > now); return gWrap('TIME', '<text x="100" y="108" class="g-big">' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?(AM|PM)/i, '') + '</text>' + (ss ? '<text x="100" y="142" class="g-unit">Sunset ' + fmtClock(ss) + '</text>' : '') + (sr ? '<text x="100" y="' + (ss ? 164 : 142) + '" class="g-unit">Sunrise ' + fmtClock(sr) + '</text>' : ''), (() => { const c = S.fix || refPos(), mt = AST.moonTimes(new Date(), c.lat, c.lon), ph = AST.phase(new Date()); return moonName(ph) + (mt.rise ? ' · rise ' + fmtClock(mt.rise.getTime()) : '') + (mt.set ? ' · set ' + fmtClock(mt.set.getTime()) : ''); })()); }
@@ -4841,11 +4862,19 @@ function buildCockpit() {
   document.addEventListener('drop', (e) => { const t = e.target.closest && e.target.closest('#cockpit .ck-slot[data-slot]'); if (!t || from == null) return; e.preventDefault(); ckSwap(from, +t.dataset.slot); from = null; });
   document.addEventListener('click', (e) => { const m = e.target.closest('[data-ckmove]'); if (!m) return; const [i, d] = m.dataset.ckmove.split(':').map(Number); ckSwap(i, i + d); });
 })();
-// a photo of your choosing for the photo tile, kept on this device
-pAll('tile').then((a) => { const p = a.find((x) => x.id === 'tilephoto'); if (p) { S.tilePhoto = p.src; try { renderCockpit(); } catch (e) { /* closed */ } } }).catch(() => {});
+// photos of your choosing for the photo tile, kept on this device; several become a slideshow
+const PHT = { list: [], i: 0 };
+pAll('tile').then((a) => { PHT.list = a.filter((x) => /^tilephoto/.test(x.id)).sort((x, y) => x.t - y.t); try { renderCockpit(); } catch (e) { /* closed */ } }).catch(() => {});
+setInterval(() => { if (PHT.list.length > 1 && !$('cockpit').hidden) { PHT.i++; document.querySelectorAll('.ph-tile').forEach((el) => { el.style.backgroundImage = 'url(' + PHT.list[PHT.i % PHT.list.length].src + ')'; }); } }, 9000);
 document.addEventListener('change', async (e) => {
-  if (!e.target.matches || !e.target.matches('[data-tilephoto]')) return; const f = e.target.files && e.target.files[0]; if (!f) return;
-  try { const src = await resizePhoto(f, 1600, 0.8); S.tilePhoto = src; await pPut({ id: 'tilephoto', track: 'tile', t: Date.now(), src }); document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.dataset.drawn = ''; }); renderCockpit(); toast('Photo set'); } catch (err) { toast('Could not use that photo'); }
+  if (!e.target.matches || !e.target.matches('[data-tilephoto]')) return; const files = [...(e.target.files || [])].slice(0, 30); if (!files.length) return;
+  const replace = !PHT.list.length || confirm('Add these to your slideshow? Press Cancel to replace the photos you have.');
+  try {
+    if (!replace) { const db = await pdb(); await Promise.all(PHT.list.map((p) => new Promise((res) => { const tx = db.transaction('p', 'readwrite'); tx.objectStore('p').delete(p.id); tx.oncomplete = res; tx.onerror = res; }))); PHT.list = []; }
+    for (const f of files) { const src = await resizePhoto(f, 1600, 0.8), o = { id: 'tilephoto' + Date.now() + Math.random().toString(36).slice(2, 6), track: 'tile', t: Date.now(), src }; await pPut(o); PHT.list.push(o); }
+    PHT.i = PHT.list.length - files.length;
+    document.querySelectorAll('#cockpit .ck-slot').forEach((b2) => { b2.dataset.drawn = ''; }); renderCockpit(); toast(files.length > 1 ? files.length + ' photos added: they change every few seconds' : 'Photo added');
+  } catch (err) { toast('Could not use those photos'); }
 });
 function ckSwap(a, b) {
   const sl = ckSlots().filter((x) => x !== 'off').slice(); if (a === b || a < 0 || b < 0 || a >= sl.length || b >= sl.length) return;
@@ -4854,6 +4883,7 @@ function ckSwap(a, b) {
 function renderCockpit() {
   const el = $('cockpit'); if (!el || el.hidden) return;
   const sl = ckSlots().filter((x) => x !== 'off');
+  CK_FALL.clear();
   el.querySelectorAll('.ck-slot.filler').forEach((box) => { box.innerHTML = ckGauge(box.dataset.filler); });
   el.querySelectorAll('.ck-slot[data-slot]').forEach((box) => {
     const i = +box.dataset.slot, id = sl[i];
