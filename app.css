@@ -1091,3 +1091,9 @@ html[data-side="third"].calm #app.wide:has(#panelSide:not([hidden])) .fab-col.fa
 .fab-right #btnInst { margin-top: 6px; }
 .ck-head .ck-gps, .ck-head .ck-time { white-space: nowrap; }
 @media (max-width: 600px) { .ck-head .ck-time { display: none; } .ck-head b { font-size: 18px; } .ck-head .ck-gps { font-size: 12px; } }
+/* place names: plain straight text, no outline */
+.pl-name { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font: 500 12px/1.2 var(--f-ui, 'IBM Plex Sans', system-ui, sans-serif); color: #5B6670; letter-spacing: .01em; pointer-events: none; }
+.pl-name.big { font-size: 13.5px; font-weight: 600; color: #46525C; }
+.pl-name.geo { font-style: italic; color: #6E6252; }
+:root[data-dusk] .pl-name { color: #C8BBA5; } :root[data-night] .pl-name { color: #9A6458; }
+html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }

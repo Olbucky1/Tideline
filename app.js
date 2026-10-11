@@ -190,12 +190,13 @@ function chartLayerKeys() {
   if (ch !== 'satellite' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
   else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : ch === 'noaa' ? ['ocean', 'noaa'] : CHARTS[ch].layers.slice();
   if (S.settings.seamarks && ch !== 'noaa') keys.push('seamarks');
-  if (ch !== 'street' && S.settings.landPlaces !== false) keys.push('places');
+  // town and point names are drawn by Tideline itself as plain text (see PLB), not as outlined tile labels
   if (ch !== 'street' && S.settings.landRoads) keys.push('roads');
   return keys;
 }
 let demoChart = null;
 function applyChart() {
+  document.documentElement.classList.toggle('sat', S.settings.chart === 'satellite' || !!S.settings.satOver);
   Object.values(LAYERS).forEach((l) => { if (map.hasLayer(l)) map.removeLayer(l); });
   if (window.TL_DEMO) { // hosted demo: a sample chart image instead of live chart tiles
     if (!demoChart) demoChart = L.imageOverlay(window.TL_DEMO.chart, window.TL_DEMO.bounds, { zIndex: 1, attribution: 'Sample chart for demonstration only' });
@@ -368,7 +369,7 @@ sheet.addEventListener('change', (e) => {
   if (e.target.id === 'bridgesBox') { S.settings.bridges = e.target.checked; saveSettings(); refreshBridges(true); }
   if (e.target.id === 'satBox') { S.settings.satOver = e.target.checked; if (S.settings.chart === 'satellite') S.settings.chart = 'noaa'; saveSettings(); applyChart(); openLayersSheet(); }
   if (e.target.id === 'mpBox') { S.settings.mplaces = e.target.checked; saveSettings(); refreshMarinePlaces(); }
-  if (e.target.id === 'placesBox') { S.settings.landPlaces = e.target.checked; saveSettings(); applyChart(); }
+  if (e.target.id === 'placesBox') { S.settings.landPlaces = e.target.checked; saveSettings(); applyChart(); drawPlaceNames(); loadPlaceNames(); }
   if (e.target.id === 'roadsBox') { S.settings.landRoads = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'aisBox') { S.settings.aisShow = e.target.checked; saveSettings(); updateAis(); }
   if (e.target.id === 'chipsBox') { S.settings.chips = e.target.checked; saveSettings(); applyCalm(); }
@@ -4018,7 +4019,7 @@ const QUICK = [
   ['mp', 'Marinas & clubs', () => S.settings.mplaces !== false, (on) => { S.settings.mplaces = on; refreshMarinePlaces(); }],
   ['br', 'Bridges', () => S.settings.bridges !== false, (on) => { S.settings.bridges = on; refreshBridges(true); }],
   ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); }],
-  ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); }],
+  ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); drawPlaceNames(); loadPlaceNames(); }],
   ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
   ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
   ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
@@ -4281,6 +4282,45 @@ async function refreshBridges(force) {
   if (keys.length > 30) { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 1500); }
 }
 map.on('moveend', () => { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 900); });
+if (!S.settings.roadsOff1) { S.settings.landRoads = false; S.settings.roadsOff1 = 1; saveSettings(); } // Esri's road layer brings its own outlined, curved street labels: off unless asked for
+/* ---------- place names on land: plain, straight text from OpenStreetMap, thinned out as you zoom out ---------- */
+const PLB = { tiles: new Map(Object.entries(store.get('plTiles', {}))), layer: L.layerGroup().addTo(map), busy: false, t: null };
+const PL_MIN = { city: 8, town: 10, village: 11.5, suburb: 12.5, island: 12, hamlet: 13, neighbourhood: 13.5, locality: 14, cape: 12.5, peninsula: 12.5, bay: 12, point: 12.5 };
+async function loadPlaceNames() {
+  if (S.settings.landPlaces === false || map.getZoom() < 8 || PLB.busy) return;
+  const st = 0.25, b = map.getBounds(), need = [];
+  for (let la = Math.floor(b.getSouth() / st) * st; la < b.getNorth(); la += st) for (let lo = Math.floor(b.getWest() / st) * st; lo < b.getEast(); lo += st) { const k = la.toFixed(2) + ',' + lo.toFixed(2); if (!PLB.tiles.has(k)) need.push([la, lo, k]); }
+  if (!need.length || need.length > 12) return;
+  PLB.busy = true;
+  try {
+    for (const [la, lo, k] of need) {
+      const bb = '(' + la.toFixed(2) + ',' + lo.toFixed(2) + ',' + (la + st).toFixed(2) + ',' + (lo + st).toFixed(2) + ')';
+      const q = '[out:json][timeout:25];(node["place"~"^(city|town|village|suburb|hamlet|neighbourhood|island|locality)$"]["name"]' + bb + ';node["natural"~"^(cape|peninsula|bay)$"]["name"]' + bb + ';);out 400;';
+      const j = await fetch(OVERPASS + encodeURIComponent(q)).then((r) => r.json());
+      PLB.tiles.set(k, (j.elements || []).filter((e) => e.lat != null && e.tags && e.tags.name).map((e) => [e.lat, e.lon, e.tags.name, e.tags.place || e.tags.natural, +e.tags.population || 0]));
+    }
+    const o = {}; [...PLB.tiles.entries()].slice(-160).forEach(([k, v]) => { o[k] = v; }); store.set('plTiles', o);
+  } catch (e) { /* offline: try again later */ }
+  PLB.busy = false; drawPlaceNames();
+}
+function drawPlaceNames() {
+  PLB.layer.clearLayers();
+  if (S.settings.landPlaces === false) return;
+  const z = map.getZoom(), b = map.getBounds(), list = [];
+  PLB.tiles.forEach((v) => (v || []).forEach((p) => { if (p && p[0] != null && b.contains([p[0], p[1]]) && z >= (PL_MIN[p[3]] || 13)) list.push(p); }));
+  const rank = (p) => ({ city: 0, town: 1, village: 2, island: 2, suburb: 3, cape: 3, peninsula: 3, bay: 3, hamlet: 4, neighbourhood: 5, locality: 6 }[p[3]] ?? 6) - Math.min(1, p[4] / 100000);
+  list.sort((a, c) => rank(a) - rank(c));
+  const boxes = [];
+  list.forEach((p) => {
+    const pt = map.latLngToContainerPoint([p[0], p[1]]), w = p[2].length * 6.6 + 8, box = [pt.x - w / 2, pt.y - 9, pt.x + w / 2, pt.y + 9];
+    if (boxes.some((q) => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) return; boxes.push(box);
+    const cls = p[3] === 'city' || p[3] === 'town' ? 'big' : ['cape', 'peninsula', 'bay', 'island'].includes(p[3]) ? 'geo' : '';
+    PLB.layer.addLayer(L.marker([p[0], p[1]], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: '<span class="pl-name ' + cls + '">' + esc(p[2]) + '</span>' }) }));
+  });
+}
+map.on('moveend', () => { clearTimeout(PLB.t); PLB.t = setTimeout(() => { drawPlaceNames(); loadPlaceNames(); }, 600); });
+setTimeout(() => { drawPlaceNames(); loadPlaceNames(); }, 2000);
+
 /* ---------- marine places on the chart: marinas, yacht and sailing clubs, fuel docks, ramps ---------- */
 const MP = { list: new Map(store.get('mplaces', [])), tiles: store.get('mpTiles', {}), layer: L.layerGroup().addTo(map), busy: false, timer: null };
 function hasFuel(t) { t = t || {}; return t.waterway === 'fuel' || t.amenity === 'fuel' || /fuel_station/.test(t['seamark:small_craft_facility:category'] || '') || Object.keys(t).some((k) => /^fuel:/.test(k) && t[k] === 'yes'); }
