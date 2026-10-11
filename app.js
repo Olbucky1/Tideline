@@ -2489,7 +2489,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 104. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 106. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5192,13 +5192,26 @@ async function checkAlerts() {
 }
 // life-threatening warnings take over the screen: red, flashing, with what to do now
 const ALR_TAKEOVER = /tornado warning|hurricane warning|extreme wind warning|tsunami warning|storm surge warning|special marine warning|severe thunderstorm warning|flash flood emergency|tropical storm warning/i;
+// a picture of what the alert is about; the ring around it shows how serious
+const ALR_ICONS = [
+  [/tornado|waterspout/i, '<path d="M3 4h18M5 8h14M7.5 12h9M10 16h5M11.5 20h2"/>'],
+  [/hurricane|tropical|typhoon/i, '<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6C12 5 15 3 19 3c-2 1.4-3 3.4-3 6M12 14.4c0 4.6-3 6.6-7 6.6 2-1.4 3-3.4 3-6M9.6 12C5 12 3 9 3 5c1.4 2 3.4 3 6 3M14.4 12c4.6 0 6.6 3 6.6 7-1.4-2-3.4-3-6-3"/>'],
+  [/thunder|lightning|special marine/i, '<path d="M13.5 2 5 13.5h6L9.5 22 19 9.5h-6.2z" class="ai-fill"/>'],
+  [/flood|surge|coastal|tsunami|high water/i, '<path d="M12 3c3 4.2 5 7.2 5 9.6a5 5 0 0 1-10 0C7 10.2 9 7.2 12 3z"/><path d="M2 20c2.5-2 5-2 7.5 0s5 2 7.5 0 3.5-1.5 5 0"/>'],
+  [/fog|smoke|haze|air quality|ash/i, '<path d="M3 8h13M6 12h15M3 16h13M7 20h10"/>'],
+  [/snow|winter|blizzard|ice|freez|frost|sleet/i, '<path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"/>'],
+  [/heat/i, '<path d="M12 3v11.5a3 3 0 1 1-2 0V3a1 1 0 0 1 2 0z"/><path d="M15 6h3M15 9h3M15 12h2"/>'],
+  [/seas|surf|rip current|beach|swell/i, '<path d="M2 15c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5 0M2 20c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5 0M7 10c0-3 2.5-5.5 5.5-5.5"/>'],
+  [/wind|gale|small craft|storm warning|blow/i, '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>']
+];
+function alrIcon(a) { const hit = ALR_ICONS.find(([re]) => re.test(a.event || '')); return '<svg class="alr-ic" viewBox="0 0 24 24" aria-hidden="true">' + (hit ? hit[1] : '<path d="M12 3 2 20h20z"/><path d="M12 9v5M12 17v.5"/>') + '</svg>'; }
 function severeTakeover(a) {
   let el = $('severe'); if (!el) { el = document.createElement('div'); el.id = 'severe'; el.className = 'severe'; document.body.appendChild(el); }
   const moving = (S.sog || 0) > 1.5, tornado = /tornado|waterspout|extreme wind/i.test(a.event), marine = /special marine|thunderstorm/i.test(a.event), tropical = /hurricane|tropical|surge/i.test(a.event);
   const act = tornado ? (moving ? 'Get off the water now if you can reach a harbor in minutes. Otherwise: everyone in life jackets, below decks, away from the mast and windows. Drop the sails.' : 'Seek shelter now in a sturdy building, lowest floor, interior room. A boat is not a safe shelter.')
     : marine ? (moving ? 'Head for the nearest safe harbor now. Reduce sail or drop it, everyone in life jackets, clip on, secure loose gear. Expect sudden violent gusts, lightning and hail.' : 'Stay in port. Double your dock lines and fenders. Stay off the boat if lightning is close.')
     : tropical ? 'Follow local evacuation orders. Secure or haul the boat; do not stay aboard. Get to safe shelter inland.' : 'Take action now. Get to a safe harbor or shelter.';
-  el.innerHTML = '<div class="sv-in"><div class="sv-ic">⚠</div><div class="sv-ev">' + esc(a.event.toUpperCase()) + '</div><div class="sv-do">' + (tornado ? 'SEEK SHELTER NOW' : marine ? 'GET TO SAFE HARBOR' : 'TAKE ACTION NOW') + '</div><p>' + esc(act) + '</p>' + (a.headline ? '<p class="sv-h">' + esc(a.headline) + '</p>' : '') + (a.ends || a.expires ? '<p class="sv-h">Until ' + fmtClock(Date.parse(a.ends || a.expires)) + '</p>' : '') +
+  el.innerHTML = '<div class="sv-in"><div class="sv-ic">' + alrIcon(a) + '</div><div class="sv-ev">' + esc(a.event.toUpperCase()) + '</div><div class="sv-do">' + (tornado ? 'SEEK SHELTER NOW' : marine ? 'GET TO SAFE HARBOR' : 'TAKE ACTION NOW') + '</div><p>' + esc(act) + '</p>' + (a.headline ? '<p class="sv-h">' + esc(a.headline) + '</p>' : '') + (a.ends || a.expires ? '<p class="sv-h">Until ' + fmtClock(Date.parse(a.ends || a.expires)) + '</p>' : '') +
     '<p class="sv-h">Monitor VHF 16 and NOAA Weather Radio. Mayday on VHF 16 if anyone is in danger.</p><div class="sv-btns"><button class="btn" data-sv="read">Read the full warning</button><button class="btn primary" data-sv="ok">I understand</button></div></div>';
   el.hidden = false; try { beep(5); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 800]); } catch (e) { /* no sound */ }
   headsUp(a.event + '. ' + (tornado ? 'Seek shelter now.' : marine ? 'Get to a safe harbor.' : 'Take action now.'));
@@ -5221,13 +5234,13 @@ function renderAlertBar() {
   el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini') + (fresh ? ' is-new' : '');
   const label = (fresh ? 'New weather alert: ' : 'Weather alert: ') + a.event + '. Tap to read.';
   el.title = label; el.dataset.tip = label; el.setAttribute('aria-label', label);
-  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + (alrClass(a) === 'info' ? 'i' : '⚠') + '</b><small>' + (fresh ? 'NEW' : ALR_SHORT[alrClass(a)]) + '</small>';
+  el.innerHTML = big ? '<b>' + alrIcon(a) + ' ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + alrIcon(a) + '</b><small>' + (fresh ? 'NEW' : ALR_SHORT[alrClass(a)]) + '</small>';
 }
 function openAlerts() {
   ALR.list.forEach((a) => ALR.read.add(alertKey(a))); saveAlertState(); renderAlertBar();
   openSheet('<h3>Weather alerts here</h3><div class="sub">National Weather Service · checked ' + (ALR.at ? agoTxt(ALR.at) : 'not yet') + '</div>' + (ALR.list.length ? ALR.list.map((a) => {
     const key = alertKey(a), hidden = ALR.hide.has(key);
-    return '<div class="alr ' + alrClass(a) + '"><span class="alr-tag">' + ALR_WORD[alrClass(a)] + '</span><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details><div class="row-btns"><button class="btn small primary" data-weather-dismiss="' + esc(key) + '"' + (hidden ? ' disabled' : '') + '>' + (hidden ? 'Cleared from chart' : 'Clear alert') + '</button>' + (hidden ? '' : '<button class="btn small" data-act="close">Keep it on the chart, stop flashing</button>') + '</div><p class="hint">A new or changed bulletin will appear again.</p></div>';
+    return '<div class="alr ' + alrClass(a) + '"><span class="alr-tag">' + ALR_WORD[alrClass(a)] + '</span><b>' + alrIcon(a) + ' ' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details><div class="row-btns"><button class="btn small primary" data-weather-dismiss="' + esc(key) + '"' + (hidden ? ' disabled' : '') + '>' + (hidden ? 'Cleared from chart' : 'Clear alert') + '</button>' + (hidden ? '' : '<button class="btn small" data-act="close">Keep it on the chart, stop flashing</button>') + '</div><p class="hint">A new or changed bulletin will appear again.</p></div>';
   }).join('') : '<p class="sub">No active alerts received for this location.</p>') + '<p class="hint">Dismissed bulletins remain here while active. Also monitor NOAA Weather Radio on VHF WX channels.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
 }
 document.addEventListener('click', (e) => {
@@ -5470,15 +5483,17 @@ function renderMini() {
   const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, rot = cog == null ? 0 : cog;
   let ticks = ''; for (let d = 0; d < 360; d += 30) { const a = (d - 90) * Math.PI / 180, r0 = d % 90 ? 25 : 22; ticks += '<line x1="' + (30 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (30 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (30 + 27 * Math.cos(a)).toFixed(1) + '" y2="' + (30 + 27 * Math.sin(a)).toFixed(1) + '"/>'; }
   const mr = mapRot();
-  el.innerHTML = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g transform="rotate(' + mr.toFixed(1) + ' 30 30)"><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text></g>' +
+  let svg = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g transform="rotate(' + mr.toFixed(1) + ' 30 30)"><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text></g>' +
     (cog != null ? '<g transform="rotate(' + (rot + mr).toFixed(0) + ' 30 30)"><path d="M30 4 L34 13 L30 11 L26 13 Z" class="mi-arrow"/></g>' : '') +
-    '<text x="30" y="33" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="30" y="42" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text><text x="30" y="51" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '°' : '') + '</text></svg>';
+    (cog != null ? '<text x="30" y="20.5" class="mi-cog">' + fmtBrg(cog) + '°</text>' : '') +
+    '<text x="30" y="34" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="30" y="40.5" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
   maybeDepth();
   const d = DEP.v, validDepth = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000;
-  const depthText = validDepth ? Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() : '—';
-  el.insertAdjacentHTML('beforeend', '<span class="mini-depth"><b>' + depthText + '</b><small>CHARTED DEPTH</small></span>');
+  const need = S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null, dft = validDepth ? d.d1 / 0.3048 : null, shallow = need && dft != null && dft < need;
+  const depthText = validDepth ? Math.round(ftToLen(dft)) + '<tspan class="mi-du"> ' + lenUnit() + '</tspan>' : '–';
+  el.innerHTML = svg + '<line x1="20" x2="40" y1="43.5" y2="43.5" class="mi-div"/><text x="30" y="51.5" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></svg>';
   el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
-  el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + '. Tap for the full gauges.' : 'Speed and course: waiting for GPS';
+  el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : '') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
 }
 $('miniInst').addEventListener('click', () => setCockpit(true));
 setInterval(renderMini, 1000); renderMini();
@@ -5812,7 +5827,7 @@ const curTime = () => Date.now() + (WX.hour || 0) * 3600000;
 function curColor(kn) { return kn < 0.4 ? '#7C8B99' : kn < 1 ? '#2E86DE' : kn < 1.6 ? '#0FA3A3' : kn < 2.3 ? '#E08A00' : '#D32F2F'; }
 async function drawCurrents() {
   CUR.layer.clearLayers(); if (!curOn() || S.tab === 'weather' && false) return;
-  const z = map.getZoom(); if (z < 9) { renderCurChip(); return; }
+  const z = map.getZoom(); if (z < 11) { renderCurChip(); return; } // zoom in to see the current spot by spot
   const list = await curStations(); if (!curOn()) return;
   const b = map.getBounds().pad(0.15), c = map.getCenter();
   // how much to show: Few (cruising under power), Normal, or Every station (racing: see exactly how the current runs)
@@ -5826,11 +5841,11 @@ async function drawCurrents() {
     CUR.layer.clearLayers(); if (!curOn()) return;
     vis.forEach((st) => {
       const p = CUR.pred.get(st.id + ':' + ymdUTC(Date.now() - 86400000)), now = curAt(p, t); if (!now) return;
-      const col = curColor(now.kn), len = Math.round(26 + Math.min(3, now.kn) * 8), slack = now.kn < 0.4, lbl = S.settings.curLbl || 'all';
+      const col = curColor(now.kn), len = Math.round(16 + Math.min(3, now.kn) * 5), slack = now.kn < 0.4, lbl = S.settings.curLbl || 'all';
       if (slack && dens === 'few') return;
       const showN = lbl === 'all' || (lbl === 'strong' && now.kn >= 1);
       const html = '<div class="cur-a' + (slack ? ' slack' : '') + '" style="--c:' + col + '">' + (slack ? '<i class="cur-dot"></i>' : '<svg width="' + len + '" height="' + len + '" viewBox="0 0 24 24" style="transform:rotate(' + Math.round((now.dir || 0) + mapRot()) + 'deg)"><path d="M12 2l6 10h-4v10h-4V12H6z"/></svg>') + (showN ? '<b>' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn') + '</b>' : '') + '</div>';
-      const m = L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [56, 56], iconAnchor: [28, 28], html }) }).addTo(CUR.layer);
+      const m = L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20], html }) }).addTo(CUR.layer);
       m.on('click', (e) => { L.DomEvent.stop(e); openCurrent(st); });
       m.bindTooltip(esc(st.n) + ': ' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn ' + (now.flood ? 'flood' : 'ebb') + ' toward ' + compass16(now.dir || 0)), { direction: 'top' });
     });
@@ -5876,7 +5891,7 @@ async function openCurrent(st) {
 function curSettingsHtml() {
   const d = S.settings.curDensity || 'normal', l = S.settings.curLbl || 'all', seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-cur' + k + '="' + v + '" class="' + (cur === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   return '<div class="mo-h">How much current to show</div><div class="field"><label for="curLev">Arrows: <b id="curLevV">' + curLevelWord(curLevel()) + '</b></label><input type="range" id="curLev" min="1" max="10" step="1" value="' + curLevel() + '"><div class="cur-lev-ends"><span>A few</span><span>Every station</span></div><small class="hint">Slide left for a calm chart when cruising under power; slide right to see how the current runs through each channel, for racing.</small></div>' +
-    '<div class="field"><label>Moving current lines</label>' + seg('anim', S.settings.curAnim === false ? 'off' : 'on', [['on', 'On: water flows like the wind lines'], ['off', 'Off']]) + '<small class="hint">Lines drift the way the water runs, faster where the current is strong. They are drawn only near NOAA stations, and between stations they are an estimate.</small></div>' +
+    '<div class="field"><label>Moving current lines</label>' + seg('anim', S.settings.curAnim === true ? 'on' : 'off', [['off', 'Off'], ['on', 'On: water flows like the wind lines']]) + '<small class="hint">Lines drift the way the water runs, faster where the current is strong. They are drawn only near NOAA stations, and between stations they are an estimate.</small></div>' +
     '<div class="field"><label>Speed numbers</label>' + seg('lbl', l, [['all', 'On every arrow'], ['strong', 'Only 1 kn and up'], ['none', 'Off']]) + '</div>';
 }
 sheet.addEventListener('click', (e) => {
@@ -5888,11 +5903,11 @@ function openCurSettings() { openSheet('<h3>Tidal currents</h3><div class="sub">
 document.addEventListener('click', async (e) => { if (!e.target.closest('[data-cur-near]')) return; const st = await nearestCurrent(S.fix || homePort() || refPos()); if (st) openCurrent(st); else openCurSettings(); });
 sheet.addEventListener('click', (e) => { if (e.target.closest('[data-curtoggle]')) { setCurrents(!curOn()); openCurSettings(); } });
 sheet.addEventListener('input', (e) => { if (e.target.id !== 'curLev') return; S.settings.curLevel = +e.target.value; delete S.settings.curDensity; const v = $('curLevV'); if (v) v.textContent = curLevelWord(S.settings.curLevel); clearTimeout(CUR.lt); CUR.lt = setTimeout(() => { saveSettings(); drawCurrents(); }, 150); });
-function curLevel() { if (S.settings.curLevel) return S.settings.curLevel; const d = S.settings.curDensity; return d === 'few' ? 2 : d === 'all' ? 10 : 5; }
+function curLevel() { if (S.settings.curLevel) return S.settings.curLevel; const d = S.settings.curDensity; return d === 'few' ? 2 : d === 'all' ? 10 : 4; }
 function curLevelWord(l) { return l <= 2 ? 'a few' : l <= 4 ? 'some' : l <= 6 ? 'normal' : l <= 8 ? 'lots' : 'every station'; }
 /* moving current lines: particles drift with the current, estimated between nearby NOAA stations and drawn only close to them */
 const CF = { cv: null, ctx: null, parts: [], grid: null, raf: 0, moving: false };
-function cfOn() { return curOn() && S.settings.curAnim !== false && map.getZoom() >= 10; }
+function cfOn() { return curOn() && S.settings.curAnim === true && map.getZoom() >= 11; }
 function cfCanvas() {
   if (CF.cv) return; CF.cv = document.createElement('canvas'); CF.cv.className = 'cur-flow'; map.getContainer().appendChild(CF.cv); CF.ctx = CF.cv.getContext('2d');
   const size = () => { const s2 = map.getSize(), dpr = Math.min(2, window.devicePixelRatio || 1); CF.cv.width = s2.x * dpr; CF.cv.height = s2.y * dpr; CF.cv.style.width = s2.x + 'px'; CF.cv.style.height = s2.y + 'px'; CF.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };

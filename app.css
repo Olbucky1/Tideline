@@ -1478,3 +1478,17 @@ html[data-mi="xl"] #fabsR .mini-inst { margin-left: calc(40px - var(--mi)) !impo
 .cur-flow { position: absolute; inset: 0; z-index: 402; pointer-events: none; }
 .cur-lev-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); }
 #curLev { width: 100%; }
+/* alert pictures: white line drawings (bolt, wind, tornado, hurricane, water, fog, snow, heat, seas) */
+.alr-ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -4px; }
+.alr-ic .ai-fill { fill: currentColor; stroke: none; }
+.alert-bar.mini b { color: #fff !important; line-height: 0 !important; } .alert-bar.mini .alr-ic { width: 21px; height: 21px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+.alr > b .alr-ic { width: 18px; height: 18px; color: var(--ink); }
+.sv-ic .alr-ic { width: 72px; height: 72px; stroke-width: 1.8; color: #fff; }
+/* one calm circle: course on top, speed in the middle, charted depth below */
+#miniInst .mini-depth { display: none !important; }
+.mi-spd { font-size: 16px !important; } .mi-cog { font-size: 6.5px !important; font-weight: 700; fill: var(--ink2) !important; }
+.mi-div { stroke: var(--line, #C9D8E6); stroke-width: .6; }
+.mi-dep { text-anchor: middle; font: 700 8.5px var(--f-num); fill: #1565C0; } .mi-dep .mi-du { font-size: 5px; font-weight: 600; }
+.mi-dep.shallow { fill: #D32F2F; }
+:root[data-night] .mi-dep { fill: var(--ink); } :root[data-night] .mi-dep.shallow { fill: #E05A4A; }
+.cur-a { width: 40px !important; height: 40px !important; } .cur-a b { font-size: 9.5px !important; bottom: -3px !important; padding: 1px 3px !important; }
