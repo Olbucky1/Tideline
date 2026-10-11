@@ -573,7 +573,7 @@ html.calm #app.wide .topbar { left: calc((100% - 400px) / 2); right: auto; }
 @media (min-width: 900px) { .ck-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } .ck-grid[data-n="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 
 .gauge { min-height: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border: 1px solid var(--g-line); border-radius: 22px; padding: 8px 6px 8px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
-.gauge.alarm { border-color: var(--g-red); box-shadow: 0 0 0 2px var(--g-red) inset; }
+.gauge.g-alarm { border-color: var(--g-red); box-shadow: 0 0 0 2px var(--g-red) inset; }
 .g-lbl { font-size: 13px; font-weight: 700; letter-spacing: .14em; color: var(--g-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gauge svg { flex: 1; min-height: 0; width: 100%; max-width: 420px; }
 .g-foot { font-size: 12.5px; color: var(--g-muted); text-align: center; line-height: 1.25; max-width: 100%; }
@@ -919,3 +919,27 @@ html.calm #app.wide .fab-col.fab-right { right: 412px !important; }
 :root[data-night] .ring-lbl, :root[data-night] .mp-pin span, :root[data-night] .wv-pt b { color: #C98576 !important; text-shadow: 0 0 3px #0C0607 !important; }
 :root[data-night] .tl-chips button.on, :root[data-night] .tl-tabs button.on { color: #0C0607; }
 :root[data-night] .fab.info .fi-ic svg, :root[data-night] #waveChip .fi-ic svg, :root[data-night] #tideChip .fi-ic svg { stroke: #D9614C; }
+
+/* gauge panel size beside the chart: narrow (400px), a third, or half the screen */
+html[data-side="third"] { --sideW: 33.4vw; }
+html[data-side="half"] { --sideW: 50vw; }
+html[data-side="third"] #app.wide:has(#panelSide:not([hidden])) #map, html[data-side="half"] #app.wide:has(#panelSide:not([hidden])) #map { right: var(--sideW); }
+html[data-side="third"] #app.wide #panelSide, html[data-side="half"] #app.wide #panelSide { width: var(--sideW); }
+html[data-side="third"] #app.wide:has(#panelSide:not([hidden])) .fab-col.fab-right, html[data-side="half"] #app.wide:has(#panelSide:not([hidden])) .fab-col.fab-right { right: calc(var(--sideW) + 12px) !important; }
+html[data-side="third"] #app.wide:has(#panelSide:not([hidden])) .topbar, html[data-side="half"] #app.wide:has(#panelSide:not([hidden])) .topbar { left: calc((100% - var(--sideW)) / 2) !important; right: auto !important; }
+html[data-side="third"] #app.wide:has(#panelSide:not([hidden])) .sheet, html[data-side="half"] #app.wide:has(#panelSide:not([hidden])) .sheet { right: var(--sideW); }
+html[data-side="third"] #app.wide:has(#panelSide:not([hidden])) .bottom-stack, html[data-side="half"] #app.wide:has(#panelSide:not([hidden])) .bottom-stack { right: calc(var(--sideW) + 12px); max-width: none; }
+#panelSide.gmode .side-g[data-n="7"], #panelSide.gmode .side-g[data-n="8"], #panelSide.gmode .side-g[data-n="9"], #panelSide.gmode .side-g[data-n="10"] { gap: 6px; padding: 8px; }
+#panelSide.gmode .side-g .sg { min-height: 0; }
+#panelSide.gmode .side-g .gauge { display: flex; flex-direction: column; min-height: 0; }
+#panelSide.gmode .side-g .gauge svg { flex: 1; min-height: 0; width: 100%; }
+.side-picks { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+
+/* moving wind lines */
+.wind-lines { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 401; mix-blend-mode: normal; }
+:root:not([data-night]):not([data-dusk]) .wind-lines { filter: drop-shadow(0 0 0.6px rgba(20, 60, 80, 0.55)); }
+:root[data-night] .wind-lines { opacity: 0.45; filter: sepia(1) hue-rotate(-30deg) saturate(2); }
+html.wlines .wx-pt svg { display: none; }
+html.wlines .wx-pt b { font-size: 11px; opacity: 0.85; }
+/* night chart: deeper red shading, closer to the original red night view */
+:root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) brightness(0.37) sepia(1) hue-rotate(-45deg) saturate(2.4) contrast(1.05) !important; }

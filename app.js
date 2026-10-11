@@ -308,9 +308,10 @@ function openLayersSheet() {
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
+  html += tog('shallowBox', 'Shallow water warning', 'Orange where the chart is shallower than your draft plus buffer, yellow where it is close', st.shallowTint !== false);
   html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides shipping lanes, cable areas and other special areas. Turn off for the full NOAA chart', st.soundings !== false);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
-  html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
+  html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wLinesBox', 'Moving wind lines', 'Light streaks that drift with the forecast wind', S.settings.windLines !== false) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
 
   html += tog('easyBox', 'Easy view', 'Bigger icons and text', st.easy);
   html += '<div class="row-btns" style="margin-top:12px"><button class="btn" data-act="cockpit">Cockpit display</button><button class="btn primary" data-act="close">Done</button></div></div>';
@@ -351,8 +352,10 @@ function drawRings() {
 map.on('zoomend', drawRings);
 sheet.addEventListener('change', (e) => {
   if (e.target.name === 'chart') { S.settings.chart = e.target.value; saveSettings(); applyChart(); }
+  if (e.target.id === 'shallowBox') { S.settings.shallowTint = e.target.checked; saveSettings(); SH.drawnKey = ''; drawShallow(); }
   if (e.target.id === 'soundBox') { S.settings.soundings = e.target.checked; saveSettings(); noaaDP = true; LAYERS.noaa.redraw(); LAYERS.noaaOver.redraw(); }
   if (e.target.id === 'seamarksBox') { S.settings.seamarks = e.target.checked; saveSettings(); applyChart(); }
+  if (e.target.id === 'wLinesBox') { S.settings.windLines = e.target.checked; saveSettings(); drawGrid(); }
   if (e.target.id === 'wxWind' || e.target.id === 'wxWaves' || e.target.id === 'wxRain') setWxL({ wxWind: 'wind', wxWaves: 'waves', wxRain: 'rain' }[e.target.id], e.target.checked);
   if (e.target.id === 'bridgesBox') { S.settings.bridges = e.target.checked; saveSettings(); refreshBridges(true); }
   if (e.target.id === 'satBox') { S.settings.satOver = e.target.checked; if (S.settings.chart === 'satellite') S.settings.chart = 'noaa'; saveSettings(); applyChart(); openLayersSheet(); }
@@ -717,6 +720,37 @@ async function routeByWater(stops) {
   else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
   return out;
 }
+
+/* ---------- shallow water tint: NOAA ENC depth areas shaded by this boat's draft, so shoals stand out without reading numbers ---------- */
+const SH = { layer: null, tiles: new Map(), busy: 0, drawnKey: '' };
+function shallowOn() { return S.settings.shallowTint !== false && S.settings.chart !== 'street'; }
+async function drawShallow() {
+  if (!SH.layer) SH.layer = L.layerGroup().addTo(map);
+  const z = map.getZoom();
+  if (!shallowOn() || z < 10.5) { SH.layer.clearLayers(); SH.drawnKey = ''; return; }
+  const svc = z >= 13.5 ? 'enc_harbour' : 'enc_approach', step = svc === 'enc_harbour' ? 0.04 : 0.15, b = map.getBounds().pad(0.15);
+  const keys = [];
+  for (let la = Math.floor(b.getSouth() / step) * step; la < b.getNorth(); la += step) for (let lo = Math.floor(b.getWest() / step) * step; lo < b.getEast(); lo += step) keys.push(svc + ':' + la.toFixed(3) + ':' + lo.toFixed(3));
+  if (keys.length > 30) return;
+  const need = wrNeedM(), dk = keys.join('|') + need + document.documentElement.hasAttribute('data-night');
+  await Promise.all(keys.filter((k) => !SH.tiles.has(k)).map(async (k) => {
+    SH.tiles.set(k, null); const [, la, lo] = k.split(':').map(Number);
+    try { const f = await encQuery(svc, 'depth', [lo, la, lo + step, la + step], svc === 'enc_harbour' ? 0.00005 : 0.0002); SH.tiles.set(k, f); } catch (e) { SH.tiles.delete(k); }
+  }));
+  if (dk === SH.drawnKey) return; SH.drawnKey = dk;
+  const night = document.documentElement.hasAttribute('data-night'), rend = SH.rend || (SH.rend = L.canvas({ padding: 0.2 }));
+  SH.layer.clearLayers(); const seen = new Set();
+  keys.forEach((k) => (SH.tiles.get(k) || []).forEach((f) => {
+    if (f.d1 == null) return;
+    const shallow = (f.d2 != null ? f.d2 : f.d1 + 2) <= need, close = !shallow && f.d1 < need;
+    if (!shallow && !close) return;
+    const id = f.d1 + ':' + f.rings[0].length + ':' + f.rings[0][0].join(','); if (seen.has(id)) return; seen.add(id);
+    const st = shallow ? { fillColor: night ? '#7A1E14' : '#E8743B', fillOpacity: night ? 0.35 : 0.32 } : { fillColor: night ? '#5A2A10' : '#F2C14E', fillOpacity: night ? 0.22 : 0.24 };
+    SH.layer.addLayer(L.polygon(f.rings.map((r) => r.map(([lo2, la2]) => [la2, lo2])), Object.assign({ renderer: rend, stroke: false, interactive: false }, st)));
+  }));
+}
+map.on('moveend', () => { clearTimeout(SH.t); SH.t = setTimeout(drawShallow, 400); });
+setTimeout(drawShallow, 3000);
 
 /* ---------- go to / navigation ---------- */
 function setGoto(name, lat, lon) {
@@ -1292,7 +1326,60 @@ function gridIndex(times) {
   let best = 0; times.forEach((t, i) => { if (Math.abs(t - want) < Math.abs(times[best] - want)) best = i; });
   return best;
 }
+/* ---------- animated wind lines: light streaks drifting with the forecast wind, like smoke on the water ---------- */
+const WS = { cv: null, ctx: null, parts: [], field: null, raf: 0, run: false, moving: false };
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function wsSetup() {
+  if (WS.cv) return;
+  WS.cv = document.createElement('canvas'); WS.cv.className = 'wind-lines'; map.getContainer().appendChild(WS.cv); WS.ctx = WS.cv.getContext('2d');
+  map.on('zoomstart', () => { WS.moving = true; if (WS.ctx) WS.ctx.clearRect(0, 0, WS.cv.width, WS.cv.height); });
+  map.on('zoomend resize', () => { WS.moving = false; wsField(); });
+  map.on('move', () => { // panning: slide the lines with the chart instead of stopping them
+    if (!WS.field || !WS.ref || WS.moving) return;
+    const pt = map.latLngToContainerPoint(WS.ref), dx = pt.x - WS.refPt.x, dy = pt.y - WS.refPt.y; if (!dx && !dy) return;
+    WS.refPt = pt; WS.field.forEach((f) => { f.x += dx; f.y += dy; }); WS.parts.forEach((q) => { q.x += dx; q.y += dy; });
+    if (Math.abs(dx) + Math.abs(dy) > 3) WS.ctx.clearRect(0, 0, WS.sz.x, WS.sz.y); // big pans: start the trails fresh
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) wsStop(); else if (wxOn('wind')) wsStart(); });
+}
+function wsField() {
+  const g = WX.grids.wind; if (!g || !WS.cv) { WS.field = null; return; }
+  WS.moving = false;
+  const sz = map.getSize(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  WS.cv.width = sz.x * dpr; WS.cv.height = sz.y * dpr; WS.cv.style.width = sz.x + 'px'; WS.cv.style.height = sz.y + 'px'; WS.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  WS.field = g.pts.filter((p) => p.t.length).map((p) => { const i = gridIndex(p.t), spd = p.a && p.a[i], dir = p.b && p.b[i]; if (spd == null || dir == null) return null; const pt = map.latLngToContainerPoint([p.lat, p.lon]), to = (dir + 180) * Math.PI / 180; return { x: pt.x, y: pt.y, u: Math.sin(to) * spd, v: -Math.cos(to) * spd, s: spd }; }).filter(Boolean);
+  const n = Math.min(1400, Math.round(sz.x * sz.y / 1500));
+  WS.parts = Array.from({ length: n }, () => wsSeed(sz));
+  WS.ref = map.getCenter(); WS.refPt = map.latLngToContainerPoint(WS.ref);
+  WS.sz = sz;
+}
+function wsSeed(sz) { return { x: Math.random() * sz.x, y: Math.random() * sz.y, age: Math.floor(Math.random() * 80), max: 60 + Math.random() * 60 }; }
+function wsAt(x, y) { // inverse-distance blend of the nearby forecast points
+  let su = 0, sv = 0, ss = 0, sw = 0;
+  for (const f of WS.field) { const d2 = (f.x - x) ** 2 + (f.y - y) ** 2 + 400, w = 1 / (d2 * d2); su += f.u * w; sv += f.v * w; ss += f.s * w; sw += w; }
+  return sw ? [su / sw, sv / sw, ss / sw] : [0, 0, 0];
+}
+function wsColor(s) {
+  if (!document.documentElement.hasAttribute('data-night') && !document.documentElement.hasAttribute('data-dusk') && S.settings.chart !== 'satellite') return s < 10 ? 'rgba(30,110,135,0.30)' : s < 15 ? 'rgba(30,130,110,0.36)' : s < 20 ? 'rgba(170,120,20,0.42)' : s < 25 ? 'rgba(190,90,30,0.48)' : 'rgba(180,40,40,0.52)';
+  return s < 10 ? 'rgba(225,250,245,0.62)' : s < 15 ? 'rgba(205,245,215,0.66)' : s < 20 ? 'rgba(250,240,190,0.7)' : s < 25 ? 'rgba(255,215,175,0.74)' : 'rgba(255,190,190,0.78)'; }
+function wsFrame() {
+  if (!WS.run) return;
+  WS.raf = requestAnimationFrame(wsFrame);
+  if (WS.moving || !WS.field || !WS.field.length) return;
+  const c = WS.ctx, sz = WS.sz, k = 0.11; // pixels per frame per knot
+  c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.085)'; c.fillRect(0, 0, sz.x, sz.y);
+  c.globalCompositeOperation = 'source-over'; c.lineWidth = 1.4; c.lineCap = 'round';
+  for (const p of WS.parts) {
+    const [u, v, s] = wsAt(p.x, p.y), nx = p.x + u * k, ny = p.y + v * k;
+    if (p.age > 2) { c.strokeStyle = wsColor(s); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(nx, ny); c.stroke(); }
+    p.x = nx; p.y = ny; p.age++;
+    if (p.age > p.max || nx < -5 || ny < -5 || nx > sz.x + 5 || ny > sz.y + 5) Object.assign(p, wsSeed(sz), { age: 0 });
+  }
+}
+function wsStart() { wsSetup(); WS.cv.hidden = false; wsField(); if (reduceMotion || WS.run) return; WS.run = true; wsFrame(); }
+function wsStop() { WS.run = false; cancelAnimationFrame(WS.raf); if (WS.cv) { WS.ctx.clearRect(0, 0, WS.cv.width, WS.cv.height); WS.cv.hidden = true; } }
 function drawGrid() {
+  if (wxOn('wind') && WX.grids.wind && S.settings.windLines !== false) { wsStart(); document.documentElement.classList.add('wlines'); } else { wsStop(); document.documentElement.classList.remove('wlines'); }
   wxGrid.clearLayers();
   const gw = wxOn('wind') && WX.grids.wind, gv = wxOn('waves') && WX.grids.waves; if (!gw && !gv) return;
   const at = {};
@@ -1609,19 +1696,29 @@ function renderLive() {
 
 /* iPad side column: the four things a skipper glances at, each with its source and age */
 function ageS(t) { if (!t) return ''; const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + 's ago' : agoTxt(t); }
+const SIDE_MAX = 10;
+function sideIds() { return (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).filter((x) => x !== 'chart' && x !== 'off').slice(0, SIDE_MAX); }
+function applySideWidth() { document.documentElement.dataset.side = S.settings.sideWidth || 'normal'; setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
 function openSideCustom() {
-  const cur = S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time'];
+  const cur = sideIds(), wd = S.settings.sideWidth || 'normal';
   const opts = CK_OPTS.filter(([v]) => v !== 'chart' && v !== 'off').concat([['auto', 'Tide, or destination when navigating']]);
-  openSheet('<h3>Gauges beside the chart</h3><div class="sub">Pick up to six. They show in this order.</div>' + [0, 1, 2, 3, 4, 5].map((i) => '<div class="field"><label>Gauge ' + (i + 1) + '</label><select data-sidepick="' + i + '"><option value="off">None</option>' + opts.map(([v, l]) => '<option value="' + v + '"' + (cur[i] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>').join('') + '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
+  openSheet('<h3>Gauges beside the chart</h3><div class="sub">Pick up to ten. They fit themselves to the space, in this order.</div>' +
+    '<div class="field"><label>Gauge panel size</label><div class="seg" role="group">' + [['normal', 'Narrow'], ['third', 'A third'], ['half', 'Half the screen']].map(([v, l]) => '<button type="button" data-sidew="' + v + '" class="' + (wd === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div>' +
+    '<div class="side-picks">' + Array.from({ length: SIDE_MAX }, (_, i) => '<div class="field"><label>Gauge ' + (i + 1) + '</label><select data-sidepick="' + i + '"><option value="off">None</option>' + opts.map(([v, l]) => '<option value="' + v + '"' + (cur[i] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>').join('') + '</div>' +
+    '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
 }
-sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sidepick]'); if (!sp) return; const cur = (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).slice(); while (cur.length < 6) cur.push('off'); cur[+sp.dataset.sidepick] = sp.value; S.settings.sideSlots = cur.filter((x) => x !== 'off'); if (!S.settings.sideSlots.length) S.settings.sideSlots = ['speed']; saveSettings(); renderSide(); });
+sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-sidew]'); if (!b) return; S.settings.sideWidth = b.dataset.sidew; saveSettings(); applySideWidth(); sheet.querySelectorAll('[data-sidew]').forEach((x) => x.classList.toggle('on', x === b)); setTimeout(renderSide, 80); });
+sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sidepick]'); if (!sp) return; const cur = sideIds(); while (cur.length < SIDE_MAX) cur.push('off'); cur[+sp.dataset.sidepick] = sp.value; S.settings.sideSlots = cur.filter((x) => x !== 'off'); if (!S.settings.sideSlots.length) S.settings.sideSlots = ['speed']; saveSettings(); renderSide(); });
+function sideCols(n, W, H) { let best = 1, bs = 0; for (let c = 1; c <= Math.min(n, 5); c++) { const r = Math.ceil(n / c), sz = Math.min(W / c, (H / r) * 1.05); if (sz > bs + 1) { bs = sz; best = c; } } return best; }
+applySideWidth(); window.addEventListener('resize', () => { clearTimeout(window.__sgT); window.__sgT = setTimeout(() => { try { renderSide(); } catch (e) { /* later */ } }, 200); });
 function renderSide() {
   const p = $('panelSide'); if (!p) return;
   if (S.settings.sideStyle !== 'text') {
-    const ids = (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).filter((x) => x !== 'chart' && x !== 'off');
+    const ids = sideIds();
     let h = '';
     if (S.goto && S.fix) { const d = distNm(S.fix, S.goto), mv = (S.sog || 0) > 0.6, hrs = mv ? d / S.sog : NaN; h += '<button type="button" class="sd sd-dest" data-sact="nav"><small>Next destination</small><b>' + esc(S.goto.name) + '</b><span class="tnum">' + fmtDist(d) + (isFinite(hrs) ? ' · ETA ' + fmtClock(Date.now() + hrs * 3600000) : '') + '</span></button>'; }
-    h += '<div class="side-g" data-n="' + ids.length + '">' + ids.map((id) => '<div class="sg">' + ckGauge(id) + '</div>').join('') + '</div>';
+    const W = Math.max(200, (p.clientWidth || 400) - 40), H = Math.max(300, (p.clientHeight || 700) - 150), cols = sideCols(ids.length, W, H);
+    h += '<div class="side-g" data-n="' + ids.length + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + ids.map((id) => '<div class="sg">' + ckGauge(id) + '</div>').join('') + '</div>';
     h += '<div class="side-btns"><button type="button" class="btn small" data-sact="dash">Full screen</button><button type="button" class="btn small" data-sact="sidecust">Choose gauges</button><button type="button" class="btn small" data-sact="sidetext">Plain numbers</button></div>';
     p.innerHTML = h; p.classList.add('gmode'); return;
   }
@@ -2445,7 +2542,7 @@ function themeNow() {
 function applyNight() {
   const th = themeNow(), root = document.documentElement;
   S.settings.night = th === 'night';
-  root.toggleAttribute('data-night', th === 'night'); root.toggleAttribute('data-dusk', th === 'dusk');
+  root.toggleAttribute('data-night', th === 'night'); root.toggleAttribute('data-dusk', th === 'dusk'); if (typeof SH !== 'undefined') { SH.drawnKey = ''; setTimeout(drawShallow, 50); }
   renderThemeBtn(th);
   document.querySelector('meta[name=theme-color]').setAttribute('content', th === 'night' ? '#0A0202' : th === 'dusk' ? '#0F1A25' : '#0B1824');
 }
@@ -3865,7 +3962,7 @@ function anchorGauge(ft, radius) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, lim, A1) + '" class="g-danger"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (frac > 1 ? ' bad' : '') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + (ft == null ? '–' : Math.round(ftToLen(ft))) + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' of ' + fmtLen(radius) + '</text>';
 }
-const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['chart', 'Small chart'], ['off', 'Off']];
+const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
 function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
 /* charted depth where the boat is (or the chart centre): NOAA ENC depth area, plus the predicted tide. Not a sounder. */
@@ -3894,18 +3991,21 @@ function depthGauge() {
   return gWrap('DEPTH', '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/>' + (lim ? '<path d="' + arcPath(84, A0, lim) + '" class="g-danger"/>' : '') + '<path d="' + arcPath(84, A0, a) + '" class="g-fill' + (bad ? ' bad' : warn ? ' warnf' : ' depth') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + Math.round(ftToLen(lo)) + (hi && hi - lo > 1 ? '<tspan class="g-plus">+</tspan>' : '') + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' · charted' + (tn ? ' + tide' : '') + '</text>' +
     (need ? '<text x="100" y="160" class="g-unit">' + (bad ? 'SHALLOW' : 'need ' + Math.round(ftToLen(need))) + '</text>' : ''),
-    'NOAA chart ' + Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() + (tn ? ' ' + (tide >= 0 ? '+' : '') + tide.toFixed(1) + ' tide' : '') + ' · not a sounder', bad ? 'alarm' : '');
+    'NOAA chart ' + Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() + (tn ? ' ' + (tide >= 0 ? '+' : '') + tide.toFixed(1) + ' tide' : '') + ' · not a sounder', bad ? 'g-alarm' : '');
 }
 function ckGauge(id) {
   const w = S.weather, tn = tideNow(), ob = nearestObs(), moving = (S.sog || 0) > 0.6;
   if (id === 'auto') id = S.goto && S.fix ? 'dest' : 'tide';
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'depth') { maybeDepth(); return depthGauge(); }
+  if (id === 'waves') { const wv = w && w.wave; return gWrap('WAVES', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="108" class="g-big sm">' + (wv && wv.h != null ? waveLen(wv.h).replace(/\s*(ft|m)$/, '') : '–') + '</text><text x="100" y="132" class="g-unit">' + lenUnit() + (wv && wv.per ? ' · every ' + Math.round(wv.per) + ' s' : '') + '</text>' + (wv && wv.dir != null ? '<text x="100" y="156" class="g-unit">from ' + compass16(wv.dir) + '</text>' : ''), 'Model forecast · Open-Meteo'); }
+  if (id === 'trip') { const t = S.trip || { dist: 0, moving: 0 }, [dv, du] = distParts(t.dist || 0); return gWrap('TRIP', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="104" class="g-big sm">' + dv + '</text><text x="100" y="128" class="g-unit">' + du + '</text><text x="100" y="156" class="g-unit">' + fmtDur((t.moving || 0) / 3600) + ' underway</text>', t.moving > 60 ? 'Average ' + fmtSpeed(t.dist / (t.moving / 3600)) + ' ' + SPEED_LBL[S.settings.speedUnit] : 'Since trip reset'); }
+  if (id === 'temps') { const air = w && w.cur && w.cur.temp, water = S.waterObs && Date.now() - S.waterObs.t < 3 * 3600000 ? S.waterObs.f : w && w.sst; return gWrap('AIR · WATER', '<text x="100" y="66" class="g-unit">AIR</text><text x="100" y="112" class="g-big sm">' + tempTxt(air) + '</text><text x="100" y="146" class="g-unit">WATER ' + tempTxt(water) + '</text>', S.waterObs ? 'Water measured · NOAA' : 'Forecast'); }
   if (id === 'course') return gWrap('COURSE', compassGauge(moving ? S.cog : null), 'Course over ground');
   if (id === 'wind') { const wd = ob ? { dir: ob.dir, spd: ob.spd, gust: ob.gust, cap: 'Measured · ' + agoTxt(ob.t) } : w && w.cur ? { dir: w.cur.dir, spd: w.cur.spd, gust: w.cur.gust, cap: 'Forecast · ' + agoTxt(w.at) } : null; return gWrap('WIND ' + (wd ? compass16(wd.dir) : ''), windGauge(wd && wd.dir, wd && wd.spd, wd && wd.gust, moving ? S.cog : 0), wd ? wd.cap + (moving ? ' · arrow relative to bow' : ' · arrow: north up') : 'No wind data yet'); }
   if (id === 'tide') return tn ? gWrap('TIDE', tideGauge(tn), tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · NOAA' : 'NOAA prediction') : gWrap('TIDE', '<text x="100" y="108" class="g-unit">No tide station yet</text>', '');
   if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); const gr = S.goto.route, onTurn = gr && gr.pts[gr.i] && gr.pts[gr.i].turn; return gWrap(onTurn ? 'NEXT TURN' : 'TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'ETA ' + fmtClock(Date.now() + li.hrs * 3600000) + ' · ' + fmtDur(li.hrs) : 'Steer to the arrow'); }
-  if (id === 'anchor') return S.anchor ? gWrap('ANCHOR', anchorGauge(S.anchor.lastFt, S.anchor.radiusFt), S.alarmOn ? 'ALARM' : 'Distance from anchor', S.alarmOn ? 'alarm' : '') : gWrap('ANCHOR', '<text x="100" y="108" class="g-unit">Watch is off</text>', '');
+  if (id === 'anchor') return S.anchor ? gWrap('ANCHOR', anchorGauge(S.anchor.lastFt, S.anchor.radiusFt), S.alarmOn ? 'ALARM' : 'Distance from anchor', S.alarmOn ? 'g-alarm' : '') : gWrap('ANCHOR', '<text x="100" y="108" class="g-unit">Watch is off</text>', '');
   if (id === 'position') { const f = S.fix; return gWrap('GPS POSITION', '<text x="100" y="84" class="g-big pos">' + (f ? ddm(f.lat, true) : '–') + '</text><text x="100" y="124" class="g-big pos">' + (f ? ddm(f.lon, false) : '') + '</text><text x="100" y="156" class="g-unit">' + (f && f.acc ? '±' + Math.round(ftToLen(f.acc * 3.28084)) + ' ' + lenUnit() + ' accuracy' : 'No fix') + '</text>', S.lastFixAt ? 'Last fix ' + Math.max(0, Math.round((Date.now() - S.lastFixAt) / 1000)) + ' s ago' : ''); }
   if (id === 'time') { const now = Date.now(), ss = w && (w.sunset || []).find((t) => t > now), sr = w && (w.sunrise || []).find((t) => t > now); return gWrap('TIME', '<text x="100" y="108" class="g-big">' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?(AM|PM)/i, '') + '</text>' + (ss ? '<text x="100" y="142" class="g-unit">Sunset ' + fmtClock(ss) + '</text>' : '') + (sr ? '<text x="100" y="' + (ss ? 164 : 142) + '" class="g-unit">Sunrise ' + fmtClock(sr) + '</text>' : ''), ''); }
   return '';
@@ -4003,5 +4103,5 @@ $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();
 wake();
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
