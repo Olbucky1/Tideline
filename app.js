@@ -423,16 +423,51 @@ function applyCalm() { document.documentElement.classList.toggle('calm', !S.sett
 function applyEasy() { document.documentElement.classList.toggle('easy', !!S.settings.easy); }
 /* range rings around the boat, scaled to the zoom */
 const ringLayer = L.layerGroup().addTo(map);
+// range rings: automatic spacing for the zoom, or your own spacing, number, color and labels
+const RING_COL = { dark: '#0E1F2E', blue: '#1565C0', red: '#D32F2F', orange: '#E07A10', white: '#FFFFFF' };
+function ringRadii() {
+  const st = S.settings, n = Math.max(1, Math.min(6, +st.ringCount || 3)), step = st.ringStep && st.ringStep !== 'auto' ? +st.ringStep : null;
+  if (step) return Array.from({ length: n }, (_, i) => +(step * (i + 1)).toFixed(3));
+  const z = map.getZoom(), base = z >= 16 ? 0.1 : z >= 15 ? 0.25 : z >= 13.5 ? 0.25 : z >= 12 ? 0.5 : z >= 10.5 ? 1 : 2;
+  return Array.from({ length: n }, (_, i) => base * [1, 2, 4, 6, 8, 10][i]);
+}
 function drawRings() {
   ringLayer.clearLayers();
-  if (!S.settings.rings || !S.fix) return;
-  const z = map.getZoom(), radii = z >= 16 ? [0.1, 0.25] : z >= 14 ? [0.25, 0.5, 1] : z >= 12 ? [0.5, 1, 2] : [1, 2, 4];
-  radii.forEach((r) => {
-    ringLayer.addLayer(L.circle([S.fix.lat, S.fix.lon], { radius: r * M_PER_NM, color: '#0E1F2E', weight: 1, opacity: 0.45, fill: false, interactive: false }));
-    const p = destination(S.fix, 180, r);
-    ringLayer.addLayer(L.marker([p.lat, p.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'ring-lbl', iconSize: [44, 14], iconAnchor: [22, 7], html: fmtDist(r).replace(' ', '&#8202;') }) }));
+  const st = S.settings; if (!st.rings) return;
+  const c = S.fix || (st.ringCenter === 'chart' ? refPos() : null); if (!c) return;
+  const col = RING_COL[st.ringColor || 'dark'] || RING_COL.dark, dash = st.ringDash ? '6 6' : null, w = st.ringWeight || 1.2;
+  ringRadii().forEach((r) => {
+    ringLayer.addLayer(L.circle([c.lat, c.lon], { radius: r * M_PER_NM, color: col, weight: w, opacity: st.ringColor === 'white' ? 0.85 : 0.55, dashArray: dash, fill: false, interactive: false }));
+    if (st.ringLabels === false) return;
+    const p = destination(c, 180, r);
+    ringLayer.addLayer(L.marker([p.lat, p.lon], { interactive: true, keyboard: false, icon: L.divIcon({ className: 'ring-lbl', iconSize: [48, 16], iconAnchor: [24, 8], html: fmtDist(r).replace(' ', '&#8202;') }) }).on('click', (e) => { L.DomEvent.stop(e); openRingSheet(); }));
   });
 }
+function ringControlsHtml() {
+  const st = S.settings, step = String(st.ringStep || 'auto'), n = String(st.ringCount || 3), seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-ring' + k + '="' + v + '" class="' + (cur === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  return '<div class="field"><label>Spacing</label>' + seg('step', step, [['auto', 'Auto'], ['0.1', '0.1'], ['0.25', '¼'], ['0.5', '½'], ['1', '1'], ['2', '2'], ['5', '5']].map(([v, t]) => [v, v === 'auto' ? t : t + ' nm'])) + '<small class="hint">Auto picks a spacing that fits the zoom.</small></div>' +
+    '<div class="field"><label>How many rings</label>' + seg('n', n, [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']]) + '</div>';
+}
+function openRingSheet() {
+  const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-ring' + k + '="' + v + '" class="' + (cur === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  openSheet('<h3>Range rings</h3><div class="sub">Circles at set distances around your boat</div>' +
+    '<div class="field"><label>Rings</label>' + seg('on', String(!!st.rings), [['true', 'On'], ['false', 'Off']]) + '</div>' + ringControlsHtml() +
+    '<div class="field"><label>Color</label><div class="ring-cols">' + Object.entries(RING_COL).map(([k, c]) => '<button type="button" data-ringcol="' + k + '" class="' + ((st.ringColor || 'dark') === k ? 'on' : '') + '" style="--c:' + c + '" aria-label="' + k + '"></button>').join('') + '</div></div>' +
+    '<div class="field"><label>Line</label>' + seg('dash', String(!!st.ringDash), [['false', 'Solid'], ['true', 'Dashed']]) + seg('w', String(st.ringWeight || 1.2), [['1.2', 'Thin'], ['2', 'Medium'], ['3', 'Bold']]) + '</div>' +
+    '<div class="field"><label>Distance labels</label>' + seg('lbl', String(st.ringLabels !== false), [['true', 'Show'], ['false', 'Hide']]) + '</div>' +
+    '<div class="field"><label>Without GPS</label>' + seg('ctr', st.ringCenter === 'chart' ? 'chart' : 'boat', [['boat', 'Hide the rings'], ['chart', 'Center on the chart (for planning)']]) + '</div>' +
+    '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ringstep],[data-ringn],[data-ringcol],[data-ringdash],[data-ringw],[data-ringlbl],[data-ringctr],[data-ringon]'); if (!b) return;
+  const st = S.settings, d = b.dataset;
+  if (d.ringstep) st.ringStep = d.ringstep; if (d.ringn) st.ringCount = +d.ringn; if (d.ringcol) st.ringColor = d.ringcol; if (d.ringdash) st.ringDash = d.ringdash === 'true';
+  if (d.ringw) st.ringWeight = +d.ringw; if (d.ringlbl) st.ringLabels = d.ringlbl === 'true'; if (d.ringctr) st.ringCenter = d.ringctr; if (d.ringon) st.rings = d.ringon === 'true';
+  if (!st.rings && !d.ringon) st.rings = true; // choosing a spacing turns them on
+  saveSettings(); drawRings(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+  if (b.closest('#quick') && typeof renderQuick === 'function') renderQuick();
+});
+map.on('moveend', () => { if (S.settings.rings && !S.fix && S.settings.ringCenter === 'chart') drawRings(); });
 map.on('zoomend', drawRings);
 sheet.addEventListener('change', (e) => {
   if (e.target.name === 'chart') { S.settings.chart = e.target.value; saveSettings(); applyChart(); }
@@ -2489,7 +2524,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 106. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 108. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -4560,13 +4595,14 @@ const QUICK = [
   ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
   ['struct', 'Fish structure', () => !!S.settings.structOn, (on) => { S.settings.structOn = on; drawStruct(); }],
   ['status', 'Status line (GPS, wind, tide)', () => !!S.settings.statusOn, (on) => { S.settings.statusOn = on; applyStatus(); }],
-  ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
+  ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); setTimeout(renderQuick, 0); }],
   ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
 ];
 function renderQuick() {
   const q = $('quick'), sz = S.settings.pinSize || 'M';
   q.innerHTML = '<div class="q-head"><b>On the chart</b><button type="button" class="sheet-x" data-qx aria-label="Close">&times;</button></div><div class="q-grid">' +
     QUICK.map(([k, l, get]) => '<button type="button" class="q-t' + (get() ? ' on' : '') + '" data-q="' + k + '" aria-pressed="' + get() + '"><i></i>' + l + '</button>').join('') + '</div>' +
+    (S.settings.rings ? '<div class="q-h">Range rings <button type="button" class="q-link" data-qrings>more…</button></div><div class="q-rings">' + ringControlsHtml() + '</div>' : '') +
     '<div class="q-h">Symbol and label size</div><div class="seg">' + [['S', 'Small'], ['M', 'Medium'], ['L', 'Large'], ['XL', 'Extra large']].map(([v, l]) => '<button type="button" data-qsz="' + v + '" class="' + (sz === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
     (RT.line.getLatLngs().length ? '<button type="button" class="btn small q-more" data-qclear>Clear the route line</button>' : '') +
     '<button type="button" class="btn small q-more" data-qmore>More map options</button>';
@@ -4576,6 +4612,7 @@ $('quick').addEventListener('click', (e) => {
   if (e.target.closest('[data-qx]')) { toggleQuick(false); return; }
   if (e.target.closest('[data-qclear]')) { toggleQuick(false); clearRouteEverywhere(); return; }
   if (e.target.closest('[data-qmore]')) { toggleQuick(false); openLayersSheet(); return; }
+  if (e.target.closest('[data-qrings]')) { toggleQuick(false); openRingSheet(); return; }
   const z = e.target.closest('[data-qsz]'); if (z) { S.settings.pinSize = z.dataset.qsz; saveSettings(); applyPinSize(); renderQuick(); return; }
   const t = e.target.closest('[data-q]'); if (!t) return; const it = QUICK.find((x) => x[0] === t.dataset.q); if (!it) return;
   it[3](!it[2]()); saveSettings(); renderQuick();
@@ -5480,20 +5517,21 @@ wake();
 // always-on speed and course dial at the top right of the chart
 function renderMini() {
   const el = $('miniInst'); if (!el) return;
-  const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, rot = cog == null ? 0 : cog;
-  let ticks = ''; for (let d = 0; d < 360; d += 30) { const a = (d - 90) * Math.PI / 180, r0 = d % 90 ? 25 : 22; ticks += '<line x1="' + (30 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (30 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (30 + 27 * Math.cos(a)).toFixed(1) + '" y2="' + (30 + 27 * Math.sin(a)).toFixed(1) + '"/>'; }
-  const mr = mapRot();
-  let svg = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g transform="rotate(' + mr.toFixed(1) + ' 30 30)"><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text></g>' +
-    (cog != null ? '<g transform="rotate(' + (rot + mr).toFixed(0) + ' 30 30)"><path d="M30 4 L34 13 L30 11 L26 13 Z" class="mi-arrow"/></g>' : '') +
-    (cog != null ? '<text x="30" y="20.5" class="mi-cog">' + fmtBrg(cog) + '°</text>' : '') +
-    '<text x="30" y="34" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="30" y="40.5" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
+  const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, mr = mapRot();
+  // compass card: ticks every 10°, longer every 30°, N E S W letters; it turns with the chart in course-up
+  let ticks = ''; for (let d = 0; d < 360; d += 10) { const major = d % 30 === 0, a = (d - 90) * Math.PI / 180, r0 = major ? 41 : 44; ticks += '<line x1="' + (50 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + 47 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + 47 * Math.sin(a)).toFixed(1) + '"' + (major ? ' class="mj"' : '') + '/>'; }
+  const card = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([t, d]) => { const a = (d - 90) * Math.PI / 180, x = 50 + 37 * Math.cos(a), y = 50 + 37 * Math.sin(a); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5).toFixed(1) + '" class="mi-c' + (t === 'N' ? ' n' : '') + '" transform="rotate(' + (-mr).toFixed(1) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + t + '</text>'; }).join('');
+  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48.5" class="mi-ring"/><g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>' +
+    (cog != null ? '<g transform="rotate(' + (cog + mr).toFixed(0) + ' 50 50)"><path d="M50 1.5 L56 13 L50 10 L44 13 Z" class="mi-arrow"/></g>' : '') +
+    '<text x="50" y="31" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '° ' + compass16(cog) : 'COURSE –') + '</text>' +
+    '<text x="50" y="54" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="50" y="61" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
   maybeDepth();
   const d = DEP.v, validDepth = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000;
   const need = S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null, dft = validDepth ? d.d1 / 0.3048 : null, shallow = need && dft != null && dft < need;
-  const depthText = validDepth ? Math.round(ftToLen(dft)) + '<tspan class="mi-du"> ' + lenUnit() + '</tspan>' : '–';
-  el.innerHTML = svg + '<line x1="20" x2="40" y1="43.5" y2="43.5" class="mi-div"/><text x="30" y="51.5" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></svg>';
+  const depthText = validDepth ? Math.round(ftToLen(dft)) + '<tspan class="mi-du"> ' + lenUnit() + '</tspan>' : '–<tspan class="mi-du"> ' + lenUnit() + '</tspan>';
+  el.innerHTML = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></svg>';
   el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
-  el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : '') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
+  el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : ' · charted depth when NOAA chart data loads') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
 }
 $('miniInst').addEventListener('click', () => setCockpit(true));
 setInterval(renderMini, 1000); renderMini();
@@ -5697,6 +5735,7 @@ async function fmLocal(text) {
       closeSheet(); openSailCoach('plan'); return true;
     }
     if (/\bgreat loop|\blooper|\bthe loop\b/.test(c)) { closeSheet(); openLoop(/limit|fit|air draft|bridge|my boat/.test(c) ? 'boat' : /lock|notice|closed|status/.test(c) ? 'live' : /report/.test(c) ? 'reports' : 'plan'); return true; }
+    { const rm = c.match(/\brange rings?\b(?:.*?\b(\d+(?:\.\d+)?|half|quarter)\s*(?:nm|nautical|mile|miles)?)?/); if (rm) { const off = /\b(off|hide|remove)\b/.test(c); if (off) { S.settings.rings = false; } else { S.settings.rings = true; if (rm[1]) S.settings.ringStep = rm[1] === 'half' ? '0.5' : rm[1] === 'quarter' ? '0.25' : rm[1]; } saveSettings(); drawRings(); firstMateMessage(off ? 'Range rings off.' : 'Range rings on' + (rm[1] ? ', every ' + fmtDist(+S.settings.ringStep) : '') + '. Tap a ring label to change them.'); return true; } }
     // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
     if (S.settings.fishTips !== false && /\b(fish|fishing|biting|bait|lure|catch|keep|limit|crab|crabs|crabbing|jimmy|sook)\b/.test(c)) { const r = fishAdvice(c); if (r) { firstMateMessage(''); $('firstMateResults').innerHTML = r; return true; } }
     // layers: "show (me) the waves", "hide wind", "turn on rain", "weather"

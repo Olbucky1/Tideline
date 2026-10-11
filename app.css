@@ -1492,3 +1492,20 @@ html[data-mi="xl"] #fabsR .mini-inst { margin-left: calc(40px - var(--mi)) !impo
 .mi-dep.shallow { fill: #D32F2F; }
 :root[data-night] .mi-dep { fill: var(--ink); } :root[data-night] .mi-dep.shallow { fill: #E05A4A; }
 .cur-a { width: 40px !important; height: 40px !important; } .cur-a b { font-size: 9.5px !important; bottom: -3px !important; padding: 1px 3px !important; }
+.ring-lbl { cursor: pointer; pointer-events: auto !important; }
+.ring-cols { display: flex; gap: 10px; } .ring-cols button { width: 34px; height: 34px; border-radius: 50%; background: var(--c); border: 2px solid var(--line); box-shadow: inset 0 0 0 3px var(--surface); }
+.ring-cols button.on { border: 3px solid var(--accent); }
+.q-link { background: none; border: 0; color: var(--accent); font: 600 12px var(--f-ui); float: right; padding: 0; }
+.q-rings .field { margin: 4px 0; } .q-rings .field label { font-size: 12px; } .q-rings .seg button { padding: 6px 4px; font-size: 12px; } .q-rings .hint { display: none; }
+/* the speed circle: compass card all around, course on top, speed in the middle, depth below */
+#miniInst .mi-ticks line { stroke: var(--ink2, #5A6B7B); stroke-width: .9; } #miniInst .mi-ticks line.mj { stroke: var(--ink, #14283A); stroke-width: 1.6; }
+#miniInst .mi-c { text-anchor: middle; font: 700 8px var(--f-ui); fill: var(--ink2, #5A6B7B); } #miniInst .mi-c.n { fill: #D32F2F; font-size: 10.5px; }
+#miniInst .mi-cog { text-anchor: middle; font: 700 9px var(--f-num) !important; fill: var(--ink) !important; }
+#miniInst .mi-spd { text-anchor: middle; font: 700 25px var(--f-num) !important; fill: var(--ink); }
+#miniInst .mi-u { text-anchor: middle; font: 600 7px var(--f-ui); fill: var(--ink2); }
+#miniInst .mi-div { stroke: var(--line, #C9D8E6); stroke-width: 1; }
+#miniInst .mi-dep { text-anchor: middle; font: 700 12px var(--f-num); fill: #1565C0; } #miniInst .mi-dep .mi-du { font-size: 7px; } #miniInst .mi-dep.shallow { fill: #D32F2F; }
+#miniInst .mi-dl { text-anchor: middle; font: 700 4.6px var(--f-ui); letter-spacing: .08em; fill: var(--ink2); }
+#miniInst .mi-arrow { fill: #1565C0; stroke: #fff; stroke-width: 1; }
+:root[data-night] #miniInst .mi-c.n { fill: #C0503F; } :root[data-night] #miniInst .mi-dep, :root[data-night] #miniInst .mi-arrow { fill: var(--ink); }
+html[data-mi="m"] { --mi: 72px; } html[data-mi="l"] { --mi: 92px; } html[data-mi="xl"] { --mi: 118px; }
