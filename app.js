@@ -415,7 +415,7 @@ function openLayersSheet() {
   html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += '<div class="mo-h">Chart colors</div>' + optSeg('chartTint', [['blue', 'Ocean blue'], ['classic', 'Classic NOAA']], st.chartTint || 'blue');
   html += '<div class="mo-h">Menu color in daytime</div>' + optSeg('menuTone', [['dark', 'Deep navy (more contrast)'], ['light', 'Light']], st.menuTone || 'dark');
-  html += '<div class="mo-h">Gauge style</div><div class="btheme-row">' + GTHEMES.map(([v, l, c]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div>' + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
+  html += '<div class="mo-h">Gauge look</div>' + glPicker(st.gTheme || 'midnight') + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
   html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.miSize || 'l');
   html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['false', 'Only when I press and hold'], ['true', 'Also display it on each tap']], String(st.learnTips === true || st.learnTips === 'true'));
   html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['false', 'Tap and hold shows conditions'], ['true', 'A quick tap shows them']], String(st.spotTap === true || st.spotTap === 'true'));
@@ -442,6 +442,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'miSize') applyMiSize();
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
   if (k === 'gArt') applyGArt();
+  if (k === 'fabLook') applyFabLook();
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
   if (k === 'spotTap') { S.settings.spotTap = v === 'true'; saveSettings(); }
@@ -2735,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 124. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 125. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6157,12 +6158,59 @@ const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
 document.documentElement.classList.toggle('lightmenus', S.settings.menuTone === 'light');
-const GTHEMES = [['midnight', 'Midnight chrome', 'radial-gradient(circle,#1C3A52 55%,#C9D2DA 58%)'], ['arctic', 'Arctic white', 'radial-gradient(circle,#fff 55%,#B9C3CC 58%)'], ['bronze', 'Bronze horizon', 'radial-gradient(circle,#2A2219 55%,#C08A45 58%)'], ['glass', 'Glass ocean', 'radial-gradient(circle,#0E3D63 55%,#8FD3F5 58%)'], ['expedition', 'Expedition tech', 'radial-gradient(circle,#1E2125 55%,#FF7A1A 58%)'], ['heritage', 'Heritage brass', 'radial-gradient(circle,#FBF5E6 55%,#C9A04E 58%)'], ['classic', 'Classic black', ''], ['whiteface', 'Classic white', ''], ['brass', 'Brass and ivory', ''], ['navybrass', 'Navy and brass', ''], ['simple', 'Simple digital', ''], ['carbon', 'Carbon', '']];
+/* gauge looks, as data: one table drives the live gauges, the speed circle, the previews in the picker and (optionally) the buttons,
+   so a preview always shows exactly what you will get. bz = bezel ring stops (5), fc = face (2), ink/muted/acc/n = numbers,
+   scale, accent and needle, art = artwork in the face, light = a light face (panel text stays light around it) */
+const GT = [
+  // classic
+  { id: 'navybrass', l: 'Navy and brass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1B2E52', '#0A1428'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#F2C94C', n: '#F2C94C', art: 'swell' },
+  { id: 'heritage', l: 'Heritage brass', g: 'Classic', bz: ['#FFF1C9', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#FBF5E6', '#E6D8BA'], ink: '#1E2A3A', muted: '#6B5E48', acc: '#1E3A5F', n: '#B3261E', art: 'rose', light: 1 },
+  { id: 'yachtchrono', l: 'Yacht chronometer', g: 'Classic', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#FBF8F0', '#E9E2D0'], ink: '#14213D', muted: '#5A6475', acc: '#1F4E9A', n: '#1F4E9A', art: 'swell', light: 1 },
+  { id: 'compass', l: 'Captain\'s compass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1A2D4F', '#0B1630'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#E8C36A', n: '#E8C36A', art: 'rose' },
+  { id: 'teak', l: 'Teak and ivory', g: 'Classic', bz: ['#E9B98A', '#9A5A2E', '#4A2511', '#C68350', '#6B3A1C'], fc: ['#FCF6E8', '#EADFC6'], ink: '#1D2B44', muted: '#6A5A44', acc: '#2B5A9B', n: '#1D3F78', art: 'swell', light: 1 },
+  { id: 'regatta', l: 'Regatta bronze', g: 'Classic', bz: ['#F3C892', '#A86A32', '#4E2C0F', '#D9A066', '#7A4A1E'], fc: ['#1D1E22', '#060607'], ink: '#F2F2F2', muted: '#A4A4A4', acc: '#E53935', n: '#E53935', art: 'swell' },
+  { id: 'chart', l: 'Nautical chart', g: 'Classic', bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F3E7C9', '#E2D0A6'], ink: '#2A2A33', muted: '#6F5E3E', acc: '#2C5C8F', n: '#8B2A1E', art: 'topo', light: 1 },
+  { id: 'brass', l: 'Brass and ivory', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#FFFDF6', '#EFE6D2'], ink: '#1B1B1B', muted: '#5C5244', acc: '#1B1B1B', n: '#B3261E', art: 'none', light: 1 },
+  { id: 'bronze', l: 'Bronze horizon', g: 'Classic', bz: ['#FCE7BE', '#C08A45', '#6B4518', '#F0C987', '#8A5A22'], fc: ['#2E251B', '#0E0A06'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2B25C', n: '#F2B25C', art: 'hz' },
+  { id: 'classic', l: 'Classic black', g: 'Classic', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C1F23', '#050607'], ink: '#F4F6F8', muted: '#A9B2BA', acc: '#FFFFFF', n: '#E53935', art: 'none' },
+  { id: 'whiteface', l: 'Classic white', g: 'Classic', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#E9EDF0'], ink: '#111417', muted: '#4A525A', acc: '#111417', n: '#D32F2F', art: 'none', light: 1 },
+  // modern
+  { id: 'titanium', l: 'Titanium blue', g: 'Modern', bz: ['#E9EEF2', '#8C979F', '#3A434B', '#C5CDD3', '#5D6870'], fc: ['#173A63', '#06142A'], ink: '#EEF5FB', muted: '#8FA9C2', acc: '#4FA3FF', n: '#4FA3FF', art: 'swell' },
+  { id: 'arctic', l: 'Arctic glass', g: 'Modern', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A', muted: '#5B6E7E', acc: '#1565C0', n: '#D32F2F', art: 'swell', light: 1 },
+  { id: 'whitetech', l: 'Minimal white', g: 'Modern', bz: ['#FFFFFF', '#C9D0D6', '#8A949C', '#EEF2F5', '#A7B0B8'], fc: ['#FFFFFF', '#F1F4F7'], ink: '#0F1620', muted: '#6A7682', acc: '#3A9AD9', n: '#0F1620', art: 'swell', light: 1 },
+  { id: 'expedition', l: 'Expedition carbon', g: 'Modern', bz: ['#A8AEB4', '#4A4F55', '#16191C', '#7A8087', '#2B2F34'], fc: ['#23272B', '#0A0B0D'], ink: '#F2F2F2', muted: '#9AA0A6', acc: '#FF7A1A', n: '#FF7A1A', art: 'topo' },
+  { id: 'midnight', l: 'Midnight chrome', g: 'Modern', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8', muted: '#8FB0C2', acc: '#5AE3FF', n: '#FF5A4F', art: 'swirl' },
+  { id: 'glass', l: 'Glass ocean', g: 'Modern', bz: ['#F2FBFF', '#8FD3F5', '#2C6E99', '#CDEFFF', '#4C93BF'], fc: ['#11507E', '#041628'], ink: '#E8F7FF', muted: '#8CC4E6', acc: '#5EE6FF', n: '#5EE6FF', art: 'swirl' },
+  { id: 'carbon', l: 'Carbon', g: 'Modern', bz: ['#5A5A5A', '#2A2A2A', '#111111', '#3C3C3C', '#1E1E1E'], fc: ['#1A1A1A', '#0B0B0B'], ink: '#EDEDED', muted: '#8C8C8C', acc: '#30D158', n: '#FF453A', art: 'none' },
+  { id: 'simple', l: 'Simple digital', g: 'Modern', bz: ['#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A'], fc: ['#15212D', '#15212D'], ink: '#FFFFFF', muted: '#9FB3C4', acc: '#5AC8FA', n: '#FF453A', art: 'none', flat: 1 },
+];
+const GTHEMES = GT.map((t) => [t.id, t.l, 'radial-gradient(circle,' + t.fc[0] + ' 55%,' + t.bz[1] + ' 58%)']);
+const gtOf = (id) => GT.find((t) => t.id === id) || GT.find((t) => t.id === 'midnight');
+const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'ga-hzs', swell: 'ga-swells' };
+(function gtCss() { // one stylesheet for every look: live (on <html>) and each preview tile
+  const rules = (P, t, live) => {
+    let c = P + '{--gi-ink:' + t.ink + ';--gi-muted:' + t.muted + ';--gi-acc:' + t.acc + ';--gi-n:' + t.n + ';--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}';
+    t.bz.forEach((v, i) => { c += P + ' .ch' + (i + 1) + '{stop-color:' + v + '!important}'; }); c += P + ' .fc1{stop-color:' + t.fc[0] + '!important}' + P + ' .fc2{stop-color:' + t.fc[1] + '!important}';
+    c += P + ' .g-art>g{display:none!important}'; if (GA_CLASS[t.art]) c += P + ' .' + GA_CLASS[t.art] + '{display:inline!important}';
+    c += P + ' .g-glare,' + P + ' .g-seam{opacity:' + (t.flat ? 0 : 1) + '!important}';
+    if (t.light && live) c += P + ' :is(.cockpit,#panelSide){--g-ink:#EAF4F8!important;--g-muted:#A9BCCD!important;--g-acc:#2CD3C5!important;--g-line:#3A5670!important}' +
+      P + ' :is(.cockpit,#panelSide) .gauge svg{--g-ink:var(--gi-ink)!important;--g-muted:var(--gi-muted)!important;--g-acc:var(--gi-acc)!important;--g-acc2:var(--gi-acc)!important;--g-face:color-mix(in srgb,var(--gi-ink) 9%,transparent)!important;--g-bg:transparent!important;--g-line:color-mix(in srgb,var(--gi-ink) 35%,transparent)!important}';
+    return c;
+  };
+  let css = '.gl-prev{--g-ink:var(--gi-ink);--g-muted:var(--gi-muted);--g-acc:var(--gi-acc);--g-acc2:var(--gi-acc);--g-line:color-mix(in srgb,var(--gi-muted) 45%,transparent);--g-face:transparent;--g-bg:transparent}';
+  GT.forEach((t) => { css += rules('html:root[data-gtheme="' + t.id + '"]:not([data-night])', t, true) + rules('i.gl-prev.gl-prev[data-gt="' + t.id + '"]', t, false); });
+  const el = document.createElement('style'); el.id = 'gtStyle'; el.textContent = css; document.head.appendChild(el);
+})();
+// a preview that is the real thing: the theme's bezel and face with a speed dial on it
+function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + speedGauge(6.4, 8.2, 10) + '</svg></i>'; }
+function glPicker(cur) {
+  return ['Classic', 'Modern'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
+}
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
 applyMiSize();
 applyGTheme(); document.documentElement.dataset.gstyle = S.settings.gStyle || 'hybrid';
-sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-gtheme]'); if (!b) return; S.settings.gTheme = b.dataset.gtheme; saveSettings(); applyGTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* not shown */ } });
+sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-gtheme]'); if (!b) return; S.settings.gTheme = b.dataset.gtheme; saveSettings(); applyGTheme(); document.querySelectorAll('button[data-gtheme]').forEach((x) => x.classList.toggle('on', x === b)); try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* not shown */ } });
 const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'White (classic)', '#FFFFFF'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
 function applyBTheme() { document.documentElement.dataset.btheme = S.settings.btheme || 'blue'; }
 applyBTheme();
@@ -7037,8 +7085,8 @@ function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .f
 function arrangeMode(on) {
   ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
   let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
-  bar.innerHTML = '<span>Drag to arrange</span><button type="button" class="btn small" data-arr="tidy">Tidy up</button><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
-  bar.hidden = !on; if (on) bar.style.removeProperty('display'); else bar.style.setProperty('display', 'none', 'important'); if (!on) { arrPreview(null); saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
+  bar.innerHTML = '<span>Drag a button, or ⠿ to move a whole row</span><button type="button" class="btn small" data-arr="tidy">Tidy up</button><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
+  setTimeout(arrGrips, 60); bar.hidden = !on; if (on) bar.style.removeProperty('display'); else bar.style.setProperty('display', 'none', 'important'); if (!on) { arrPreview(null); saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
 }
 document.addEventListener('click', (e) => {
   const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else if (a.dataset.arr === 'tidy') arrTidy(); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
@@ -7049,10 +7097,10 @@ document.addEventListener('pointerdown', (e) => {
   e.preventDefault(); e.stopPropagation(); const r = el.getBoundingClientRect();
   const ph = document.createElement('div'); ph.className = 'arr-ph'; ph.style.height = r.height + 'px'; ph.style.width = r.width + 'px'; el.parentNode.insertBefore(ph, el);
   el.classList.add('arr-drag'); Object.assign(el.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', zIndex: 3000, pointerEvents: 'none' });
-  ARR.drag = { el, ph, dx: e.clientX - r.left, dy: e.clientY - r.top }; document.documentElement.classList.add('arr-dragging');
+  ARR.drag = { el, ph, dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, r0: r, moved: false }; document.documentElement.classList.add('arr-dragging');
 }, true);
 document.addEventListener('pointermove', (e) => {
-  const d = ARR.drag; if (!d) return; e.preventDefault();
+  const d = ARR.drag; if (!d) return; e.preventDefault(); if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 8) d.moved = true; if (!d.moved) return;
   d.el.style.left = (e.clientX - d.dx) + 'px'; d.el.style.top = (e.clientY - d.dy) + 'px';
   const L0 = $('fabs').getBoundingClientRect(), R0 = $('fabsR').getBoundingClientRect(), inCol = (R, x, y) => x > R.left - 24 && x < R.right + 24 && y > R.top - 30 && y < R.bottom + 30;
   const nearL = inCol(L0, e.clientX, e.clientY), nearR = inCol(R0, e.clientX, e.clientY);
@@ -7062,11 +7110,15 @@ document.addEventListener('pointermove', (e) => {
   if (before) col.insertBefore(d.ph, before); else { const al = $('alertBar'); if (al && al.parentNode === col) col.insertBefore(d.ph, al); else col.appendChild(d.ph); }
 }, { capture: true, passive: false });
 const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; arrPreview(null); d.el.classList.remove('arr-drag'); document.documentElement.classList.remove('arr-dragging');
+  if (!d.moved) { // a tap, not a drag: put it back and offer this button its own look
+    if (d.el.classList.contains('fab-free') || !d.ph.parentNode) { ['position', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); d.el.style.left = d.r0.left + 'px'; d.el.style.top = d.r0.top + 'px'; d.ph.remove(); }
+    else { d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); }
+    openFabLookFor(d.el); return; }
   if (d.free || !d.ph.parentNode) { const r = d.el.getBoundingClientRect(), tb = ($('tabbar') || document.querySelector('.tabbar')).getBoundingClientRect().top;
     const sn = arrSnap(parseFloat(d.el.style.left) || r.left, parseFloat(d.el.style.top) || r.top, d.el.offsetWidth || r.width, d.el.offsetHeight || r.height, d.el, tb), x = sn.x, y = sn.y; // grid, edges and neighbours (see arrSnap)
     $('app').appendChild(d.el); d.el.classList.add('fab-free'); ['position', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); d.el.style.left = x + 'px'; d.el.style.top = y + 'px'; d.ph.remove(); arrEven(d.el); }
   else { d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); d.el.classList.remove('fab-free'); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); }
-  saveFabLayout(); };
+  saveFabLayout(); arrGrips(); };
 document.addEventListener('pointerup', arrDrop, true); document.addEventListener('pointercancel', arrDrop, true);
 setTimeout(applyFabLayout, 300);
 /* ---------- instruments: press and hold a gauge, drag it onto another, and they swap (works with a finger, no Customize needed) ---------- */
@@ -7094,11 +7146,12 @@ setTimeout(applyFabLayout, 300);
 })();
 function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
-  openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle and the instruments</div><div class="btheme-row gl-row">' + GTHEMES.map(([v, l]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i class="gl-prev" data-gt="' + v + '"><svg viewBox="0 0 100 100">' + bezelSvg('gp' + v, 50, 50) + '</svg></i>' + l + '</button>').join('') + '</div>' +
+  openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div>' + glPicker(st.gTheme || 'midnight') +
     '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
+    '<div class="field"><label>Buttons on the chart</label>' + seg('fabLook', st.fabLook || 'theme', [['theme', 'Their own colors'], ['gauge', 'Match this look']]) + '</div>' +
+    '<p class="hint" style="margin:-4px 0 8px">To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
-}
-document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
+}document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
 function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
 applyGArt();
 /* ---------- first mate, one assistant: the sparkle button and Menu → First mate open the same thing. It has a name you choose
@@ -7585,6 +7638,76 @@ sheet.addEventListener('click', (e) => {
 });
 map.on('dragstart', () => { if (S.aisFollow) { S.aisFollow = null; try { updateAis(); } catch (e) { /* later */ } } });
 
+/* ---------- buttons in the gauge look: all of them (Gauge look → Buttons: Match this look) or one at a time (arrange, tap a button) ---------- */
+function applyFabLook() {
+  document.documentElement.dataset.fablook = S.settings.fabLook || 'theme';
+  const each = S.settings.fabEach || {};
+  document.querySelectorAll('.fab[id], .mini-depth[id]').forEach((el) => {
+    const id = each[el.id]; if (!id) { delete el.dataset.gl; ['--bt-f1', '--bt-f2', '--bt-ink', '--bt-c1', '--bt-c2', '--bt-c3', '--bt-c4', '--bt-c5'].forEach((k) => el.style.removeProperty(k)); return; }
+    const t = gtOf(id); el.dataset.gl = t.id; el.style.setProperty('--bt-f1', t.fc[0]); el.style.setProperty('--bt-f2', t.fc[1]); el.style.setProperty('--bt-ink', t.ink); t.bz.forEach((v, i) => el.style.setProperty('--bt-c' + (i + 1), v));
+  });
+}
+function openFabLookFor(el) {
+  const each = S.settings.fabEach || {}, cur = each[el.id] || '', name = el.getAttribute('aria-label') || el.dataset.tip || 'This button';
+  openSheet('<h3>Look for this button</h3><div class="sub">' + esc(name.replace(/[:,].*$/, '')) + '</div><div class="btheme-row gl-row"><button type="button" data-fabone="" class="' + (cur ? '' : 'on') + '"><i class="gl-prev gl-same">=</i>Same as the others</button>' +
+    GT.map((t) => '<button type="button" data-fabone="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>' +
+    '<div class="row-btns"><button class="btn" data-faball="' + (cur || '') + '">Use it for every button</button><button class="btn primary" data-act="close">Done</button></div>');
+  S.fabFor = el.id;
+}
+sheet.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-fabone]'); if (b && S.fabFor) { const each = S.settings.fabEach || (S.settings.fabEach = {}); if (b.dataset.fabone) each[S.fabFor] = b.dataset.fabone; else delete each[S.fabFor]; saveSettings(); applyFabLook(); sheet.querySelectorAll('button[data-fabone]').forEach((x) => x.classList.toggle('on', x === b)); const all = sheet.querySelector('[data-faball]'); if (all) all.dataset.faball = b.dataset.fabone; return; }
+  const a = e.target.closest('button[data-faball]'); if (a) { const id = a.dataset.faball; S.settings.fabEach = {}; if (id) { S.settings.gTheme = id; applyGTheme(); S.settings.fabLook = 'gauge'; } else S.settings.fabLook = 'theme'; saveSettings(); applyFabLook(); closeSheet(); toast(id ? 'Every button and the gauges now use ' + gtOf(id).l + '.' : 'Buttons back to their own colors.'); }
+});
+setTimeout(applyFabLook, 350);
+/* ---------- move a whole row or column of buttons at once: grab its ⠿ handle; tap the handle to turn a column into a row and back ---------- */
+function arrGroupsNow() {
+  const vis = (col) => col ? fabItems(col).filter((x) => x.offsetWidth) : [], out = [];
+  [['L', $('fabs')], ['R', $('fabsR')]].forEach(([k, col]) => { const it = vis(col); if (it.length > 1) out.push({ key: k, els: it, axis: 'y' }); });
+  const free = arrFree(), seen = new Set();
+  free.forEach((el) => { if (seen.has(el)) return; for (const ax of ['x', 'y']) { const line = arrLine(el, ax, free); if (line.length > 1 && !line.some((x) => seen.has(x))) { line.forEach((x) => seen.add(x)); out.push({ key: 'f' + out.length, els: line, axis: ax }); break; } } });
+  return out;
+}
+function arrGrips() {
+  document.querySelectorAll('.arr-grip').forEach((g) => g.remove()); if (!ARR.on) return;
+  ARR.groups = arrGroupsNow();
+  ARR.groups.forEach((G, i) => {
+    const r = G.els.map(arrBox), top = Math.min(...r.map((q) => q.top)), left = Math.min(...r.map((q) => q.left)), right = Math.max(...r.map((q) => q.right));
+    const g = document.createElement('button'); g.type = 'button'; g.className = 'arr-grip'; g.dataset.g = i; g.textContent = '⠿'; g.setAttribute('aria-label', 'Move this whole ' + (G.axis === 'y' ? 'column' : 'row'));
+    const bottom = Math.max(...r.map((q) => q.bottom)), w = 30, x = G.axis === 'y' ? (left + right) / 2 - w / 2 : (left - w - 6 < 4 ? right + 6 : left - w - 6), y = G.axis === 'y' ? bottom + 8 : top + (r[0].height - w) / 2;
+    Object.assign(g.style, { left: Math.max(2, Math.min(innerWidth - w - 2, x)) + 'px', top: Math.max(2, y) + 'px' }); document.body.appendChild(g);
+  });
+}
+(() => {
+  let gd = null;
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('.arr-grip'); if (!g || !ARR.on) return; e.preventDefault(); e.stopPropagation();
+    const G = ARR.groups[+g.dataset.g]; if (!G) return;
+    gd = { G, g, x0: e.clientX, y0: e.clientY, moved: false, start: G.els.map((el) => { const q = arrBox(el); return { el, x: q.left, y: q.top }; }) };
+  }, true);
+  document.addEventListener('pointermove', (e) => {
+    if (!gd) return; e.preventDefault(); const dx = e.clientX - gd.x0, dy = e.clientY - gd.y0;
+    if (!gd.moved && Math.hypot(dx, dy) < 8) return;
+    if (!gd.moved) { gd.moved = true; gd.start.forEach((o) => { $('app').appendChild(o.el); o.el.classList.add('fab-free'); o.el.style.left = o.x + 'px'; o.el.style.top = o.y + 'px'; }); document.documentElement.classList.add('arr-dragging'); }
+    gd.start.forEach((o) => { o.el.style.left = (o.x + dx) + 'px'; o.el.style.top = (o.y + dy) + 'px'; });
+    gd.g.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }, { capture: true, passive: false });
+  const up = () => {
+    if (!gd) return; const d = gd; gd = null; document.documentElement.classList.remove('arr-dragging');
+    if (!d.moved) { // tap: a column becomes a row (along the top, from where it starts) and a row becomes a column
+      const first = d.start.reduce((a, o) => (d.G.axis === 'y' ? o.y < a.y : o.x < a.x) ? o : a), Gd = arrGrid(), horiz = d.G.axis === 'y';
+      d.start.slice().sort((a, b) => horiz ? a.y - b.y : a.x - b.x).forEach((o, k) => { $('app').appendChild(o.el); o.el.classList.add('fab-free');
+        let x = horiz ? first.x + k * Gd.p : first.x, y = horiz ? first.y : first.y + k * Gd.p;
+        if (horiz && x + o.el.offsetWidth > innerWidth - 6) x = innerWidth - 6 - o.el.offsetWidth - (d.start.length - 1 - k) * Gd.p; o.el.style.left = Math.max(6, x) + 'px'; o.el.style.top = Math.max(6, Math.min(Gd.tb - o.el.offsetHeight - 6, y)) + 'px'; });
+    } else { // snap the group as one: the first button snaps, the rest keep their spacing
+      const f = d.start[0], q = arrBox(f.el), sn = arrSnap(q.left, q.top, q.width, q.height, f.el), sx = sn.x - q.left, sy = sn.y - q.top, Gd = arrGrid();
+      d.start.forEach((o) => { const r = arrBox(o.el); o.el.style.left = Math.round(Math.max(6, Math.min(innerWidth - r.width - 6, r.left + sx))) + 'px'; o.el.style.top = Math.round(Math.max(6, Math.min(Gd.tb - r.height - 6, r.top + sy))) + 'px'; });
+      if (d.start.length > 1) arrPack(d.start.map((o) => o.el), d.G.axis === 'y' ? 'y' : 'x');
+    }
+    saveFabLayout(); arrGrips();
+  };
+  document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+  addEventListener('resize', () => { if (ARR.on) arrGrips(); });
+})();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

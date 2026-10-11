@@ -1948,3 +1948,29 @@ body:has(#sheet:not([hidden]), #quick:not([hidden]), .panel:not([hidden]), #cock
 .pl-wx b { display: block; font-size: 15px; } .pl-wx span { display: block; font-size: 13px; line-height: 1.35; opacity: .92; margin-top: 2px; }
 .pl-wx.care { border-left-color: #E8B12B; background: rgba(232,177,43,.13); } .pl-wx.no { border-left-color: #E5534B; background: rgba(229,83,75,.15); }
 .pl-best { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 9px 12px; border-radius: 10px; border: 1px dashed rgba(255,255,255,.3); background: transparent; color: #9FD3FF; font: 600 13.5px/1.3 inherit; }
+
+/* ---------- buttons in the gauge look (all, or one at a time) ---------- */
+html:root[data-fablook="gauge"]:not([data-night]) .fab.fab:not(.attn):not(.fish),
+html:root[data-fablook="gauge"]:not([data-night]) .mini-depth.mini-depth,
+html:root:not([data-night]) .fab.fab[data-gl]:not(.attn):not(.fish) {
+  background: radial-gradient(circle at 50% 36%, var(--bt-f1), var(--bt-f2) 78%) padding-box,
+    conic-gradient(from 200deg, var(--bt-c1), var(--bt-c2), var(--bt-c3), var(--bt-c4), var(--bt-c1), var(--bt-c5), var(--bt-c2), var(--bt-c1)) border-box !important;
+  border: 3px solid transparent !important; color: var(--bt-ink) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .35), inset 0 1px 1px rgba(255, 255, 255, .28) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+html:root[data-fablook="gauge"]:not([data-night]) .fab.fab:not(.attn):not(.fish) svg,
+html:root:not([data-night]) .fab.fab[data-gl]:not(.attn):not(.fish) svg { stroke: var(--bt-ink) !important; filter: none !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .fab.fab :is(b, .ais-n, small),
+html:root[data-fablook="gauge"]:not([data-night]) .mini-depth :is(b, small),
+html:root:not([data-night]) .fab.fab[data-gl] :is(b, .ais-n, small) { color: var(--bt-ink) !important; text-shadow: none !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .fab.fab.on:not(.attn):not(.fish),
+html:root:not([data-night]) .fab.fab.on[data-gl] { box-shadow: 0 0 0 2px var(--gi-acc), 0 2px 6px rgba(0, 0, 0, .35) !important; }
+/* the real previews in the look pickers */
+.gl-row .gl-prev { width: 72px !important; height: 72px !important; }
+.gl-row .gl-prev svg { width: 72px !important; height: 72px !important; }
+.gl-row .gl-prev .g-big { font-size: 46px; } .gl-row .gl-prev .g-num { font-size: 15px; }
+.gl-row .gl-same { display: grid !important; place-items: center; font: 600 26px var(--f-ui); color: #9FB3C4; border: 2px dashed rgba(255,255,255,.25) !important; border-radius: 50%; }
+/* the handle that moves a whole row or column while arranging */
+.arr-grip { position: fixed; z-index: 3200; user-select: none; -webkit-user-select: none; width: 30px; height: 30px; border-radius: 9px; border: 0; background: #2E86DE; color: #fff; font: 700 18px/30px var(--f-ui); box-shadow: 0 2px 8px rgba(0,0,0,.35); touch-action: none; padding: 0; }
+html.arr-dragging .arr-grip { opacity: .85; }

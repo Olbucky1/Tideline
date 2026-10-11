@@ -92,3 +92,8 @@ Still open from the review: service-worker caching of data (stale offline data s
 - Zoom +/− and locate buttons default to bottom right.
 - A simple vector "clean chart" (savvy navvy style) drawn from ENC data instead of the printed chart.
 - Fun boat icons (Titanic, carrier, dolphin, Pride of Baltimore) and boat photo as the boat icon.
+
+## Build 125
+- Gauge looks are now one data table (`GT` in app.js): 19 looks in Classic and Modern groups, including new Yacht chronometer, Captain's compass, Teak and ivory, Regatta bronze, Nautical chart, Titanium blue, Minimal white (from Andy's ChatGPT concept boards; he liked all the classical ones and the four modern ones on the right, not the neon/OLED). `gtCss()` writes the CSS for the live gauges and the previews, so previews are real speed dials. To add a look: add one row to `GT`.
+- Buttons can take the gauge look (Gauge look → Buttons on the chart → Match this look), or one button at a time (Arrange, tap the button).
+- Arrange: a ⠿ handle under each column / beside each row moves the whole group; tap the handle to turn a column into a row and back.
