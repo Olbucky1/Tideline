@@ -318,7 +318,7 @@ sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, sp = S.sheetPoint;
   if (act === 'close') closeSheet();
-  if (act === 'goto' && sp) { setGoto(sp.wp ? sp.wp.name : sp.place ? sp.place.name : 'Dropped pin', sp.p.lat, sp.p.lon); closeSheet(); }
+  if (act === 'goto' && sp) { setGoto(sp.wp ? sp.wp.name : sp.place ? sp.place.name : sp.spot ? (sp.spot.species || 'Fishing spot') : 'Dropped pin', sp.p.lat, sp.p.lon); closeSheet(); }
   if (act === 'savewp' && sp) {
     const n = S.waypoints.length + 1;
     const w = { id: Date.now(), name: sp.place ? sp.place.name : 'Waypoint ' + n, lat: sp.p.lat, lon: sp.p.lon };
@@ -1445,6 +1445,7 @@ function renderNav() {
     (S.routes.length ? S.routes.slice().reverse().map((r) => { const d = r.pts.reduce((a, p, i) => (i ? a + distNm(r.pts[i - 1], p) : 0), 0);
       return '<div class="li"><div class="li-main"><b>' + esc(r.name) + '</b><span class="tnum">' + r.pts.length + ' waypoints · ' + fmtDist(d) + ' · ' + fmtDur(d / navSpeed()).replace(' min', 'm') + '</span></div><div class="li-btns"><button class="btn small primary" data-act="navroute" data-id="' + r.id + '">Open</button></div></div>'; }).join('') :
       '<div class="empty">Saved routes appear here. Plan a route and tap Save.</div>') +
+    ((S.settings.useMode === 'fish' || S.spots.length) ? '<h4 style="margin-top:14px">My fishing spots</h4>' + (S.spots.length ? S.spots.slice().reverse().slice(0, 12).map((sp) => '<div class="li"><div class="li-main"><b>' + esc(sp.species || 'Spot') + '</b><span class="tnum">' + new Date(sp.t).toLocaleDateString([], { month: 'short', day: 'numeric' }) + (S.fix ? ' · ' + fmtDist(distNm(S.fix, sp)) : '') + ' · ' + esc(spotSummary(sp)) + '</span></div><div class="li-btns"><button class="btn small" data-spot="' + sp.id + '">Open</button></div></div>').join('') : '<div class="empty">Tap the fish button on the chart to save a spot with the tide, wind and water temperature.</div>') : '') +
     '<div class="row-btns" style="margin-top:8px"><button class="btn" data-act="navlog">Tracks and waypoints</button>' + (S.rec.on ? '<button class="btn danger" data-act="navrecstop">Stop recording</button>' : '<button class="btn" data-act="navrec">Record track</button>') + '</div></div>';
   $('panelNav').innerHTML = h;
 }
@@ -1476,6 +1477,7 @@ $('panelNav').addEventListener('input', (e) => {
   navSugT = setTimeout(async () => { const seq = ++navSugSeq; const list = await suggestPlaces(q, S.fix || searchCenter()); if (seq !== navSugSeq || !$('navSugs')) return; navSugList = list; $('navSugs').innerHTML = placeSugHtml(list, 'data-nsug'); }, 250);
 });
 $('panelNav').addEventListener('click', (e) => {
+  const so = e.target.closest('[data-spot]'); if (so) { const sp = S.spots.find((x) => String(x.id) === so.dataset.spot); if (sp) { setTab('chart'); map.setView([sp.lat, sp.lon], Math.max(map.getZoom(), 15)); openSpot(sp); } return; }
   const g = e.target.closest('[data-nsug]'); if (g) { const o = navSugList[+g.dataset.nsug]; S.navDest = { name: o.name, lat: o.lat, lon: o.lon }; $('navToQ').value = o.name; $('navSugs').hidden = true; return; }
   const w = e.target.closest('[data-wpdest]'); if (w) { const wp = S.waypoints.find((x) => String(x.id) === w.dataset.wpdest); if (wp) { S.navDest = { name: wp.name, lat: wp.lat, lon: wp.lon }; $('navToQ').value = wp.name; } }
 }, true);
@@ -1978,6 +1980,65 @@ $('btnTheme').addEventListener('click', () => {
   toast(next === 'auto' ? 'Colors: automatic (switches at twilight, now ' + themeNow() + ')' : 'Colors: ' + next + '. Tap again to change.', 2200);
 });
 
+
+/* ---------- fishing spots: one tap saves the spot with the conditions at that moment ---------- */
+S.spots = store.get('spots', []);
+const spotLayer = L.layerGroup().addTo(map);
+const FISH_SVG = '<path d="M3 12c3-4 7-5 11-5 3 0 5 2 6 5-1 3-3 5-6 5-4 0-8-1-11-5z"/><path d="M3 12l-1-3M3 12l-1 3"/><circle cx="16" cy="11" r="1"/>';
+function applyUseMode() {
+  const m = S.settings.useMode || 'cruise';
+  $('btnFish').hidden = m !== 'fish';
+  document.documentElement.dataset.use = m;
+  drawSpots();
+}
+function drawSpots() {
+  spotLayer.clearLayers();
+  S.spots.forEach((sp) => {
+    const mk = L.marker([sp.lat, sp.lon], { icon: L.divIcon({ className: 'spot-pin', iconSize: [28, 28], iconAnchor: [14, 14], html: '<svg viewBox="0 0 24 24" aria-hidden="true">' + FISH_SVG + '</svg>' }), zIndexOffset: 600 });
+    mk.on('click', () => openSpot(sp));
+    spotLayer.addLayer(mk);
+  });
+}
+function conditionsNow() {
+  const w = S.weather, tn = tideNow(), ob = nearestObs();
+  return {
+    tide: tn ? { v: tn.v, rising: tn.rising, next: tn.next ? { type: tn.next.type, t: tn.next.t } : null } : null,
+    wind: ob ? { dir: ob.dir, spd: ob.spd } : w && w.cur ? { dir: w.cur.dir, spd: w.cur.spd } : null,
+    water: S.waterObs ? S.waterObs.f : w && w.sst != null ? w.sst : null, air: w && w.cur ? w.cur.temp : null,
+  };
+}
+function spotSummary(sp) {
+  const c = sp.cond || {}, bits = [];
+  if (c.tide) bits.push('Tide ' + tideLen(c.tide.v) + (c.tide.rising == null ? '' : c.tide.rising ? ' rising' : ' falling'));
+  if (c.wind) bits.push(compass16(c.wind.dir) + ' ' + Math.round(speedOut(c.wind.spd)) + ' ' + SPEED_LBL[S.settings.speedUnit]);
+  if (c.water != null) bits.push('water ' + tempTxt(c.water));
+  return bits.join(' · ');
+}
+function markFish() {
+  if (!S.fix) { toast('Waiting for GPS before marking a spot.'); return; }
+  const sp = { id: Date.now(), lat: S.fix.lat, lon: S.fix.lon, t: Date.now(), species: '', notes: '', cond: conditionsNow() };
+  S.spots.push(sp); store.set('spots', S.spots); drawSpots();
+  if (navigator.vibrate) navigator.vibrate(30);
+  openSpot(sp, true);
+}
+function openSpot(sp, fresh) {
+  S.sheetPoint = { p: { lat: sp.lat, lon: sp.lon }, wp: null, spot: sp };
+  const d = new Date(sp.t);
+  openSheet('<h3>' + (fresh ? 'Spot saved' : esc(sp.species || 'Fishing spot')) + '</h3><div class="sub tnum">' + d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' · ' + ddm(sp.lat, true) + ' ' + ddm(sp.lon, false) + '</div>' +
+    '<p class="sub" style="margin:6px 0 10px">' + esc(spotSummary(sp) || 'Conditions not available') + '</p>' +
+    '<div class="field"><label for="spSpecies">What you caught</label><input id="spSpecies" value="' + esc(sp.species) + '" placeholder="Rockfish, 24 in"></div>' +
+    '<div class="field"><label for="spNotes">Notes</label><input id="spNotes" value="' + esc(sp.notes) + '" placeholder="Bait, depth, lure, structure"></div>' +
+    '<div class="row-btns"><button class="btn primary" data-act="spsave">Save</button><button class="btn" data-act="goto">Navigate to</button><button class="btn" data-act="spdel">Delete</button></div>' +
+    '<p class="hint">Your spots stay private on this device.</p>');
+}
+sheet.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b || !S.sheetPoint || !S.sheetPoint.spot) return;
+  const sp = S.sheetPoint.spot;
+  if (b.dataset.act === 'spsave') { sp.species = $('spSpecies').value.trim(); sp.notes = $('spNotes').value.trim(); store.set('spots', S.spots); closeSheet(); toast('Spot saved'); }
+  if (b.dataset.act === 'spdel') { if (!armed(b, 'Tap again to delete')) return; S.spots = S.spots.filter((x) => x.id !== sp.id); store.set('spots', S.spots); drawSpots(); closeSheet(); }
+});
+$('btnFish').addEventListener('click', markFish);
+
 /* ---------- offline chart saving ---------- */
 const lon2x = (lon, z) => Math.floor(((lon + 180) / 360) * 2 ** z);
 const lat2y = (lat, z) => { const r = rad(lat); return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z); };
@@ -2396,6 +2457,7 @@ function profileHtml() {
   return '<div class="card" style="padding:14px"><div class="stack">' +
     '<div class="grid2">' + f('bName', 'Boat name', st.boatName) + f('bSkipper', 'Your first name (voice coach)', st.skipper) + '</div>' +
     '<div class="grid2">' + sel('bType', 'Type', st.boatType, [['sail', 'Sailboat'], ['power', 'Powerboat']]) + f('bYear', 'Year', b.year, 'number') + '</div>' +
+    sel('bUse', 'Mainly used for (sets up the tools you see)', st.useMode || 'cruise', [['cruise', 'Cruising and day trips'], ['fish', 'Fishing (marks your spots)'], ['race', 'Racing (more coming)'], ['pro', 'Delivery or professional captain']]) +
     '<div class="grid2">' + f('bMake', 'Make', b.make) + f('bModel', 'Model', b.model) + '</div>' +
     '<div class="grid2">' + f('bLen', 'Length (' + lenUnit() + ')', L2(st.boatLen), 'number') + f('bBeam', 'Beam (' + lenUnit() + ')', L2(b.beamFt), 'number') + '</div>' +
     '<div class="grid2">' + f('bDraft', 'Draft (' + lenUnit() + ')', L2(b.draftFt), 'number') + f('bAir', 'Air draft (' + lenUnit() + ')' + (st.boatType === 'sail' ? ', masthead and antennas' : ', highest point'), L2(b.airDraftFt), 'number') + '</div>' +
@@ -2412,7 +2474,7 @@ function profileHtml() {
 function saveBoatForm() {
   const v = (id) => ($(id) ? $(id).value.trim() : ''), n = (id) => { const x = parseFloat(v(id)); return isFinite(x) ? x : null; };
   const st = S.settings, b = S.boat;
-  st.boatName = v('bName'); st.skipper = v('bSkipper'); st.boatType = v('bType'); st.iconStyle = v('bIcon');
+  st.boatName = v('bName'); st.skipper = v('bSkipper'); st.boatType = v('bType'); st.useMode = v('bUse') || 'cruise'; applyUseMode(); st.iconStyle = v('bIcon');
   if (n('bLen')) st.boatLen = lenToFt(n('bLen'));
   b.year = v('bYear'); b.make = v('bMake'); b.model = v('bModel');
   b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null;
@@ -3195,7 +3257,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 askPersist();
 if (S.settings.cockpit) setTimeout(() => setCockpit(true), 300);
 drawRoute();
-applyNight(); applyEasy(); applyCalm(); applyChart(); applyWx(); refreshBridges(); renderModeChip(); renderWaypoints(); drawAnchor(); updateGoto(); updateMob(); renderStrip(); renderChips();
+applyNight(); applyEasy(); applyCalm(); applyUseMode(); applyChart(); applyWx(); refreshBridges(); renderModeChip(); renderWaypoints(); drawAnchor(); updateGoto(); updateMob(); renderStrip(); renderChips();
 $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();

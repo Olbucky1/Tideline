@@ -637,3 +637,5 @@ html.calm #app.wide .topbar { left: calc((100% - 400px) / 2); right: auto; }
 /* slimmer bottom bar: more chart */
 .tab { gap: 1px; font-size: 10.5px; padding-top: 4px; }
 .tab svg { width: 21px; height: 21px; }
+.fab.fish { background: #087E83; } .fab.fish svg { stroke: #fff; }
+.spot-pin svg { width: 28px; height: 28px; background: #087E83; border: 2px solid #fff; border-radius: 14px; padding: 4px; fill: none; stroke: #fff; stroke-width: 2; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
