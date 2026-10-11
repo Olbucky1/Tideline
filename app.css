@@ -1950,8 +1950,8 @@ body:has(#sheet:not([hidden]), #quick:not([hidden]), .panel:not([hidden]), #cock
 .pl-best { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 9px 12px; border-radius: 10px; border: 1px dashed rgba(255,255,255,.3); background: transparent; color: #9FD3FF; font: 600 13.5px/1.3 inherit; }
 
 /* ---------- buttons in the gauge look (all, or one at a time) ---------- */
-html:root[data-fablook="gauge"]:not([data-night]) .fab.fab:not(.attn):not(.fish),
-html:root[data-fablook="gauge"]:not([data-night]) .mini-depth.mini-depth,
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.fab:not(.attn):not(.fish),
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .mini-depth.mini-depth,
 html:root:not([data-night]) .fab.fab[data-gl]:not(.attn):not(.fish) {
   background: radial-gradient(circle at 50% 36%, var(--bt-f1), var(--bt-f2) 78%) padding-box,
     conic-gradient(from 200deg, var(--bt-c1), var(--bt-c2), var(--bt-c3), var(--bt-c4), var(--bt-c1), var(--bt-c5), var(--bt-c2), var(--bt-c1)) border-box !important;
@@ -1959,12 +1959,12 @@ html:root:not([data-night]) .fab.fab[data-gl]:not(.attn):not(.fish) {
   box-shadow: 0 2px 6px rgba(0, 0, 0, .35), inset 0 1px 1px rgba(255, 255, 255, .28) !important;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
-html:root[data-fablook="gauge"]:not([data-night]) .fab.fab:not(.attn):not(.fish) svg,
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.fab:not(.attn):not(.fish) svg,
 html:root:not([data-night]) .fab.fab[data-gl]:not(.attn):not(.fish) svg { stroke: var(--bt-ink) !important; filter: none !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .fab.fab :is(b, .ais-n, small),
-html:root[data-fablook="gauge"]:not([data-night]) .mini-depth :is(b, small),
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.fab :is(b, .ais-n, small),
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .mini-depth :is(b, small),
 html:root:not([data-night]) .fab.fab[data-gl] :is(b, .ais-n, small) { color: var(--bt-ink) !important; text-shadow: none !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .fab.fab.on:not(.attn):not(.fish),
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.fab.on:not(.attn):not(.fish),
 html:root:not([data-night]) .fab.fab.on[data-gl] { box-shadow: 0 0 0 2px var(--gi-acc), 0 2px 6px rgba(0, 0, 0, .35) !important; }
 /* the real previews in the look pickers */
 .gl-row .gl-prev { width: 72px !important; height: 72px !important; }
@@ -1975,12 +1975,25 @@ html:root:not([data-night]) .fab.fab.on[data-gl] { box-shadow: 0 0 0 2px var(--g
 .arr-grip { position: fixed; z-index: 3200; user-select: none; -webkit-user-select: none; width: 30px; height: 30px; border-radius: 9px; border: 0; background: #2E86DE; color: #fff; font: 700 18px/30px var(--f-ui); box-shadow: 0 2px 8px rgba(0,0,0,.35); touch-action: none; padding: 0; }
 html.arr-dragging .arr-grip { opacity: .85; }
 /* the rest of the chart's controls follow the look too: badges, the compass rose button, the tab bar */
-html:root[data-fablook="gauge"]:not([data-night]) .fab .or-lbl,
-html:root[data-fablook="gauge"]:not([data-night]) .fab .ais-n { background: var(--bt-c2) !important; color: var(--bt-f2) !important; border-color: var(--bt-f1) !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .fab.orient .rose-s, html:root[data-fablook="gauge"]:not([data-night]) .fab.orient .rose-c { fill: var(--bt-ink) !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .fab.orient .rose-ew { fill: var(--gi-muted) !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .tabbar { background: linear-gradient(180deg, var(--bt-f1), var(--bt-f2)) !important; border-top: 2px solid var(--bt-c2) !important; border-image: none !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .tab { color: var(--gi-muted) !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .tab svg { stroke: currentColor !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .tab.on { color: var(--bt-ink) !important; background: color-mix(in srgb, var(--bt-c2) 22%, transparent) !important; box-shadow: inset 0 2px 0 var(--bt-c2) !important; }
-html:root[data-fablook="gauge"]:not([data-night]) .mini-inst .mi-face, html:root[data-fablook="gauge"]:not([data-night]) .alert-bar.mini { border-color: var(--bt-c2) !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab .or-lbl,
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab .ais-n { background: var(--bt-c2) !important; color: var(--bt-f2) !important; border-color: var(--bt-f1) !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.orient .rose-s, html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.orient .rose-c { fill: var(--bt-ink) !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.orient .rose-ew { fill: var(--gi-muted) !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .tabbar { background: linear-gradient(180deg, var(--bt-f1), var(--bt-f2)) !important; border-top: 2px solid var(--bt-c2) !important; border-image: none !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .tab { color: var(--gi-muted) !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .tab svg { stroke: currentColor !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .tab.on { color: var(--bt-ink) !important; background: color-mix(in srgb, var(--bt-c2) 22%, transparent) !important; box-shadow: inset 0 2px 0 var(--bt-c2) !important; }
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .mini-inst .mi-face, html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .alert-bar.mini { border-color: var(--bt-c2) !important; }
+/* "Everything": menus, sheets and panels take the look's colours too (day and dusk; night keeps its red; Light menus are respected) */
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel, .cockpit-x) {
+  --surface: var(--mt-bg); --surface2: color-mix(in srgb, var(--mt-bg) 82%, #000); --line: color-mix(in srgb, var(--mt-acc) 30%, var(--mt-bg)); --tile: color-mix(in srgb, #fff 6%, var(--mt-bg)); --tile-line: color-mix(in srgb, var(--mt-acc) 34%, var(--mt-bg)); --accent: var(--mt-acc);
+  background: linear-gradient(180deg, color-mix(in srgb, #fff 4%, var(--mt-bg)), var(--mt-bg) 140px) !important; color-scheme: dark;
+}
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) :is(.card, .li, .field input, .field select, .field textarea, .seg, .m-row, .fm-card, .sc-card, .loop-leg, .sc-win, .alr, .wx-mod, .uses button, .tl-model, .pt-grid > div, .cur-ev, .ev, details) { border-color: var(--line) !important; }
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) .seg button.on,
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) .btn.primary,
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick) .q-t.on,
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) .uses button.on { background: var(--mt-acc) !important; color: var(--mt-on) !important; border-color: var(--mt-acc) !important; }
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) .btheme-row button.on { border-color: var(--mt-acc) !important; box-shadow: 0 0 0 1px var(--mt-acc) inset !important; }
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) :is(.eyebrow, .mo-h, h4) { color: var(--mt-acc) !important; }
+html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) a { color: color-mix(in srgb, var(--mt-acc) 75%, #fff); }

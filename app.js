@@ -2736,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 127. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 128. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6188,6 +6188,11 @@ const GT = [
   { id: 'carbon', l: 'Carbon', g: 'Modern', legacy: 1, bz: ['#5A5A5A', '#2A2A2A', '#111111', '#3C3C3C', '#1E1E1E'], fc: ['#1A1A1A', '#0B0B0B'], ink: '#EDEDED' },
   { id: 'simple', l: 'Simple digital', g: 'Modern', legacy: 1, bz: ['#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A'], fc: ['#15212D', '#15212D'], ink: '#FFFFFF' },
 ];
+const MT = { navybrass: ['#14243F', '#C9A04E'], heritage: ['#1E2A3A', '#C9A04E'], brass: ['#23201A', '#C9A04E'], bronze: ['#221B13', '#C08A45'], classic: ['#17191C', '#A7B2BC'], whiteface: ['#1B2026', '#A7B2BC'],
+  yachtchrono: ['#14213D', '#8FA6C9'], compass: ['#13233F', '#C9A04E'], teak: ['#2A1A10', '#C68350'], regatta: ['#18191C', '#D9A066'], chart: ['#2B241A', '#B88A3E'], admiralty: ['#121314', '#C9A04E'],
+  racinggreen: ['#12291E', '#C9A04E'], burgundy: ['#2A0E13', '#C9A04E'], mahogany: ['#14243F', '#B8673C'], pewter: ['#262C32', '#9AA1A6'],
+  midnight: ['#16283A', '#5AE3FF'], arctic: ['#16283A', '#7CC0FF'], glass: ['#0E2A44', '#5EE6FF'], expedition: ['#1A1D20', '#FF7A1A'], carbon: ['#151515', '#30D158'], simple: ['#15212D', '#5AC8FA'] };
+const mtOn = (hex) => { const n = parseInt(hex.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.55 ? '#14161A' : '#FFFFFF'; };
 const GTHEMES = GT.map((t) => [t.id, t.l, 'radial-gradient(circle,' + t.fc[0] + ' 55%,' + t.bz[1] + ' 58%)']);
 const gtOf = (id) => GT.find((t) => t.id === id) || GT.find((t) => t.id === 'midnight');
 const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'ga-hzs', swell: 'ga-swells' };
@@ -6201,7 +6206,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
       P + ' :is(.cockpit,#panelSide) .gauge svg{--g-ink:var(--gi-ink)!important;--g-muted:var(--gi-muted)!important;--g-acc:var(--gi-acc)!important;--g-acc2:var(--gi-acc)!important;--g-face:color-mix(in srgb,var(--gi-ink) 9%,transparent)!important;--g-bg:transparent!important;--g-line:color-mix(in srgb,var(--gi-ink) 35%,transparent)!important}';
     return c;
   };
-  let css = '.gl-prev{--g-ink:var(--gi-ink);--g-muted:var(--gi-muted);--g-acc:var(--gi-acc);--g-acc2:var(--gi-acc);--g-line:color-mix(in srgb,var(--gi-muted) 45%,transparent);--g-face:transparent;--g-bg:transparent}';
+  let css0 = GT.map((t) => { const m = MT[t.id] || MT.midnight; return 'html:root[data-gtheme="' + t.id + '"]{--mt-bg:' + m[0] + ';--mt-acc:' + m[1] + ';--mt-on:' + mtOn(m[1]) + '}'; }).join(''), css = css0 + '.gl-prev{--g-ink:var(--gi-ink);--g-muted:var(--gi-muted);--g-acc:var(--gi-acc);--g-acc2:var(--gi-acc);--g-line:color-mix(in srgb,var(--gi-muted) 45%,transparent);--g-face:transparent;--g-bg:transparent}';
   GT.forEach((t) => {
     if (t.legacy) { css += 'html:root[data-gtheme="' + t.id + '"]{--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}'; return; } // the original looks keep their own app.css styling
     css += rules('html:root[data-gtheme="' + t.id + '"]:not([data-night])', t, true) + rules('i.gl-prev.gl-prev[data-gt="' + t.id + '"]', t, false); });
@@ -7091,11 +7096,11 @@ function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .f
 function arrangeMode(on) {
   ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
   let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
-  bar.innerHTML = '<span>Drag a button, or ⠿ to move a whole row</span><button type="button" class="btn small" data-arr="tidy">Tidy up</button><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
+  bar.innerHTML = '<span>Drag a button, or ⠿ to move a whole row</span><button type="button" class="btn small" data-arr="bottom">Bottom row</button><button type="button" class="btn small" data-arr="tidy">Tidy up</button><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
   setTimeout(arrGrips, 60); bar.hidden = !on; if (on) bar.style.removeProperty('display'); else bar.style.setProperty('display', 'none', 'important'); if (!on) { arrPreview(null); saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
 }
 document.addEventListener('click', (e) => {
-  const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else if (a.dataset.arr === 'tidy') arrTidy(); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
+  const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else if (a.dataset.arr === 'tidy') arrTidy(); else if (a.dataset.arr === 'bottom') fabPreset('bottom'); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
   if (ARR.on && e.target.closest('#fabs, #fabsR, .fab-free')) { e.stopPropagation(); e.preventDefault(); } // buttons do not act while arranging
 }, true);
 document.addEventListener('pointerdown', (e) => {
@@ -7154,8 +7159,9 @@ function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div>' + glPicker(st.gTheme || 'midnight') +
     '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
-    '<div class="field"><label>Buttons and tab bar</label>' + seg('fabLook', st.fabLook || 'theme', [['gauge', 'Match this look'], ['theme', 'Their own colors']]) + '</div>' +
-    '<p class="hint" style="margin:-4px 0 8px">To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
+    '<div class="field"><label>Theme the rest of the app with it</label>' + seg('fabLook', st.fabLook || 'theme', [['app', 'Everything'], ['gauge', 'Buttons and tab bar'], ['theme', 'Nothing else']]) + '</div>' +
+    '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
+    '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
     '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
 }document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
 function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
@@ -7664,7 +7670,8 @@ sheet.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-fabone]'); if (b && S.fabFor) { const each = S.settings.fabEach || (S.settings.fabEach = {}); if (b.dataset.fabone) each[S.fabFor] = b.dataset.fabone; else delete each[S.fabFor]; saveSettings(); applyFabLook(); sheet.querySelectorAll('button[data-fabone]').forEach((x) => x.classList.toggle('on', x === b)); const all = sheet.querySelector('[data-faball]'); if (all) all.dataset.faball = b.dataset.fabone; return; }
   const a = e.target.closest('button[data-faball]'); if (a) { const id = a.dataset.faball; S.settings.fabEach = {}; if (id) { S.settings.gTheme = id; applyGTheme(); S.settings.fabLook = 'gauge'; } else S.settings.fabLook = 'theme'; saveSettings(); applyFabLook(); closeSheet(); toast(id ? 'Every button and the gauges now use ' + gtOf(id).l + '.' : 'Buttons back to their own colors.'); }
 });
-if (!S.settings.fabLookSeeded) { if (!S.settings.fabLook) S.settings.fabLook = 'gauge'; S.settings.fabLookSeeded = 1; saveSettings(); } // Andy: buttons and gauges in one look by default
+if (S.settings.fabLookSeeded === 1 && S.settings.fabLook === 'gauge') { S.settings.fabLook = 'app'; S.settings.fabLookSeeded = 2; saveSettings(); } // Andy: the look themes the whole app
+if (!S.settings.fabLookSeeded) { S.settings.fabLook = S.settings.fabLook || 'app'; if (!S.settings.fabLook) S.settings.fabLook = 'gauge'; S.settings.fabLookSeeded = 1; saveSettings(); } // Andy: buttons and gauges in one look by default
 setTimeout(applyFabLook, 350);
 /* ---------- move a whole row or column of buttons at once: grab its ⠿ handle; tap the handle to turn a column into a row and back ---------- */
 function arrGroupsNow() {
@@ -7715,6 +7722,20 @@ function arrGrips() {
   document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
   addEventListener('resize', () => { if (ARR.on) arrGrips(); });
 })();
+/* ---------- button layouts in one tap: down the sides (as shipped), the left column along the bottom, or everything along the bottom ---------- */
+function fabPreset(kind) {
+  if (kind === 'sides') { delete S.settings.fabLayout; saveSettings(); location.reload(); return; }
+  if (S.tab !== 'chart') setTab('chart');
+  const G = arrGrid(), mob = $('btnMOB'), mr = mob && mob.offsetWidth ? mob.getBoundingClientRect() : null;
+  const rowOf = (els, y, x0) => { let x = x0, yy = y; els.forEach((el) => { const w = el.offsetWidth || G.sz; if (x + w > innerWidth - 8) { x = x0; yy -= G.p; } $('app').appendChild(el); el.classList.add('fab-free'); el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(yy - (el.offsetHeight || G.sz) + G.sz) + 'px'; x += w + G.gap; }); return yy; };
+  const left = fabItems($('fabs')).filter((x) => x.offsetWidth), right = fabItems($('fabsR')).filter((x) => x.offsetWidth);
+  const y1 = G.tb - G.sz - 10, x1 = mr ? mr.right + G.gap + 4 : 12;
+  const yEnd = rowOf(left, y1, x1);
+  if (kind === 'bottom2') rowOf(right.filter((el) => el.id !== 'btnInst' || true), yEnd - G.p, 12);
+  saveFabLayout(); if (ARR.on) arrGrips();
+  toast(kind === 'bottom2' ? 'All the buttons are along the bottom. Hold any button to fine-tune.' : 'The left buttons are along the bottom. Hold any button to fine-tune.', 3500);
+}
+sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-fabpre]'); if (!b) return; closeSheet(); setTimeout(() => fabPreset(b.dataset.fabpre), 80); });
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
