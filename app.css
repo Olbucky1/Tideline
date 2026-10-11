@@ -1315,3 +1315,27 @@ html, body { touch-action: manipulation; overscroll-behavior: none; overflow: hi
   .fab-col { gap: 6px !important; }
   .mini-inst { width: 58px !important; margin: 0 -9px 4px -9px !important; } .mini-inst > svg { width: 58px; height: 58px; }
 }
+
+/* Blue control theme (day): solid blue buttons with white icons; a button that's switched on turns white with a blue icon and ring */
+:root:not([data-night]):not([data-dusk]) .fab:not(.attn):not(.fish),
+:root:not([data-night]):not([data-dusk]) .mini-depth {
+  background: linear-gradient(180deg, #2C7BD0 0%, #1A5DA8 100%) !important;
+  border: 1px solid #154C8A !important; color: #fff !important;
+  box-shadow: 0 2px 6px rgba(13, 52, 98, .30), inset 0 1px 0 rgba(255,255,255,.25) !important;
+}
+:root:not([data-night]):not([data-dusk]) .fab:not(.attn):not(.fish) svg { stroke: #fff !important; }
+:root:not([data-night]):not([data-dusk]) .fab.info b,
+:root:not([data-night]):not([data-dusk]) .fab.wxbtn b,
+:root:not([data-night]):not([data-dusk]) .fab .ais-n,
+:root:not([data-night]):not([data-dusk]) .mini-depth b { color: #fff !important; }
+:root:not([data-night]):not([data-dusk]) .mini-depth small { color: #CFE4FA !important; }
+:root:not([data-night]):not([data-dusk]) .fab.on:not(.attn):not(.fish) {
+  background: #fff !important; border: 2px solid #1A5DA8 !important;
+}
+:root:not([data-night]):not([data-dusk]) .fab.on:not(.attn):not(.fish) svg,
+:root:not([data-night]):not([data-dusk]) .fab.info.on .fi-ic svg { stroke: #1A5DA8 !important; }
+:root:not([data-night]):not([data-dusk]) .fab.on b,
+:root:not([data-night]):not([data-dusk]) .fab.on .ais-n { color: #1A5DA8 !important; }
+@media (hover: hover) {
+  :root:not([data-night]):not([data-dusk]) .fab:not(.on):not(.attn):not(.fish):hover { background: linear-gradient(180deg, #3A8BE0 0%, #2068B6 100%) !important; }
+}
