@@ -3261,7 +3261,10 @@ const lenM = () => S.settings.boatLen * 0.3048;
 /* a few well-known boats, from the builders' published specs; anything filled in is shown so the owner can check it */
 const BOAT_DB = [
   { make: 'Catalina', model: '22', loa: 21.5, lwl: 19.33, beam: 7.67, disp: 2490, type: 'sail' },
-  { make: 'Catalina', model: '27', loa: 27.0, lwl: 21.75, beam: 8.83, draft: 4.0, disp: 6850, type: 'sail', air: 38, airNote: 'standard rig, waterline to masthead as owners report it; add antennas and the wind instrument' },
+  { make: 'Catalina', model: '27', loa: 26.83, lwl: 21.75, beam: 8.83, draft: 4.0, disp: 6850, ballast: 2700, type: 'sail', air: 38, years: '1971–1991',
+    src: 'Good Old Boat sail data and Wikipedia', airNote: 'owners report about 38 ft for the standard rig, waterline to masthead; add antennas and the wind instrument',
+    variants: { rig: [{ id: 'std', label: 'Standard rig', air: 38, note: 'I 34.5 ft, P 28.7 ft' }, { id: 'tall', label: 'Tall rig (TM)', air: 40, note: 'mast about 1.5–2 ft taller: I 36 ft, P 29.7 ft' }],
+      keel: [{ id: 'fin', label: 'Fin keel', draft: 4.0 }, { id: 'shoal', label: 'Shoal or wing keel (SD)', draft: 3.0 }] } },
   { make: 'Catalina', model: '30', loa: 29.92, lwl: 25.0, beam: 10.83, draft: 5.25, disp: 10200, type: 'sail' },
   { make: 'J/Boats', alias: /^j\/?\s*24$/i, model: 'J/24', loa: 24.0, lwl: 20.0, beam: 8.9, draft: 4.0, disp: 3100, type: 'sail' },
 ];
@@ -3309,6 +3312,7 @@ function profileHtml() {
     '<div class="grid2">' + f('bDraft', 'Draft (' + lenUnit() + ')', L2(b.draftFt), 'number') + f('bAir', 'Air draft (' + lenUnit() + ')' + (st.boatType === 'sail' ? ', masthead and antennas' : ', highest point'), L2(b.airDraftFt), 'number') + '</div>' +
     '<label class="air-ok"><input type="checkbox" id="bAirOk"' + (b.airVerified ? ' checked' : '') + '> Air draft verified (I measured it, or it is from the builder for my rig)</label>' +
     '<div class="grid2">' + sel('bEngKind', 'Engine', b.engineKind, [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive'], ['pod', 'Pod drive (IPS etc.)'], ['none', 'No engine']]) + f('bHp', 'Horsepower', b.engineHp, 'number') + '</div>' +
+    (b.engineKind === 'outboard' || !b.engineKind ? '<div class="grid2">' + sel('bShaft', 'Outboard shaft length', b.shaft || '', [['', 'Not sure'], ['short', 'Short (15 in)'], ['long', 'Long (20 in)'], ['xl', 'Extra long (25 in)'], ['ul', 'Ultra long (30 in)']]) + '<p class="hint" style="align-self:end">Measured from the top of the mounting bracket to the anti-ventilation plate. It decides which replacement or spare fits your transom.</p></div>' : '') +
     '<div class="grid2">' + f('bEngMake', 'Engine make', b.engineMake) + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
     '<div class="grid2">' + f('bHours', 'Engine hours now', b.engineHours, 'number') + sel('bIcon', 'Chart icon', st.iconStyle, [['boat', 'Boat outline'], ['arrow', 'Arrow']]) + '</div>' +
     '<div class="grid2">' + sel('bAnchor', 'Main anchor', b.anchorType, [['', 'Choose…'], ['newgen', 'New-generation (Rocna, Mantus, Spade, Vulcan…)'], ['plow', 'Plow (CQR, Delta)'], ['claw', 'Claw (Bruce)'], ['fluke', 'Fluke (Danforth, Fortress)'], ['grapnel', 'Grapnel'], ['other', 'Other']]) + f('bAnchorLb', 'Anchor weight (lb)', b.anchorLb, 'number') + '</div>' +
@@ -3325,7 +3329,7 @@ function saveBoatForm() {
   if (n('bLen')) st.boatLen = lenToFt(n('bLen'));
   b.year = v('bYear'); b.make = v('bMake'); b.model = v('bModel');
   b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null; b.airVerified = !!($('bAirOk') && $('bAirOk').checked);
-  b.engineKind = v('bEngKind'); b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineHours = n('bHours') || 0;
+  b.engineKind = v('bEngKind'); b.shaft = $('bShaft') ? v('bShaft') : b.shaft; b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineHours = n('bHours') || 0;
 
   b.lwlFt = n('bLwl') != null ? lenToFt(n('bLwl')) : null; b.dispLb = n('bDisp');
   { const hs = hullSpeed(); if (hs && st.boatType === 'sail' && (!st.sailSpeed || st.sailSpeed === 5)) st.sailSpeed = Math.round(hs.kn * 0.8 * 10) / 10; }
@@ -3612,6 +3616,7 @@ function setupChecklist() { // the few facts every safety check depends on
     items.map(([l, ok, f]) => '<button type="button" class="su-row' + (ok ? ' ok' : '') + '" data-sufield="' + f + '"><i>' + (ok ? '✓' : '') + '</i><span>' + l + '</span><em>' + (ok ? 'Change' : 'Add') + ' ›</em></button>').join('') + '</div>';
 }
 function renderBoat() {
+  setTimeout(() => { if (boatEditing && $('bDbNote') && (($('bMake') || {}).value || ($('bModel') || {}).value)) boatFinderShow(); }, 0);
   const p = $('panelBoat');
   const due = S.maint.items.filter((i) => ['over', 'soon'].includes(dueInfo(i).cls)).length;
   $('maintDot').hidden = !due;
@@ -3661,13 +3666,47 @@ $('panelBoat').addEventListener('click', (e) => {
   inp.value = v; S.boat.engineHours = v; logHours(v); saveBoat();
   clearTimeout(mhT); mhT = setTimeout(() => { if (document.activeElement !== inp) renderBoat(); }, 1500);
 });
-$('panelBoat').addEventListener('change', (e) => {
-  if (e.target.id !== 'bMake' && e.target.id !== 'bModel') return;
-  const d = boatLookup($('bMake') && $('bMake').value, $('bModel') && $('bModel').value); if (!d) return;
-  const L3 = (ft) => String(Math.round(ftToLen(ft) * 10) / 10), put = (id, v) => { const el = $(id); if (el && v != null && !el.value) el.value = v; };
-  put('bLen', L3(d.loa)); put('bLwl', L3(d.lwl)); put('bBeam', L3(d.beam)); if (d.draft) put('bDraft', L3(d.draft)); put('bDisp', d.disp); if (d.air) { put('bAir', L3(d.air)); const v = $('bAirOk'); if (v) v.checked = false; }
-  const hs = 1.34 * Math.sqrt(lenToFt(parseFloat($('bLwl').value) || ftToLen(d.lwl)));
-  if ($('bDbNote')) $('bDbNote').textContent = 'Filled in from the published ' + d.make + ' ' + d.model + ' specs (hull speed about ' + fmtSpeed(hs) + ' ' + SPEED_LBL[S.settings.speedUnit] + ').' + (d.air ? ' Air draft ' + fmtLen(d.air) + ' is an estimate (' + d.airNote + '): measure yours and tick Verified.' : ' Air draft is not in the database for this boat: measure it or check the manual, then tick Verified.') + ' Keels and rigs vary.';
+// boat finder: make + model (a year in either box is fine) → published specs, with the rig and keel choices that boat came with
+const BF = { d: null, rig: null, keel: null };
+function boatFind() {
+  let mk = ($('bMake') && $('bMake').value) || '', md = ($('bModel') && $('bModel').value) || '';
+  const yr = (mk + ' ' + md).match(/\b(19[4-9]\d|20[0-3]\d)\b/); mk = mk.replace(/\b(19|20)\d\d\b/, '').trim(); md = md.replace(/\b(19|20)\d\d\b/, '').trim();
+  if (!md && /\s/.test(mk)) { const parts = mk.split(/\s+/); md = parts.pop(); mk = parts.join(' '); } // "Catalina 27" typed in one box
+  if (yr && $('bYear') && !$('bYear').value) $('bYear').value = yr[1];
+  return boatLookup(mk, md);
+}
+function boatFinderHtml(d) {
+  const V = d.variants || {}, rig = (V.rig || []).find((x) => x.id === BF.rig) || (V.rig || [])[0], keel = (V.keel || []).find((x) => x.id === BF.keel) || (V.keel || [])[0];
+  const air = rig ? rig.air : d.air, draft = keel ? keel.draft : d.draft, L = (ft) => (Math.round(ftToLen(ft) * 10) / 10) + ' ' + lenUnit();
+  const seg = (k, arr, cur) => arr && arr.length > 1 ? '<div class="bf-q">' + (k === 'rig' ? 'Which rig?' : 'Which keel?') + '</div><div class="seg">' + arr.map((x) => '<button type="button" data-bfv="' + k + ':' + x.id + '" class="' + (cur && cur.id === x.id ? 'on' : '') + '">' + esc(x.label) + '</button>').join('') + '</div>' : '';
+  const row = (l, v) => v == null ? '' : '<div><span>' + l + '</span><b class="tnum">' + v + '</b></div>';
+  return '<div class="bf"><div class="bf-h">Found: ' + esc(d.make + ' ' + d.model) + (d.years ? ' <small>(built ' + d.years + ')</small>' : '') + '</div>' + seg('rig', V.rig, rig) + seg('keel', V.keel, keel) +
+    '<div class="bf-grid">' + row('Length', L(d.loa)) + row('Waterline', L(d.lwl)) + row('Beam', L(d.beam)) + row('Draft', draft ? L(draft) : null) + row('Displacement', d.disp ? d.disp.toLocaleString() + ' lb' : null) + row('Ballast', d.ballast ? d.ballast.toLocaleString() + ' lb' : null) + row('Air draft', air ? '≈ ' + L(air) : null) + row('Hull speed', fmtSpeed(1.34 * Math.sqrt(d.lwl)) + ' ' + SPEED_LBL[S.settings.speedUnit]) + '</div>' +
+    (rig && rig.note ? '<p class="hint">' + esc(rig.note) + '.</p>' : '') +
+    '<p class="hint">These are the published numbers we found (' + esc(d.src || 'builder specs') + '). <b>Please verify them on your boat</b>: rigs, keels and owner changes vary. Air draft is an estimate: measure yours and tick Verified.</p>' +
+    '<button type="button" class="btn primary" data-act="bfuse">Use these numbers</button></div>';
+}
+function boatFinderShow() {
+  const d = boatFind(), note = $('bDbNote'); if (!note) return;
+  if (!d) { BF.d = null; note.innerHTML = 'No match yet for that make and model. Enter the numbers from your manual or a spec sheet, and tell me the boat so it can be added.'; return; }
+  if (BF.d !== d) { BF.d = d; BF.rig = null; BF.keel = null; }
+  note.innerHTML = boatFinderHtml(d);
+}
+function boatFinderUse() {
+  const d = BF.d; if (!d) return; const V = d.variants || {};
+  const rig = (V.rig || []).find((x) => x.id === BF.rig) || (V.rig || [])[0], keel = (V.keel || []).find((x) => x.id === BF.keel) || (V.keel || [])[0];
+  const L3 = (ft) => String(Math.round(ftToLen(ft) * 10) / 10), put = (id, v) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('pulse'); setTimeout(() => el.classList.remove('pulse'), 1400); } };
+  put('bLen', L3(d.loa)); put('bLwl', L3(d.lwl)); put('bBeam', L3(d.beam)); put('bDraft', L3(keel ? keel.draft : d.draft)); put('bDisp', d.disp); put('bAir', L3(rig ? rig.air : d.air));
+  const v = $('bAirOk'); if (v) v.checked = false;
+  toast('Filled in. Check each number against your boat, then tap Save.', 4000);
+}
+$('panelBoat').addEventListener('change', (e) => { if (e.target.id === 'bMake' || e.target.id === 'bModel') boatFinderShow(); });
+$('panelBoat').addEventListener('input', (e) => { if (e.target.id === 'bMake' || e.target.id === 'bModel') { clearTimeout(BF.t); BF.t = setTimeout(boatFinderShow, 500); } });
+$('panelBoat').addEventListener('pointerdown', (e) => { // pointerdown, so leaving the make/model box (which redraws this card) can't swallow the choice
+  const v = e.target.closest('[data-bfv]'); if (v) { e.preventDefault(); const [k, id] = v.dataset.bfv.split(':'); BF[k] = id; boatFinderShow(); }
+  if (e.target.closest('[data-act="bfuse"]')) { e.preventDefault(); boatFinderUse(); }
+});
+$('panelBoat').addEventListener('click', (e) => {
 });
 $('panelBoat').addEventListener('input', (e) => {
   const bvi = e.target.closest && e.target.closest('[data-bv]');
