@@ -3315,7 +3315,38 @@ $('btnSat').addEventListener('click', () => {
   toast(st.chart === 'satellite' ? 'Satellite only (' + (st.satSrc === 'hd' ? 'HD' : 'standard') + '). Tap again for the chart.' : st.satOver ? 'Chart over satellite. Tap again for satellite only.' : 'Chart only. Tap again for satellite.', 2600);
 });
 
-$('btnLayers').addEventListener('click', () => { if (!sheet.hidden && sheet.querySelector('[name=chart]')) closeSheet(); else openLayersSheet(); });
+/* quick layers: one tap on the layers button shows every on/off choice as big toggles */
+const QUICK = [
+  ['sat', 'Satellite', () => S.settings.satOver || S.settings.chart === 'satellite', (on) => { S.settings.satOver = on; if (!on && S.settings.chart === 'satellite') S.settings.chart = 'noaa'; S.satFailed = false; applyChart(); }],
+  ['wind', 'Wind', () => wxOn('wind'), (on) => setWxL('wind', on)],
+  ['waves', 'Waves', () => wxOn('waves'), (on) => setWxL('waves', on)],
+  ['rain', 'Rain radar', () => wxOn('rain'), (on) => setWxL('rain', on)],
+  ['mp', 'Marinas & clubs', () => S.settings.mplaces !== false, (on) => { S.settings.mplaces = on; refreshMarinePlaces(); }],
+  ['br', 'Bridges', () => S.settings.bridges !== false, (on) => { S.settings.bridges = on; refreshBridges(true); }],
+  ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); }],
+  ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); }],
+  ['roads', 'Roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
+  ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
+  ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
+];
+function renderQuick() {
+  const q = $('quick'), sz = S.settings.pinSize || 'M';
+  q.innerHTML = '<div class="q-head"><b>On the chart</b><button type="button" class="sheet-x" data-qx aria-label="Close">&times;</button></div><div class="q-grid">' +
+    QUICK.map(([k, l, get]) => '<button type="button" class="q-t' + (get() ? ' on' : '') + '" data-q="' + k + '" aria-pressed="' + get() + '"><i></i>' + l + '</button>').join('') + '</div>' +
+    '<div class="q-h">Symbol and label size</div><div class="seg">' + [['S', 'Small'], ['M', 'Medium'], ['L', 'Large'], ['XL', 'Extra large']].map(([v, l]) => '<button type="button" data-qsz="' + v + '" class="' + (sz === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+    '<button type="button" class="btn small q-more" data-qmore>More map options</button>';
+}
+function toggleQuick(show) { const q = $('quick'); const on = show == null ? q.hidden : show; if (on) { closeSheet(); renderQuick(); } q.hidden = !on; $('btnLayers').classList.toggle('on', on); }
+$('quick').addEventListener('click', (e) => {
+  if (e.target.closest('[data-qx]')) { toggleQuick(false); return; }
+  if (e.target.closest('[data-qmore]')) { toggleQuick(false); openLayersSheet(); return; }
+  const z = e.target.closest('[data-qsz]'); if (z) { S.settings.pinSize = z.dataset.qsz; saveSettings(); applyPinSize(); renderQuick(); return; }
+  const t = e.target.closest('[data-q]'); if (!t) return; const it = QUICK.find((x) => x[0] === t.dataset.q); if (!it) return;
+  it[3](!it[2]()); saveSettings(); renderQuick();
+});
+map.on('click', () => { if (!$('quick').hidden) toggleQuick(false); });
+function applyPinSize() { const sz = S.settings.pinSize || 'M'; document.documentElement.dataset.pins = sz; if (typeof drawMarinePlaces === 'function') drawMarinePlaces(); if (typeof drawBridges === 'function') drawBridges(); }
+$('btnLayers').addEventListener('click', () => toggleQuick());
 $('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', !wxOn('wind')); });
 $('waveChip').addEventListener('click', () => { setTab('chart'); setWxL('waves', !wxOn('waves')); });
 $('tideChip').addEventListener('click', () => setTab('dash'));
@@ -3462,7 +3493,7 @@ function drawMarinePlaces() {
   const rank = { club: 0, marina: 1, fuel: 2, pumpout: 3, ramp: 4 };
   [...MP.list.values()].filter((p) => b.contains([p.lat, p.lon])).sort((a, c) => (rank[a.type] ?? 9) - (rank[c.type] ?? 9)).forEach((p) => {
     const pt = map.latLngToContainerPoint([p.lat, p.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 70 && Math.abs(q.y - pt.y) < 26)) return; taken.push(pt);
-    const t = PLACE_TYPES[p.type] || PLACE_TYPES.place, named = z >= 13.5 && p.name && p.name !== t.label;
+    const t = PLACE_TYPES[p.type] || PLACE_TYPES.place, sz = S.settings.pinSize || 'M', named = sz !== 'S' && z >= (sz === 'M' ? 13.5 : 12.8) && p.name && p.name !== t.label;
     const html = '<div class="mp-pin"><i style="background:' + t.color + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + t.icon + '</svg></i>' + (named ? '<span>' + esc(p.name) + '</span>' : '') + '</div>';
     const m = L.marker([p.lat, p.lon], { zIndexOffset: 500, keyboard: false, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html }) });
     m.on('click', () => openPlaceSheet(Object.assign({ badges: [], light: '' }, p)));
@@ -3676,7 +3707,7 @@ document.querySelectorAll('.tab').forEach((b) => { b.dataset.tip = { chart: 'The
 if (DESK && S.anchor && !S.settings.sim) { S.anchor = null; store.set('anchor', null); stopAlarm(); drawAnchor(); setTimeout(() => toast('Anchor watch turned off: this computer has no GPS. Use your phone or iPad for anchor watch.', 6000), 1500); }
 setTimeout(() => { if (!S.fix) { maybeWeather(); maybeTide(); maybeObsWind(); } }, 2500); // no GPS (laptop): use the chart's position
 drawRoute();
-applyNight(); applyEasy(); applyCalm(); applyUseMode(); applyChart(); applyWx(); refreshBridges(); renderModeChip(); renderWaypoints(); drawAnchor(); updateGoto(); updateMob(); renderStrip(); renderChips();
+applyNight(); applyEasy(); applyCalm(); applyUseMode(); applyPinSize(); applyChart(); applyWx(); refreshBridges(); renderModeChip(); renderWaypoints(); drawAnchor(); updateGoto(); updateMob(); renderStrip(); renderChips();
 $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();

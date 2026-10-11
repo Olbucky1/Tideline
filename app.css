@@ -757,3 +757,22 @@ html.calm.nogps .fab-col { top: calc(56px + env(safe-area-inset-top, 0px)) !impo
 .mp-pin i svg { width: 13px; height: 13px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .mp-pin span { font-size: 12px; font-weight: 600; color: #142D3D; background: rgba(255,255,255,.82); padding: 1px 6px; border-radius: 6px; white-space: nowrap; letter-spacing: .01em; }
 :root[data-night] .mp-pin span { background: rgba(14,20,27,.85); color: #C9BBA8; }
+/* quick layers panel next to the buttons */
+.quick { position: absolute; left: 72px; top: calc(114px + env(safe-area-inset-top, 0px)); width: min(360px, calc(100vw - 88px)); max-height: calc(100% - var(--tabbar-h) - 130px); overflow-y: auto; z-index: 870; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 12px; }
+html.nogps .quick { top: calc(56px + env(safe-area-inset-top, 0px)); }
+.q-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; } .q-head b { font-size: 16px; }
+.q-head .sheet-x { position: static !important; float: none; margin: 0; }
+.q-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.q-t { display: flex; align-items: center; gap: 8px; min-height: 44px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); border-radius: 12px; padding: 0 10px; font: inherit; font-size: 14px; font-weight: 600; text-align: left; }
+.q-t i { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--ink2); flex: none; }
+.q-t.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.q-t.on i { border-color: #fff; background: #fff; box-shadow: inset 0 0 0 3px var(--accent); }
+.q-h { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); margin: 12px 2px 6px; }
+.q-more { width: 100%; margin-top: 10px; }
+/* symbol and label sizes */
+html[data-pins="S"] .mp-pin, html[data-pins="S"] .br-pin { transform: scale(.85); transform-origin: left center; }
+html[data-pins="L"] .mp-pin { transform: scale(1.25); transform-origin: 11px center; }
+html[data-pins="L"] .br-pin { transform: translateX(-50%) scale(1.2); }
+html[data-pins="XL"] .mp-pin { transform: scale(1.55); transform-origin: 11px center; }
+html[data-pins="XL"] .br-pin { transform: translateX(-50%) scale(1.45); }
+html[data-pins="S"] .br-pin { transform: translateX(-50%) scale(.85); }
