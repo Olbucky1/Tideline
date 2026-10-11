@@ -2301,7 +2301,7 @@ function renderMenu() {
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 96. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 97. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5493,9 +5493,26 @@ applyTint();
 // iPhone Safari ignores "no zoom" in the page header, so stop the page itself from being pinched or double-tapped bigger; the chart still zooms
 (() => {
   ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
-  let last = 0; document.addEventListener('touchend', (e) => { const n = Date.now(); if (n - last < 320 && !e.target.closest('#map')) e.preventDefault(); last = n; }, { passive: false });
+  // (double-tap zoom is already off through touch-action: manipulation; quick repeated taps on buttons keep working)
   document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && !e.target.closest('#map')) e.preventDefault(); }, { passive: false });
   const vm = document.querySelector('meta[name=viewport]'); if (vm && window.visualViewport && visualViewport.scale > 1.01) { const c = vm.content; vm.content = c + ', minimum-scale=1'; setTimeout(() => { vm.content = c; }, 300); } // snap back if a page zoom stuck
+  // If the page still ends up magnified, pin the whole app to the visible area at normal size, so every button and the tab bar stay on screen
+  const vv = window.visualViewport, app = document.getElementById('app');
+  if (vv && app) {
+    let was = false;
+    const fit = () => {
+      const s = vv.scale || 1, off = Math.abs(s - 1) > 0.01 || vv.offsetLeft > 1 || vv.offsetTop > 1;
+      if (off) {
+        Object.assign(app.style, { inset: 'auto', left: vv.offsetLeft + 'px', top: vv.offsetTop + 'px', width: (vv.width * s) + 'px', height: (vv.height * s) + 'px', transform: `scale(${1 / s})`, transformOrigin: '0 0' });
+      } else if (was) {
+        ['inset', 'left', 'top', 'width', 'height', 'transform', 'transformOrigin'].forEach((k) => { app.style[k] = ''; });
+      }
+      if (off !== was || off) setTimeout(() => map.invalidateSize(), 50);
+      was = off;
+    };
+    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 300));
+    fit();
+  }
 })();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
