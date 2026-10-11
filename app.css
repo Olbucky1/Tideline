@@ -1275,3 +1275,17 @@ html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px))
 @keyframes weather-attention { 0%,100% { box-shadow: 0 0 0 0 rgba(237,142,25,.65); } 50% { box-shadow: 0 0 0 6px rgba(237,142,25,.18); } }
 @media (prefers-reduced-motion: reduce) { .alert-bar.is-new { animation: none; outline: 3px solid #F2B64B; outline-offset: 2px; } }
 .weather-alert-link { margin: 6px 10px; background: var(--surface); }
+
+/* Round controls everywhere: every map button, the weather/tide info buttons, the alert and the charted-depth readout are circles */
+.fab, .fab.info, #fabs .alert-bar.mini, .alert-bar.mini { border-radius: 50% !important; }
+.fab { width: 40px !important; height: 40px !important; }
+.fab.info { width: 44px !important; height: 44px !important; min-height: 0 !important; padding: 0 !important; }
+.fab.info .fi-ic, .fab.info .fi-ic svg { width: 13px; height: 13px; }
+.fab.info b { font-size: 11.5px; }
+#btnZoomIn, #btnZoomOut { border-radius: 50% !important; border-width: 1px !important; margin-top: 0 !important; }
+.fab-col { align-items: center; }
+#fabs .alert-bar.mini { width: 40px !important; height: 40px !important; }
+.mini-depth { width: 52px; height: 52px; border-radius: 50% !important; padding: 0 !important; margin: 4px auto 0 !important; justify-content: center; align-items: center; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.mini-depth b { font-size: 15px !important; }
+.mini-depth small { font-size: 5.6px !important; letter-spacing: .02em; line-height: 1.15 !important; max-width: 40px; }
+:root.easy .fab { width: 50px !important; height: 50px !important; }
