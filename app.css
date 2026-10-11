@@ -729,3 +729,25 @@ html.nogps .mob { display: none; }
 .gps-hull .lbl { font-size: 11px; fill: var(--ink2); }
 .gps-hull .spot { fill: var(--accent); stroke: #fff; stroke-width: 2.5; }
 .gps-hull .spot-x { stroke: #fff; stroke-width: 2; }
+/* hover tips (computers only) */
+@media (hover: hover) and (pointer: fine) {
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after { content: attr(data-tip); position: absolute; right: calc(100% + 10px); top: 50%; transform: translateY(-50%); background: #142D3D; color: #fff; font-size: 13px; font-weight: 500; white-space: nowrap; padding: 6px 10px; border-radius: 8px; pointer-events: none; z-index: 2000; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+  #btnMOB[data-tip]:hover::after { right: auto; left: calc(100% + 10px); }
+  .tab[data-tip]:hover::after { right: auto; left: 50%; top: auto; bottom: calc(100% + 8px); transform: translateX(-50%); }
+  .m-row:hover { background: var(--surface2); }
+}
+.cap { display: flex; gap: 12px; align-items: center; padding: 12px 14px; }
+.cap-ph { width: 64px; height: 64px; border-radius: 32px; background: var(--surface2); display: grid; place-items: center; overflow: hidden; flex: none; cursor: pointer; font-size: 11px; color: var(--ink2); text-align: center; }
+.cap-ph img { width: 100%; height: 100%; object-fit: cover; }
+.cap-f { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cap-f small { font-size: 12px; color: var(--ink2); }
+.cap-f input { font: inherit; font-size: 15px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; background: var(--surface); color: var(--ink); width: 100%; }
+.fl-ph { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--surface2); flex: none; display: inline-block; }
+/* all chart buttons in one column on the left, under MOB */
+html.calm .fab-col, html.calm #app.wide .fab-col { right: auto !important; left: 12px !important; top: calc(114px + env(safe-area-inset-top, 0px)) !important; }
+html.calm.nogps .fab-col { top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+@media (hover: hover) and (pointer: fine) { .fab-col [data-tip]:hover::after { right: auto; left: calc(100% + 10px); } }
+.li-main.fl-main { display: flex !important; flex-direction: row !important; align-items: center; gap: 10px; }
+.fl-main > span { display: flex; flex-direction: column; min-width: 0; }
+.fl-main > span > b { font-size: 15.5px; } .fl-main > span > span { font-size: 13px; color: var(--ink2); }

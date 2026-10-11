@@ -2672,7 +2672,35 @@ function voiceCoach(r) {
 /* ---------- boat profile ---------- */
 const BOAT_DEFAULT = { make: '', model: '', year: '', beamFt: null, draftFt: null, airDraftFt: null, engineMake: '', engineModel: '', engineHp: null, engineKind: 'outboard', engineHours: 0, batteryKind: 'lead', batteryInstalled: '', photo: null, anchorType: '', anchorLb: null, chainFt: null, rodeTotalFt: null };
 S.boat = Object.assign({}, BOAT_DEFAULT, store.get('boat', {}));
-const saveBoat = () => store.set('boat', S.boat);
+const saveBoat = () => { store.set('boat', S.boat); if (S.fleet) saveFleet(); };
+/* ---------- several boats (delivery captains), and the captain's own profile ---------- */
+const BOAT_SET_KEYS = ['boatName', 'boatType', 'boatLen', 'gpsToBow', 'cruise', 'sailSpeed', 'useMode', 'iconStyle', 'underSail', 'navMode'];
+S.fleet = store.get('fleet', null);
+if (!S.fleet) { S.fleet = { active: 1, boats: [{ id: 1, boat: S.boat, set: {} }] }; BOAT_SET_KEYS.forEach((k) => { S.fleet.boats[0].set[k] = S.settings[k]; }); }
+S.captain = store.get('captain', { name: S.settings.skipper || '', photo: '', license: '', phone: '' });
+function saveFleet() { const cur = S.fleet.boats.find((x) => x.id === S.fleet.active); if (cur) { cur.boat = S.boat; cur.set = {}; BOAT_SET_KEYS.forEach((k) => { cur.set[k] = S.settings[k]; }); } try { store.set('fleet', S.fleet); } catch (e) { toast('Storage is full: try smaller boat photos.'); } }
+function switchBoat(id) {
+  saveFleet();
+  const nb = S.fleet.boats.find((x) => x.id === id); if (!nb) return;
+  S.fleet.active = id; S.boat = Object.assign({}, BOAT_DEFAULT, nb.boat || {}); Object.assign(S.settings, nb.set || {});
+  saveBoat(); saveSettings(); store.set('fleet', S.fleet); applyUseMode(); renderModeChip(); updateBoat(); renderBoat();
+  toast('Now on ' + (S.settings.boatName || 'this boat'));
+}
+function addBoat() {
+  saveFleet();
+  const id = Date.now(); S.fleet.boats.push({ id, boat: Object.assign({}, BOAT_DEFAULT), set: { boatName: 'New boat', boatType: 'sail', boatLen: 30, gpsToBow: 22, cruise: 6, sailSpeed: 5, useMode: S.settings.useMode || 'cruise' } });
+  switchBoat(id); boatEditing = true; renderBoat();
+}
+function fleetHtml() {
+  const c = S.captain;
+  const cap = '<div class="card cap"><label class="cap-ph">' + (c.photo ? '<img src="' + c.photo + '" alt="">' : '<span>Add photo</span>') + '<input type="file" accept="image/*" id="capPhoto" hidden></label>' +
+    '<div class="cap-f"><small>Captain</small><input id="capName" placeholder="Your name" value="' + esc(c.name || S.settings.skipper || '') + '"><input id="capLic" placeholder="USCG license, optional (e.g. 100-ton Master)" value="' + esc(c.license || '') + '"></div></div>';
+  const list = S.fleet.boats.map((x) => { const nm = (x.id === S.fleet.active ? S.settings.boatName : x.set && x.set.boatName) || 'Boat', bb = x.id === S.fleet.active ? S.boat : x.boat || {};
+    return '<div class="li"><div class="li-main fl-main">' + (bb.photo ? '<img class="fl-ph" src="' + bb.photo + '" alt="">' : '<span class="fl-ph"></span>') + '<span><b>' + esc(nm) + '</b><span>' + esc([bb.make, bb.model].filter(Boolean).join(' ') || '') + '</span></span></div><div class="li-btns">' +
+      (x.id === S.fleet.active ? '<span class="badge">On board</span>' : '<button class="btn small primary" data-fl="' + x.id + '">Switch</button><button class="btn small" data-fldel="' + x.id + '">Remove</button>') + '</div></div>'; }).join('');
+  return cap + '<div class="card"><h4>My boats</h4>' + list + '<div class="row-btns" style="margin-top:8px"><button class="btn" data-act="fladd">Add another boat</button></div><p class="hint" style="margin:6px 0 0">Delivery captains: keep a profile for every boat you run, with its draft, air draft, engine and photo, and switch in one tap.</p></div>';
+}
+
 let boatEditing = false;
 function resizePhoto(file) {
   return new Promise((resolve, reject) => {
@@ -2996,12 +3024,14 @@ function renderBoat() {
   const due = S.maint.items.filter((i) => ['over', 'soon'].includes(dueInfo(i).cls)).length;
   $('maintDot').hidden = !due;
   p.innerHTML = '<div class="p-head"><div><div class="eyebrow">Boat</div><h2>' + esc(S.settings.boatName || 'Your boat') + '</h2></div><button class="btn small" data-act="appsettings">App settings</button></div>' +
-    profileHtml() + lightsCoachHtml() +
+    fleetHtml() + profileHtml() + lightsCoachHtml() +
     '<div class="card" style="padding:12px 14px"><div class="li" style="border:0;padding:0"><div class="li-main"><b>What am I looking at?</b><span>Identify a vessel from its lights or shapes, cross-checked with AIS</span></div><button class="btn small primary" data-act="identify">Identify</button></div></div>' +
     maintHtml() + batteryHtml() +
     '<p class="hint">Coming in the app-store version: photo recognition of lights, engine fault-code lookup, and live battery and engine data from onboard monitors.</p>';
 }
 $('panelBoat').addEventListener('click', async (e) => {
+  const fl = e.target.closest('[data-fl]'); if (fl) { switchBoat(+fl.dataset.fl); return; }
+  const fd = e.target.closest('[data-fldel]'); if (fd) { if (!armed(fd, 'Tap again')) return; S.fleet.boats = S.fleet.boats.filter((x) => x.id !== +fd.dataset.fldel); store.set('fleet', S.fleet); renderBoat(); return; }
   const r = e.target.closest('[data-rule]'); if (r) { if (!isWide()) setTab('chart'); openRuleSheet(r.dataset.rule); return; }
   const dn = e.target.closest('[data-mdone]');
   if (dn) { const i = S.maint.items.find((x) => String(x.id) === dn.dataset.mdone); if (i) { i.lastDate = Date.now(); i.lastHours = S.boat.engineHours || 0; S.maint.log.push({ id: Date.now(), date: Date.now(), hours: i.lastHours, text: i.name }); saveMaint(); renderBoat(); toast('Logged: ' + i.name); } return; }
@@ -3010,6 +3040,7 @@ $('panelBoat').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'appsettings') setTab('settings');
+  if (act === 'fladd') addBoat();
   if (act === 'editboat') { boatEditing = true; renderBoat(); }
   if (act === 'cancelboat') { boatEditing = false; renderBoat(); }
   if (act === 'saveboat') saveBoatForm();
@@ -3020,6 +3051,8 @@ $('panelBoat').addEventListener('click', async (e) => {
   if (act === 'msave') { const t = $('mText').value.trim(); if (!t) return; S.maint.log.push({ id: Date.now(), date: Date.parse($('mDate').value) || Date.now(), hours: S.boat.engineHours || 0, text: t, cost: $('mCost').value }); saveMaint(); renderBoat(); toast('Saved to the maintenance log'); }
 });
 $('panelBoat').addEventListener('change', async (e) => {
+  if (e.target.id === 'capPhoto' && e.target.files[0]) { try { S.captain.photo = await resizePhoto(e.target.files[0]); store.set('captain', S.captain); renderBoat(); } catch (err) { toast('Could not read that photo'); } }
+  if (e.target.id === 'capName' || e.target.id === 'capLic') { S.captain.name = $('capName').value.trim(); S.captain.license = $('capLic').value.trim(); S.settings.skipper = S.captain.name.split(' ')[0] || S.settings.skipper; saveSettings(); store.set('captain', S.captain); }
   if (e.target.id === 'boatPhoto' && e.target.files[0]) {
     try { S.boat.photo = await resizePhoto(e.target.files[0]); saveBoat(); renderBoat(); } catch (err) { toast('Could not read that photo'); }
   }
@@ -3588,6 +3621,9 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 /* ---------- start ---------- */
 askPersist();
 if (S.settings.cockpit) setTimeout(() => setCockpit(true), 300);
+// hover tips on a computer: every chart button says what it does
+document.querySelectorAll('.fab, #btnMOB').forEach((b) => { const l = b.getAttribute('aria-label'); if (l) b.dataset.tip = l.replace(/, press and hold/i, ' (press and hold)'); });
+document.querySelectorAll('.tab').forEach((b) => { b.dataset.tip = { chart: 'The chart', nav: 'Navigate: where to, trips, tracks', weather: 'Weather: wind, waves, rain, tide', anchor: 'Anchor watch', menu: 'Menu: boat, settings, help' }[b.dataset.tab] || ''; });
 if (DESK && S.anchor && !S.settings.sim) { S.anchor = null; store.set('anchor', null); stopAlarm(); drawAnchor(); setTimeout(() => toast('Anchor watch turned off: this computer has no GPS. Use your phone or iPad for anchor watch.', 6000), 1500); }
 setTimeout(() => { if (!S.fix) { maybeWeather(); maybeTide(); maybeObsWind(); } }, 2500); // no GPS (laptop): use the chart's position
 drawRoute();
