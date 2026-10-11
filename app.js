@@ -360,6 +360,8 @@ sheet.addEventListener('click', (e) => {
     S.waypoints = S.waypoints.filter((w) => w.id !== sp.wp.id); store.set('waypoints', S.waypoints); renderWaypoints(); closeSheet();
   }
   if (act === 'measureclear') { clearMeasure(); closeSheet(); }
+  if (act === 'rtwipe') { clearRouteEverywhere(); return; }
+  if (act === 'rtedit2') { closeSheet(); routeMode(true); return; }
   if (act === 'mosettings') { closeSheet(); setTab('settings'); }
   if (act === 'mohelp') { closeSheet(); openHelp(); }
   if (act === 'ptwx' && sp) { b.disabled = true; pointWeather(sp.p); }
@@ -439,7 +441,7 @@ function clearMeasure() { setMeasure(false); }
 
 /* ---------- route planner (manual, savvy navvy style) ---------- */
 S.routes = store.get('routes', []);
-const RT = { edit: false, pts: store.get('routeDraft', []), marks: L.layerGroup().addTo(map), line: L.polyline([], { color: '#C2185B', weight: 4, opacity: 0.9, interactive: false }).addTo(map), depart: null, drag: null };
+const RT = { edit: false, pts: store.get('routeDraft', []), marks: L.layerGroup().addTo(map), line: L.polyline([], { color: '#C2185B', weight: 5, opacity: 0.9, interactive: true }).addTo(map), depart: null, drag: null };
 function dragHandle(mk, onMove, onEnd) { // finger drag for a marker, with zoom-out at the screen edge
   const el = mk.getElement(); if (!el) return;
   el.style.touchAction = 'none';
@@ -455,6 +457,10 @@ function dragHandle(mk, onMove, onEnd) { // finger drag for a marker, with zoom-
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   el.addEventListener('click', (e) => e.stopPropagation());
 }
+function clearRouteEverywhere() { if (S.goto && S.goto.route) endGoto(); RT.pts = []; store.set('routeDraft', []); if (RT.edit) routeMode(false); drawRoute(); closeSheet(); toast('Route cleared'); }
+function openRouteMenu() {
+  openSheet('<h3>Route</h3><div class="sub">' + RT.pts.length + ' points' + (S.goto && S.goto.route ? ' · you are navigating it' : '') + '</div><div class="row-btns"><button class="btn danger" data-act="rtwipe">Clear this route</button><button class="btn" data-act="rtedit2">Edit</button><button class="btn ghost" data-act="close">Close</button></div>');
+}
 function drawRoute() {
   RT.marks.clearLayers();
   const show = RT.edit || (S.goto && S.goto.route);
@@ -462,9 +468,11 @@ function drawRoute() {
   if (!show) return;
   RT.pts.forEach((p, i) => {
     const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: 1100, icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + '">' + (i + 1) + '</div>' }) }).addTo(RT.marks);
+    if (!RT.edit) mk.on('click', () => openRouteMenu());
     if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { store.set('routeDraft', RT.pts); renderRouteSheet(); });
   });
 }
+setTimeout(() => RT.line.on('click', (e) => { L.DomEvent.stop(e); if (!RT.edit) openRouteMenu(); }), 0);
 function routeMode(on) {
   RT.edit = on; $('btnRoute').classList.toggle('on', on);
   if (on) { if (S.measure.on) setMeasure(false); setTab('chart'); if (!RT.depart) RT.depart = Date.now(); renderRouteSheet(); toast(RT.pts.length ? 'Drag a waypoint to move it. Tap the chart to add more.' : 'Tap the chart to set your start, then each waypoint.', 4000); }
@@ -536,7 +544,7 @@ sheet.addEventListener('click', (e) => {
 });
 function routeLeg(pts, i) {
   const p = pts[i]; setGoto((p.name ? p.name + ' · ' : '') + 'stop ' + (i + 1) + ' of ' + pts.length, p.lat, p.lon);
-  S.goto.route = { pts, i }; store.set('goto', S.goto); updateGoto();
+  S.goto.route = { pts, i }; store.set('goto', S.goto); updateGoto(); RT.pts = pts; drawRoute();
 }
 
 /* ---------- go to / navigation ---------- */
@@ -1107,7 +1115,7 @@ function drawGrid() {
       html = '<div class="wx-pt" style="--c:' + col + '"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><g transform="rotate(' + ((w.dir + 180) % 360) + ' 12 12)"><path d="M12 2v18M12 2l-5.5 6.5M12 2l5.5 6.5" /></g></svg><b>' + Math.round(speedOut(w.v)) + (w.g != null ? '<small>' + Math.round(speedOut(w.g)) + '</small>' : '') + '</b>' +
         (v ? '<span class="wx-wave" style="--w:' + colFor(WAVE_COL, v.v) + '">' + waveLen(v.v).replace(' ', '&#8202;') + '</span>' : '') + '</div>';
     } else {
-      html = '<div class="wx-pt" style="--c:' + colFor(WAVE_COL, v.v) + '"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><g transform="rotate(' + (((v.dir || 0) + 180) % 360) + ' 12 12)"><path d="M12 3v17M6 7c2-2 4-2 6 0s4 2 6 0M12 3l-5 5.5M12 3l5 5.5" /></g></svg><b>' + waveLen(v.v).replace(' ', '&#8202;') + '</b></div>';
+      html = '<div class="wv-pt" style="--c:' + colFor(WAVE_COL, v.v) + '" title="Waves ' + waveLen(v.v) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1M2 16c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/></svg><b>' + waveLen(v.v).replace(' ', '&#8202;') + '</b></div>';
     }
     wxGrid.addLayer(L.marker([q.lat, q.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [56, w && v ? 62 : 46], iconAnchor: [28, 23], html }) }));
   });
@@ -1326,7 +1334,7 @@ function renderChips() {
   wc.classList.toggle('stale', !!old); wv.classList.toggle('stale', !!old);
   if (old) wc.title = 'Forecast is ' + Math.round((Date.now() - w.at) / 3600000) + ' hours old';
   const tn = tideNow(), tc = $('tideChip');
-  if (tn) { tc.hidden = false; tc.className = 'chip light'; tc.innerHTML = '<span class="c-main">Tide ' + (tn.rising == null ? '' : tn.rising ? '↑ ' : '↓ ') + '<b>' + tideLen(tn.v) + '</b></span>' + (S.tide.station ? '<small>' + esc(S.tide.station.name.replace(/,.*$/, '')) + ' · ' + fmtDist(S.tide.station.dist) + ' away</small>' : ''); }
+  if (tn) { tc.hidden = false; tc.className = 'chip light'; tc.innerHTML = '<span class="c-main"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M8.5 6.5L12 3l3.5 3.5M3 16c3-2.5 6-2.5 9 0s6 2.5 9 0M3 20.5c3-2.5 6-2.5 9 0s6 2.5 9 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Tide ' + (tn.rising == null ? '' : tn.rising ? '↑ ' : '↓ ') + '<b>' + tideLen(tn.v) + '</b></span>' + (S.tide.station ? '<small>' + esc(S.tide.station.name.replace(/,.*$/, '')) + ' · ' + fmtDist(S.tide.station.dist) + ' away</small>' : ''); }
   else tc.hidden = true;
   placeFabs(); renderStatusWx();
 }
@@ -3334,11 +3342,13 @@ function renderQuick() {
   q.innerHTML = '<div class="q-head"><b>On the chart</b><button type="button" class="sheet-x" data-qx aria-label="Close">&times;</button></div><div class="q-grid">' +
     QUICK.map(([k, l, get]) => '<button type="button" class="q-t' + (get() ? ' on' : '') + '" data-q="' + k + '" aria-pressed="' + get() + '"><i></i>' + l + '</button>').join('') + '</div>' +
     '<div class="q-h">Symbol and label size</div><div class="seg">' + [['S', 'Small'], ['M', 'Medium'], ['L', 'Large'], ['XL', 'Extra large']].map(([v, l]) => '<button type="button" data-qsz="' + v + '" class="' + (sz === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+    (RT.line.getLatLngs().length ? '<button type="button" class="btn small q-more" data-qclear>Clear the route line</button>' : '') +
     '<button type="button" class="btn small q-more" data-qmore>More map options</button>';
 }
 function toggleQuick(show) { const q = $('quick'); const on = show == null ? q.hidden : show; if (on) { closeSheet(); renderQuick(); } q.hidden = !on; $('btnLayers').classList.toggle('on', on); }
 $('quick').addEventListener('click', (e) => {
   if (e.target.closest('[data-qx]')) { toggleQuick(false); return; }
+  if (e.target.closest('[data-qclear]')) { toggleQuick(false); clearRouteEverywhere(); return; }
   if (e.target.closest('[data-qmore]')) { toggleQuick(false); openLayersSheet(); return; }
   const z = e.target.closest('[data-qsz]'); if (z) { S.settings.pinSize = z.dataset.qsz; saveSettings(); applyPinSize(); renderQuick(); return; }
   const t = e.target.closest('[data-q]'); if (!t) return; const it = QUICK.find((x) => x[0] === t.dataset.q); if (!it) return;
@@ -3348,8 +3358,9 @@ map.on('click', () => { if (!$('quick').hidden) toggleQuick(false); });
 function applyPinSize() { const sz = S.settings.pinSize || 'M'; document.documentElement.dataset.pins = sz; if (typeof drawMarinePlaces === 'function') drawMarinePlaces(); if (typeof drawBridges === 'function') drawBridges(); }
 $('btnLayers').addEventListener('click', () => toggleQuick());
 $('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', !wxOn('wind')); });
+$('windChip').dataset.tip = 'Wind: tap to show wind across the chart'; $('waveChip').dataset.tip = 'Waves: tap to show waves across the chart'; $('tideChip').dataset.tip = 'Tide: tap for the tide curve'; $('modeChip').dataset.tip = 'Tap to switch between sail and engine';
 $('waveChip').addEventListener('click', () => { setTab('chart'); setWxL('waves', !wxOn('waves')); });
-$('tideChip').addEventListener('click', () => setTab('dash'));
+$('tideChip').addEventListener('click', () => { WX.view = 'tide'; WX.open = true; setTab('weather'); });
 $('gpsPill').addEventListener('click', () => {
   if (S.fix) toast(ddm(S.fix.lat, true) + '  ' + ddm(S.fix.lon, false));
   else if (S.gpsErr === 1) toast('Location is blocked for this site. Allow it in your browser settings and reload.', 5000);
@@ -3642,6 +3653,12 @@ function buildCockpit() {
     const f = S.fix || refPos(); ckMap.setView([f.lat, f.lon], 14);
   }
   if (ckEdit) grid.classList.add('editing'); else grid.classList.remove('editing');
+  const lay = S.settings.ckLayout || 'grid'; grid.className = grid.className.replace(/\blay-\S+/g, '').trim() + ' lay-' + (sl.includes('chart') ? lay : 'grid');
+  const lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join(''); }
+  { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)), wide = window.innerWidth >= 900, sp = sl.includes('chart') && (lay === 'half' || lay === 'big') && wide;
+    grid.style.gridTemplateRows = sp ? 'repeat(' + rows + ', minmax(0, 1fr))' : '';
+    const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = sp ? '1 / span ' + rows : ''; }
+  if (ckMap) setTimeout(() => ckMap.invalidateSize(), 60);
   renderCockpit();
 }
 function renderCockpit() {
@@ -3670,6 +3687,7 @@ $('cockpit').addEventListener('change', (e) => {
 $('cockpit').addEventListener('click', (e) => {
   if (e.target.closest('[data-ckadd]')) { const sl = ckSlots().slice(); sl.push(['speed', 'course', 'wind', 'tide', 'position', 'chart'].find((x) => !sl.includes(x)) || 'time'); S.settings.ckSlots = sl; saveSettings(); buildCockpit(); }
   if (e.target.closest('.ck-edit')) { ckEdit = !ckEdit; buildCockpit(); }
+  const ly = e.target.closest('[data-cklay]'); if (ly) { S.settings.ckLayout = ly.dataset.cklay; let sl = ckSlots().slice(); if (ly.dataset.cklay !== 'grid' && !sl.includes('chart')) { sl.unshift('chart'); S.settings.ckSlots = sl.slice(0, 6); } if (ly.dataset.cklay !== 'grid') { sl = S.settings.ckSlots.filter((x) => x !== 'chart'); S.settings.ckSlots = ['chart'].concat(sl); } saveSettings(); buildCockpit(); }
 });
 function setCockpit(on) {
   S.settings.cockpit = on; saveSettings();

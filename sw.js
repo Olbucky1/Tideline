@@ -1,5 +1,5 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v29';
+const APP = 'tl-app-v31';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
@@ -53,5 +53,6 @@ self.addEventListener('fetch', (e) => {
   if (TILE_HOSTS.includes(url.hostname)) { e.respondWith(cacheFirst(req, TILES)); return; }
   if (FONT_HOSTS.includes(url.hostname)) { e.respondWith(cacheFirst(req, APP)); return; }
   if (DATA_HOSTS.includes(url.hostname)) { e.respondWith(networkFirst(req, DATA)); return; }
-  if (url.origin === self.location.origin) { e.respondWith(staleWhileRevalidate(req)); }
+  // the app itself: always try the network first so a new version shows on the next reload; the saved copy is only for offline
+  if (url.origin === self.location.origin) { e.respondWith(networkFirst(req, APP).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || new Response('Offline', { status: 503 })))); }
 });

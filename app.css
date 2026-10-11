@@ -776,3 +776,26 @@ html[data-pins="L"] .br-pin { transform: translateX(-50%) scale(1.2); }
 html[data-pins="XL"] .mp-pin { transform: scale(1.55); transform-origin: 11px center; }
 html[data-pins="XL"] .br-pin { transform: translateX(-50%) scale(1.45); }
 html[data-pins="S"] .br-pin { transform: translateX(-50%) scale(.85); }
+/* top-right chips: one tidy column, same width, same style, distinct icons */
+.chips { width: 196px; align-items: stretch !important; gap: 6px !important; }
+.chips .chip { width: 100%; justify-content: flex-start; text-align: left; background: var(--surface) !important; color: var(--ink) !important; border: 1px solid var(--line); box-shadow: 0 1px 6px rgba(20,45,61,.14); border-radius: 14px; padding: 6px 10px !important; min-height: 40px; display: flex; flex-direction: column; align-items: flex-start; }
+.chips .chip .c-main { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; }
+.chips .chip .c-main b { font-size: 17px; }
+.chips .chip svg { width: 18px; height: 18px; color: var(--accent); flex: none; }
+.chips .chip small { font-size: 11px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.chips .chip.stale { opacity: .7; }
+/* wave markers: a wave tile, not an arrow */
+.wv-pt { display: flex; align-items: center; gap: 3px; background: color-mix(in srgb, var(--c) 88%, #fff 0%); color: #fff; border-radius: 10px; padding: 2px 7px 2px 5px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); width: max-content; transform: translate(4px, 6px); }
+.wv-pt svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; }
+.wv-pt b { font-size: 13px; font-weight: 700; font-family: var(--f-num); }
+/* instrument layouts with a big chart */
+.ck-lay { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--g-muted); }
+.ck-lay button { border: 1px solid var(--g-line); background: var(--g-face); color: var(--g-ink); border-radius: 16px; min-height: 32px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 600; }
+.ck-lay button.on { background: var(--g-acc); border-color: var(--g-acc); color: var(--g-bg); }
+.ck-grid.lay-half { grid-template-columns: 2fr 1fr 1fr !important; }
+.ck-grid.lay-big { grid-template-columns: 4fr 1fr 1fr !important; }
+.ck-grid.lay-half .ck-slot.chart, .ck-grid.lay-big .ck-slot.chart { grid-column: 1; }
+.ck-grid.lay-top { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; grid-template-rows: 2fr 1fr !important; }
+.ck-grid.lay-top .ck-slot.chart { grid-column: 1 / -1; grid-row: 1; }
+@media (max-width: 899px) { .ck-grid.lay-half, .ck-grid.lay-big, .ck-grid.lay-top { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: none !important; } .ck-grid.lay-half .ck-slot.chart, .ck-grid.lay-big .ck-slot.chart, .ck-grid.lay-top .ck-slot.chart { grid-column: 1 / -1; grid-row: auto; min-height: 45vh; } }
+.ck-slot.chart .gauge { padding: 6px; } .ck-slot.chart .ck-map { min-height: 0; height: 100%; }
