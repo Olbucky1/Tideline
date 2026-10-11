@@ -4814,13 +4814,13 @@ $('cockpit').addEventListener('click', (e) => {
 });
 function setCockpit(on) {
   S.settings.cockpit = on; saveSettings();
-  const el = $('cockpit'); el.hidden = !on; $('app').classList.toggle('ck-on', on);
+  const el = $('cockpit'); el.hidden = !on; $('app').classList.toggle('ck-on', on); const bi = $('btnInst'); if (bi) { bi.classList.toggle('on', on); bi.dataset.tip = on ? 'Back to the chart' : 'Instruments: full-screen gauges'; }
   clearInterval(cockTimer);
   if (on) { closeSheet(); ckEdit = false; buildCockpit(); cockTimer = setInterval(renderCockpit, 1000); wake(); } else ckUnhost();
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="ckclose"]')) setCockpit(false); });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="cockpit"]')) setCockpit(true); });
-$('btnInst').addEventListener('click', () => setCockpit(true));
+$('btnInst').addEventListener('click', () => setCockpit(!S.settings.cockpit || $('cockpit').hidden));
 
 /* ---------- housekeeping ---------- */
 setInterval(() => {
