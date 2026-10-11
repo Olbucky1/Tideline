@@ -1997,3 +1997,10 @@ html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):
 html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) .btheme-row button.on { border-color: var(--mt-acc) !important; box-shadow: 0 0 0 1px var(--mt-acc) inset !important; }
 html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) :is(.eyebrow, .mo-h, h4) { color: var(--mt-acc) !important; }
 html:root[data-fablook="app"]:not([data-night]):not(.lightmenus):not([data-zz]):not([data-zy]) :is(#sheet, #quick, .panel) a { color: color-mix(in srgb, var(--mt-acc) 75%, #fff); }
+/* ring decorations and extra face artwork for the wood, rope, island and refined looks */
+.g-dec { display: none; } .g-dec circle, .g-dec path { fill: none; }
+.gd-rope1 { stroke: var(--dec1, #D7B47A); } .gd-rope2 { stroke: var(--dec2, #8C6A36); opacity: .75; }
+.gd-carve1 { stroke: var(--dec1, #8A4E26); } .gd-carve2 { stroke: var(--dec2, #3E1C08); stroke-width: 1.6; stroke-linejoin: round; opacity: .85; }
+.ga-grain { stroke: #000; stroke-width: 1.4; opacity: .16; fill: none; }
+.ga-weave { stroke: #fff; stroke-width: .6; opacity: .05; }
+.g-art .ga-deep1 { fill: var(--gi-acc) !important; opacity: .16; } .g-art .ga-deep2 { fill: var(--gi-acc) !important; opacity: .26; }

@@ -2736,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 128. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 129. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5442,8 +5442,16 @@ function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r,
 // a real-instrument bezel: polished ring (many-stop gradient reads as chrome, brass or gunmetal by theme), a dark seam, a lit face and a glass glare
 const bezelSvg = (id, cx, r) => '<defs><linearGradient id="' + id + 'C" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" class="ch1"/><stop offset="0.18" class="ch2"/><stop offset="0.32" class="ch4"/><stop offset="0.48" class="ch1"/><stop offset="0.62" class="ch3"/><stop offset="0.8" class="ch2"/><stop offset="1" class="ch5"/></linearGradient><linearGradient id="' + id + 'I" x1="0" y1="1" x2="0" y2="0"><stop offset="0" class="ch1"/><stop offset="1" class="ch3"/></linearGradient><radialGradient id="' + id + 'F" cx="0.5" cy="0.32" r="0.78"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient><linearGradient id="' + id + 'G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
   '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.945) + '" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.925) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
+  bezelDec(cx, r) +
   gaugeArt(id, cx, r) +
   '<path d="M' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + ' A' + (r * 0.92) + ' ' + (r * 0.92) + ' 0 0 1 ' + (cx + r * 0.8) + ' ' + (cx - r * 0.2) + ' Q' + cx + ' ' + (cx - r * 0.42) + ' ' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + 'z" fill="url(#' + id + 'G)" class="g-glare"/>';
+// decorations on the ring for some looks: a twisted rope, a carved Polynesian band (hidden unless the look turns them on)
+function bezelDec(cx, r) {
+  const R = r * 0.958, W = r * 0.068; let zz = '';
+  for (let k = 0; k <= 60; k++) { const a = k / 60 * Math.PI * 2, rr = R + (k % 2 ? W * 0.34 : -W * 0.34); zz += (k ? ' L' : 'M') + (cx + Math.cos(a) * rr).toFixed(1) + ' ' + (cx + Math.sin(a) * rr).toFixed(1); }
+  return '<g class="g-dec g-dec-rope"><circle cx="' + cx + '" cy="' + cx + '" r="' + R.toFixed(1) + '" class="gd-rope1" style="stroke-width:' + W.toFixed(1) + 'px"/><circle cx="' + cx + '" cy="' + cx + '" r="' + R.toFixed(1) + '" class="gd-rope2" style="stroke-width:' + W.toFixed(1) + 'px;stroke-dasharray:' + (W * 0.35).toFixed(1) + ' ' + (W * 0.45).toFixed(1) + '"/></g>' +
+    '<g class="g-dec g-dec-carved"><circle cx="' + cx + '" cy="' + cx + '" r="' + R.toFixed(1) + '" class="gd-carve1" style="stroke-width:' + W.toFixed(1) + 'px"/><path d="' + zz + '" class="gd-carve2"/></g>';
+}
 // artwork inside the face, chosen by the gauge theme: glowing swirls (midnight, glass), topo lines (expedition), a compass rose (heritage), a horizon (bronze), soft swells (arctic)
 function gaugeArt(id, cx, r) {
   const R = r * 0.9, P = (a, rr) => [(cx + Math.cos(a) * rr).toFixed(1), (cx + Math.sin(a) * rr).toFixed(1)];
@@ -5452,8 +5460,12 @@ function gaugeArt(id, cx, r) {
   const rose = '<path d="M' + cx + ' ' + (cx - R * 0.85) + ' L' + (cx + R * 0.1) + ' ' + cx + ' L' + cx + ' ' + (cx + R * 0.85) + ' L' + (cx - R * 0.1) + ' ' + cx + 'Z M' + (cx - R * 0.85) + ' ' + cx + ' L' + cx + ' ' + (cx - R * 0.1) + ' L' + (cx + R * 0.85) + ' ' + cx + ' L' + cx + ' ' + (cx + R * 0.1) + 'Z" class="ga-rose"/>';
   const hz = '<path d="M' + (cx - R) + ' ' + (cx + R * 0.32) + ' Q' + cx + ' ' + (cx + R * 0.22) + ' ' + (cx + R) + ' ' + (cx + R * 0.32) + '" class="ga-hz"/><circle cx="' + cx + '" cy="' + (cx + R * 0.36) + '" r="' + (R * 0.28) + '" class="ga-sun"/>';
   let sl = ''; for (let k = 0; k < 3; k++) { const y = cx + R * (0.35 + k * 0.17); sl += '<path d="M' + (cx - R) + ' ' + y + ' q' + (R * 0.25) + ' ' + (-r * 0.06) + ' ' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0" class="ga-swell"/>'; }
+  let wood = ''; for (let k = -5; k <= 5; k++) { const y = cx + k * R * 0.17; wood += '<path d="M' + (cx - R) + ' ' + y.toFixed(1) + ' C' + (cx - R * 0.4) + ' ' + (y - r * 0.05).toFixed(1) + ' ' + (cx + R * 0.2) + ' ' + (y + r * 0.06).toFixed(1) + ' ' + (cx + R) + ' ' + (y - r * 0.02).toFixed(1) + '" class="ga-grain"/>'; }
+  let weave = ''; for (let k = -10; k <= 10; k++) { const o2 = k * R * 0.1; weave += '<path d="M' + (cx - R + o2) + ' ' + (cx - R) + ' l' + (2 * R) + ' ' + (2 * R) + '" class="ga-weave"/><path d="M' + (cx + R + o2) + ' ' + (cx - R) + ' l' + (-2 * R) + ' ' + (2 * R) + '" class="ga-weave"/>'; }
+  const wv = (y0, amp) => 'M' + (cx - R) + ' ' + y0 + ' q' + (R * 0.25) + ' ' + (-amp) + ' ' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 V' + (cx + R) + ' H' + (cx - R) + 'Z';
+  const deep = '<path d="' + wv(cx + R * 0.42, r * 0.07) + '" class="ga-deep1"/><path d="' + wv(cx + R * 0.58, r * 0.06) + '" class="ga-deep2"/>';
   return '<defs><filter id="' + id + 'B" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="' + (r * 0.025).toFixed(2) + '"/></filter><clipPath id="' + id + 'K"><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.92) + '"/></clipPath></defs>' +
-    '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
+    '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-woods">' + wood + '</g><g class="ga-carbons">' + weave + '</g><g class="ga-deeps">' + deep + '</g><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
 }
 let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
 function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
@@ -6180,6 +6192,22 @@ const GT = [
   { id: 'burgundy', l: 'Burgundy and brass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#5A1A24', '#240509'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
   { id: 'mahogany', l: 'Mahogany and gold', g: 'Classic', bz: ['#D99A6C', '#8A3F1E', '#3E140A', '#B8673C', '#5E2412'], fc: ['#1B2E52', '#0A1428'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
   { id: 'pewter', l: 'Pewter and slate', g: 'Classic', bz: ['#E4E6E8', '#9AA1A6', '#4F565B', '#C4C9CD', '#6E757A'], fc: ['#3A434B', '#1C2126'], ink: '#EEF1F3', muted: '#A7B0B7', acc: '#D7DDE2', n: '#E8B84A', art: 'none' },
+  // from Andy's second set of boards: wood, rope, island and coastal
+  { id: 'teakbrass', l: 'Teak and brass', g: 'Wood and rope', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#7A4424', '#3B1E0E'], ink: '#F6E7CC', muted: '#D9B98C', acc: '#F2C94C', n: '#F6E7CC', art: 'wood' },
+  { id: 'woodmin', l: 'Walnut', g: 'Wood and rope', bz: ['#B87A4E', '#6E3F1F', '#2E160A', '#9A5E36', '#4A2512'], fc: ['#5A3420', '#26140A'], ink: '#FFFFFF', muted: '#D2B598', acc: '#FFFFFF', n: '#FFFFFF', art: 'wood' },
+  { id: 'islandteak', l: 'Island teak', g: 'Wood and rope', bz: ['#E9B98A', '#A8642E', '#4E2810', '#CF8E55', '#7A4218'], fc: ['#A8683A', '#5C3216'], ink: '#FFF4E2', muted: '#F0D2A8', acc: '#FFE0A8', n: '#FFF4E2', art: 'wood' },
+  { id: 'rope', l: 'Rope', g: 'Wood and rope', bz: ['#E8CF9E', '#B8955E', '#6E5428', '#D6B77E', '#8A6A36'], fc: ['#1D2F4F', '#0B1630'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#E8C36A', n: '#E53935', art: 'none', dec: 'rope', decC: ['#D7B47A', '#8C6A36'] },
+  { id: 'polynesian', l: 'Polynesian', g: 'Wood and rope', bz: ['#C88A55', '#7E4420', '#3A1C0A', '#A8683A', '#5C2E12'], fc: ['#1B2A44', '#0A1222'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2B25C', n: '#F2B25C', art: 'none', dec: 'carved', decC: ['#8A4E26', '#3E1C08'] },
+  { id: 'vintage', l: 'Vintage navigator', g: 'Wood and rope', bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F2E4C2', '#DCC79A'], ink: '#2A2418', muted: '#6F5E3E', acc: '#2A2418', n: '#2A2418', art: 'rose', light: 1 },
+  { id: 'surf', l: 'Surf coastal', g: 'Wood and rope', bz: ['#F3E2C0', '#C9A877', '#7E6440', '#E6CFA2', '#9A7E54'], fc: ['#8FE0DC', '#2C9FAE'], ink: '#0B3440', muted: '#2F6670', acc: '#FFFFFF', n: '#0B3440', art: 'swell', light: 1 },
+  { id: 'horizon', l: 'Ocean horizon', g: 'Wood and rope', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#9BC8E8', '#0F3E6E'], ink: '#FFFFFF', muted: '#D6E8F5', acc: '#FFFFFF', n: '#FFFFFF', art: 'deep' },
+  { id: 'compassrose', l: 'Compass rose', g: 'Wood and rope', bz: ['#E4E8EE', '#1E3A6A', '#0C1E3E', '#5A78A8', '#18305A'], fc: ['#FBF5E6', '#E9DDC0'], ink: '#14284A', muted: '#5A6475', acc: '#1E3A6A', n: '#14284A', art: 'rose', light: 1 },
+  // refined modern, from the third board
+  { id: 'modernclassic', l: 'Modern classic', g: 'Refined', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#13284A', '#04080F'], ink: '#FFFFFF', muted: '#9FB0C4', acc: '#FFFFFF', n: '#FFFFFF', art: 'none' },
+  { id: 'goldaccent', l: 'Gold accent', g: 'Refined', bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#1E1E20', '#050505'], ink: '#F3D88E', muted: '#B89A5A', acc: '#E8C36A', n: '#F3D88E', art: 'none' },
+  { id: 'carbonrefined', l: 'Carbon refined', g: 'Refined', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A2C2F', '#0C0D0E'], ink: '#FFFFFF', muted: '#A6ABB0', acc: '#FFFFFF', n: '#FFFFFF', art: 'carbon' },
+  { id: 'smoked', l: 'Smoked titanium', g: 'Refined', bz: ['#C9CED2', '#6E767C', '#2A2F33', '#9AA2A8', '#454C51'], fc: ['#1C2228', '#07090B'], ink: '#FFFFFF', muted: '#9AA6B0', acc: '#3FA9F5', n: '#3FA9F5', art: 'deep' },
+  { id: 'ceramic', l: 'Midnight ceramic', g: 'Refined', bz: ['#5A6A86', '#1C2A44', '#070D1A', '#34466A', '#101A2E'], fc: ['#0E1A33', '#03060D'], ink: '#FFFFFF', muted: '#8EA2C2', acc: '#4FB3FF', n: '#4FB3FF', art: 'deep' },
   // modern (the original looks, unchanged)
   { id: 'midnight', l: 'Midnight chrome', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8' },
   { id: 'arctic', l: 'Arctic white', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A' },
@@ -6191,19 +6219,23 @@ const GT = [
 const MT = { navybrass: ['#14243F', '#C9A04E'], heritage: ['#1E2A3A', '#C9A04E'], brass: ['#23201A', '#C9A04E'], bronze: ['#221B13', '#C08A45'], classic: ['#17191C', '#A7B2BC'], whiteface: ['#1B2026', '#A7B2BC'],
   yachtchrono: ['#14213D', '#8FA6C9'], compass: ['#13233F', '#C9A04E'], teak: ['#2A1A10', '#C68350'], regatta: ['#18191C', '#D9A066'], chart: ['#2B241A', '#B88A3E'], admiralty: ['#121314', '#C9A04E'],
   racinggreen: ['#12291E', '#C9A04E'], burgundy: ['#2A0E13', '#C9A04E'], mahogany: ['#14243F', '#B8673C'], pewter: ['#262C32', '#9AA1A6'],
+  teakbrass: ['#2A1A10', '#C9A04E'], woodmin: ['#24150C', '#C9A07A'], islandteak: ['#2E1C10', '#E0A060'], rope: ['#13233F', '#D7B47A'], polynesian: ['#1B140E', '#C88A55'], vintage: ['#2B241A', '#B88A3E'], surf: ['#0E2E36', '#5FD3CF'], horizon: ['#0E2A44', '#9BC8E8'], compassrose: ['#14284A', '#C9D3E2'],
+  modernclassic: ['#101C30', '#C9D3E2'], goldaccent: ['#141414', '#D4AF5A'], carbonrefined: ['#18191B', '#C9CED2'], smoked: ['#161B20', '#3FA9F5'], ceramic: ['#0B1428', '#4FB3FF'],
   midnight: ['#16283A', '#5AE3FF'], arctic: ['#16283A', '#7CC0FF'], glass: ['#0E2A44', '#5EE6FF'], expedition: ['#1A1D20', '#FF7A1A'], carbon: ['#151515', '#30D158'], simple: ['#15212D', '#5AC8FA'] };
 const mtOn = (hex) => { const n = parseInt(hex.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.55 ? '#14161A' : '#FFFFFF'; };
 const GTHEMES = GT.map((t) => [t.id, t.l, 'radial-gradient(circle,' + t.fc[0] + ' 55%,' + t.bz[1] + ' 58%)']);
 const gtOf = (id) => GT.find((t) => t.id === id) || GT.find((t) => t.id === 'midnight');
-const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'ga-hzs', swell: 'ga-swells' };
+const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'ga-hzs', swell: 'ga-swells', wood: 'ga-woods', carbon: 'ga-carbons', deep: 'ga-deeps' };
 (function gtCss() { // one stylesheet for every look: live (on <html>) and each preview tile
-  const rules = (P, t, live) => {
-    let c = P + '{--gi-ink:' + t.ink + ';--gi-muted:' + t.muted + ';--gi-acc:' + t.acc + ';--gi-n:' + t.n + ';--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}';
+  const rules = (P0, t, live) => {
+    const P = live ? P0 + ' :not(i.gl-prev)>svg' : P0; // live colours never leak into the preview tiles
+    let c = P0 + '{--gi-ink:' + t.ink + ';--gi-muted:' + t.muted + ';--gi-acc:' + t.acc + ';--gi-n:' + t.n + ';--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}';
     t.bz.forEach((v, i) => { c += P + ' .ch' + (i + 1) + '{stop-color:' + v + '!important}'; }); c += P + ' .fc1{stop-color:' + t.fc[0] + '!important}' + P + ' .fc2{stop-color:' + t.fc[1] + '!important}';
     c += P + ' .g-art>g{display:none!important}'; if (GA_CLASS[t.art]) c += P + ' .' + GA_CLASS[t.art] + '{display:inline!important}';
     c += P + ' .g-glare,' + P + ' .g-seam{opacity:' + (t.flat ? 0 : 1) + '!important}';
-    if (t.light && live) c += P + ' :is(.cockpit,#panelSide){--g-ink:#EAF4F8!important;--g-muted:#A9BCCD!important;--g-acc:#2CD3C5!important;--g-line:#3A5670!important}' +
-      P + ' :is(.cockpit,#panelSide) .gauge svg{--g-ink:var(--gi-ink)!important;--g-muted:var(--gi-muted)!important;--g-acc:var(--gi-acc)!important;--g-acc2:var(--gi-acc)!important;--g-face:color-mix(in srgb,var(--gi-ink) 9%,transparent)!important;--g-bg:transparent!important;--g-line:color-mix(in srgb,var(--gi-ink) 35%,transparent)!important}';
+    if (t.dec) c += P + ' .g-dec-' + t.dec + '{display:inline!important}' + P0 + '{--dec1:' + (t.decC || ['#C9A26B', '#7A5A2E'])[0] + ';--dec2:' + (t.decC || ['#C9A26B', '#7A5A2E'])[1] + '}';
+    if (t.light && live) c += P0 + ' :is(.cockpit,#panelSide){--g-ink:#EAF4F8!important;--g-muted:#A9BCCD!important;--g-acc:#2CD3C5!important;--g-line:#3A5670!important}' +
+      P0 + ' :is(.cockpit,#panelSide) .gauge svg{--g-ink:var(--gi-ink)!important;--g-muted:var(--gi-muted)!important;--g-acc:var(--gi-acc)!important;--g-acc2:var(--gi-acc)!important;--g-face:color-mix(in srgb,var(--gi-ink) 9%,transparent)!important;--g-bg:transparent!important;--g-line:color-mix(in srgb,var(--gi-ink) 35%,transparent)!important}';
     return c;
   };
   let css0 = GT.map((t) => { const m = MT[t.id] || MT.midnight; return 'html:root[data-gtheme="' + t.id + '"]{--mt-bg:' + m[0] + ';--mt-acc:' + m[1] + ';--mt-on:' + mtOn(m[1]) + '}'; }).join(''), css = css0 + '.gl-prev{--g-ink:var(--gi-ink);--g-muted:var(--gi-muted);--g-acc:var(--gi-acc);--g-acc2:var(--gi-acc);--g-line:color-mix(in srgb,var(--gi-muted) 45%,transparent);--g-face:transparent;--g-bg:transparent}';
@@ -6215,7 +6247,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
 function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + speedGauge(6.4, 8.2, 10) + '</svg></i>'; }
 function glPicker(cur) {
-  return ['Classic', 'Modern'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
+  return ['Classic', 'Wood and rope', 'Modern', 'Refined'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
 }
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
