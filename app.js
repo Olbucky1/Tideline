@@ -9,7 +9,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('tl.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('tl.' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } if (window.__tlSync && !SYNC_SKIP.test(k)) window.__tlSync(); },
 };
-const SYNC_SKIP = /^(stations|bridges|bridgeTiles|mplaces|mpTiles|plTiles|weather|tide|encIds|obs|alrSeen|demo|sync)/; // caches stay local; your own data syncs
+const SYNC_SKIP = /^(curSt|cgNotices|loopFR|stations|bridges|bridgeTiles|mplaces|mpTiles|plTiles|weather|tide|encIds|obs|alrSeen|demo|sync)/; // caches stay local; your own data syncs
 const saveTimers = {};
 function saveSoon(key, getter, ms = 3000) {
   clearTimeout(saveTimers[key]);
@@ -22,7 +22,7 @@ const DEFAULTS = {
   speedUnit: 'kn', distUnit: 'nm', boatLen: 27, gpsToBow: 20, cruise: 5,
   chart: 'noaa', seamarks: true, night: false, keepAwake: true, sim: false, simRate: 5,
   boatType: 'sail', underSail: true, boatName: '', aisCoach: false, aisShow: true, voice: true, skipper: '', iconStyle: 'boat',
-  wx: 'none', bridges: true, bridgeMargin: 2, cockpit: false, theme: 'auto', satOver: true, chartOnSat: 0.6, sailSpeed: 5, navMode: 'engine', rings: false, easy: false, coachMode: 'off', chips: false, satSrc: 'std',
+  wx: 'none', bridges: true, bridgeMargin: 2, cockpit: false, theme: 'auto', satOver: true, chartOnSat: 0.6, sailSpeed: 5, navMode: 'engine', rings: false, easy: false, coachMode: 'off', chips: false, satSrc: 'std', curOn: true,
 };
 const savedSettings = store.get('settings', {});
 if (savedSettings.coachMode == null && savedSettings.aisCoach != null) savedSettings.coachMode = !savedSettings.aisCoach ? 'off' : savedSettings.voice === false ? 'chime' : 'voice';
@@ -260,18 +260,41 @@ function trio(info) {
     '<div><span class="lbl">BEARING</span><b class="tnum">' + fmtBrg(info.b) + '°</b><span class="unit">true</span></div>' +
     '<div><span class="lbl">TIME</span><b class="tnum">' + fmtDur(info.hrs).replace(' min', 'm') + '</b><span class="unit">' + esc(info.spdNote) + '</span></div></div>';
 }
-function openPointSheet(latlng, wp) {
+function openPointSheet(latlng, wp, auto) {
   if (S.measure.on) return;
   const p = { lat: latlng.lat, lon: ((latlng.lng + 540) % 360) - 180 };
   S.sheetPoint = { p, wp: wp || null };
-  let html = '<h3>' + (wp ? esc(wp.name) : 'Dropped pin') + '</h3><div class="sub tnum">' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + '</div>';
+  let html = '<h3>' + (wp ? esc(wp.name) : auto ? 'This spot' : 'Dropped pin') + '</h3><div class="sub tnum">' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + '</div>';
   html += S.fix ? trio(legInfo(S.fix, p)) : '<p class="sub">Distance from you appears once GPS has a fix.</p>';
   html += '<div class="pt-acts"><button class="btn primary" data-act="goto">Navigate to</button>' +
     '<button class="btn" data-act="ptwx">Weather here</button><a class="btn" href="' + nwsGraphUrl(p) + '" target="_blank" rel="noopener">NOAA point forecast ↗</a><button class="btn" data-act="ptmeasure">Measure from here</button>' +
     (wp ? '<button class="btn" data-act="delwp">Delete</button>' : '<button class="btn" data-act="savewp">Save</button>') +
-    '</div><div id="ptWx"></div><div class="pm" id="pmBox"></div><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
+    '</div><div id="ptNow" class="pt-now"></div><div id="ptWx"></div><div class="pm" id="pmBox"></div>' + (auto ? '<p class="hint">Tap anywhere on the chart for that spot. Turn this off in Map options.</p>' : '') + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
   openSheet(html); setTimeout(() => placeMedia(p.lat, p.lon, wp ? wp.name : '', $('pmBox')), 30);
+  { const b = sheet.querySelector('[data-act="ptwx"]'); if (b) b.disabled = true; pointWeather(p); spotNow(p); }
 }
+// everything known about one spot: conditions now, water temperature, charted depth and the tidal current at the nearest NOAA station
+async function spotNow(p) {
+  const el = $('ptNow'); if (!el) return; el.innerHTML = '<p class="sub">Reading this spot…</p>';
+  const ll = '?latitude=' + p.lat.toFixed(3) + '&longitude=' + p.lon.toFixed(3);
+  const [w, m, dep, cur] = await Promise.all([
+    fetchT('https://api.open-meteo.com/v1/forecast' + ll + '&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,pressure_msl&wind_speed_unit=kn&temperature_unit=fahrenheit', 12000).then((r) => r.json()).catch(() => null),
+    fetchT('https://marine-api.open-meteo.com/v1/marine' + ll + '&current=wave_height,wave_period,sea_surface_temperature&length_unit=imperial', 12000).then((r) => r.json()).catch(() => null),
+    (async () => { const e = 0.00015, bb = [p.lon - e, p.lat - e, p.lon + e, p.lat + e]; for (const svc of ['enc_harbour', 'enc_approach', 'enc_coastal']) { try { const d = await encQuery(svc, 'depth', bb, 0.0001); const hit = d.filter((x) => x.d1 != null); if (hit.length) return hit.reduce((a, x) => (x.d1 < a.d1 ? x : a)); } catch (err) { /* next chart */ } } return null; })(),
+    (async () => { try { const st = await nearestCurrent(p); if (!st || st.dNm > 5) return null; const pr = await curPred(st); const n = curAt(pr, curTime()); return n ? Object.assign({ st }, n) : null; } catch (e) { return null; } })()
+  ]);
+  if (!$('ptNow')) return;
+  const c = w && w.current, mc = m && m.current, cells = [];
+  if (c) cells.push(['Wind', Math.round(speedOut(c.wind_speed_10m)) + (c.wind_gusts_10m ? ' g' + Math.round(speedOut(c.wind_gusts_10m)) : ''), SPEED_LBL[S.settings.speedUnit] + ' from ' + compass16(c.wind_direction_10m)]);
+  if (mc && mc.wave_height != null) cells.push(['Waves', mc.wave_height.toFixed(1), 'ft' + (mc.wave_period ? ' · ' + Math.round(mc.wave_period) + ' s' : '')]);
+  if (cur) cells.push(['Current', cur.kn < 0.4 ? 'slack' : cur.kn.toFixed(1), cur.kn < 0.4 ? (cur.nextSlack ? '' : '') : 'kn ' + (cur.flood ? 'flood' : 'ebb') + ' → ' + compass16(cur.dir || 0)]);
+  if (dep) cells.push(['Charted depth', Math.round(ftToLen(dep.d1 / 0.3048)), lenUnit() + ' at chart datum']);
+  if (c) cells.push(['Air', Math.round(c.temperature_2m) + '°', (wmo(c.weather_code)[0] || '').toLowerCase()]);
+  if (mc && mc.sea_surface_temperature != null) cells.push(['Water', Math.round(mc.sea_surface_temperature * 9 / 5 + 32) + '°', 'surface, model']);
+  if (c && c.pressure_msl) cells.push(['Barometer', Math.round(c.pressure_msl), 'hPa']);
+  el.innerHTML = cells.length ? '<div class="pt-grid">' + cells.map(([k, v, u]) => '<div><small>' + k + '</small><b class="tnum">' + esc(String(v)) + '</b><span>' + esc(u) + '</span></div>').join('') + '</div>' + (cur ? '<button type="button" class="btn small" data-curst="' + esc(cur.st.id) + '">Current at ' + esc(cur.st.n.replace(/,.*$/, '')) + ' (' + fmtDist(cur.st.dNm) + ' away) ›</button>' : '') : '<p class="sub">No data reached for this spot: check signal.</p>';
+}
+sheet.addEventListener('click', async (e) => { const b = e.target.closest('[data-curst]'); if (!b) return; const list = await curStations(); const st = list.find((x) => x.id === b.dataset.curst); if (st) openCurrent(st); });
 async function pointTide(p) {
   const box = $('ptWx'); if (!box) return;
   let el = $('ptTide'); if (!el) { el = document.createElement('div'); el.id = 'ptTide'; el.className = 'pt-tide'; box.after(el); }
@@ -329,6 +352,8 @@ function openLayersSheet() {
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += '<div class="mo-h">Chart colors</div>' + optSeg('chartTint', [['blue', 'Ocean blue'], ['classic', 'Classic NOAA']], st.chartTint || 'blue');
+  html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['true', 'Shows that spot\'s conditions'], ['false', 'Does nothing (press and hold instead)']], String(st.spotTap !== false));
+  html += '<div class="mo-h">What are you doing today?</div><div class="btheme-row">' + ACTIVITY.map(([v, l, th]) => '<button type="button" data-activity="' + v + '" class="' + (st.activity === v ? 'on' : '') + '"><i style="background:' + (BTHEMES.find((x) => x[0] === th) || BTHEMES[0])[2] + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Sets the colors and the layers that matter for it. Change anything afterwards.</small>';
   html += '<div class="mo-h">Button theme</div><div class="btheme-row">' + BTHEMES.map(([v, l, c]) => '<button type="button" data-btheme="' + v + '" class="' + ((st.btheme || 'blue') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Day colors for the round buttons. Dusk and Night keep their dim look.</small>';
   html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
   if (st.shallowTint !== false) html += optSeg('shallowStyle', [['coral', 'Soft coral'], ['amber', 'Amber'], ['pale', 'Pale'], ['edge', 'Outline only']], st.shallowStyle || 'coral') + optSeg('shallowLevel', [['1', 'Faint'], ['2', 'Medium'], ['3', 'Strong']], String(st.shallowLevel || 2));
@@ -1846,13 +1871,18 @@ function renderTimeline(el) {
   if (v === 'wind') { const s = seriesAt(w && w.hours, t, 'spd'), d = seriesAt(w && w.hours, t, 'dir'), g = seriesAt(w && w.hours, t, 'gust'); now = s != null ? compass16(d) + ' ' + Math.round(speedOut(s)) + ' ' + SPEED_LBL[S.settings.speedUnit] + ', gust ' + Math.round(speedOut(g)) : 'No forecast yet'; }
   if (v === 'waves') { const h = seriesAt(w && w.waveHours, t, 'h'); now = h != null ? 'Waves ' + waveLen(h) : 'No wave forecast here'; }
   if (v === 'rain') now = 'Live radar · updates every 5 min';
+  let CI = null; try { const st = CUR.chipSt, pr = st && CUR.pred.get(st.id + ':' + ymdUTC(Date.now() - 86400000)); if (pr && pr.ev && pr.ev.length) CI = { st, pr }; } catch (e) { /* currents not loaded yet */ }
+  const curTxt = (n) => n ? (n.kn < 0.4 ? 'slack' : n.kn.toFixed(1) + ' kn ' + (n.flood ? 'flood' : 'ebb') + ' toward ' + compass16(n.dir || 0)) : null;
+  if (v === 'current') { const n = CI && curAt(CI.pr, t); now = n ? 'Current ' + curTxt(n) + ' · ' + esc(CI.st.n.replace(/,.*$/, '')) : 'Loading current predictions…'; }
   if (v === 'tide') { const tv = tideAtT(t); now = tv != null ? 'Tide ' + tideLen(tv) + ' above MLLW' + (S.tide.station ? ' · ' + esc(S.tide.station.name.replace(/,.*$/, '')) : '') : 'No tide station nearby'; }
   const chips = [['wind', 'Wind'], ['waves', 'Waves'], ['rain', 'Rain']].map(([k, l]) => '<button type="button" data-tlv="' + k + '" class="' + (wxOn(k) ? 'on' : '') + (v === k ? ' focus' : '') + '" aria-pressed="' + wxOn(k) + '">' + l + '</button>').join('') +
-    '<button type="button" data-tlv="tide" class="' + (v === 'tide' ? 'on focus' : '') + '">Tide</button>';
+    '<button type="button" data-tlv="tide" class="' + (v === 'tide' ? 'on focus' : '') + '">Tide</button>' +
+    '<button type="button" data-tlv="current" class="' + (S.settings.curOn ? 'on' : '') + (v === 'current' ? ' focus' : '') + '">Current</button>';
   const parts = [];
   { const s2 = seriesAt(w && w.hours, t, 'spd'), d = seriesAt(w && w.hours, t, 'dir'), g = seriesAt(w && w.hours, t, 'gust'); if (s2 != null) parts.push(compass16(d) + ' ' + Math.round(speedOut(s2)) + (g != null ? ' g' + Math.round(speedOut(g)) : '') + ' ' + SPEED_LBL[S.settings.speedUnit]); }
   { const wv = seriesAt(w && w.waveHours, t, 'h'); if (wv != null) parts.push(waveLen(wv)); }
   { const tv = tideAtT(t); if (tv != null) parts.push('tide ' + tideLen(tv)); }
+  { const n = CI && curAt(CI.pr, t); if (n) parts.push('current ' + curTxt(n)); }
   if (w) { const air = WX.hour ? seriesAt(w.hours, t, 'temp') : w.cur && w.cur.temp, water = S.waterObs ? S.waterObs.f : w.sst; if (air != null) parts.push('air ' + tempTxt(air)); if (water != null) parts.push('water ' + tempTxt(water)); }
   const np = S.fix || refPos();
   let h = (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
@@ -1872,6 +1902,15 @@ function renderTimeline(el) {
       }
       h += '<div class="tl-hours" id="tlHours">' + cells.join('') + '</div>';
       if (false) h += '<div class="wx-legend">' + (v === 'wind' ? WIND_COL : WAVE_COL).map((c, i) => '<span><i style="background:' + c[1] + '"></i>' + (v === 'wind' ? ['<5', '5', '10', '15', '20', '25+'] : ['<1', '1', '2', '3', '5+'])[i] + '</span>').join('') + '<span class="u">' + (v === 'wind' ? SPEED_LBL[S.settings.speedUnit] : lenUnit()) + ' · model forecast' + (w ? ', fetched ' + agoTxt(w.at) : '') + '</span></div>';
+    } else if (v === 'current') {
+      if (CI) {
+        const cells = [];
+        for (let k = 0; k <= WXH; k++) {
+          const tt = Date.now() + k * 3600000, n = curAt(CI.pr, tt), d = new Date(tt), day = d.getHours() === 0 ? '<em>' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>' : '';
+          cells.push('<button type="button" class="tl-h' + (k === WX.hour ? ' on' : '') + '" data-tlh="' + k + '">' + day + '<small>' + (k ? d.toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?(AM|PM)/i, (m) => m.trim()[0].toLowerCase()) : 'Now') + '</small><i style="--c:' + (n ? curColor(n.kn) : 'var(--line)') + '">' + (n && n.kn >= 0.4 ? windArrow(((n.dir || 0) + 180) % 360) : '·') + '</i><b class="tnum">' + (n ? (n.kn < 0.4 ? 'slack' : n.kn.toFixed(1)) : '–') + '</b><span>' + (n && n.kn >= 0.4 ? (n.flood ? 'flood' : 'ebb') : '') + '</span></button>');
+        }
+        h += '<div class="tl-hours" id="tlHours">' + cells.join('') + '</div><p class="hint" style="margin:2px 0 0">NOAA current predictions at ' + esc(CI.st.n) + '. Arrows point the way the water runs. <a href="#" data-cur-near>This station in detail</a> · the chart shows every nearby station.</p>';
+      } else h += '<div class="tl-sum" style="opacity:.8">Loading NOAA current predictions for the nearest station…</div>';
     } else if (v === 'tide') {
       h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="' + WXH + '" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">' + tideEmptyTxt() + '</p>';
     } else {
@@ -1887,6 +1926,7 @@ document.addEventListener('click', (e) => {
   if (tv) {
     const k = tv.dataset.tlv;
     if (k === 'tide') { WX.view = WX.view === 'tide' ? (['wind', 'waves', 'rain'].find(wxOn) || 'wind') : 'tide'; if (WX.view === 'tide') WX.open = true; renderWxBar(); return; }
+    if (k === 'current') { const on = !(S.settings.curOn && WX.view === 'current') || !S.settings.curOn; if (on) { WX.view = 'current'; WX.open = true; setCurrents(true); renderCurChip().then(() => renderWxBar()); } else { setCurrents(false); WX.view = ['wind', 'waves', 'rain'].find(wxOn) || 'wind'; } renderWxBar(); return; }
     const on = !wxOn(k); S.settings.wxL = Object.assign({}, S.settings.wxL, { [k]: on });
     if (on) WX.view = k; else if (WX.view === k) WX.view = ['wind', 'waves', 'rain'].find(wxOn) || 'wind';
     applyWx(); return;
@@ -2426,12 +2466,14 @@ function renderMenu() {
       menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
       menuTile('sailcoach', 'dash', 'Sailing coach', 'Sail plan, trim, which tack, best time to leave') +
+      menuTile('loop', 'log', 'Great Loop advisor', 'The route leg by leg, your boat\'s limits, live notices, looper reports') +
       menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
+      menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 100. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 101. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2460,6 +2502,8 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'update') { toast('Getting the latest version…'); (async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith('tl-app-')).map((k) => caches.delete(k))); } catch (e) { /* nothing cached */ } location.reload(); })(); return; }
   if (a === 'fish') { setTab('chart'); openFishWild(); return; }
   if (a === 'sailcoach') { openSailCoach(); return; }
+  if (a === 'loop') { openLoop(); return; }
+  if (a === 'tour') { startTour(0); return; }
   setTab(a);
 });
 
@@ -4520,7 +4564,7 @@ $('quick').addEventListener('click', (e) => {
   const t = e.target.closest('[data-q]'); if (!t) return; const it = QUICK.find((x) => x[0] === t.dataset.q); if (!it) return;
   it[3](!it[2]()); saveSettings(); renderQuick();
 });
-map.on('click', () => { if (!$('quick').hidden) toggleQuick(false); });
+map.on('click', () => { if (!$('quick').hidden) { toggleQuick(false); S.quickClosedAt = Date.now(); } });
 function applyPinSize() { const sz = S.settings.pinSize || 'M'; document.documentElement.dataset.pins = sz; if (typeof drawMarinePlaces === 'function') drawMarinePlaces(); if (typeof drawBridges === 'function') drawBridges(); }
 $('btnLayers').addEventListener('click', () => toggleQuick());
 $('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', !wxOn('wind')); renderChips(); });
@@ -4566,7 +4610,10 @@ map.on('contextmenu', (e) => openPointSheet(e.latlng));
 map.on('click', (e) => {
   if (S.measure.on) { measureTap(e.latlng); return; }
   if (RT.edit) { routeAdd(e.latlng); return; }
-  if (!sheet.hidden) closeSheet();
+  if (!sheet.hidden) { closeSheet(); return; }
+  if (Date.now() - (S.quickClosedAt || 0) < 400) return; // that tap just closed the layers panel
+  if (document.querySelector('.wx-pop:not([hidden])')) return; // that tap closes the weather buttons
+  if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openPointSheet(e.latlng, null, true); // tap any spot: wind, waves, current, tide, depth
 });
 
 
@@ -5404,7 +5451,8 @@ function renderMini() {
 $('miniInst').addEventListener('click', () => setCockpit(true));
 setInterval(renderMini, 1000); renderMini();
 /* ---------- account and sync (Supabase): sign in with your email, and your boats, routes and logs follow you to any browser or phone ---------- */
-const SB = { cfg: store.get('syncCfg', null), client: null, user: null, busy: false, t: null, last: store.get('syncAt', 0) };
+const TL_ACCOUNTS = null; // { url: 'https://xxxx.supabase.co', key: 'anon public key' }: once set here, everyone just signs in with their email
+const SB = { cfg: store.get('syncCfg', null) || TL_ACCOUNTS, client: null, user: null, busy: false, t: null, last: store.get('syncAt', 0) };
 function syncData() { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('tl.') && !SYNC_SKIP.test(k.slice(3)) && k !== 'tl.syncCfg' && k !== 'tl.syncAt') o[k] = localStorage.getItem(k); } return o; }
 function sbLoad() { return new Promise((res, rej) => { if (window.supabase) return res(); const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); }
 async function sbInit() {
@@ -5448,7 +5496,7 @@ function openAccount(refresh) {
       '<div class="row-btns"><button class="btn primary" data-act="sbcfg">Connect</button></div><p class="hint">Setup steps are in the Tideline repo: tools/supabase/README.md. The anon key is meant to be public; your data is protected by sign-in.</p>';
   } else if (!SB.user) {
     h += '<div class="sub">Sign in with your email. We send you a link; tap it on this device and you are in. No password.</div><div class="field"><label>Email</label><input id="sbEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>' +
-      '<div class="row-btns"><button class="btn primary" data-act="sbsend">Email me a sign-in link</button></div>' + (SB.sent ? '<p class="hint"><b>Check your email</b> (and spam) for the link from Supabase. Open it in this browser.</p>' : '');
+      '<div class="row-btns"><button class="btn primary" data-act="sbsend">Email me a sign-in code</button></div>' + (SB.sent ? '<p class="hint"><b>Check your email</b> (and spam). Type the code here, or open the link in this browser.</p><div class="field"><label>Code from the email</label><input id="sbCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></div><div class="row-btns"><button class="btn primary" data-act="sbcode">Sign in</button></div>' : '');
   } else {
     h += '<div class="sub">Signed in as <b>' + esc(SB.user.email) + '</b></div><p class="hint">' + (SB.err ? '<b class="warn-t">' + esc(SB.err) + '</b>' : 'Boats, routes, tracks, spots, logs, receipts and settings sync automatically.' + (SB.last ? ' Last saved ' + agoTxt(SB.last) + '.' : '')) + ' Photos stay on the device they were taken on.</p>' +
       '<div class="row-btns"><button class="btn" data-act="sbpush">Sync now</button><button class="btn ghost" data-act="sbout">Sign out</button></div>';
@@ -5601,6 +5649,7 @@ async function fmLocal(text) {
       }
       closeSheet(); openSailCoach('plan'); return true;
     }
+    if (/\bgreat loop|\blooper|\bthe loop\b/.test(c)) { closeSheet(); openLoop(/limit|fit|air draft|bridge|my boat/.test(c) ? 'boat' : /lock|notice|closed|status/.test(c) ? 'live' : /report/.test(c) ? 'reports' : 'plan'); return true; }
     // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
     if (S.settings.fishTips !== false && /\b(fish|fishing|biting|bait|lure|catch|keep|limit|crab|crabs|crabbing|jimmy|sook)\b/.test(c)) { const r = fishAdvice(c); if (r) { firstMateMessage(''); $('firstMateResults').innerHTML = r; return true; } }
     // layers: "show (me) the waves", "hide wind", "turn on rain", "weather"
@@ -5655,10 +5704,10 @@ document.addEventListener('click', e => { if (e.target.closest('[data-first-mate
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab'; b.dataset.firstMate = 'true'; b.title = 'Ask first mate'; b.setAttribute('aria-label','Ask first mate'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0012 0v-2M12 18v3M8 21h8"/></svg>'; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
-const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)']];
+const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
 function applyBTheme() { document.documentElement.dataset.btheme = S.settings.btheme || 'blue'; }
 applyBTheme();
-sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-btheme]'); if (!b) return; S.settings.btheme = b.dataset.btheme; saveSettings(); applyBTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); });
+sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-btheme]'); if (!b) return; S.settings.btheme = b.dataset.btheme; saveSettings(); applyBTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); });
 applyTint();
 // iPhone Safari ignores "no zoom" in the page header, so stop the page itself from being pinched or double-tapped bigger; the chart still zooms
 (() => {
@@ -5741,11 +5790,11 @@ async function drawCurrents() {
     CUR.layer.clearLayers(); if (!curOn()) return;
     vis.forEach((st) => {
       const p = CUR.pred.get(st.id + ':' + ymdUTC(Date.now() - 86400000)), now = curAt(p, t); if (!now) return;
-      const col = curColor(now.kn), len = Math.round(18 + Math.min(3, now.kn) * 9), slack = now.kn < 0.4, lbl = S.settings.curLbl || 'all';
+      const col = curColor(now.kn), len = Math.round(26 + Math.min(3, now.kn) * 8), slack = now.kn < 0.4, lbl = S.settings.curLbl || 'all';
       if (slack && dens === 'few') return;
       const showN = lbl === 'all' || (lbl === 'strong' && now.kn >= 1);
-      const html = '<div class="cur-a' + (slack ? ' slack' : '') + '" style="--c:' + col + '">' + (slack ? '<i class="cur-dot"></i>' : '<svg width="' + len + '" height="' + len + '" viewBox="0 0 24 24" style="transform:rotate(' + Math.round(now.dir || 0) + 'deg)"><path d="M12 2l6 10h-4v10h-4V12H6z"/></svg>') + (showN ? '<b>' + (slack ? 'slack' : now.kn.toFixed(1)) + '</b>' : '') + '</div>';
-      const m = L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [46, 46], iconAnchor: [23, 23], html }) }).addTo(CUR.layer);
+      const html = '<div class="cur-a' + (slack ? ' slack' : '') + '" style="--c:' + col + '">' + (slack ? '<i class="cur-dot"></i>' : '<svg width="' + len + '" height="' + len + '" viewBox="0 0 24 24" style="transform:rotate(' + Math.round(now.dir || 0) + 'deg)"><path d="M12 2l6 10h-4v10h-4V12H6z"/></svg>') + (showN ? '<b>' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn') + '</b>' : '') + '</div>';
+      const m = L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [56, 56], iconAnchor: [28, 28], html }) }).addTo(CUR.layer);
       m.on('click', (e) => { L.DomEvent.stop(e); openCurrent(st); });
       m.bindTooltip(esc(st.n) + ': ' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn ' + (now.flood ? 'flood' : 'ebb') + ' toward ' + compass16(now.dir || 0)), { direction: 'top' });
     });
@@ -5969,6 +6018,190 @@ setInterval(() => { // a quiet nudge when the wind crosses a reefing step, only 
   if (!S.settings.underSail || S.settings.sailTips === false || !S.weather || !S.weather.cur) return;
   const p = sailPlan(S.weather.cur.spd, S.weather.cur.gust); if (SC.last != null && p.lvl !== SC.last) toast('Sailing coach: ' + p.t, 9000); SC.last = p.lvl;
 }, 5 * 60000);
+/* ---------- Great Loop advisor: the route leg by leg, what limits your boat, when to be where, live notices, and reports from other loopers ---------- */
+const LOOP = {
+  legs: [
+    { id: 'ches', n: 'Chesapeake Bay to Cape May', when: 'April–May', c: [38.6, -76.2], why: 'C&D Canal and Delaware Bay. Time the C&D with the current (2–3 kn) and pick a calm day for Delaware Bay: wind against the ebb gets ugly.' },
+    { id: 'nj', n: 'New Jersey coast', when: 'May', c: [39.9, -74.1], why: 'Outside on the Atlantic (Cape May to Manasquan, about 100 nm) on a good weather window, or the inside NJ ICW: shallow (4 ft or less is happier) with several 35 ft fixed bridges.' },
+    { id: 'nyc', n: 'New York Harbor and the Hudson', when: 'Late May–June', c: [41.5, -73.95], why: 'Past the Statue of Liberty and up the Hudson. Sailboats unstep the mast before the canals (Catskill and Castleton are the usual yards).' },
+    { id: 'erie', n: 'Erie Canal / Oswego Canal (or Champlain)', when: 'June', c: [43.1, -75.6], why: 'Most loopers take the Erie from Waterford to Three Rivers, then the Oswego Canal (21 ft clearance) to Lake Ontario. The western Erie needs 15 ft 6 in. The canal opens for the season in spring: check NY Canal notices.' },
+    { id: 'trent', n: 'Trent–Severn Waterway', when: 'July', c: [44.4, -78.4], why: '240 miles across Ontario with the Peterborough and Kirkfield lift locks and the Big Chute marine railway. Fully loaded draft 5 ft or less, beam 23 ft or less. Parks Canada sets the season and hours.' },
+    { id: 'gbay', n: 'Georgian Bay and the North Channel', when: 'July–August', c: [45.6, -81.3], why: 'Thirty thousand islands and granite: beautiful and unforgiving. Stay in the marked small-craft route and trust the chart over the plotter shortcut.' },
+    { id: 'mich', n: 'Lake Michigan to Chicago', when: 'August', c: [43.5, -87.0], why: 'Down the east or west shore. Lake seas build quickly and steeply: wait for a window; many legs have few harbors of refuge.' },
+    { id: 'chi', n: 'Chicago and the Illinois River', when: 'Early September', c: [41.3, -88.6], why: 'The fixed bridge at mile 300.6 of the Chicago Sanitary and Ship Canal is 19 ft 6 in: the limit for every looper. Downtown Chicago needs 17 ft (or take the Calumet route). Pass the electric fish barrier without stopping. Share the river with big tows: call them on VHF 13/16.' },
+    { id: 'rivers', n: 'Mississippi, Ohio and Cumberland or Tennessee', when: 'September–October', c: [37.3, -89.0], why: 'Down the Mississippi from Grafton, then up the Ohio to the Cumberland or Tennessee (Green Turtle Bay, Kentucky Lake). Fuel is scarce on the upper Mississippi: plan about 200 miles of range. Lock waits for commercial tows can be hours.' },
+    { id: 'tenntom', n: 'Tenn–Tom Waterway to Mobile', when: 'October–November', c: [33.0, -88.3], why: 'Twelve locks down to Demopolis and Mobile Bay. Masts can go back up around Mobile.' },
+    { id: 'gulf', n: 'The Gulf crossing (Big Bend)', when: 'November (after hurricane season)', c: [29.5, -84.0], why: 'Carrabelle to Tarpon Springs or Steinhatchee, about 170 nm, often overnight. The single biggest weather decision of the Loop: wait for the window, travel with others. Many insurers want you south of the Gulf coast only after November 1.' },
+    { id: 'fla', n: 'Florida: Keys or the Okeechobee', when: 'December–February', c: [26.6, -81.6], why: 'Down the west coast to the Keys, or across on the Okeechobee Waterway (Port Mayaca railroad bridge 49 ft). Winter here; many hop to the Bahamas.' },
+    { id: 'icw', n: 'Atlantic ICW home', when: 'March–May', c: [32.5, -80.8], why: 'North on the ICW through Georgia (watch shoaling and plan by tide) and the Carolinas (65 ft fixed bridges) to Norfolk, Mile 0, and back up the Bay: cross your wake.' }
+  ],
+  links: [
+    ['Corps of Engineers lock status and queues', 'https://corpslocks.usace.army.mil/'], ['New York State canals: notices to mariners', 'https://www.canals.ny.gov/'],
+    ['Parks Canada: Trent–Severn Waterway', 'https://parks.canada.ca/lhn-nhs/on/trentsevern'], ['Parks Canada: Rideau Canal', 'https://parks.canada.ca/lhn-nhs/on/rideau'],
+    ['Coast Guard Local Notice to Mariners', 'https://www.navcen.uscg.gov/msi'], ['NOAA Great Lakes forecasts', 'https://www.weather.gov/greatlakes/'],
+    ['America’s Great Loop Cruisers’ Association', 'https://www.greatloop.org/'], ['Waterway Guide navigation alerts', 'https://www.waterwayguide.com/']
+  ],
+  rep: store.get('loopReps', []), shared: [], layer: L.layerGroup().addTo(map), fr: store.get('loopFR', []), frAt: store.get('loopFRAt', 0)
+};
+const LOOP_KIND = { lock: ['Lock', '#2E86DE'], shoal: ['Shoaling', '#E08A00'], bridge: ['Bridge', '#7B5EA7'], marina: ['Marina', '#1B7A45'], fuel: ['Fuel price', '#0FA3A3'], anchor: ['Anchorage', '#14506E'], hazard: ['Hazard', '#D32F2F'], tip: ['Tip', '#5D6D7E'] };
+function loopLimits() {
+  const b = S.boat, out = [], sail = S.settings.boatType === 'sail', air = b.airDraftFt, dr = b.draftFt, beam = b.beamFt, len = S.settings.boatLen;
+  const row = (lvl, t) => out.push('<li class="' + lvl + '">' + t + '</li>');
+  if (air == null) row('warn', 'Set your air draft in Boat: it decides whether you can do the Loop as you are.');
+  else if (sail && air > 19.5) row('warn', 'Air draft ' + fmtLen(air) + ': the mast comes down. Every looper must pass under 19 ft 6 in at Chicago, and the canals need less. Sailboats usually unstep at Catskill or Castleton on the Hudson and restep around Mobile.');
+  else if (air > 19.5) row('bad', 'Air draft ' + fmtLen(air) + ' is more than the 19 ft 6 in fixed bridge at Chicago (mile 300.6). You would need to lower arch, radar and antennas to fit.');
+  else if (air > 17) row('ok', 'Air draft ' + fmtLen(air) + ': fits Chicago (19 ft 6 in) by the Calumet route; downtown Chicago needs 17 ft. Western Erie Canal needs 15 ft 6 in, so take the Oswego Canal (21 ft).');
+  else if (air > 15.5) row('ok', 'Air draft ' + fmtLen(air) + ': fits Chicago, including downtown. The western Erie (15 ft 6 in) is too low: go via Oswego.');
+  else row('good', 'Air draft ' + fmtLen(air) + ': fits every fixed bridge on the Loop, including the full Erie Canal.');
+  if (dr == null) row('warn', 'Set your draft in Boat.');
+  else if (dr > 6) row('bad', 'Draft ' + fmtLen(dr) + ': too deep for the Trent–Severn and much of the ICW. Most loopers draw 5 ft or less.');
+  else if (dr > 5) row('warn', 'Draft ' + fmtLen(dr) + ': possible but stressful. The Canadian canals want 5 ft or less fully loaded, and you may be asked to sign a waiver or wait for water.');
+  else if (dr > 4) row('ok', 'Draft ' + fmtLen(dr) + ': fine for the Loop; 4 ft or less is easier on the NJ ICW and Georgia.');
+  else row('good', 'Draft ' + fmtLen(dr) + ': ideal for the Loop.');
+  if (beam != null) row(beam > 23 ? 'bad' : beam > 16 ? 'warn' : 'good', 'Beam ' + fmtLen(beam) + (beam > 23 ? ': wider than the 23 ft the Trent–Severn takes.' : beam > 16 ? ': fits, but many marinas charge more over 16 ft.' : ': fits the canals and most slips.'));
+  if (len) row(len > 90 ? 'bad' : len > 42 ? 'warn' : 'good', 'Length ' + Math.round(len) + ' ft' + (len > 90 ? ': over the 90 ft Canadian canals take.' : len > 42 ? ': fits, but slips get scarce and costs climb over about 42 ft.' : ': an easy size for slips and locks.'));
+  row('ok', 'Fuel range: plan on about 200 miles for the upper Mississippi stretch.');
+  return '<ul class="loop-lim">' + out.join('') + '</ul>';
+}
+function loopNowLeg() { const p = S.fix || homePort() || refPos(); let best = 0, bd = Infinity; LOOP.legs.forEach((l, i) => { const d = distNm(p, { lat: l.c[0], lon: l.c[1] }); if (d < bd) { bd = d; best = i; } }); return bd < 400 ? best : -1; }
+async function loopShared() {
+  try { await sbInit(); if (!SB.client || !SB.user) return null; const since = new Date(Date.now() - 365 * 86400000).toISOString();
+    const { data, error } = await SB.client.from('loop_reports').select('id,user_id,boat,kind,lat,lon,body,created_at').gte('created_at', since).order('created_at', { ascending: false }).limit(500);
+    if (error) return null; LOOP.shared = (data || []).map((r) => ({ id: 's' + r.id, kind: r.kind, lat: r.lat, lon: r.lon, body: r.body, boat: r.boat, at: Date.parse(r.created_at), mine: r.user_id === SB.user.id })); return LOOP.shared;
+  } catch (e) { return null; }
+}
+async function loopFedReg(force) {
+  if (!force && Date.now() - LOOP.frAt < 6 * 3600000) return LOOP.fr;
+  const term = '("Atlantic Intracoastal" | "Gulf Intracoastal" | "Illinois Waterway" | "Illinois River" | "Chicago Sanitary" | "Tennessee-Tombigbee" | "Tennessee River" | "Cumberland River" | "Hudson River" | "Okeechobee" | "Delaware River" | "Chesapeake and Delaware") (drawbridge | "safety zone" | "regulated navigation area" | "special local")';
+  try {
+    const j = await fetchT('https://www.federalregister.gov/api/v1/documents.json?per_page=30&order=newest&conditions[agencies][]=coast-guard&conditions[type][]=RULE&conditions[term]=' + encodeURIComponent(term) + '&fields[]=title&fields[]=html_url&fields[]=publication_date&fields[]=dates', 15000).then((r) => r.json());
+    LOOP.fr = (j.results || []).map((d) => ({ t: d.title, u: d.html_url, p: d.publication_date, d: d.dates || '' })); LOOP.frAt = Date.now(); store.set('loopFR', LOOP.fr); store.set('loopFRAt', LOOP.frAt);
+  } catch (e) { /* offline */ }
+  return LOOP.fr;
+}
+function loopAllReps() { const cut = Date.now() - 365 * 86400000; const seen = new Set(); return LOOP.rep.concat(LOOP.shared).filter((r) => r.at > cut && !seen.has(r.id) && seen.add(r.id)); }
+function drawLoopReps() {
+  LOOP.layer.clearLayers(); if (!S.settings.loopRepsOn) return;
+  loopAllReps().forEach((r) => { const [lbl, col] = LOOP_KIND[r.kind] || LOOP_KIND.tip; L.circleMarker([r.lat, r.lon], { radius: 7, color: '#fff', weight: 2, fillColor: col, fillOpacity: 0.95 }).addTo(LOOP.layer).bindPopup('<b>' + esc(lbl) + '</b> · ' + new Date(r.at).toLocaleDateString() + (r.boat ? ' · ' + esc(r.boat) : '') + '<br>' + esc(r.body)); });
+}
+async function openLoop(tab) {
+  tab = tab || LOOP.tab || 'plan'; LOOP.tab = tab;
+  const tabs = '<div class="seg fw-tabs">' + [['plan', 'Route'], ['boat', 'My boat'], ['live', 'Live notices'], ['reports', 'Looper reports']].map(([v, l]) => '<button type="button" data-looptab="' + v + '" class="' + (tab === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  let h = '<h3>Great Loop advisor</h3>' + tabs;
+  const done = S.settings.loopDone || {};
+  if (tab === 'plan') {
+    const now = loopNowLeg();
+    h += '<div class="sub">About 6,000 miles counter-clockwise from the Chesapeake. Most loopers take about a year, following the seasons. Tick legs as you finish them.</div>';
+    h += LOOP.legs.map((l, i) => '<div class="loop-leg' + (i === now ? ' here' : '') + (done[l.id] ? ' done' : '') + '"><label><input type="checkbox" data-loopdone="' + l.id + '"' + (done[l.id] ? ' checked' : '') + '><b>' + (i + 1) + '. ' + esc(l.n) + '</b></label><span class="loop-when">' + esc(l.when) + (i === now ? ' · you are near here' : '') + (done[l.id] ? ' · done ' + new Date(done[l.id]).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '') + '</span><p>' + esc(l.why) + '</p><button type="button" class="btn small" data-loopshow="' + i + '">Show on chart</button></div>').join('');
+    h += '<p class="hint">The months are the usual rhythm: north in late spring, the Canadian canals and Great Lakes in summer, Chicago by early September, the rivers in the fall, the Gulf after hurricane season, Florida for the winter. Season dates for locks and canals change every year: check Live notices.</p>';
+  } else if (tab === 'boat') {
+    h += '<div class="sub">' + esc(S.settings.boatName || 'Your boat') + ' against the Loop’s hard limits</div>' + loopLimits() + '<div class="row-btns"><button class="btn" data-loopboat>Edit boat details</button></div><p class="hint">Limits from Great Loop route guides: 19 ft 6 in fixed bridge in Chicago, 15 ft 6 in on the western Erie Canal, 21 ft on the Oswego Canal, 5 ft draft for the Canadian heritage canals, 23 ft beam on the Trent–Severn.</p>';
+  } else if (tab === 'live') {
+    openSheet(h + '<p class="sub">Checking the Coast Guard…</p>');
+    const fr = await loopFedReg(true); if (LOOP.tab !== 'live') return;
+    h += '<div class="mo-h">Official status pages</div>' + LOOP.links.map(([t, u]) => '<a class="li" href="' + u + '" target="_blank" rel="noopener"><div class="li-main"><b>' + esc(t) + '</b></div></a>').join('');
+    h += '<div class="mo-h">Latest Coast Guard rules on the Loop route</div>' + (fr.length ? fr.slice(0, 15).map((d) => '<a class="li" href="' + esc(d.u) + '" target="_blank" rel="noopener"><div class="li-main"><b>' + esc(d.t) + '</b><span>' + esc((d.d || '').slice(0, 150) || 'Published ' + d.p) + '</span></div></a>').join('') : '<p class="sub">Could not reach the Federal Register just now.</p>');
+    h += '<p class="hint">Drawbridge schedule changes, safety zones and closures from the Federal Register. Lock queues and canal openings are on the official pages above.</p>';
+  } else {
+    openSheet(h + '<p class="sub">Loading reports…</p>');
+    const sh = await loopShared(); if (LOOP.tab !== 'reports') return;
+    const p = S.fix || refPos(), reps = loopAllReps().map((r) => Object.assign({ d: distNm(p, r) }, r)).sort((a, b) => a.d - b.d).slice(0, 40);
+    h += '<div class="sub">' + (sh ? 'Shared with everyone using Tideline who signs in' : 'Saved on this phone. Sign in (Menu → Account) to share with other loopers and see theirs.') + '</div>';
+    h += '<div class="field"><label for="loopKind">Report something here (where you are, or the chart center)</label><select id="loopKind">' + Object.entries(LOOP_KIND).map(([k, [l]]) => '<option value="' + k + '">' + l + '</option>').join('') + '</select><textarea id="loopBody" rows="3" maxlength="600" placeholder="e.g. Lock 17 closed for repairs until Friday; 4.5 ft at low tide off the green 23; diesel $4.89"></textarea></div><div class="row-btns"><button class="btn primary" data-loopsave>Post report</button><button class="btn" data-looptoggle>' + (S.settings.loopRepsOn ? 'Hide reports on chart' : 'Show reports on chart') + '</button></div>';
+    h += reps.length ? reps.map((r) => '<div class="li"><div class="li-main"><b style="color:' + (LOOP_KIND[r.kind] || LOOP_KIND.tip)[1] + '">' + esc((LOOP_KIND[r.kind] || LOOP_KIND.tip)[0]) + '</b><span>' + esc(r.body) + '</span><span class="sub">' + fmtDist(r.d) + ' away · ' + agoTxt(r.at) + (r.boat ? ' · ' + esc(r.boat) : '') + '</span></div>' + (r.mine || !String(r.id).startsWith('s') ? '<button class="btn small" data-loopdel="' + esc(String(r.id)) + '">Delete</button>' : '') + '</div>').join('') : '<p class="sub">No reports near here yet.</p>';
+    h += '<p class="hint">Facebook groups and the AGLCA forums are members-only, so Tideline can’t read them. Reports here come from Tideline users; treat them like dock talk and check official notices.</p>';
+  }
+  h += '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
+  openSheet(h);
+}
+sheet.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-looptab]'); if (t) { openLoop(t.dataset.looptab); return; }
+  const sh = e.target.closest('[data-loopshow]'); if (sh) { const l = LOOP.legs[+sh.dataset.loopshow]; closeSheet(); setTab('chart'); map.setView(l.c, 7); return; }
+  if (e.target.closest('[data-loopboat]')) { closeSheet(); setTab('boat'); return; }
+  if (e.target.closest('[data-looptoggle]')) { S.settings.loopRepsOn = !S.settings.loopRepsOn; saveSettings(); drawLoopReps(); openLoop('reports'); return; }
+  const dl = e.target.closest('[data-loopdel]'); if (dl) { const id = dl.dataset.loopdel; if (id.startsWith('s')) { try { await SB.client.from('loop_reports').delete().eq('id', +id.slice(1)); } catch (err) { /* offline */ } LOOP.shared = LOOP.shared.filter((r) => r.id !== id); } else { LOOP.rep = LOOP.rep.filter((r) => String(r.id) !== id); store.set('loopReps', LOOP.rep); } drawLoopReps(); openLoop('reports'); return; }
+  if (e.target.closest('[data-loopsave]')) {
+    const body = ($('loopBody').value || '').trim(), kind = $('loopKind').value; if (body.length < 3) { toast('Write a few words first'); return; }
+    const p = S.fix || refPos(), r = { id: Date.now(), kind, lat: p.lat, lon: p.lon, body, boat: S.settings.boatName || '', at: Date.now() };
+    let shared = false; try { await sbInit(); if (SB.client && SB.user) { const { error } = await SB.client.from('loop_reports').insert({ kind, lat: p.lat, lon: p.lon, body, boat: r.boat }); shared = !error; } } catch (err) { /* keep it local */ }
+    if (!shared) { LOOP.rep.push(r); store.set('loopReps', LOOP.rep); }
+    S.settings.loopRepsOn = true; saveSettings(); await loopShared(); drawLoopReps(); toast(shared ? 'Posted for other loopers' : 'Saved on this phone'); openLoop('reports');
+  }
+});
+sheet.addEventListener('change', (e) => { const c = e.target.closest('[data-loopdone]'); if (!c) return; S.settings.loopDone = Object.assign({}, S.settings.loopDone); if (c.checked) S.settings.loopDone[c.dataset.loopdone] = Date.now(); else delete S.settings.loopDone[c.dataset.loopdone]; saveSettings(); openLoop('plan'); });
+setTimeout(drawLoopReps, 3000);
+/* ---------- activity themes: one tap sets colors and the layers that matter for what you are doing today ---------- */
+const ACTIVITY = [
+  ['sail', 'Sailing', 'navy', 'Wind lines, current arrows, the sailing coach and reef tips', () => { S.settings.underSail = true; setWxL('wind', true); S.settings.curDensity = 'normal'; S.settings.curOn = true; S.settings.sailTips = true; }],
+  ['race', 'Racing', 'july4', 'Every current station with speeds, wind lines, sailing coach', () => { S.settings.underSail = true; setWxL('wind', true); S.settings.curDensity = 'all'; S.settings.curLbl = 'all'; S.settings.curOn = true; S.settings.sailTips = true; }],
+  ['cruise', 'Cruising', 'blue', 'A clean chart: a few current arrows, motoring speeds', () => { S.settings.underSail = false; setWxL('wind', false); S.settings.curDensity = 'few'; S.settings.curLbl = 'strong'; }],
+  ['fish', 'Fishing', 'green', 'Fish structure, fishing tips, current arrows (fish feed on moving water)', () => { S.settings.structOn = true; S.settings.fishTips = true; S.settings.curOn = true; S.settings.curDensity = 'normal'; }],
+  ['loop', 'Great Loop', 'gold', 'Looper reports on the chart, the Loop advisor, a clean chart', () => { S.settings.loopRepsOn = true; S.settings.curDensity = 'few'; }]
+];
+function setActivity(id) {
+  const a = ACTIVITY.find((x) => x[0] === id); if (!a) return; S.settings.activity = id; S.settings.btheme = a[2]; a[4](); saveSettings();
+  applyBTheme(); try { drawCurrents(); renderCurChip(); drawStruct(); drawLoopReps(); renderWxBtn(); } catch (e) { /* not ready */ }
+  toast(a[1] + ': ' + a[3] + '.', 5000); if (id === 'loop') setTimeout(() => openLoop('plan'), 400);
+}
+sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-activity]'); if (b) { setActivity(b.dataset.activity); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); } });
+/* ---------- welcome: sign in so boats, routes, themes and trips follow you to every phone, iPad and computer; then a short tour ---------- */
+async function sbSendCode(email) {
+  await sbInit(); if (!SB.client) throw new Error('Accounts are not switched on yet.');
+  const { error } = await SB.client.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: true } });
+  if (error) throw error;
+}
+async function sbVerifyCode(email, token) {
+  const { error } = await SB.client.auth.verifyOtp({ email, token, type: 'email' }); if (error) throw error;
+  const { data } = await SB.client.auth.getSession(); SB.user = data.session && data.session.user; window.__sbEmail = SB.user && SB.user.email; await syncPull(true);
+}
+function showWelcome(force) {
+  if (!force && (store.get('welcomed', false) || (SB.user))) return false;
+  let el = $('welcome'); if (!el) { el = document.createElement('div'); el.id = 'welcome'; el.className = 'welcome'; document.body.appendChild(el); }
+  const acc = !!SB.cfg;
+  el.innerHTML = '<div class="wl-card"><div class="wl-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c3-2.5 6-2.5 9 0s6 2.5 9 0M3 20.5c3-2.5 6-2.5 9 0s6 2.5 9 0"/><path d="M12 3v9M8 8l4-5 4 5"/></svg></div><h2>Welcome to Tideline</h2>' +
+    '<p>Charts, depth, wind, tides and currents for the water you love.</p>' +
+    (acc ? '<div class="wl-step" id="wlA"><label for="wlEmail">Sign in so your boats, routes, trips and themes follow you to every phone, iPad and computer.</label><input id="wlEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com"><button class="btn primary wl-go" data-wl="send">Email me a sign-in code</button></div>' +
+      '<div class="wl-step" id="wlB" hidden><label for="wlCode">We emailed you a code (check spam too). Type it here, or tap the link in the email.</label><input id="wlCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"><button class="btn primary wl-go" data-wl="verify">Sign in</button><button class="btn ghost small" data-wl="back">Use a different email</button></div>'
+      : '<p class="hint">Sign-in for syncing between devices is being switched on. Until then everything is saved on this device; use Menu → Back up to move it.</p>') +
+    '<p id="wlMsg" class="wl-msg" role="status"></p><button class="btn ghost" data-wl="skip">' + (acc ? 'Continue without signing in' : 'Get started') + '</button></div>';
+  el.hidden = false; return true;
+}
+function closeWelcome(tour) { const el = $('welcome'); if (el) el.hidden = true; store.set('welcomed', true); if (tour && !store.get('toured', false)) setTimeout(() => startTour(), 400); }
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-wl]'); if (!b) return; const a = b.dataset.wl, msg = (t) => { const m = $('wlMsg'); if (m) m.textContent = t; };
+  if (a === 'skip') { closeWelcome(true); return; }
+  if (a === 'back') { $('wlB').hidden = true; $('wlA').hidden = false; msg(''); return; }
+  if (a === 'send') { const em = ($('wlEmail').value || '').trim(); if (!/.+@.+\..+/.test(em)) { msg('Type your email address.'); return; } b.disabled = true; msg('Sending…'); try { await sbSendCode(em); SB.pendingEmail = em; $('wlA').hidden = true; $('wlB').hidden = false; msg(''); setTimeout(() => $('wlCode') && $('wlCode').focus(), 50); } catch (err) { msg(err.message || 'Could not send. Check your signal.'); } b.disabled = false; return; }
+  if (a === 'verify') { const code = ($('wlCode').value || '').replace(/\s/g, ''); if (code.length < 6) { msg('Type the code from the email.'); return; } b.disabled = true; msg('Signing in…'); try { await sbVerifyCode(SB.pendingEmail, code); msg(''); toast('Signed in. Your boats and settings are syncing.'); closeWelcome(true); } catch (err) { msg(err.message || 'That code did not work. Try again.'); } b.disabled = false; }
+});
+// the account sheet also takes the code, for people who signed in from the menu
+document.addEventListener('click', async (e) => { const b = e.target.closest('[data-act="sbcode"]'); if (!b) return; const code = ($('sbCode').value || '').replace(/\s/g, ''), em = ($('sbEmail').value || '').trim(); try { await sbVerifyCode(em, code); toast('Signed in'); openAccount(true); } catch (err) { toast(err.message || 'That code did not work'); } });
+
+/* a short, plain tour: one thing at a time, pointing at the real button */
+const TOUR = [
+  { el: null, t: 'This is your chart', d: 'NOAA chart depths over satellite. Drag to move, pinch to zoom. Your boat is the arrow once GPS finds you.' },
+  { el: '#fabs', t: 'Buttons on the left', d: 'Top to bottom: chart or satellite, layers, day or night colors, measure, plan a route, weather (wind, waves, rain, tide, current), AIS ships and the first mate.' },
+  { el: '#btnWx', t: 'Weather and current', d: 'Tap for wind, waves, rain, tide and current buttons. Turn on Current to see arrows showing which way the water runs and how fast.' },
+  { el: '#fabsR', t: 'Buttons on the right', d: 'Your speed and compass, charted depth under you, zoom, Find me, and the instruments.' },
+  { el: '#map', t: 'Tap any spot', d: 'Tap the water anywhere for its wind, waves, current, tide, depth and water temperature. Press and hold to drop a pin or navigate there.' },
+  { el: '#btnRoute', t: 'Plan a trip', d: 'Tap here, then tap or type your stops. Every leg follows water deep enough for your boat, under bridges you fit and around closed areas.' },
+  { el: '[data-first-mate]', t: 'Your first mate', d: 'Tap and say “Take me to St. Michaels”, “Show the currents” or “Should I reef?”.' },
+  { el: '#btnMOB', t: 'Man overboard', d: 'Press and hold the red MOB button to mark the spot and steer back to it.' },
+  { el: '.tab[data-tab="menu"]', t: 'Menu', d: 'Set up your boat (draft and air draft make routes safe), the sailing coach, the Great Loop advisor, fishing, themes and your account.' }
+];
+function startTour(i) {
+  i = i || 0; const st = TOUR[i]; let ov = $('tour'); setTab('chart'); closeSheet();
+  if (!ov) { ov = document.createElement('div'); ov.id = 'tour'; ov.className = 'tour'; document.body.appendChild(ov); }
+  const el = st.el ? document.querySelector(st.el) : null, r = el && el.getBoundingClientRect(), vis = r && r.width > 0 && r.height > 0;
+  const pad = 6, box = vis ? { l: Math.max(4, r.left - pad), t: Math.max(4, r.top - pad), w: Math.min(innerWidth - 8, r.width + pad * 2), h: Math.min(innerHeight - 8, r.height + pad * 2) } : null;
+  const big = box && box.w * box.h > innerWidth * innerHeight * 0.5, spB = box ? innerHeight - (box.t + box.h) : 0, spA = box ? box.t : 0;
+  const below = box && !big && spB >= 230 && spB >= spA, aboveOk = box && !big && spA >= 230;
+  ov.innerHTML = (box && !big ? '<div class="tour-hole" style="left:' + box.l + 'px;top:' + box.t + 'px;width:' + box.w + 'px;height:' + box.h + 'px"></div>' : '<div class="tour-dim"></div>') +
+    '<div class="tour-card' + (box && !big ? '' : ' mid') + '" style="' + (box && !big ? (below ? 'top:' + (box.t + box.h + 12) + 'px' : aboveOk ? 'bottom:' + (innerHeight - box.t + 12) + 'px' : 'bottom:' + (S.tab ? 84 : 84) + 'px;left:' + Math.min(innerWidth - 16 - 260, box.l + box.w + 10) + 'px;max-width:' + Math.max(220, innerWidth - (box.l + box.w + 26)) + 'px') : '') + '"><div class="tour-n">' + (i + 1) + ' of ' + TOUR.length + '</div><b>' + esc(st.t) + '</b><p>' + esc(st.d) + '</p><div class="tour-btns"><button class="btn ghost small" data-tour="end">Skip tour</button>' + (i ? '<button class="btn small" data-tour="' + (i - 1) + '">Back</button>' : '') + '<button class="btn primary small" data-tour="' + (i + 1 < TOUR.length ? i + 1 : 'end') + '">' + (i + 1 < TOUR.length ? 'Next' : 'Done') + '</button></div></div>';
+  ov.hidden = false;
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-tour]'); if (!b) return; e.stopPropagation(); const v = b.dataset.tour; if (v === 'end') { $('tour').hidden = true; store.set('toured', true); toast('You can take the tour again from Menu → Help.', 3500); } else startTour(+v); }, true);
+setTimeout(() => { if (!showWelcome() && !store.get('toured', false) && !store.get('welcomed', false)) { /* signed in already */ } }, 600);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

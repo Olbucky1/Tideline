@@ -1390,3 +1390,52 @@ html, body { touch-action: manipulation; overscroll-behavior: none; overflow: hi
 .sc-win > div b { font-size: 16px; } .sc-win > div span { font-size: 13px; color: var(--ink2); }
 .sc-win.best > div b::after { content: ' · best'; color: #2E8B57; font-size: 12px; }
 .sc-win ul { margin: 4px 0 0 18px; padding: 0; font-size: 13.5px; } .sc-win li.good { color: #1B7A45; } .sc-win li.bad { color: #A35200; }
+.pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 8px 0; }
+.pt-grid > div { border: 1px solid var(--line); border-radius: 12px; padding: 7px 9px; display: flex; flex-direction: column; }
+.pt-grid small { font: 700 10px/1.2 var(--f-ui); letter-spacing: .05em; text-transform: uppercase; color: var(--ink2); }
+.pt-grid b { font: 600 20px/1.15 var(--f-num); } .pt-grid span { font-size: 11.5px; color: var(--ink2); }
+:root[data-btheme="gold"] { --fab-bg: rgba(18, 58, 107, .62); --fab-hover: rgba(18, 58, 107, .78); --fab-bd: rgba(212, 166, 42, .9); --fab-on: rgba(212, 166, 42, .95); --fab-ring: #fff; --fab-sh: rgba(10, 30, 60, .25); }
+:root[data-btheme="sunset"] { --fab-bg: rgba(224, 112, 58, .58); --fab-hover: rgba(224, 112, 58, .74); --fab-on: rgba(122, 60, 120, .95); --fab-sh: rgba(80, 30, 20, .22); }
+.loop-leg { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
+.loop-leg.here { border: 2px solid var(--accent); } .loop-leg.done { opacity: .7; } .loop-leg.done b { text-decoration: line-through; text-decoration-color: rgba(0,0,0,.3); }
+.loop-leg label { display: flex; gap: 8px; align-items: center; font-size: 15px; } .loop-leg .loop-when { display: block; font-size: 12.5px; color: var(--ink2); margin: 2px 0 0 26px; }
+.loop-leg p { margin: 6px 0; font-size: 13.5px; }
+.loop-lim { margin: 8px 0 8px 18px; padding: 0; font-size: 14px; } .loop-lim li { margin: 6px 0; } .loop-lim .good { color: #1B7A45; } .loop-lim .warn { color: #A35200; } .loop-lim .bad { color: #B3261E; font-weight: 600; }
+.pt-now:empty { display: none; }
+.cur-a { width: 56px !important; height: 56px !important; }
+.cur-a svg { stroke-width: 1.6; }
+.cur-a b { font-size: 11px !important; bottom: -6px !important; }
+/* phones: the weather sheet gets the screen; the side buttons step aside while it is up */
+@media (max-width: 899px) { #app:has(#wxBar.tl:not([hidden])) .fab-col, #app:has(#wxBar.tl:not([hidden])) #fabsR { display: none !important; } }
+/* Weather alert button: matches the other buttons, with a thick ring in the severity colour (red severe, yellow watch, blue advisory, green statement) */
+.alert-bar.mini.warn { --sev: #E53935; --pulse: 229, 57, 53; } .alert-bar.mini.watch { --sev: #F4B400; --pulse: 244, 180, 0; }
+.alert-bar.mini.adv { --sev: #42A5F5; --pulse: 66, 165, 245; } .alert-bar.mini.info { --sev: #43A047; --pulse: 67, 160, 71; }
+#fabs .alert-bar.mini, .alert-bar.mini {
+  background: var(--fab-bg, rgba(46,112,190,.52)) !important; -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
+  border: 3.5px solid var(--sev) !important; box-shadow: 0 1px 5px rgba(0,0,0,.25) !important; color: #fff;
+}
+.alert-bar.mini b { color: var(--sev); text-shadow: 0 0 1px rgba(0,0,0,.6), 0 1px 2px rgba(0,0,0,.4); font-size: 19px !important; }
+.alert-bar.mini small { color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.45); font-size: 7.5px !important; }
+.alert-bar.mini.is-new { animation: sev-pulse 1.4s ease-out infinite !important; }
+@keyframes sev-pulse { 0% { box-shadow: 0 0 0 0 rgba(var(--pulse), .9), 0 1px 5px rgba(0,0,0,.25); } 70% { box-shadow: 0 0 0 12px rgba(var(--pulse), 0), 0 1px 5px rgba(0,0,0,.25); } 100% { box-shadow: 0 0 0 0 rgba(var(--pulse), 0), 0 1px 5px rgba(0,0,0,.25); } }
+:root[data-btheme="white"] .alert-bar.mini { background: rgba(255,255,255,.9) !important; } :root[data-btheme="white"] .alert-bar.mini small { color: #333; text-shadow: none; }
+:root[data-night] .alert-bar.mini, :root[data-dusk] .alert-bar.mini { background: rgba(20,10,10,.6) !important; filter: none; }
+@media (prefers-reduced-motion: reduce) { .alert-bar.mini.is-new { animation: none !important; outline: 3px solid var(--sev); outline-offset: 3px; } }
+/* welcome / sign-in */
+.welcome { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 16px; background: linear-gradient(160deg, #0E3B66 0%, #1D6FB8 55%, #4FA3D9 100%); }
+.wl-card { width: min(420px, 100%); background: var(--surface, #fff); color: var(--ink); border-radius: 22px; padding: 26px 22px 18px; box-shadow: 0 12px 40px rgba(0,0,0,.3); text-align: center; }
+.wl-logo { width: 64px; height: 64px; margin: 0 auto 8px; border-radius: 50%; background: #1D6FB8; display: grid; place-items: center; }
+.wl-logo svg { width: 34px; height: 34px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.wl-card h2 { margin: 4px 0; font-size: 24px; } .wl-card > p { margin: 4px 0 14px; color: var(--ink2); }
+.wl-step { display: flex; flex-direction: column; gap: 10px; text-align: left; } .wl-step label { font-size: 14px; }
+.wl-step input { font-size: 17px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.wl-go { width: 100%; padding: 13px; font-size: 16px; } .wl-msg { min-height: 1.2em; font-size: 13px; color: #B3261E; margin: 8px 0; }
+/* tour */
+.tour { position: fixed; inset: 0; z-index: 2900; }
+.tour-dim { position: absolute; inset: 0; background: rgba(5, 20, 35, .55); }
+.tour-hole { position: absolute; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(5, 20, 35, .55); outline: 3px solid #FFD54F; outline-offset: 2px; pointer-events: none; transition: all .25s; }
+.tour-card { position: absolute; left: 16px; right: 16px; max-width: 420px; margin: 0 auto; background: var(--surface, #fff); color: var(--ink); border-radius: 16px; padding: 14px 16px 12px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.tour-card.mid { top: 50%; transform: translateY(-50%); }
+.tour-card b { font-size: 18px; } .tour-card p { margin: 6px 0 10px; font-size: 15px; line-height: 1.4; }
+.tour-n { font: 700 11px var(--f-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); }
+.tour-btns { display: flex; gap: 8px; justify-content: flex-end; } .tour-btns [data-tour="end"]:first-child { margin-right: auto; }
