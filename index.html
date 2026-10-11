@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B1824">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tideline">
+<title>Tideline</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <div id="map" aria-label="Chart"></div>
+
+  <button id="searchPill" class="search-pill" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <span>Search marinas, fuel, markers…</span>
+  </button>
+  <header class="topbar">
+    <button id="gpsPill" class="pill" type="button"><span class="dot" id="gpsDot"></span><span id="gpsText">Finding GPS…</span><span id="statusWx"></span></button>
+    <div class="chips">
+      <button id="windChip" class="chip" type="button" hidden></button>
+      <button id="waveChip" class="chip" type="button" hidden></button>
+      <button id="tideChip" class="chip" type="button" hidden></button>
+      <button id="modeChip" class="chip light" type="button" hidden></button>
+    </div>
+  </header>
+
+  <div class="fab-col" id="fabs">
+    <button id="btnFollow" class="fab" type="button" aria-label="Center on boat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="7.5"/></svg>
+    </button>
+    <button id="btnZoomIn" class="fab" type="button" aria-label="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="btnZoomOut" class="fab" type="button" aria-label="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button id="btnMeasure" class="fab" type="button" aria-label="Measure distance">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg>
+    </button>
+    <button id="btnSat" class="fab" type="button" aria-label="Satellite on or off">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
+    </button>
+    <button id="btnRoute" class="fab" type="button" aria-label="Plan a route">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2.2"/><circle cx="12" cy="7" r="2.2"/><circle cx="19" cy="15" r="2.2"/><path d="M6.6 16.4l4-7.6M13.8 8.4l3.8 5"/></svg>
+    </button>
+    <button id="btnLayers" class="fab" type="button" aria-label="Map options">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+    </button>
+  </div>
+
+  <button id="btnMOB" class="mob" type="button" aria-label="Man overboard, press and hold">
+    <span class="mob-ring" id="mobRing"></span><span>MOB</span>
+  </button>
+
+  <div class="bottom-stack" id="bottomStack">
+    <div id="mobBanner" class="mob-banner" hidden></div>
+    <div id="bridgeCard" class="bridge-card" hidden></div>
+    <div id="coachCard" class="coach" hidden></div>
+    <div id="wxBar" class="wxbar" hidden></div>
+    <section id="navCard" class="navcard" aria-label="Navigation">
+      <div id="gotoRow" class="goto-row" hidden></div>
+      <div class="pages" id="pages">
+      <div class="strip">
+        <div class="cell"><span class="lbl">SPEED</span><span class="num" id="sSog">–</span><span class="unit" id="sSogU">kn</span></div>
+        <div class="cell"><span class="lbl">COURSE</span><span class="num" id="sCog">–</span><span class="unit">°T</span></div>
+        <div class="cell"><span class="lbl" id="sAL">TRIP</span><span class="num" id="sA">0.0</span><span class="unit" id="sAU">nm</span></div>
+        <div class="cell"><span class="lbl" id="sBL">UNDERWAY</span><span class="num" id="sB">0:00</span><span class="unit" id="sBU">h:mm</span></div>
+      </div>
+      <div class="strip" id="strip2"></div>
+      <div class="strip" id="strip3"></div>
+      </div>
+      <div class="dots" id="pageDots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+    </section>
+  </div>
+
+  <section id="sheet" class="sheet" hidden aria-live="polite"></section>
+
+  <section id="panelSearch" class="panel light search-panel" hidden aria-label="Search">
+    <div class="search-head">
+      <button type="button" class="back" id="searchBack" aria-label="Back to chart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <label for="searchInput" class="sr-only">Search</label>
+      <input id="searchInput" type="search" enterkeyhint="search" autocomplete="off" placeholder="Marina, fuel dock, light, town…">
+    </div>
+    <div class="cat-row" id="catRow"></div>
+    <div class="search-meta"><span id="searchStatus"></span><button type="button" class="btn small" id="searchShowMap" hidden>Show on chart</button></div>
+    <div id="ruleResults" class="results rule-results"></div>
+    <div id="searchResults" class="results"></div>
+  </section>
+  <section id="panelDash" class="panel dark" hidden aria-label="Dash"></section>
+  <section id="panelSide" class="panel light side" hidden aria-label="Instruments"></section>
+  <section id="panelAnchor" class="panel dark" hidden aria-label="Anchor watch"></section>
+  <section id="panelLog" class="panel light" hidden aria-label="Log"></section>
+  <section id="panelSettings" class="panel light" hidden aria-label="Settings"></section>
+  <section id="panelBoat" class="panel light" hidden aria-label="Boat"></section>
+  <section id="panelNav" class="panel light" hidden aria-label="Navigate"></section>
+  <section id="panelMenu" class="panel light" hidden aria-label="Menu"></section>
+  <section id="panelSafety" class="panel light" hidden aria-label="Safety and education"></section>
+
+  <nav class="tabbar" aria-label="Main">
+    <button type="button" data-tab="chart" class="tab on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>Chart</button>
+    <button type="button" data-tab="nav" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l7 19-7-4-7 4z"/></svg><span>Navigate</span><i class="tab-dot rec" id="recDot" hidden></i></button>
+    <button type="button" data-tab="weather" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8"/></svg>Weather</button>
+    <button type="button" data-tab="anchor" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13a7 7 0 0014 0M8 10h8"/></svg><span>Anchor</span><i class="tab-dot" id="anchorDot" hidden></i></button>
+    <button type="button" data-tab="menu" class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Menu</span><i class="tab-dot" id="maintDot" hidden style="background:var(--amber)"></i></button>
+  </nav>
+
+  <div id="alarm" class="alarm" hidden role="alertdialog" aria-labelledby="alarmTitle">
+    <div class="alarm-box">
+      <div class="alarm-title" id="alarmTitle">Anchor drag</div>
+      <div class="alarm-text" id="alarmText"></div>
+      <button type="button" id="alarmSilence" class="btn big light">Silence 2 min</button>
+    </div>
+  </div>
+  <div id="cockpit" class="cockpit" hidden aria-label="Instruments"><div class="ck-head"><b>Instruments</b><span class="ck-gps"></span><span class="ck-time tnum"></span><button type="button" class="ck-close" data-act="ckclose" aria-label="Close instruments">&times;</button></div><div class="ck-grid"></div></div>
+  <div id="toast" class="toast" hidden role="status"></div>
+</div>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
