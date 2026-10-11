@@ -1204,3 +1204,9 @@ html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px))
 #sheet.sheet { position: absolute !important; max-height: calc(100% - var(--tabbar-h) - 16px) !important; overflow-y: auto; overscroll-behavior: contain; }
 #sheet .sheet-x { position: sticky !important; top: 0; float: right; z-index: 5; }
 .nws-btn { position: absolute; top: 10px; right: 54px; font-size: 12.5px; font-weight: 600; color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; background: var(--surface); z-index: 3; }
+/* ocean-blue chart tint (Map options → Chart colors) */
+.chart-tint { position: absolute; inset: 0; z-index: 250; pointer-events: none; mix-blend-mode: multiply; background: #CFE3F5; opacity: 0; transition: opacity .3s; }
+html[data-tint="blue"]:not(.sat) .chart-tint { opacity: 1; }
+html[data-tint="blue"]:not(.sat) #map .leaflet-tile-pane { filter: saturate(0.8) brightness(1.04); }
+:root[data-dusk][data-tint="blue"]:not(.sat) .chart-tint { background: #9DB8D6; }
+:root[data-night] .chart-tint { opacity: 0 !important; }
