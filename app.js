@@ -1262,7 +1262,7 @@ async function maybeWeather(force) {
   try {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) +
       '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,precipitation' +
-      '&daily=sunrise,sunset&wind_speed_unit=kn&temperature_unit=fahrenheit&timezone=auto&forecast_days=2';
+      '&daily=sunrise,sunset&wind_speed_unit=kn&temperature_unit=fahrenheit&timezone=auto&forecast_days=7';
     const r = await fetch(url); if (!r.ok) throw new Error('weather ' + r.status);
     const j = await r.json();
     const off = (j.utc_offset_seconds || 0) * 1000;
@@ -1275,7 +1275,7 @@ async function maybeWeather(force) {
     };
     try {
       const m = await fetch('https://marine-api.open-meteo.com/v1/marine?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) +
-        '&current=wave_height,wave_direction,wave_period,sea_surface_temperature&hourly=wave_height&length_unit=imperial&timezone=GMT&forecast_days=2').then((r) => r.json());
+        '&current=wave_height,wave_direction,wave_period,sea_surface_temperature&hourly=wave_height&length_unit=imperial&timezone=GMT&forecast_days=7').then((r) => r.json());
       if (m.current && m.current.wave_height != null) S.weather.wave = { h: m.current.wave_height, dir: m.current.wave_direction, per: m.current.wave_period };
       if (m.current && m.current.sea_surface_temperature != null) { const c = m.current.sea_surface_temperature, u = (m.current_units || {}).sea_surface_temperature || '°C'; S.weather.sst = /F/.test(u) ? c : c * 9 / 5 + 32; }
       if (m.hourly) S.weather.waveHours = m.hourly.time.map((t, i) => ({ t: Date.parse(t + 'Z'), h: m.hourly.wave_height[i] }));
@@ -1318,7 +1318,7 @@ async function maybeTide(force) {
     const start = new Date(Date.now() - 6 * 3600000), pt = (s) => new Date(s.replace(' ', 'T')).getTime();
     for (const [best, bd] of near) {
       const base = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=Tideline&begin_date=' + ymd(start) +
-        '&range=54&datum=MLLW&station=' + best[0] + '&time_zone=lst_ldt&units=english&format=json&interval=';
+        '&range=180&datum=MLLW&station=' + best[0] + '&time_zone=lst_ldt&units=english&format=json&interval=';
       const [h1, h2] = await Promise.all([fetchT(base + 'hilo').then((r) => r.json()).catch(() => ({})), fetchT(base + 'h').then((r) => r.json()).catch(() => ({}))]);
       const hilo = (h1.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v, type: p.type }));
       let hourly = (h2.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v }));
@@ -1396,10 +1396,10 @@ async function loadGrid(kind, force) {
   if (!force && g && g.key === key && Date.now() - g.at < 30 * 60000) return;
   const seq = (WX.seqs = WX.seqs || {})[kind] = ((WX.seqs || {})[kind] || 0) + 1;
   const ll = '?latitude=' + pts.map((p) => p.lat).join(',') + '&longitude=' + pts.map((p) => p.lon).join(',');
-  const url = kind === 'rain' ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=precipitation&timezone=GMT&forecast_days=3'
+  const url = kind === 'rain' ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=precipitation&timezone=GMT&forecast_days=7'
     : kind === 'wind'
-    ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=3'
-    : 'https://marine-api.open-meteo.com/v1/marine' + ll + '&hourly=wave_height,wave_direction,wave_period&length_unit=imperial&timezone=GMT&forecast_days=3';
+    ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=7'
+    : 'https://marine-api.open-meteo.com/v1/marine' + ll + '&hourly=wave_height,wave_direction,wave_period&length_unit=imperial&timezone=GMT&forecast_days=7';
   WX.busy = true; renderWxBar();
   try {
     const j = await fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
@@ -1454,9 +1454,13 @@ function wsAt(x, y) { // inverse-distance blend of the nearby forecast points
   for (const f of WS.field) { const d2 = (f.x - x) ** 2 + (f.y - y) ** 2 + 400, w = 1 / (d2 * d2); su += f.u * w; sv += f.v * w; ss += f.s * w; sw += w; }
   return sw ? [su / sw, sv / sw, ss / sw] : [0, 0, 0];
 }
-function wsColor(s) {
-  if (!document.documentElement.hasAttribute('data-night') && !document.documentElement.hasAttribute('data-dusk') && S.settings.chart !== 'satellite') return s < 10 ? 'rgba(30,110,135,0.30)' : s < 15 ? 'rgba(30,130,110,0.36)' : s < 20 ? 'rgba(170,120,20,0.42)' : s < 25 ? 'rgba(190,90,30,0.48)' : 'rgba(180,40,40,0.52)';
-  return s < 10 ? 'rgba(225,250,245,0.62)' : s < 15 ? 'rgba(205,245,215,0.66)' : s < 20 ? 'rgba(250,240,190,0.7)' : s < 25 ? 'rgba(255,215,175,0.74)' : 'rgba(255,190,190,0.78)'; }
+const WS_RGBA = {};
+function wsColor(s) { // same colour scale as the wind markers and the forecast bar
+  const hex = colFor(WIND_COL, s), night = document.documentElement.hasAttribute('data-night');
+  const k = hex + night; if (WS_RGBA[k]) return WS_RGBA[k];
+  const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b2 = n & 255;
+  return (WS_RGBA[k] = 'rgba(' + r + ',' + g + ',' + b2 + ',' + (night ? 0.5 : 0.62) + ')');
+}
 function wsFrame() {
   if (!WS.run) return;
   WS.raf = requestAnimationFrame(wsFrame);
@@ -1544,7 +1548,7 @@ function tideTable() {
     (S.tide.station ? '<a class="tl-link" href="https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=' + esc(S.tide.station.id) + '" target="_blank" rel="noopener">Full NOAA tide tables for ' + esc(S.tide.station.name.replace(/,.*$/, '')) + ' ›</a>' : '');
 }
 function tideCurve(sel) {
-  const t0 = Date.now() - 2 * 3600000, t1 = Date.now() + 46 * 3600000, h = (S.tide.hourly || []).filter((x) => x.t >= t0 && x.t <= t1);
+  const off = Math.max(0, Math.min(WXH - 46, sel - 24)), t0 = Date.now() + (off - 2) * 3600000, t1 = Date.now() + (off + 46) * 3600000, h = (S.tide.hourly || []).filter((x) => x.t >= t0 && x.t <= t1);
   if (h.length < 3) return '<p class="sub">No tide table yet.</p>';
   const lo = Math.min(...h.map((x) => x.v)) - 0.3, hi = Math.max(...h.map((x) => x.v)) + 0.3, W = 960, H = 92;
   const X = (t) => ((t - t0) / (t1 - t0)) * W, Y = (v) => H - 14 - ((v - lo) / (hi - lo)) * (H - 30);
@@ -1576,7 +1580,7 @@ function renderTimeline(el) {
   if (open) {
     if (v === 'wind' || v === 'waves') {
       const cells = [];
-      for (let k = 0; k <= 47; k++) {
+      for (let k = 0; k <= WXH; k++) {
         const tt = Date.now() + k * 3600000, val = v === 'wind' ? seriesAt(w && w.hours, tt, 'spd') : seriesAt(w && w.waveHours, tt, 'h');
         const dir = v === 'wind' ? seriesAt(w && w.hours, tt, 'dir') : null, d = new Date(tt);
         const day = d.getHours() === 0 ? '<em>' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>' : '';
@@ -1586,7 +1590,7 @@ function renderTimeline(el) {
       h += '<div class="tl-hours" id="tlHours">' + cells.join('') + '</div>';
       if (false) h += '<div class="wx-legend">' + (v === 'wind' ? WIND_COL : WAVE_COL).map((c, i) => '<span><i style="background:' + c[1] + '"></i>' + (v === 'wind' ? ['<5', '5', '10', '15', '20', '25+'] : ['<1', '1', '2', '3', '5+'])[i] + '</span>').join('') + '<span class="u">' + (v === 'wind' ? SPEED_LBL[S.settings.speedUnit] : lenUnit()) + ' · model forecast' + (w ? ', fetched ' + agoTxt(w.at) : '') + '</span></div>';
     } else if (v === 'tide') {
-      h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="46" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">' + tideEmptyTxt() + '</p>';
+      h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="' + WXH + '" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">' + tideEmptyTxt() + '</p>';
     } else {
       h += '<div class="tl-sum" style="opacity:.8">Live radar on the chart, updated every 5 minutes.</div>';
     }
@@ -1612,7 +1616,7 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-tlx]')) { setTab('chart'); }
 });
 function tideSet(h) {
-  WX.hour = Math.max(0, Math.min(46, Math.round(h * 4) / 4));
+  WX.hour = Math.max(0, Math.min(WXH, Math.round(h * 4) / 4));
   const svg = document.querySelector('.tl-tide'); if (svg) svg.outerHTML = tideCurve(WX.hour);
   const sl = $('tlTide'); if (sl) sl.value = WX.hour;
   const t = Date.now() + WX.hour * 3600000, tv = tideAtT(t), n = document.querySelector('.tl-now'), nx = (S.tide.hilo || []).find((p) => p.t > t), rising = nx ? nx.type === 'H' : null;
@@ -1620,7 +1624,7 @@ function tideSet(h) {
 }
 document.addEventListener('pointerdown', (e) => {
   const svg = e.target.closest('.tl-tide'); if (!svg) return; e.preventDefault();
-  const move = (ev) => { const r = document.querySelector('.tl-tide').getBoundingClientRect(); const fx = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)); tideSet(fx * 48 - 2); };
+  const move = (ev) => { const r = document.querySelector('.tl-tide').getBoundingClientRect(); const fx = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)); { const off = Math.max(0, Math.min(WXH - 46, WX.hour - 24)); tideSet(off + fx * 48 - 2); } };
   move(e); const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
   document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
 });
@@ -1628,18 +1632,18 @@ document.addEventListener('input', (e) => { if (e.target.id === 'tlTide') tideSe
 
 /* forecast scrubber: time bubble above the thumb, hour and day steps, and a colour strip of what is coming */
 const RAIN_COL = [[0.1, 'transparent'], [1, '#9CCBF0'], [4, '#3F8FD8'], [10, '#1F4FB0'], [Infinity, '#7B2FBF']];
-function hourSeverity(k) {
-  const w = S.weather, t = Date.now() + k * 3600000, cols = [];
-  const lvl = (tbl, v) => tbl.findIndex((c) => v < c[0]);
-  if (wxOn('wind')) { const g = seriesAt(w && w.hours, t, 'gust'), sp = seriesAt(w && w.hours, t, 'spd'); const v = Math.max(sp || 0, (g || 0) * 0.8); if (sp != null) cols.push([lvl(WIND_COL, v), colFor(WIND_COL, v)]); }
-  if (wxOn('waves')) { const v = seriesAt(w && w.waveHours, t, 'h'); if (v != null) cols.push([lvl(WAVE_COL, v) + 0.5, colFor(WAVE_COL, v)]); }
-  if (wxOn('rain')) { const v = seriesAt(w && w.hours, t, 'rain'); if (v != null && v >= 0.1) cols.push([lvl(RAIN_COL, v) + 1.5, colFor(RAIN_COL, v)]); }
-  if (!cols.length) return 'var(--line)';
-  return cols.sort((a, b) => b[0] - a[0])[0][1];
+const WXH = 167; // forecast hours on the slider: 7 days
+function hourSeverity(k, only) { // the colour for one layer at hour k, using the same values the chart shows
+  const w = S.weather, t = Date.now() + k * 3600000;
+  if (only === 'wind') { const sp = seriesAt(w && w.hours, t, 'spd'); return sp == null ? 'var(--line)' : colFor(WIND_COL, sp); }
+  if (only === 'waves') { const v = seriesAt(w && w.waveHours, t, 'h'); return v == null ? 'var(--line)' : colFor(WAVE_COL, v); }
+  if (only === 'rain') { const v = seriesAt(w && w.hours, t, 'rain'); return v != null && v >= 0.1 ? colFor(RAIN_COL, v) : 'transparent'; }
+  return 'var(--line)';
 }
 function forecastScrubber() {
-  const max = 47, k = Math.min(max, WX.hour), strip = [];
-  for (let i = 0; i <= max; i++) strip.push('<i style="background:' + hourSeverity(i) + '"></i>');
+  const max = WXH, k = Math.min(max, WX.hour), strip = [];
+  const kinds = ['wind', 'waves', 'rain'].filter(wxOn); if (!kinds.length) kinds.push('wind');
+  kinds.forEach((kd) => { const row = []; for (let i = 0; i <= max; i++) row.push('<i style="background:' + hourSeverity(i, kd) + '"></i>'); strip.push('<div class="sc-row" title="' + kd + '">' + row.join('') + '</div>'); });
   const marks = []; for (let i = 0; i <= max; i++) { const d = new Date(Date.now() + i * 3600000); if (d.getHours() === 0) marks.push('<em style="left:' + (i / max * 100).toFixed(1) + '%">' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>'); }
   return '<div class="scrub"><button type="button" class="sc-b" data-wxstep="-24" aria-label="Back a day">«</button><button type="button" class="sc-b" data-wxstep="-1" aria-label="Back an hour">‹</button>' +
     '<div class="sc-mid"><div class="sc-bub" id="wxBub" style="left:' + (k / max * 100).toFixed(1) + '%">' + scrubLabel(k) + '</div><div class="sc-strip" aria-hidden="true">' + strip.join('') + '</div>' + marks.join('') +
@@ -1648,8 +1652,8 @@ function forecastScrubber() {
 }
 function scrubLabel(k) { if (!k) return 'Now'; const d = new Date(Date.now() + k * 3600000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric' }); }
 function setWxHour(k) {
-  WX.hour = Math.max(0, Math.min(47, k)); const r = $('wxHour'); if (r) r.value = WX.hour;
-  const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / 47 * 100).toFixed(1) + '%'; }
+  WX.hour = Math.max(0, Math.min(WXH, k)); const r = $('wxHour'); if (r) r.value = WX.hour;
+  const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / WXH * 100).toFixed(1) + '%'; }
   $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid();
 }
 document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) { wxStop(); setWxHour(WX.hour + +st.dataset.wxstep); } });
@@ -1658,8 +1662,8 @@ function wxStop() { if (!WX.play) return; clearInterval(WX.play); WX.play = null
 function wxPlay() {
   if (WX.play) { wxStop(); return; }
   if (!wxAny()) { setWxL('wind', true); }
-  if (WX.hour >= 47) setWxHour(0);
-  WX.play = setInterval(() => { if (WX.hour >= 47) { wxStop(); return; } setWxHour(WX.hour + 1); }, 900);
+  if (WX.hour >= WXH) setWxHour(0);
+  WX.play = setInterval(() => { if (WX.hour >= WXH) { wxStop(); return; } setWxHour(WX.hour + 1); }, 650);
   renderWxBar();
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]')) wxPlay(); });
