@@ -1003,11 +1003,14 @@ const WAVE_COL = [[1, '#3F7FB0'], [2, '#1E9E8F'], [3, '#E8952B'], [5, '#D64545']
 const colFor = (tbl, v) => tbl.find((c) => v < c[0])[1];
 const waveLen = (ft) => (lenUnit() === 'm' ? (ft * 0.3048).toFixed(1) + ' m' : ft.toFixed(1) + ' ft');
 if (!S.settings.wxL) { const w = S.settings.wx; S.settings.wxL = { wind: w === 'wind', waves: w === 'waves', rain: w === 'radar' }; }
+// every launch starts with a clean chart: weather layers are turned on by choice, never left over from last time
+S.settings.wxL = { wind: false, waves: false, rain: false };
 const wxOn = (k) => !!(S.settings.wxL && S.settings.wxL[k]);
 const wxAny = () => wxOn('wind') || wxOn('waves') || wxOn('rain');
 function setWxL(k, on) { S.settings.wxL = Object.assign({}, S.settings.wxL, { [k]: on }); saveSettings(); applyWx(); }
 function wxTitle() { return [wxOn('wind') && 'Wind', wxOn('waves') && 'Waves', wxOn('rain') && 'Rain'].filter(Boolean).join(' · '); }
 function applyWx() {
+  if (typeof drawObs === 'function') drawObs();
   if (wxOn('rain')) { if (!map.hasLayer(radarLayer)) radarLayer.addTo(map); if (radarLayer.redraw) radarLayer.redraw(); } else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer);
   if (wxOn('wind') || wxOn('waves')) { if (!map.hasLayer(wxGrid)) wxGrid.addTo(map); loadGrids(); } else { wxGrid.clearLayers(); if (map.hasLayer(wxGrid)) map.removeLayer(wxGrid); }
   renderWxBar();
@@ -1239,7 +1242,7 @@ function nearestObs() {
 }
 function drawObs() {
   obsLayer.clearLayers();
-  if (map.getZoom() < 9) return;
+  if (map.getZoom() < 9 || !(S.settings.chips || wxOn('wind'))) return; // station wind pins only when you ask for wind on the chart
   S.obs.forEach((o) => {
     const old = Date.now() - o.t > 45 * 60000;
     const html = '<div class="obs-pin' + (old ? ' old' : '') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(' + ((o.dir + 180) % 360) + ' 12 12)"><path d="M12 3v16M12 3l-5 6M12 3l5 6"/></g></svg><b>' + compass16(o.dir) + ' ' + Math.round(speedOut(o.spd)) + '</b>' + (o.gust ? '<span>g' + Math.round(speedOut(o.gust)) + '</span>' : '') + '</div>';
