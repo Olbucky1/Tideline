@@ -9,7 +9,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('tl.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('tl.' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } if (window.__tlSync && !SYNC_SKIP.test(k)) window.__tlSync(); },
 };
-const SYNC_SKIP = /^(curSt|cgNotices|loopFR|stations|bridges|bridgeTiles|mplaces|mpTiles|plTiles|weather|tide|encIds|obs|alrSeen|demo|sync)/; // caches stay local; your own data syncs
+const SYNC_SKIP = /^(aisCache|curSt|cgNotices|loopFR|stations|bridges|bridgeTiles|mplaces|mpTiles|plTiles|weather|tide|encIds|obs|alrSeen|demo|sync)/; // caches stay local; your own data syncs
 const saveTimers = {};
 function saveSoon(key, getter, ms = 3000) {
   clearTimeout(saveTimers[key]);
@@ -469,6 +469,7 @@ document.addEventListener('click', (e) => {
 });
 map.on('moveend', () => { if (S.settings.rings && !S.fix && S.settings.ringCenter === 'chart') drawRings(); });
 map.on('zoomend', drawRings);
+map.on('zoomend', () => { clearTimeout(window.__aisZ); window.__aisZ = setTimeout(() => { try { updateAis(); } catch (e) { /* later */ } }, 200); });
 sheet.addEventListener('change', (e) => {
   if (e.target.name === 'chart') { S.settings.chart = e.target.value; saveSettings(); applyChart(); }
   if (e.target.id === 'shallowBox') { S.settings.shallowTint = e.target.checked; saveSettings(); SH.drawnKey = ''; drawShallow(); }
@@ -2524,7 +2525,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 111. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 112. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -3396,7 +3397,9 @@ function evaluate(t) {
 function aisIcon(t, level) {
   const col = level === 'danger' ? '#D64545' : level === 'caution' ? '#E8952B' : t.type === 'ship' ? '#5B6B7A' : t.type === 'sail' ? '#6B4FBB' : '#3D7D9C';
   const big = t.type === 'ship';
-  const path = big ? 'M12 1 L17 7 L17 25 L7 25 L7 7 Z' : 'M12 3 L18 23 L12 19 L6 23 Z';
+  const path = big ? 'M12 1 L17 7 L17 25 L7 25 L7 7 Z' : 'M12 3 L18 23 L12 19 L6 23 Z', age = Date.now() - (t.seen || Date.now()), op = age > 30 * 60000 ? 0.45 : age > 10 * 60000 ? 0.7 : 1;
+  if ((t.sog || 0) < 0.5 && level !== 'danger' && level !== 'caution') // moored or anchored: a dot, like other AIS maps
+    return L.divIcon({ className: 'ais-icon', iconSize: [14, 14], iconAnchor: [7, 7], html: '<svg width="14" height="14" viewBox="0 0 14 14" style="opacity:' + op + '"><circle cx="7" cy="7" r="5" fill="' + col + '" stroke="#fff" stroke-width="1.6"/></svg>' });
   return L.divIcon({ className: 'ais-icon', iconSize: [24, 26], iconAnchor: [12, 13], html: '<svg width="24" height="26" viewBox="0 0 24 26"><g transform="rotate(' + ((t.cog || 0) + mapRot()) + ' 12 13)"><path d="' + path + '" fill="' + col + '" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g></svg>' });
 }
 function updateAis() {
@@ -3407,7 +3410,8 @@ function updateAis() {
     const r = S.fix ? evaluate(t) : null; t.eval = r;
     if (r && r.level !== 'none') { const score = (r.level === 'danger' ? 0 : 10) + r.tcpa * 10; if (!worst || score < worst.score) worst = { r, score }; }
     const m = L.marker([t.lat, t.lon], { icon: aisIcon(t, r ? r.level : 'none'), zIndexOffset: 800 });
-    m.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [12, 0], className: 'ais-label' });
+    const z = map.getZoom(), named = t.name && !/^MMSI /.test(t.name), showName = z >= 14 || (z >= 12 && ((t.sog || 0) >= 1 || t.type === 'ship')) || (r && r.level !== 'none');
+    if (showName) m.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [10, 0], className: 'ais-label' + (named ? '' : ' unnamed') }); else m.bindTooltip(esc(t.name || 'AIS target'), { direction: 'top' });
     m.on('click', () => openAisSheet(t));
     aisLayer.addLayer(m);
     if (r && r.level !== 'none' && r.tcpa > 0) {
@@ -3497,7 +3501,7 @@ function aisUpsert(t) {
   const prev = ais.get(t.id);
   const hist = prev ? prev.hist : [];
   if (S.fix) { hist.push({ time: Date.now(), brg: bearing(S.fix, t), range: distNm(S.fix, t) }); while (hist.length > 40) hist.shift(); }
-  ais.set(t.id, Object.assign(prev || {}, t, { hist, seen: Date.now() }));
+  ais.set(t.id, Object.assign(prev || {}, t, { hist, seen: Date.now(), cached: false }));
 }
 /* ---------- live AIS over the internet (aisstream.io, free key): ships and AIS-equipped boats around the chart ---------- */
 const AISS = { ws: null, center: null, at: 0, retry: 0, timer: null, n: 0, err: '' };
@@ -3509,7 +3513,7 @@ function aissConnect(force) {
   if (!force && AISS.ws && AISS.ws.readyState <= 1 && AISS.center && distNm(AISS.center, c) < 8) return;
   aissClose(); AISS.center = { lat: c.lat, lon: c.lon };
   // aisstream.io does not allow browsers to connect directly, so the app talks to a tiny relay you run (see tools/ais-relay in the repo)
-  let ws; try { ws = new WebSocket(relay.replace(/^http/, 'ws').replace(/\/$/, '') + '/?bbox=' + [c.lat - 0.35, c.lon - 0.45, c.lat + 0.35, c.lon + 0.45].map((v) => v.toFixed(3)).join(',')); } catch (e) { AISS.err = 'That relay address is not valid'; return; }
+  AISS.box = aisBox(); let ws; try { ws = new WebSocket(relay.replace(/^http/, 'ws').replace(/\/$/, '') + '/?bbox=' + AISS.box.join(',')); } catch (e) { AISS.err = 'That relay address is not valid'; return; }
   AISS.ws = ws;
   ws.onopen = () => { AISS.retry = 0; AISS.err = ''; };
   ws.onmessage = async (ev) => {
@@ -3542,8 +3546,19 @@ function aissConnect(force) {
   ws.onclose = () => { if (AISS.ws !== ws) return; AISS.ws = null; if ((S.settings.aisRelay || '') && AISS.retry < 6) setTimeout(() => aissConnect(true), Math.min(60000, 3000 * 2 ** AISS.retry++)); };
 }
 function aissClose() { clearTimeout(AISS.timer); AISS.timer = null; const w = AISS.ws; AISS.ws = null; if (w) try { w.close(); } catch (e) { /* closed */ } }
-setInterval(() => { const now = Date.now(); let ch = false; ais.forEach((t, id) => { if (t.live && now - (t.seen || 0) > 12 * 60000) { ais.delete(id); ch = true; } }); if (ch) updateAis(); }, 60000);
-map.on('moveend', () => { if (!S.fix && S.settings.aisRelay) { clearTimeout(AISS.mt); AISS.mt = setTimeout(() => aissConnect(false), 2000); } });
+// boats at a mooring report only every few minutes and are often out of range of the receivers, so keep the last place we heard
+// each one: moving boats for 15 minutes, boats sitting still for 3 hours. Kept on the phone so they show at once next time.
+const AIS_KEEP = (t) => ((t.sog || 0) >= 1 ? 15 : 180) * 60000;
+setInterval(() => { const now = Date.now(); let ch = false; ais.forEach((t, id) => { if (t.live && now - (t.seen || 0) > AIS_KEEP(t)) { ais.delete(id); ch = true; } }); if (ch) updateAis(); aisSave(); }, 60000);
+function aisSave() { const now = Date.now(), out = []; ais.forEach((t) => { if (t.live && t.lat != null && now - (t.seen || 0) < AIS_KEEP(t)) out.push({ id: t.id, mmsi: t.mmsi, name: t.name, lat: t.lat, lon: t.lon, sog: t.sog, cog: t.cog, hdg: t.hdg, type: t.type, len: t.len, beam: t.beam, status: t.status, seen: t.seen, callsign: t.callsign }); }); store.set('aisCache', out.slice(-1500)); }
+(() => { const now = Date.now(); (store.get('aisCache', []) || []).forEach((t) => { if (t && t.id && now - (t.seen || 0) < AIS_KEEP(t) && !ais.has(t.id)) ais.set(t.id, Object.assign(t, { live: true, cached: true, hist: [] })); }); setTimeout(() => { try { updateAis(); renderAisBtn(); } catch (e) { /* later */ } }, 1500); })();
+// follow the chart: when you look somewhere else, ask the relay for boats there too (up to about 3° across)
+function aisBox() { const b = map.getBounds().pad(0.3), f = S.fix; let s2 = b.getSouth(), w = b.getWest(), n = b.getNorth(), e = b.getEast(); if (f) { s2 = Math.min(s2, f.lat - 0.2); n = Math.max(n, f.lat + 0.2); w = Math.min(w, f.lon - 0.25); e = Math.max(e, f.lon + 0.25); } const c = [(s2 + n) / 2, (w + e) / 2], hl = Math.min(1.45, (n - s2) / 2), hw = Math.min(1.45, (e - w) / 2); return [c[0] - hl, c[1] - hw, c[0] + hl, c[1] + hw].map((v) => +v.toFixed(3)); }
+map.on('moveend', () => {
+  if (!S.settings.aisRelay || S.settings.aisShow === false) return; clearTimeout(AISS.mt);
+  AISS.mt = setTimeout(() => { const bb = aisBox(), cur = AISS.box; if (cur && bb[0] >= cur[0] && bb[1] >= cur[1] && bb[2] <= cur[2] && bb[3] <= cur[3]) return; AISS.box = bb;
+    if (AISS.ws && AISS.ws.readyState === 1) { try { AISS.ws.send(JSON.stringify({ bbox: bb })); } catch (e) { /* reconnect below */ } } else aissConnect(true); }, 1500);
+});
 setTimeout(() => aissConnect(true), 2500);
 
 /* demo AIS traffic: a crossing sailboat, a ship in the channel, a powerboat overtaking */

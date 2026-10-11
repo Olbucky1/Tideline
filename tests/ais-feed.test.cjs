@@ -8,7 +8,8 @@ class Socket { constructor() { this.readyState = 1; } close() {} }
 const context = {
   S: { settings: { aisRelay: 'wss://example.com', aisShow: true }, fix: null },
   ais: new Map(), WebSocket: Socket, refPos: () => ({ lat: 39, lon: -76 }),
-  distNm: () => 0, map: { on() {} },
+  distNm: () => 0, map: { on() {}, getBounds: () => ({ pad: () => ({ getSouth: () => 38.8, getNorth: () => 39.2, getWest: () => -76.5, getEast: () => -76.1 }) }) },
+  store: { get: (k, d) => d, set() {} }, renderAisBtn() {},
   setTimeout: (fn) => { pending.push(fn); return pending.length; }, clearTimeout() {}, setInterval() {},
   updateAis: () => renders++
 };
@@ -27,9 +28,9 @@ async function send(type, payload, metadata = {}) {
   assert.equal(context.ais.get('ais-123456789').lat, 39, 'invalid coordinates rejected');
   await send('StandardClassBPositionReport', { Sog: 3, Cog: 45 }, { Latitude: 38, Longitude: -75 });
   assert.equal(context.ais.get('ais-123456789').lat, 38, 'provider metadata supported');
-  assert.equal(pending.length, 2, 'one startup timer and one render timer despite burst');
-  pending[1](); assert.equal(renders, 1);
+  assert.equal(pending.length, 3, 'cache restore, startup and one render timer despite burst');
+  pending[2](); assert.equal(renders, 1);
   await send('PositionReport', { Latitude: 39, Longitude: -76 });
-  assert.equal(pending.length, 3, 'later report schedules another render');
+  assert.equal(pending.length, 4, 'later report schedules another render');
   console.log('PASS: AIS coordinates, invalid positions, static freshness and continuous-stream rendering.');
 })().catch((e) => { console.error(e); process.exitCode = 1; });
