@@ -2524,7 +2524,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 109. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 110. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -4667,7 +4667,8 @@ map.on('click', (e) => {
   if (Date.now() - (S.quickClosedAt || 0) < 400) return; // that tap just closed the layers panel
   if (document.querySelector('.wx-pop:not([hidden])')) return; // that tap closes the weather buttons
   if (S.settings.view3d) { toast('Switch to the flat 2D view (press and hold the compass) to tap a spot.', 3000); return; }
-  if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openPointSheet(e.latlng, null, true); // tap any spot: wind, waves, current, tide, depth
+  if (SPOT.el) { closeSpot(); return; } // a tap elsewhere just closes the spot card
+  if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openSpot(e.latlng); // tap any spot: a small card with wind, waves, current, tide, depth
 });
 
 
@@ -6534,6 +6535,69 @@ document.addEventListener('click', (e) => {
 });
 function wakeBoxHtml() { return '<div id="wakeBox" class="field wake-box"><label for="wakeWordIn">Hands-free: listen for</label><input id="wakeWordIn" value="' + esc(S.settings.wakeWord || 'first mate') + '" maxlength="30"><div class="row-btns">' + (WAKE.on ? '<button class="btn" data-wake="off">Stop listening</button>' : '<button class="btn" data-wake="on">Start listening</button>') + '</div><small class="hint">Say the words, then your request: “' + esc(S.settings.wakeWord || 'first mate') + ', show the currents”. The screen must stay on; Tideline keeps it awake while navigating. Speech is processed by your phone’s browser.</small></div>'; }
 if (S.settings.wakeOn) setTimeout(wakeStart, 1500);
+/* ---------- spot card: tap the chart and a small card opens right at that spot with its conditions; tap anywhere else and it goes away ---------- */
+const SPOT = { el: null, pin: null, p: null, seq: 0 };
+const SPOT_IC = {
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>',
+  wave: '<path d="M2 12c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5 0M2 18c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5 0"/>',
+  cur: '<path d="M3 8h13l-3-3M3 8h13l-3 3M21 16H8l3-3M21 16H8l3 3"/>',
+  tide: '<path d="M12 3v8M8.5 6.5 12 3l3.5 3.5"/><path d="M3 16c3-2.5 6-2.5 9 0s6 2.5 9 0M3 20.5c3-2.5 6-2.5 9 0s6 2.5 9 0"/>',
+  depth: '<path d="M12 3v15M7 13l5 5 5-5"/><path d="M4 21h16"/>',
+  temp: '<path d="M12 3v11.5a3 3 0 1 1-2 0V3a1 1 0 0 1 2 0z"/>',
+  sky: '<path d="M7 17a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9.5a3.5 3.5 0 0 1 0 7.5z"/>'
+};
+const spIc = (k, rot) => '<svg viewBox="0 0 24 24" aria-hidden="true"' + (rot != null ? ' style="transform:rotate(' + Math.round(rot) + 'deg)"' : '') + '>' + SPOT_IC[k] + '</svg>';
+const spArrow = (deg) => '<svg viewBox="0 0 24 24" class="sp-arr" aria-hidden="true" style="transform:rotate(' + Math.round(deg) + 'deg)"><path d="M12 3l5 9h-3.2v9h-3.6v-9H7z"/></svg>';
+function closeSpot() { if (SPOT.el) SPOT.el.remove(); SPOT.el = null; if (SPOT.pin) { SPOT.pin.remove(); SPOT.pin = null; } SPOT.p = null; }
+function placeSpot() {
+  if (!SPOT.el || !SPOT.p) return; const pt = map.latLngToContainerPoint([SPOT.p.lat, SPOT.p.lon]), r = map.getContainer().getBoundingClientRect(), w = SPOT.el.offsetWidth, h = SPOT.el.offsetHeight;
+  let x = r.left + pt.x - w / 2, y = r.top + pt.y - h - 26, below = false; x = Math.max(8, Math.min(innerWidth - w - 8, x));
+  if (y < 60) { y = r.top + pt.y + 22; below = true; } y = Math.min(y, innerHeight - h - 70);
+  SPOT.el.style.left = x + 'px'; SPOT.el.style.top = y + 'px'; SPOT.el.classList.toggle('below', below);
+  SPOT.el.style.setProperty('--tip', Math.max(16, Math.min(w - 16, r.left + pt.x - x)) + 'px');
+}
+function openSpot(latlng) {
+  closeSpot(); const p = { lat: latlng.lat, lon: ((latlng.lng + 540) % 360) - 180 }, seq = ++SPOT.seq; SPOT.p = p; S.sheetPoint = { p, wp: null };
+  SPOT.pin = L.marker([p.lat, p.lon], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: '', iconSize: [22, 30], iconAnchor: [11, 29], html: '<div class="sp-pin"></div>' }) }).addTo(map);
+  const from = S.fix || homePort(), d = from ? distNm(from, p) : null;
+  const el = document.createElement('div'); el.className = 'spot-card'; el.innerHTML =
+    '<div class="sp-head"><div><b>' + (d != null ? fmtDist(d) + ' · ' + fmtBrg(bearing(from, p)) + '°' : 'This spot') + '</b><span>' + (d != null ? (S.fix ? 'from you' : 'from ' + esc(from.name)) + (S.fix && (S.sog || 0) > 1 ? ' · ' + fmtDur(d / S.sog) : '') : ddm(p.lat, true) + ' ' + ddm(p.lon, false)) + '</span></div><button type="button" class="sp-x" data-spx aria-label="Close">×</button></div>' +
+    '<div class="sp-grid" id="spGrid"><div class="sp-load">Reading this spot…</div></div>' +
+    '<div class="sp-acts"><button type="button" class="sp-btn pri" data-spact="goto">' + spIc('cur').replace('viewBox', 'class="sp-bi" viewBox') + 'Navigate</button>' + (S.settings.boatType === 'sail' ? '<button type="button" class="sp-btn" data-spact="ptsail">Sail here</button>' : '') + '<button type="button" class="sp-btn" data-spact="more" aria-label="More">More</button></div>';
+  document.body.appendChild(el); SPOT.el = el; placeSpot();
+  spotFill(p, seq);
+}
+async function spotFill(p, seq) {
+  const ll = '?latitude=' + p.lat.toFixed(3) + '&longitude=' + p.lon.toFixed(3), cells = {}, draw = () => {
+    if (seq !== SPOT.seq || !$('spGrid')) return; const order = ['wind', 'wave', 'cur', 'tide', 'depth', 'water', 'air'];
+    const html = order.filter((k) => cells[k]).map((k) => cells[k]).join(''); $('spGrid').innerHTML = html || '<div class="sp-load">Reading this spot…</div>'; placeSpot();
+  };
+  const cell = (ic, v, u, sub, cls) => '<div class="sp-c' + (cls ? ' ' + cls : '') + '">' + ic + '<b>' + v + '<small>' + u + '</small></b><span>' + sub + '</span></div>';
+  fetchT('https://api.open-meteo.com/v1/forecast' + ll + '&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&wind_speed_unit=kn&temperature_unit=fahrenheit', 12000).then((r) => r.json()).then((w) => {
+    const c = w.current; if (!c) return;
+    cells.wind = cell(spArrow((c.wind_direction_10m + 180) % 360 + mapRot()), Math.round(speedOut(c.wind_speed_10m)), ' ' + SPEED_LBL[S.settings.speedUnit], compass16(c.wind_direction_10m) + ' · g' + Math.round(speedOut(c.wind_gusts_10m)), 'wind');
+    cells.air = cell(spIc('sky'), Math.round(c.temperature_2m) + '°', '', (wmo(c.weather_code)[0] || 'air').toLowerCase(), 'air'); draw();
+  }).catch(() => {});
+  fetchT('https://marine-api.open-meteo.com/v1/marine' + ll + '&current=wave_height,wave_period,sea_surface_temperature&length_unit=imperial', 12000).then((r) => r.json()).then((m) => {
+    const c = m.current; if (!c) return;
+    if (c.wave_height != null) cells.wave = cell(spIc('wave'), c.wave_height.toFixed(1), ' ft', (c.wave_period ? Math.round(c.wave_period) + ' s apart' : 'waves'), 'wave');
+    if (c.sea_surface_temperature != null) cells.water = cell(spIc('temp'), Math.round(c.sea_surface_temperature * 9 / 5 + 32) + '°', '', 'water', 'water'); draw();
+  }).catch(() => {});
+  (async () => { try { const st = await nearestCurrent(p); if (!st || st.dNm > 5) return; const n = curAt(await curPred(st), curTime()); if (!n) return;
+    cells.cur = cell(n.kn < 0.4 ? spIc('cur') : spArrow((n.dir || 0) + mapRot()), n.kn < 0.4 ? 'slack' : n.kn.toFixed(1), n.kn < 0.4 ? '' : ' kn', n.kn < 0.4 ? (n.nextSlack ? 'turning' : '') : (n.flood ? 'flood' : 'ebb') + ' → ' + compass16(n.dir || 0), 'cur' + (n.kn >= 1.5 ? ' strong' : '')); draw(); } catch (e) { /* none */ } })();
+  (async () => { try { const tt = (S.tide && !S.tide.none && S.tide.pos && distNm(S.tide.pos, p) < 3) ? S.tide : await tideFor(p); if (!tt || tt.none) return; const ts = tideState(tt); if (!ts) return;
+    cells.tide = cell(spIc('tide', ts.rising === false ? 180 : 0), tideLen(ts.v).replace(/\s*(ft|m)$/, ''), ' ' + lenUnit(), (ts.next ? (ts.next.type === 'H' ? 'high ' : 'low ') + fmtClock(ts.next.t) : ts.state.toLowerCase()), 'tide'); draw(); } catch (e) { /* none */ } })();
+  (async () => { const e = 0.00015, bb = [p.lon - e, p.lat - e, p.lon + e, p.lat + e]; for (const svc of ['enc_harbour', 'enc_approach', 'enc_coastal']) { try { const d = await encQuery(svc, 'depth', bb, 0.0001); const hit = d.filter((x) => x.d1 != null); if (hit.length) { const m = hit.reduce((a, x) => (x.d1 < a.d1 ? x : a)), ft = m.d1 / 0.3048, need = S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null;
+    cells.depth = cell(spIc('depth'), m.d1 < 0 ? 'dries' : Math.round(ftToLen(ft)), m.d1 < 0 ? '' : ' ' + lenUnit(), 'charted' + (need && ft < need ? ' · shallow' : ''), 'depth' + (need && ft < need ? ' warn' : '')); draw(); return; } } catch (err) { /* next */ } } })();
+  setTimeout(draw, 50);
+}
+document.addEventListener('click', (e) => {
+  if (!SPOT.el) return;
+  if (e.target.closest('[data-spx]')) { closeSpot(); return; }
+  const a = e.target.closest('[data-spact]'); if (a) { const p = SPOT.p; closeSpot(); if (a.dataset.spact === 'more') { openPointSheet(L.latLng(p.lat, p.lon), null, true); return; } S.sheetPoint = { p, wp: null }; const fake = document.createElement('button'); fake.dataset.act = a.dataset.spact; fake.hidden = true; sheet.appendChild(fake); fake.click(); fake.remove(); return; }
+});
+map.on('movestart zoomstart', () => { if (SPOT.el && !SPOT.keep) closeSpot(); });
+map.on('rotate', placeSpot);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

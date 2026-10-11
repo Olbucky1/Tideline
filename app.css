@@ -1522,3 +1522,33 @@ html[data-mi="m"] { --mi: 72px; } html[data-mi="l"] { --mi: 92px; } html[data-mi
 .fab.ai.listening { animation: sev-pulse 1.6s ease-out infinite; --pulse: 44, 211, 197; }
 .fab.ai.listening::after { content: ''; position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%; background: #2CD3C5; border: 2px solid #fff; }
 .wake-box { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+/* spot card: a small glass card pinned to the tapped spot */
+.spot-card { position: fixed; z-index: 1400; width: min(318px, calc(100vw - 16px)); padding: 10px 10px 8px; border-radius: 18px; color: var(--ink);
+  background: color-mix(in srgb, var(--surface, #fff) 86%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: 0 10px 30px rgba(10, 30, 50, .22), 0 1px 3px rgba(10, 30, 50, .12); animation: sp-in .16s ease-out; }
+@keyframes sp-in { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
+.spot-card::after { content: ''; position: absolute; left: calc(var(--tip, 50%) - 8px); bottom: -8px; width: 16px; height: 16px; transform: rotate(45deg); background: inherit; border-right: inherit; border-bottom: inherit; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.spot-card.below::after { bottom: auto; top: -8px; border: 0; border-left: inherit; border-top: inherit; }
+.sp-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 0 2px 6px; }
+.sp-head b { font: 700 15px var(--f-num); display: block; } .sp-head span { font-size: 11.5px; color: var(--ink2); }
+.sp-x { border: 0; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink2); width: 26px; height: 26px; border-radius: 50%; font-size: 17px; line-height: 1; }
+.sp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.sp-load { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink2); padding: 8px 2px; }
+.sp-c { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 7px 2px 6px; border-radius: 12px; background: color-mix(in srgb, var(--accent, #1C62B4) 7%, transparent); text-align: center; min-width: 0; }
+.sp-c svg { width: 20px; height: 20px; fill: none; stroke: var(--accent, #1C62B4); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sp-c svg.sp-arr { fill: var(--accent, #1C62B4); stroke: #fff; stroke-width: 1; }
+.sp-c b { font: 700 16px/1.1 var(--f-num); white-space: nowrap; } .sp-c b small { font-size: 10px; font-weight: 600; color: var(--ink2); }
+.sp-c span { font-size: 10px; line-height: 1.2; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sp-c.cur svg, .sp-c.cur svg.sp-arr { stroke: #0FA3A3; } .sp-c.cur svg.sp-arr { fill: #0FA3A3; stroke: #fff; } .sp-c.cur.strong svg.sp-arr { fill: #E08A00; }
+.sp-c.wave svg { stroke: #2E86DE; } .sp-c.tide svg { stroke: #14506E; } .sp-c.depth svg { stroke: #1565C0; } .sp-c.water svg { stroke: #0FA3A3; } .sp-c.air svg { stroke: #7B8A99; }
+.sp-c.depth.warn { background: color-mix(in srgb, #D32F2F 12%, transparent); } .sp-c.depth.warn svg { stroke: #D32F2F; } .sp-c.depth.warn b { color: #B3261E; }
+.sp-acts { display: flex; gap: 6px; margin-top: 8px; }
+.sp-btn { flex: 1; border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); background: transparent; color: var(--ink); border-radius: 12px; padding: 9px 6px; font: 600 13.5px var(--f-ui); display: flex; align-items: center; justify-content: center; gap: 5px; }
+.sp-btn.pri { background: var(--accent, #1C62B4); color: #fff; border-color: transparent; } .sp-btn .sp-bi { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2; display: none; }
+.sp-pin { width: 22px; height: 30px; background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 30'%3E%3Cpath d='M11 29C11 29 2 17.5 2 11a9 9 0 0 1 18 0c0 6.5-9 18-9 18z' fill='%231C62B4' stroke='%23fff' stroke-width='2'/%3E%3Ccircle cx='11' cy='11' r='3.4' fill='%23fff'/%3E%3C/svg%3E"); filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); animation: sp-drop .22s ease-out; }
+@keyframes sp-drop { from { transform: translateY(-10px); opacity: 0; } to { transform: none; opacity: 1; } }
+:root[data-night] .spot-card { background: rgba(16, 8, 8, .9); } :root[data-night] .sp-c { background: rgba(255, 120, 100, .06); } :root[data-night] .sp-c svg { stroke: var(--ink) !important; } :root[data-night] .sp-c svg.sp-arr { fill: var(--ink) !important; stroke: #000 !important; }
+.spot-card::after { background: var(--surface, #fff) !important; opacity: .96; border: 0 !important; box-shadow: 3px 3px 4px rgba(10,30,50,.08); }
+.spot-card.below::after { box-shadow: -2px -2px 3px rgba(10,30,50,.06); }
+.spot-card { padding: 9px 9px 8px; } .sp-c { padding: 6px 2px 5px; } .sp-c b { font-size: 15px; } .sp-acts .sp-btn { padding: 8px 4px; }
+:root[data-night] .spot-card::after { background: rgba(16, 8, 8, .9) !important; }
