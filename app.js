@@ -2736,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 126. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 127. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6162,27 +6162,31 @@ document.documentElement.classList.toggle('lightmenus', S.settings.menuTone === 
    so a preview always shows exactly what you will get. bz = bezel ring stops (5), fc = face (2), ink/muted/acc/n = numbers,
    scale, accent and needle, art = artwork in the face, light = a light face (panel text stays light around it) */
 const GT = [
-  // classic
-  { id: 'navybrass', l: 'Navy and brass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1B2E52', '#0A1428'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#F2C94C', n: '#F2C94C', art: 'swell' },
-  { id: 'heritage', l: 'Heritage brass', g: 'Classic', bz: ['#FFF1C9', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#FBF5E6', '#E6D8BA'], ink: '#1E2A3A', muted: '#6B5E48', acc: '#1E3A5F', n: '#B3261E', art: 'rose', light: 1 },
-  { id: 'yachtchrono', l: 'Yacht chronometer', g: 'Classic', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#FBF8F0', '#E9E2D0'], ink: '#14213D', muted: '#5A6475', acc: '#1F4E9A', n: '#1F4E9A', art: 'swell', light: 1 },
+  // classic (the first six are the original looks, unchanged; their live colours come from app.css)
+  { id: 'navybrass', l: 'Navy and brass', g: 'Classic', legacy: 1, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1B2E52', '#0A1428'], ink: '#F3E3B5' },
+  { id: 'heritage', l: 'Heritage brass', g: 'Classic', legacy: 1, bz: ['#FFF1C9', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#FBF5E6', '#E6D8BA'], ink: '#1E2A3A' },
+  { id: 'brass', l: 'Brass and ivory', g: 'Classic', legacy: 1, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#FFFDF6', '#EFE6D2'], ink: '#1B1B1B' },
+  { id: 'bronze', l: 'Bronze horizon', g: 'Classic', legacy: 1, bz: ['#FCE7BE', '#C08A45', '#6B4518', '#F0C987', '#8A5A22'], fc: ['#2E251B', '#0E0A06'], ink: '#F6E7CC' },
+  { id: 'classic', l: 'Classic black', g: 'Classic', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C1F23', '#050607'], ink: '#F4F6F8' },
+  { id: 'whiteface', l: 'Classic white', g: 'Classic', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#E9EDF0'], ink: '#111417' },
+  // classic, added
+  { id: 'yachtchrono', l: 'Yacht chronometer', g: 'Classic', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#FBF8F0', '#E9E2D0'], ink: '#14213D', muted: '#5A6475', acc: '#1F4E9A', n: '#1F4E9A', art: 'none', light: 1 },
   { id: 'compass', l: 'Captain\'s compass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1A2D4F', '#0B1630'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#E8C36A', n: '#E8C36A', art: 'rose' },
-  { id: 'teak', l: 'Teak and ivory', g: 'Classic', bz: ['#E9B98A', '#9A5A2E', '#4A2511', '#C68350', '#6B3A1C'], fc: ['#FCF6E8', '#EADFC6'], ink: '#1D2B44', muted: '#6A5A44', acc: '#2B5A9B', n: '#1D3F78', art: 'swell', light: 1 },
-  { id: 'regatta', l: 'Regatta bronze', g: 'Classic', bz: ['#F3C892', '#A86A32', '#4E2C0F', '#D9A066', '#7A4A1E'], fc: ['#1D1E22', '#060607'], ink: '#F2F2F2', muted: '#A4A4A4', acc: '#E53935', n: '#E53935', art: 'swell' },
+  { id: 'teak', l: 'Teak and ivory', g: 'Classic', bz: ['#E9B98A', '#9A5A2E', '#4A2511', '#C68350', '#6B3A1C'], fc: ['#FCF6E8', '#EADFC6'], ink: '#1D2B44', muted: '#6A5A44', acc: '#2B5A9B', n: '#1D3F78', art: 'none', light: 1 },
+  { id: 'regatta', l: 'Regatta bronze', g: 'Classic', bz: ['#F3C892', '#A86A32', '#4E2C0F', '#D9A066', '#7A4A1E'], fc: ['#1D1E22', '#060607'], ink: '#F2F2F2', muted: '#A4A4A4', acc: '#E53935', n: '#E53935', art: 'none' },
   { id: 'chart', l: 'Nautical chart', g: 'Classic', bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F3E7C9', '#E2D0A6'], ink: '#2A2A33', muted: '#6F5E3E', acc: '#2C5C8F', n: '#8B2A1E', art: 'topo', light: 1 },
-  { id: 'brass', l: 'Brass and ivory', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#FFFDF6', '#EFE6D2'], ink: '#1B1B1B', muted: '#5C5244', acc: '#1B1B1B', n: '#B3261E', art: 'none', light: 1 },
-  { id: 'bronze', l: 'Bronze horizon', g: 'Classic', bz: ['#FCE7BE', '#C08A45', '#6B4518', '#F0C987', '#8A5A22'], fc: ['#2E251B', '#0E0A06'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2B25C', n: '#F2B25C', art: 'hz' },
-  { id: 'classic', l: 'Classic black', g: 'Classic', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C1F23', '#050607'], ink: '#F4F6F8', muted: '#A9B2BA', acc: '#FFFFFF', n: '#E53935', art: 'none' },
-  { id: 'whiteface', l: 'Classic white', g: 'Classic', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#E9EDF0'], ink: '#111417', muted: '#4A525A', acc: '#111417', n: '#D32F2F', art: 'none', light: 1 },
-  // modern
-  { id: 'titanium', l: 'Titanium blue', g: 'Modern', bz: ['#E9EEF2', '#8C979F', '#3A434B', '#C5CDD3', '#5D6870'], fc: ['#173A63', '#06142A'], ink: '#EEF5FB', muted: '#8FA9C2', acc: '#4FA3FF', n: '#4FA3FF', art: 'swell' },
-  { id: 'arctic', l: 'Arctic glass', g: 'Modern', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A', muted: '#5B6E7E', acc: '#1565C0', n: '#D32F2F', art: 'swell', light: 1 },
-  { id: 'whitetech', l: 'Minimal white', g: 'Modern', bz: ['#FFFFFF', '#C9D0D6', '#8A949C', '#EEF2F5', '#A7B0B8'], fc: ['#FFFFFF', '#F1F4F7'], ink: '#0F1620', muted: '#6A7682', acc: '#3A9AD9', n: '#0F1620', art: 'swell', light: 1 },
-  { id: 'expedition', l: 'Expedition carbon', g: 'Modern', bz: ['#A8AEB4', '#4A4F55', '#16191C', '#7A8087', '#2B2F34'], fc: ['#23272B', '#0A0B0D'], ink: '#F2F2F2', muted: '#9AA0A6', acc: '#FF7A1A', n: '#FF7A1A', art: 'topo' },
-  { id: 'midnight', l: 'Midnight chrome', g: 'Modern', bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8', muted: '#8FB0C2', acc: '#5AE3FF', n: '#FF5A4F', art: 'swirl' },
-  { id: 'glass', l: 'Glass ocean', g: 'Modern', bz: ['#F2FBFF', '#8FD3F5', '#2C6E99', '#CDEFFF', '#4C93BF'], fc: ['#11507E', '#041628'], ink: '#E8F7FF', muted: '#8CC4E6', acc: '#5EE6FF', n: '#5EE6FF', art: 'swirl' },
-  { id: 'carbon', l: 'Carbon', g: 'Modern', bz: ['#5A5A5A', '#2A2A2A', '#111111', '#3C3C3C', '#1E1E1E'], fc: ['#1A1A1A', '#0B0B0B'], ink: '#EDEDED', muted: '#8C8C8C', acc: '#30D158', n: '#FF453A', art: 'none' },
-  { id: 'simple', l: 'Simple digital', g: 'Modern', bz: ['#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A'], fc: ['#15212D', '#15212D'], ink: '#FFFFFF', muted: '#9FB3C4', acc: '#5AC8FA', n: '#FF453A', art: 'none', flat: 1 },
+  { id: 'admiralty', l: 'Admiralty', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#17181A', '#050505'], ink: '#FFFFFF', muted: '#B9B2A2', acc: '#E8C36A', n: '#D32F2F', art: 'none' },
+  { id: 'racinggreen', l: 'Racing green', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1F4A35', '#0B2117'], ink: '#F3E8C8', muted: '#B9AD84', acc: '#E8C36A', n: '#F3E8C8', art: 'none' },
+  { id: 'burgundy', l: 'Burgundy and brass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#5A1A24', '#240509'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
+  { id: 'mahogany', l: 'Mahogany and gold', g: 'Classic', bz: ['#D99A6C', '#8A3F1E', '#3E140A', '#B8673C', '#5E2412'], fc: ['#1B2E52', '#0A1428'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
+  { id: 'pewter', l: 'Pewter and slate', g: 'Classic', bz: ['#E4E6E8', '#9AA1A6', '#4F565B', '#C4C9CD', '#6E757A'], fc: ['#3A434B', '#1C2126'], ink: '#EEF1F3', muted: '#A7B0B7', acc: '#D7DDE2', n: '#E8B84A', art: 'none' },
+  // modern (the original looks, unchanged)
+  { id: 'midnight', l: 'Midnight chrome', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8' },
+  { id: 'arctic', l: 'Arctic white', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A' },
+  { id: 'glass', l: 'Glass ocean', g: 'Modern', legacy: 1, bz: ['#F2FBFF', '#8FD3F5', '#2C6E99', '#CDEFFF', '#4C93BF'], fc: ['#11507E', '#041628'], ink: '#E8F7FF' },
+  { id: 'expedition', l: 'Expedition tech', g: 'Modern', legacy: 1, bz: ['#A8AEB4', '#4A4F55', '#16191C', '#7A8087', '#2B2F34'], fc: ['#23272B', '#0A0B0D'], ink: '#F2F2F2' },
+  { id: 'carbon', l: 'Carbon', g: 'Modern', legacy: 1, bz: ['#5A5A5A', '#2A2A2A', '#111111', '#3C3C3C', '#1E1E1E'], fc: ['#1A1A1A', '#0B0B0B'], ink: '#EDEDED' },
+  { id: 'simple', l: 'Simple digital', g: 'Modern', legacy: 1, bz: ['#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A', '#3A4A5A'], fc: ['#15212D', '#15212D'], ink: '#FFFFFF' },
 ];
 const GTHEMES = GT.map((t) => [t.id, t.l, 'radial-gradient(circle,' + t.fc[0] + ' 55%,' + t.bz[1] + ' 58%)']);
 const gtOf = (id) => GT.find((t) => t.id === id) || GT.find((t) => t.id === 'midnight');
@@ -6198,7 +6202,9 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
     return c;
   };
   let css = '.gl-prev{--g-ink:var(--gi-ink);--g-muted:var(--gi-muted);--g-acc:var(--gi-acc);--g-acc2:var(--gi-acc);--g-line:color-mix(in srgb,var(--gi-muted) 45%,transparent);--g-face:transparent;--g-bg:transparent}';
-  GT.forEach((t) => { css += rules('html:root[data-gtheme="' + t.id + '"]:not([data-night])', t, true) + rules('i.gl-prev.gl-prev[data-gt="' + t.id + '"]', t, false); });
+  GT.forEach((t) => {
+    if (t.legacy) { css += 'html:root[data-gtheme="' + t.id + '"]{--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}'; return; } // the original looks keep their own app.css styling
+    css += rules('html:root[data-gtheme="' + t.id + '"]:not([data-night])', t, true) + rules('i.gl-prev.gl-prev[data-gt="' + t.id + '"]', t, false); });
   const el = document.createElement('style'); el.id = 'gtStyle'; el.textContent = css; document.head.appendChild(el);
 })();
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
