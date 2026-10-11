@@ -828,7 +828,7 @@ function shallowStyleFor(shallow, night) {
   const sat = document.documentElement.classList.contains('sat'); // over satellite water coral reads as purple: use warm sand and amber there
   const col = night ? (shallow ? '#C0392B' : '#8A4A2A') : sat ? (shallow ? '#FFB547' : '#FFE29A') : (shallow ? P[0] : P[1]);
   const fo = (shallow ? P[2] : P[3]) * lv * (night ? 0.9 : 1);
-  if (sat && sty !== 'edge') return { fillColor: col, fillOpacity: (shallow ? 0.26 : 0.14) * lv, stroke: true, color: shallow ? '#FFB547' : '#FFE29A', weight: shallow ? 1.4 : 0.8, opacity: 0.85 };
+  if (sat && sty !== 'edge') return { fillColor: col, fillOpacity: (shallow ? 0.26 : 0.14) * lv, stroke: shallow, color: '#FFC56B', weight: 0.8, opacity: 0.45 };
   return sty === 'edge' ? { fillOpacity: 0, stroke: true, color: col, weight: shallow ? 1.6 * lv : 1, opacity: shallow ? 0.75 : 0.45, dashArray: shallow ? null : '4 4' } : { fillColor: col, fillOpacity: fo, stroke: shallow, color: col, weight: 0.8, opacity: 0.35 * lv };
 }
 async function drawShallow() {
@@ -1274,7 +1274,7 @@ function refPos() { if (S.fix) return S.fix; const c = map.getCenter(); return {
 async function maybeWeather(force) {
   const f = refPos(); if (!f || wxBusy) return;
   const w = S.weather;
-  if (!force && w && Date.now() - w.at < 30 * 60000 && distNm(w.pos, f) < 5) return;
+  if (!force && w && w.press && w.press.length && Date.now() - w.at < 30 * 60000 && distNm(w.pos, f) < 5) return;
   wxBusy = true;
   try {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) +
@@ -4673,6 +4673,7 @@ function anchorGauge(ft, radius) {
 }
 const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
+(() => { const a = S.settings.ckSlots; if (Array.isArray(a) && a.filter((x) => x === 'chart').length > 1) { let seen = false; S.settings.ckSlots = a.filter((x) => { if (x !== 'chart') return true; if (seen) return false; seen = true; return true; }); saveSettings(); } })();
 function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
 /* charted depth where the boat is (or the chart centre): NOAA ENC depth area, plus the predicted tide. Not a sounder. */
 const DEP = { at: 0, pos: null, v: null, busy: false, err: false };
@@ -4872,7 +4873,9 @@ function renderCockpit() {
 }
 $('cockpit').addEventListener('change', (e) => {
   const sel = e.target.closest('[data-ckpick]'); if (!sel) return;
-  const sl = ckSlots().filter((x) => x !== 'off').slice(); sl[+sel.dataset.ckpick] = sel.value;
+  const sl = ckSlots().filter((x) => x !== 'off').slice(), i = +sel.dataset.ckpick, prev = sl[i];
+  if (sel.value === 'chart') { const j = sl.indexOf('chart'); if (j >= 0 && j !== i) sl[j] = prev; } // only one chart: picking it again swaps places
+  sl[i] = sel.value;
   S.settings.ckSlots = sl.filter((x) => x !== 'off'); if (!S.settings.ckSlots.length) S.settings.ckSlots = ['speed'];
   saveSettings(); buildCockpit();
 });
