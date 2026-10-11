@@ -1663,3 +1663,5 @@ html.arrange #fabs, html.arrange #fabsR { outline: 2px dashed color-mix(in srgb,
 html.arrange #app > .fab-free { animation: arr-wiggle .28s ease-in-out infinite alternate; touch-action: none; outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 4px; border-radius: 50%; }
 .ck-ghost { position: fixed; z-index: 4000; pointer-events: none; opacity: .9; transform: scale(1.04); box-shadow: 0 12px 30px rgba(0,0,0,.45); border-radius: 16px; overflow: hidden; }
 #cockpit .ck-slot.dragging { opacity: .35; } #cockpit .ck-slot.drop { outline: 3px solid var(--g-acc, #2CD3C5); outline-offset: -3px; }
+html[data-mi] #app > #miniInst.fab-free { width: var(--mi) !important; height: var(--mi) !important; margin: 0 !important; }
+html[data-mi] #app > #miniInst.fab-free > svg { width: var(--mi) !important; height: var(--mi) !important; }
