@@ -358,7 +358,7 @@ function openLayersSheet() {
   html += '<div class="mo-h">Menu color in daytime</div>' + optSeg('menuTone', [['dark', 'Deep navy (more contrast)'], ['light', 'Light']], st.menuTone || 'dark');
   html += '<div class="mo-h">Gauge style</div><div class="btheme-row">' + GTHEMES.map(([v, l, c]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div>' + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
   html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.miSize || 'l');
-  html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['true', 'Flash the name on each tap (first two weeks)'], ['false', 'Only when I press and hold']], String(st.learnTips !== false && st.learnTips !== 'false'));
+  html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['false', 'Only when I press and hold'], ['true', 'Also flash it on each tap']], String(st.learnTips === true || st.learnTips === 'true'));
   html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['true', 'Shows that spot\'s conditions'], ['false', 'Does nothing (press and hold instead)']], String(st.spotTap !== false));
   html += '<div class="mo-h">What are you doing today?</div><div class="btheme-row">' + ACTIVITY.map(([v, l, th]) => '<button type="button" data-activity="' + v + '" class="' + (st.activity === v ? 'on' : '') + '"><i style="background:' + (BTHEMES.find((x) => x[0] === th) || BTHEMES[0])[2] + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Sets the colors and the layers that matter for it. Change anything afterwards.</small>';
   html += '<div class="mo-h">Button theme</div><div class="btheme-row">' + BTHEMES.map(([v, l, c]) => '<button type="button" data-btheme="' + v + '" class="' + ((st.btheme || 'blue') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Day colors for the round buttons. Dusk and Night keep their dim look.</small>';
@@ -382,6 +382,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'chartTint') applyTint();
   if (k === 'miSize') applyMiSize();
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
+  if (k === 'gArt') applyGArt();
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
   if (k === 'navaids') { NV.key = ''; drawNavaids(); }
@@ -679,7 +680,7 @@ function drawRoute() {
   const show = RT.edit || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
   if (!RT.bad) RT.bad = L.layerGroup().addTo(map); RT.bad.clearLayers();
-  if (show) RT.pts.forEach((p, i) => { if (i && p.unchecked) L.polyline([[RT.pts[i - 1].lat, RT.pts[i - 1].lon], [p.lat, p.lon]], { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
+  if (show) RT.pts.forEach((p, i) => { if (!i || !p.unchecked) return; let k = i - 1; while (k > 0 && RT.pts[k].turn) k--; L.polyline(RT.pts.slice(k, i + 1).map((q) => [q.lat, q.lon]), { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
   drawAvoid();
   if (!show) return;
   let sn = 0;
@@ -725,7 +726,7 @@ async function rtFillLeg(a, b) { // replace whatever lies between stops a and b 
   let ia = RT.pts.indexOf(a), ib = RT.pts.indexOf(b); if (ia < 0 || ib < 0 || ib <= ia) return;
   let r; try { r = await waterLeg(a, b); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
   ia = RT.pts.indexOf(a); ib = RT.pts.indexOf(b); if (ia < 0 || ib < 0 || ib <= ia) return;
-  const mid = r.ok ? r.pts.filter((q, k) => !(k === 0 && distNm(q, a) < 0.12) && !(k === r.pts.length - 1 && distNm(q, b) < 0.12)).map((q) => ({ lat: q.lat, lon: q.lon, turn: true })) : [];
+  const mid = (r.ok || r.why === 'partial') && r.pts ? r.pts.filter((q, k) => !(k === 0 && distNm(q, a) < 0.12) && !(k === r.pts.length - 1 && distNm(q, b) < 0.12)).map((q) => ({ lat: q.lat, lon: q.lon, turn: true })) : [];
   RT.pts.splice(ia + 1, ib - ia - 1, ...mid);
   if (r.ok) delete b.unchecked; else b.unchecked = r.why || 'net';
   return r;
@@ -752,6 +753,8 @@ function rtRerouteAround(p) { // after a stop is dragged, re-run the legs on eit
 function wrWhy(why) {
   return why === 'nowater' ? 'That point is not in charted water deep enough for your boat. The leg is shown dashed: move the point onto water.' :
     why === 'nopath' ? 'No water route deep enough for your draft was found for that leg (it may be blocked by shoals, a low bridge or a closed area). Shown dashed: do not follow it.' :
+    why === 'fine' ? 'A close check found land, a jetty or shallow water on that leg that the wide search missed. Add a waypoint in open water to guide it; the leg is shown dashed.' :
+    why === 'partial' ? 'Part of the NOAA chart for that leg did not load, so the leg is shown dashed and is NOT fully checked. Try Re-route by water when you have a better signal.' :
     'Could not reach NOAA chart data' + (WR.lastErr ? ' (' + WR.lastErr + ')' : '') + ', so that leg is a straight line, shown dashed. It is NOT checked for land or depth.';
 }
 function windAt(t) {
@@ -813,8 +816,8 @@ sheet.addEventListener('click', (e) => {
   if (act === 'rtclose') routeMode(false);
   if (act === 'rthome' && homePort()) { const hp = homePort(); const had = RT.pts.length; if (had) RT.pts.push({ lat: hp.lat, lon: hp.lon, name: hp.name }); else RT.pts.unshift({ lat: hp.lat, lon: hp.lon, name: hp.name }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); if (had) rtAutoLeg(); }
   if (act === 'rtwater' && RT.pts.length > 1) { b.disabled = true; (async () => { const keep = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); RT.pts = await routeByWater(keep); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); })(); }
-  if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn || undefined })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
-  if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((p) => ({ lat: p.lat, lon: p.lon })); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
+  if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn || undefined, via: p.via || undefined, unchecked: p.unchecked || undefined })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
+  if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((p) => Object.assign({ lat: p.lat, lon: p.lon }, p.name ? { name: p.name } : {}, p.turn ? { turn: true } : {}, p.via ? { via: true } : {}, p.unchecked ? { unchecked: p.unchecked } : {})); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
   if (act === 'rtdel') { S.routes = S.routes.filter((x) => String(x.id) !== b.dataset.id); store.set('routes', S.routes); renderRouteSheet(); }
   if (act === 'rtstart') {
     let i = 0; if (S.fix && distNm(S.fix, RT.pts[0]) < 0.15) i = 1;
@@ -833,15 +836,15 @@ function routeLeg(pts, i) {
 
 
 /* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
-const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds5', {}), cache: new Map() };
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds6', {}), cache: new Map() };
 async function encLayerIds(svc) {
   if (WR.ids[svc]) return WR.ids[svc];
   for (const h of WR.hosts) {
     try {
       const j = await fetchT(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 12000).then((r) => r.json());
       const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
-      const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area$/i) };
-      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds5', WR.ids); return ids; }
+      const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area$/i), slconsA: find(/\.Shoreline_Construction_area$/i), slconsL: find(/\.Shoreline_Construction_line$/i) };
+      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds6', WR.ids); return ids; }
     } catch (e) { /* try the other NOAA host */ }
   }
   return null;
@@ -861,6 +864,7 @@ async function encQuery(svc, layer, bb, off) {
       if (f.geometry && (f.geometry.rings || f.geometry.paths)) out.push({ d1: k1 != null && a[k1] != null ? +a[k1] : null, d2: k2 != null && a[k2] != null ? +a[k2] : null, rings: f.geometry.rings || null, paths: f.geometry.paths || null, a: A });
     });
     if (!j.exceededTransferLimit) break;
+    if (page === 7) out.trunc = true; // more features than we fetched: treat the area as not fully known
   }
   WR.cache.set(key, out); return out;
 }
@@ -880,19 +884,22 @@ async function waterGrid(a, b, padK) {
   // fetch every chart scale at once, then paint coarse to fine so the most detailed chart has the last word
   const got = await Promise.all(svcs.map(async (svc) => {
     try {
-      const [d, dr, land, restr, brL, brA] = await Promise.all([encQuery(svc, 'depth', bb, off), encQuery(svc, 'dredged', bb, off).catch(() => []), encQuery(svc, 'land', bb, off).catch(() => []), encQuery(svc, 'restr', bb, off).catch(() => []), encQuery(svc, 'bridgeL', bb, off).catch(() => []), encQuery(svc, 'bridgeA', bb, off).catch(() => [])]);
-      return { svc, d, dr, land, restr, br: brL.concat(brA) };
-    } catch (e) { WR.lastErr = e.message || String(e); return null; }
+      const [d, dr, land, restr, brL, brA, slA, slL, wk, ob] = await Promise.all([encQuery(svc, 'depth', bb, off), encQuery(svc, 'dredged', bb, off).catch(() => []), encQuery(svc, 'land', bb, off).catch(() => []), encQuery(svc, 'restr', bb, off).catch(() => []), encQuery(svc, 'bridgeL', bb, off).catch(() => []), encQuery(svc, 'bridgeA', bb, off).catch(() => []), encQuery(svc, 'slconsA', bb, off).catch(() => []), encQuery(svc, 'slconsL', bb, off).catch(() => []), span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'wreck', bb).catch(() => []) : [], span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'obstr', bb).catch(() => []) : []]);
+      return { svc, d, dr, land: land.concat(slA), sl: slL, restr, br: brL.concat(brA), haz: wk.concat(ob), trunc: d.trunc || land.trunc };
+    } catch (e) { WR.lastErr = e.message || String(e); return { svc, failed: true }; }
   }));
+  const partial = got.some((x) => x.failed || x.trunc); // a chart scale that did not load (or came back cut short) means the leg is not fully checked
   let feats = 0; const restrAll = [], brAll = [];
   got.forEach((x) => {
-    if (!x) return; feats += x.d.length;
+    if (!x || x.failed) return; feats += x.d.length;
     x.d.concat(x.dr).forEach((f) => {
       if (f.d1 == null) return; // no depth given: leave what a coarser chart said
       const good = f.d1 >= need, maybe = !good && f.d2 != null && f.d2 > need;
       cx.fillStyle = good ? '#ff0000' : maybe ? '#00ff00' : '#000000'; ring(f);
     });
-    cx.fillStyle = '#000000'; x.land.forEach((f) => { if (f.rings) ring(f); }); // land from the same chart wipes out any water a coarser chart drew over it
+    cx.fillStyle = '#000000'; cx.strokeStyle = '#000000'; x.land.forEach((f) => { if (f.rings) ring(f); }); // land and piers/jetties from the same chart wipe out any water a coarser chart drew over it
+    (x.sl || []).forEach((f) => { if (f.paths) line(f, 2.5); });
+    (x.haz || []).forEach((h) => { const vs = h.a.VALSOU != null ? +h.a.VALSOU : null; if (vs == null || vs < need) { cx.beginPath(); cx.arc(toX(h.lon), toY(h.lat), 2.2, 0, Math.PI * 2); cx.fill(); } }); // wrecks and obstructions shallower than you need
     restrAll.push(...x.restr); brAll.push(...x.br);
   });
   // areas you may not enter: charted "entry prohibited" and "area to be avoided", event safety zones on the trip day, and your own avoid areas
@@ -907,17 +914,19 @@ async function waterGrid(a, b, padK) {
   avoidZonesFor(RT.depart || Date.now()).forEach((z) => { const [x, y] = [toX(z.lon), toY(z.lat)], r = z.r / cell + 1; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill(); });
   WR.lowBridges = lowBr;
   const px = cx.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H); // 0 blocked, 1 good, 2 maybe
-  for (let i = 0; i < W * H; i++) { const al = px[i * 4 + 3]; if (al > 100) g[i] = px[i * 4] > 110 ? 1 : px[i * 4 + 1] > 110 ? 2 : 0; }
+  // conservative: a cell counts as water only if it is fully covered by water; any land or shoal at its edge blocks it
+  const allowMaybe = S.settings.routeMaybe === true;
+  for (let i = 0; i < W * H; i++) { const al = px[i * 4 + 3], r0 = px[i * 4], g0 = px[i * 4 + 1]; if (al > 240) g[i] = r0 > 215 && g0 < 40 ? 1 : (allowMaybe && g0 > 215 && r0 < 40) ? 2 : 0; }
   // distance (in cells) to the nearest blocked cell, so the path keeps off the shore and the shoals
   const dist = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) dist[i] = g[i] ? 1e6 : 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!dist[i]) continue; let m = dist[i]; if (x) m = Math.min(m, dist[i - 1] + 1); if (y) m = Math.min(m, dist[i - W] + 1); if (x && y) m = Math.min(m, dist[i - W - 1] + 1.41); if (y && x < W - 1) m = Math.min(m, dist[i - W + 1] + 1.41); dist[i] = m; }
   for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (!dist[i]) continue; let m = dist[i]; if (x < W - 1) m = Math.min(m, dist[i + 1] + 1); if (y < H - 1) m = Math.min(m, dist[i + W] + 1); if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + 1.41); if (y < H - 1 && x) m = Math.min(m, dist[i + W - 1] + 1.41); dist[i] = m; }
-  return { W, H, g, dist, bb, cLat, cLon, cell, toXY: (p) => [Math.floor((p.lon - bb[0]) / cLon), Math.floor((bb[3] - p.lat) / cLat)], toLL: (x, y) => ({ lat: bb[3] - (y + 0.5) * cLat, lon: bb[0] + (x + 0.5) * cLon }) };
+  return { W, H, g, dist, bb, cLat, cLon, cell, partial, toXY: (p) => [Math.floor((p.lon - bb[0]) / cLon), Math.floor((bb[3] - p.lat) / cLat)], toLL: (x, y) => ({ lat: bb[3] - (y + 0.5) * cLat, lon: bb[0] + (x + 0.5) * cLon }) };
 }
 function wrSnap(G, x, y) {
-  const ok = (i) => G.g[i] === 1 || G.g[i] === 2;
-  for (let r = 0; r < 120; r++) {
+  const ok = (i) => G.g[i] === 1 || G.g[i] === 2, maxR = Math.max(2, Math.ceil(160 / G.cell)); // only nudge a point onto water if it is within about 160 m of it
+  for (let r = 0; r <= maxR; r++) {
     let best = -1, bd = Infinity;
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
@@ -975,7 +984,18 @@ async function waterLeg(a, b) {
   const keep = [path[0]]; let k = 0;
   while (k < path.length - 1) { let j = path.length - 1; while (j > k + 1 && !wrClear(G, path[k], path[j])) j = Math.max(k + 1, Math.floor(k + (j - k) * 0.85)); keep.push(path[j]); k = j; }
   const shallow = path.some((i) => G.g[i] === 2);
-  return { ok: true, shallow, pts: keep.map((i) => G.toLL(i % G.W, (i / G.W) | 0)) };
+  let pts = keep.map((i) => G.toLL(i % G.W, (i / G.W) | 0)), partial = G.partial;
+  // the search grid gets coarser over long distances; re-check every straight piece on a fine grid so a thin spit or jetty can't slip through
+  const full = [a].concat(pts.slice(1, -1), [b]);
+  for (let i = 1; i < full.length; i++) {
+    const p0 = full[i - 1], p1 = full[i], d = distNm(p0, p1); if (d < 0.05) continue;
+    const F = await waterGrid(p0, p1, 0.02); if (!F) { partial = true; continue; } if (F.partial) partial = true;
+    let bad = false; const n = Math.ceil(d * 1852 / (F.cell * 0.7));
+    for (let q = 1; q < n; q++) { const f = q / n, ll = { lat: p0.lat + (p1.lat - p0.lat) * f, lon: p0.lon + (p1.lon - p0.lon) * f }, [x, y] = F.toXY(ll); const c = F.g[y * F.W + x]; if (!c || (c === 2 && S.settings.routeMaybe !== true)) { bad = true; break; } }
+    if (bad) return { ok: false, why: 'fine', at: full[i - 1] };
+  }
+  if (partial) return { ok: false, why: 'partial', pts };
+  return { ok: true, shallow, pts };
 }
 // turn a list of stops into stops plus turning points that stay in the water
 async function routeByWater(stops) {
@@ -987,10 +1007,11 @@ async function routeByWater(stops) {
       const prev = stops[i - 1];
       let r; try { r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
       p.__ok = r.ok; p.__why = r.why;
-      if (r.ok) {
+      if (r.ok || (r.why === 'partial' && r.pts)) {
         r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push({ lat: q.lat, lon: q.lon, turn: true }); });
         if (r.shallow) notes.push('Part of the way to ' + (p.name || 'stop ' + (i + 1)) + ' is in water the chart shows as close to your draft.');
-      } else failed++;
+      }
+      if (!r.ok) failed++;
     }
     const o = Object.assign({}, p, { stop: true }); delete o.__ok; delete o.__why; delete o.unchecked; if (i && p.__ok === false) o.unchecked = p.__why || 'net'; out.push(o);
   }
@@ -1597,10 +1618,10 @@ async function tideFor(f) {
     st = j.stations.map((s2) => [s2.id, s2.name, +s2.lat, +s2.lng]); store.set('stations2', st);
   }
   const near = st.map((s2) => [s2, distNm(f, { lat: s2[2], lon: s2[3] })]).filter((x) => x[1] <= 30).sort((a2, b2) => a2[1] - b2[1]).slice(0, 4);
-  const start = new Date(Date.now() - 6 * 3600000), pt = (x) => new Date(x.replace(' ', 'T')).getTime();
+  const start = new Date(Date.now() - 30 * 3600000), pt = (x) => Date.parse(x.replace(' ', 'T') + ':00Z');
   for (const [best, bd] of near) {
     const base = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=Tideline&begin_date=' + ymd(start) +
-      '&range=180&datum=MLLW&station=' + best[0] + '&time_zone=lst_ldt&units=english&format=json&interval=';
+      '&range=180&datum=MLLW&station=' + best[0] + '&time_zone=gmt&units=english&format=json&interval=';
     const [h1, h2] = await Promise.all([fetchT(base + 'hilo').then((r) => r.json()).catch(() => ({})), fetchT(base + 'h').then((r) => r.json()).catch(() => ({}))]);
     const hilo = (h1.predictions || []).map((x) => ({ t: pt(x.t), v: +x.v, type: x.type }));
     let hourly = (h2.predictions || []).map((x) => ({ t: pt(x.t), v: +x.v }));
@@ -1634,9 +1655,9 @@ async function checkWaterLevel(force) {
   const t = S.tide; if (!t || t.none || !t.station) return;
   if (!force && S.wl && Date.now() - S.wl.at < 12 * 60000 && S.wl.id === t.station.id) return;
   try {
-    const j = await fetchT('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_level&application=Tideline&date=latest&datum=MLLW&station=' + t.station.id + '&time_zone=lst_ldt&units=english&format=json', 12000).then((r) => r.json());
+    const j = await fetchT('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_level&application=Tideline&date=latest&datum=MLLW&station=' + t.station.id + '&time_zone=gmt&units=english&format=json', 12000).then((r) => r.json());
     const d = j.data && j.data[0]; if (!d || d.v === '') { S.wl = { at: Date.now(), id: t.station.id, none: true }; return; }
-    const ot = new Date(d.t.replace(' ', 'T')).getTime(), pred = tideAtT(ot);
+    const ot = Date.parse(d.t.replace(' ', 'T') + ':00Z'), pred = tideAtT(ot);
     S.wl = { at: Date.now(), id: t.station.id, obs: +d.v, t: ot, pred, diff: pred != null ? +d.v - pred : null, name: t.station.name };
     if (S.wl.diff != null && Math.abs(S.wl.diff) >= 1.5) { const k = 'wl' + new Date().toDateString() + (S.wl.diff > 0 ? 'h' : 'l'); if (!ALR.seen.has(k)) { ALR.seen.add(k); toast((S.wl.diff > 0 ? 'Unusually high water: ' : 'Unusually low water: ') + Math.abs(S.wl.diff).toFixed(1) + ' ft ' + (S.wl.diff > 0 ? 'above' : 'below') + ' the tide table at ' + S.wl.name.replace(/,.*$/, '') + '. Check depths and docks.', 9000); beep(1); } }
   } catch (e) { /* this station does not measure water level */ }
@@ -2550,9 +2571,10 @@ function renderMenu() {
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
+      menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 119. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 121. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2583,6 +2605,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'sailcoach') { openSailCoach(); return; }
   if (a === 'loop') { openLoop(); return; }
   if (a === 'tour') { startTour(0); return; }
+  if (a === 'gaugelook') { setTab('chart'); openGaugeLook(); return; }
   if (a === 'arrange') { setTab('chart'); setTimeout(() => arrangeMode(true), 150); return; }
   if (a === 'month') { openThisMonth(); return; }
   setTab(a);
@@ -4713,7 +4736,7 @@ map.on('click', (e) => {
   if (document.querySelector('.wx-pop:not([hidden])')) return; // that tap closes the weather buttons
   if (S.settings.view3d) { toast('Switch to the flat 2D view (press and hold the compass) to tap a spot.', 3000); return; }
   if (SPOT.el) { closeSpot(); return; } // a tap elsewhere just closes the spot card
-  if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openSpot(e.latlng); // tap any spot: a small card with wind, waves, current, tide, depth
+  if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openSpotCard(e.latlng); // tap any spot: a small card with wind, waves, current, tide, depth
 });
 
 
@@ -5157,7 +5180,19 @@ function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r,
 // a real-instrument bezel: polished ring (many-stop gradient reads as chrome, brass or gunmetal by theme), a dark seam, a lit face and a glass glare
 const bezelSvg = (id, cx, r) => '<defs><linearGradient id="' + id + 'C" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" class="ch1"/><stop offset="0.18" class="ch2"/><stop offset="0.32" class="ch4"/><stop offset="0.48" class="ch1"/><stop offset="0.62" class="ch3"/><stop offset="0.8" class="ch2"/><stop offset="1" class="ch5"/></linearGradient><linearGradient id="' + id + 'I" x1="0" y1="1" x2="0" y2="0"><stop offset="0" class="ch1"/><stop offset="1" class="ch3"/></linearGradient><radialGradient id="' + id + 'F" cx="0.5" cy="0.32" r="0.78"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient><linearGradient id="' + id + 'G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
   '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.945) + '" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.925) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
+  gaugeArt(id, cx, r) +
   '<path d="M' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + ' A' + (r * 0.92) + ' ' + (r * 0.92) + ' 0 0 1 ' + (cx + r * 0.8) + ' ' + (cx - r * 0.2) + ' Q' + cx + ' ' + (cx - r * 0.42) + ' ' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + 'z" fill="url(#' + id + 'G)" class="g-glare"/>';
+// artwork inside the face, chosen by the gauge theme: glowing swirls (midnight, glass), topo lines (expedition), a compass rose (heritage), a horizon (bronze), soft swells (arctic)
+function gaugeArt(id, cx, r) {
+  const R = r * 0.9, P = (a, rr) => [(cx + Math.cos(a) * rr).toFixed(1), (cx + Math.sin(a) * rr).toFixed(1)];
+  let sw = ''; for (let k = 0; k < 3; k++) { let d = ''; for (let q = 0; q <= 24; q++) { const f = q / 24, ang = -1.9 + k * 2.09 + f * 3.4, rr = R * (0.88 - f * 0.5) * (1 + 0.06 * Math.sin(f * 9 + k)), [x, y] = P(ang, rr); d += (q ? ' L' : 'M') + x + ' ' + y; } sw += '<path d="' + d + '" class="ga-sw ga-sw' + k + '"/>'; }
+  let topo = ''; for (let k = 1; k <= 5; k++) { const rr = R * (0.18 * k), wob = r * 0.04; topo += '<path d="M' + (cx - rr) + ' ' + (cx + wob) + ' Q' + (cx - rr * 0.4) + ' ' + (cx - rr - wob) + ' ' + cx + ' ' + (cx - rr * 0.9) + ' T' + (cx + rr) + ' ' + (cx - wob) + ' Q' + (cx + rr * 0.5) + ' ' + (cx + rr) + ' ' + cx + ' ' + (cx + rr * 0.95) + ' T' + (cx - rr) + ' ' + (cx + wob) + '" class="ga-topo"/>'; }
+  const rose = '<path d="M' + cx + ' ' + (cx - R * 0.85) + ' L' + (cx + R * 0.1) + ' ' + cx + ' L' + cx + ' ' + (cx + R * 0.85) + ' L' + (cx - R * 0.1) + ' ' + cx + 'Z M' + (cx - R * 0.85) + ' ' + cx + ' L' + cx + ' ' + (cx - R * 0.1) + ' L' + (cx + R * 0.85) + ' ' + cx + ' L' + cx + ' ' + (cx + R * 0.1) + 'Z" class="ga-rose"/>';
+  const hz = '<path d="M' + (cx - R) + ' ' + (cx + R * 0.32) + ' Q' + cx + ' ' + (cx + R * 0.22) + ' ' + (cx + R) + ' ' + (cx + R * 0.32) + '" class="ga-hz"/><circle cx="' + cx + '" cy="' + (cx + R * 0.36) + '" r="' + (R * 0.28) + '" class="ga-sun"/>';
+  let sl = ''; for (let k = 0; k < 3; k++) { const y = cx + R * (0.35 + k * 0.17); sl += '<path d="M' + (cx - R) + ' ' + y + ' q' + (R * 0.25) + ' ' + (-r * 0.06) + ' ' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0 t' + (R * 0.5) + ' 0" class="ga-swell"/>'; }
+  return '<defs><filter id="' + id + 'B" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="' + (r * 0.025).toFixed(2) + '"/></filter><clipPath id="' + id + 'K"><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.92) + '"/></clipPath></defs>' +
+    '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
+}
 let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
 function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
@@ -5313,15 +5348,16 @@ function renderAlertBar() {
     el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; $('app').appendChild(el);
     el.addEventListener('click', (e) => { const x = e.target.closest('[data-abx]'); if (x) { e.stopPropagation(); dismissWeatherAlert(x.dataset.abx); return; } openAlerts(); });
   }
+  const nowT = Date.now(); ALR.list = ALR.list.filter((x) => { const e = Date.parse(x.ends || x.expires || ''); return !e || e > nowT; }); // expired bulletins go, even offline
   const live = ALR.list.filter((x) => !ALR.hide.has(alertKey(x)));
   const unread = live.filter((x) => !ALR.read.has(alertKey(x))), a = unread[0] || live[0];
   if (!a) { el.hidden = true; return; }
   const fresh = unread.length > 0, big = fresh && /warning/i.test(a.event) && ALR_LOUD.test(a.event);
   const want = big ? $('app') : $('fabs'); if (el.parentNode !== want) want.appendChild(el);
-  el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini') + (fresh ? ' is-new' : '');
+  el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini') + (fresh ? ' is-new' : '') + (fresh || alrClass(a) === 'warn' ? ' pulse' : '');
   const label = (fresh ? 'New weather alert: ' : 'Weather alert: ') + a.event + '. Tap to read.';
   el.title = label; el.dataset.tip = label; el.setAttribute('aria-label', label);
-  el.innerHTML = big ? '<b>' + alrIcon(a) + ' ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + alrIcon(a) + '</b><small>' + (fresh ? 'NEW' : ALR_SHORT[alrClass(a)]) + '</small>';
+  el.innerHTML = big ? '<b>' + alrIcon(a) + ' ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + alrIcon(a) + '</b><small>' + 'WX' + '</small>';
 }
 function openAlerts() {
   ALR.list.forEach((a) => ALR.read.add(alertKey(a))); saveAlertState(); renderAlertBar();
@@ -5854,7 +5890,7 @@ function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize
 applyMiSize();
 applyGTheme(); document.documentElement.dataset.gstyle = S.settings.gStyle || 'hybrid';
 sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-gtheme]'); if (!b) return; S.settings.gTheme = b.dataset.gtheme; saveSettings(); applyGTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* not shown */ } });
-const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
+const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'White (classic)', '#FFFFFF'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
 function applyBTheme() { document.documentElement.dataset.btheme = S.settings.btheme || 'blue'; }
 applyBTheme();
 sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-btheme]'); if (!b) return; S.settings.btheme = b.dataset.btheme; saveSettings(); applyBTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); });
@@ -6465,14 +6501,14 @@ setTimeout(() => applyOrient(true), 800);
   const label = (b) => b.dataset.tip || b.getAttribute('aria-label') || b.title || '';
   const show = (b) => {
     const txt = label(b); if (!txt) return; hide(); shown = true;
-    tipEl = document.createElement('div'); tipEl.className = 'touch-tip'; tipEl.textContent = txt.replace(/\s*Tap[^.]*\.\s*$/, ''); document.body.appendChild(tipEl);
+    tipEl = document.createElement('div'); tipEl.className = 'touch-tip'; tipEl.textContent = txt.split(/[.:·(]/)[0].replace(/\s*Tap.*$/, '').trim().slice(0, 34); document.body.appendChild(tipEl);
     const r = b.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight, left = r.left + r.width / 2 < innerWidth / 2;
     let x = left ? r.right + 10 : r.left - w - 10; x = Math.max(8, Math.min(innerWidth - w - 8, x));
     let y = r.top + r.height / 2 - h / 2; y = Math.max(8, Math.min(innerHeight - h - 8, y));
     if (b.closest('.tabbar')) { x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)); y = r.top - h - 10; }
     tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
   };
-  const learning = () => S.settings.learnTips !== false && Date.now() - (store.get('firstRun', 0) || Date.now()) < 14 * 86400000;
+  const learning = () => S.settings.learnTips === true; // off unless chosen in Map options: a flashing label on every tap got in the way
   if (!store.get('firstRun', 0)) store.set('firstRun', Date.now());
   document.addEventListener('pointerdown', (e) => {
     const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse' || ARR.on) return;
@@ -6480,7 +6516,7 @@ setTimeout(() => applyOrient(true), 800);
     if (b.id === 'btnMOB' || b.id === 'curChip' || b.id === 'btnOrient') return; // these use press and hold for their own job
     t = setTimeout(() => { show(b); t = setTimeout(() => { if (holdBtn === b && b.closest('#fabs, #fabsR, .fab-free')) { hide(); shown = true; arrangeMode(true); toast('Arrange mode: drag buttons anywhere. Tap Done when finished.', 3500); } }, 800); }, 450);
   }, true);
-  document.addEventListener('pointerup', () => { clearTimeout(t); if (shown) setTimeout(hide, 1600); }, true);
+  document.addEventListener('pointerup', () => { clearTimeout(t); if (shown) setTimeout(hide, 1100); }, true);
   document.addEventListener('pointercancel', () => { clearTimeout(t); hide(); }, true);
   // a held button shows its name and does nothing else; while you are new, a quick tap also flashes the name
   document.addEventListener('click', (e) => {
@@ -6543,7 +6579,7 @@ function lxCheck() {
 function openLightning() {
   const n = lxNearest(), st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-lx' + k + '="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   const fc = (() => { const w = S.weather; if (!w || !w.hours) return null; const h = w.hours.find((x) => x.t > Date.now() && x.t < Date.now() + 12 * 3600000 && x.code >= 95); return h || null; })();
-  openSheet('<h3>Lightning</h3>' + (n ? '<div class="lx-big' + (LX.approach ? ' coming' : '') + '"><b>' + fmtDist(n.d) + '</b><span>to the ' + compass16(n.brg) + ' · ' + Math.max(1, Math.round(n.age / 60000)) + ' min ago' + (LX.approach ? ' · <b>getting closer</b>' : '') + '</span></div>' : '<p class="sub">' + (st.lxRelay || st.sim ? 'No strikes within 40 nm in the last 30 minutes.' : 'Live lightning needs a lightning feed (below). Until then Tideline warns you from the forecast and NWS alerts.') + '</p>') +
+  openSheet('<h3>Lightning</h3>' + (n ? '<div class="lx-big' + (LX.approach ? ' coming' : '') + '"><b>' + fmtDist(n.d) + '</b><span>to the ' + compass16(n.brg) + ' · ' + Math.max(1, Math.round(n.age / 60000)) + ' min ago' + (LX.approach ? ' · <b>getting closer</b>' : '') + '</span></div>' : '<p class="sub">' + (st.lxRelay && LX.err ? '<b class="warn-t">The lightning feed is not answering' + (LX.at ? ' (last good update ' + agoTxt(LX.at) + ')' : '') + '. Tideline cannot see strikes right now: watch the sky and the radar.</b>' : st.lxRelay || st.sim ? 'No strikes within 40 nm in the last 30 minutes.' : 'Live lightning needs a lightning feed (below). Until then Tideline warns you from the forecast and NWS alerts.') + '</p>') +
     (fc ? '<p class="sub">Thunderstorms are in the forecast here around ' + fmtClock(fc.t) + '.</p>' : '') +
     '<div class="fm-card"><b>If you can hear thunder, you are close enough to be struck.</b><p>Head for shelter. On the water: get to a harbor, stay low in the cockpit, away from the mast, shrouds and metal. Stay put until 30 minutes after the last thunder.</p></div>' +
     '<div class="field"><label>Lightning on the chart</label>' + seg('on', String(lxOn()), [['true', 'Show'], ['false', 'Hide']]) + '</div>' +
@@ -6613,7 +6649,7 @@ function placeSpot() {
   SPOT.el.style.left = x + 'px'; SPOT.el.style.top = y + 'px'; SPOT.el.classList.toggle('below', below);
   SPOT.el.style.setProperty('--tip', Math.max(16, Math.min(w - 16, r.left + pt.x - x)) + 'px');
 }
-function openSpot(latlng) {
+function openSpotCard(latlng) {
   closeSpot(); const p = { lat: latlng.lat, lon: ((latlng.lng + 540) % 360) - 180 }, seq = ++SPOT.seq; SPOT.p = p; S.sheetPoint = { p, wp: null };
   SPOT.pin = L.marker([p.lat, p.lon], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: '', iconSize: [22, 30], iconAnchor: [11, 29], html: '<div class="sp-pin"></div>' }) }).addTo(map);
   const from = S.fix || homePort(), d = from ? distNm(from, p) : null;
@@ -6728,7 +6764,7 @@ function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .f
 function arrangeMode(on) {
   ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
   let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
-  bar.innerHTML = '<b>Drag the buttons where you like</b><span>Drop near a side to line it up in that column, or anywhere on the chart to leave it there.</span><div><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button></div>';
+  bar.innerHTML = '<span>Drag buttons anywhere</span><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
   bar.hidden = !on; if (!on) { saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
 }
 document.addEventListener('click', (e) => {
@@ -6740,19 +6776,24 @@ document.addEventListener('pointerdown', (e) => {
   e.preventDefault(); e.stopPropagation(); const r = el.getBoundingClientRect();
   const ph = document.createElement('div'); ph.className = 'arr-ph'; ph.style.height = r.height + 'px'; ph.style.width = r.width + 'px'; el.parentNode.insertBefore(ph, el);
   el.classList.add('arr-drag'); Object.assign(el.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', zIndex: 3000, pointerEvents: 'none' });
-  ARR.drag = { el, ph, dx: e.clientX - r.left, dy: e.clientY - r.top };
+  ARR.drag = { el, ph, dx: e.clientX - r.left, dy: e.clientY - r.top }; document.documentElement.classList.add('arr-dragging');
 }, true);
 document.addEventListener('pointermove', (e) => {
   const d = ARR.drag; if (!d) return; e.preventDefault();
   d.el.style.left = (e.clientX - d.dx) + 'px'; d.el.style.top = (e.clientY - d.dy) + 'px';
-  const L0 = $('fabs').getBoundingClientRect(), R0 = $('fabsR').getBoundingClientRect(), nearL = e.clientX < L0.right + 40, nearR = e.clientX > R0.left - 40;
+  const L0 = $('fabs').getBoundingClientRect(), R0 = $('fabsR').getBoundingClientRect(), inCol = (R, x, y) => x > R.left - 24 && x < R.right + 24 && y > R.top - 30 && y < R.bottom + 30;
+  const nearL = inCol(L0, e.clientX, e.clientY), nearR = inCol(R0, e.clientX, e.clientY);
   d.free = !nearL && !nearR; if (d.free) { d.ph.remove(); return; } // out on the chart: it will stay where you let go
   const col = nearL ? $('fabs') : $('fabsR'), items = [...col.children].filter((x) => x !== d.el && x !== d.ph && !ARR_SKIP.has(x.id));
   let before = null; for (const it of items) { const rr = it.getBoundingClientRect(); if (e.clientY < rr.top + rr.height / 2) { before = it; break; } }
   if (before) col.insertBefore(d.ph, before); else { const al = $('alertBar'); if (al && al.parentNode === col) col.insertBefore(d.ph, al); else col.appendChild(d.ph); }
 }, { capture: true, passive: false });
-const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; d.el.classList.remove('arr-drag');
-  if (d.free || !d.ph.parentNode) { const r = d.el.getBoundingClientRect(), g = 8, x = Math.round(Math.max(4, Math.min(innerWidth - r.width - 4, r.left)) / g) * g, y = Math.round(Math.max(40, Math.min(innerHeight - r.height - 80, r.top)) / g) * g; // snap to an 8-pixel grid
+const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; d.el.classList.remove('arr-drag'); document.documentElement.classList.remove('arr-dragging');
+  if (d.free || !d.ph.parentNode) { const r = d.el.getBoundingClientRect(), tb = ($('tabbar') || document.querySelector('.tabbar')).getBoundingClientRect().top;
+    let x = Math.max(6, Math.min(innerWidth - r.width - 6, r.left)), y = Math.max(6, Math.min(tb - r.height - 6, r.top));
+    // magnets: the screen edges (12 px margin) and the line of any other button, so things sit in line
+    if (x < 26) x = 12; if (innerWidth - (x + r.width) < 26) x = innerWidth - r.width - 12; if (y < 30) y = 12; if (tb - (y + r.height) < 26) y = tb - r.height - 12;
+    document.querySelectorAll('#fabs > [id], #fabsR > [id], #app > .fab-free[id]').forEach((o) => { if (o === d.el) return; const q = o.getBoundingClientRect(); if (Math.abs((q.left + q.width / 2) - (x + r.width / 2)) < 14) x = q.left + q.width / 2 - r.width / 2; if (Math.abs((q.top + q.height / 2) - (y + r.height / 2)) < 14) y = q.top + q.height / 2 - r.height / 2; });
     $('app').appendChild(d.el); d.el.classList.add('fab-free'); ['position', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); d.el.style.left = x + 'px'; d.el.style.top = y + 'px'; d.ph.remove(); }
   else { d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); d.el.classList.remove('fab-free'); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); }
   saveFabLayout(); };
@@ -6781,6 +6822,15 @@ setTimeout(applyFabLayout, 300);
     if (d.over) { ckSwap(+d.t.dataset.slot, +d.over.dataset.slot); toast('Swapped', 1200); } };
   document.addEventListener('pointerup', end, true); document.addEventListener('pointercancel', end, true);
 })();
+function openGaugeLook() {
+  const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle and the instruments</div><div class="btheme-row gl-row">' + GTHEMES.map(([v, l]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i class="gl-prev" data-gt="' + v + '"><svg viewBox="0 0 100 100">' + bezelSvg('gp' + v, 50, 50) + '</svg></i>' + l + '</button>').join('') + '</div>' +
+    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
+    '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
+function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
+applyGArt();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

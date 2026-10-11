@@ -1,6 +1,6 @@
 # Tideline handoff notes
 
-Last updated: build 118 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
+Last updated: build 121 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
 
 ## What it is
 A phone-first marine chart app (PWA) for the Chesapeake, built to work anywhere NOAA has data. Owner: Andy Brickman. Design rules from Andy: clean, calm first screen; symmetry; everything toggleable; an X on every popup; press-and-hold names on phone (hover on desktop); nothing cluttered.
@@ -69,3 +69,10 @@ Please review as a demanding boater (fishing, cruising, sailing) and as a front-
 3. Missing basics that Navionics, Argo, PredictWind or savvy navvy users would expect.
 4. Code risks: bugs, performance, things that will break at scale, data-licensing problems (Open-Meteo is free for non-commercial use only; NOAA data is public).
 Give concrete fixes. Keep the design rules: calm chart first, symmetry, everything toggleable, an X on every popup.
+
+## Build 119–121 (after an independent safety review)
+- Routing safety: cells count as water only when fully covered (thin land/jetties can't be blended away); shoal "maybe" areas blocked unless the boat profile allows; start/end snapping limited to ~160 m; any chart scale that fails or is cut short marks the leg unchecked; every straight piece is re-checked on a fine grid; piers/jetties (shoreline construction) and wrecks/obstructions shallower than the draft are blocked; dashed overlay covers the whole unchecked leg.
+- Tides fetched in GMT (correct for phones in other time zones); expired NWS alerts drop locally; lightning sheet says when the feed is down; saved routes keep turn points and unchecked flags.
+- Fixed: tapping a saved fishing spot crashed (two functions named openSpot).
+- UX: drag buttons anywhere with magnets; slim arrange bar that fades while dragging; small light button-name labels (tap-flash off by default); "WX" alert button with a pulsing ring; Gauge look picker with face artwork (swirl, topo, rose, horizon, swells); white classic buttons.
+Still open from the review: service-worker caching of data (stale offline data shown as fresh; ENC host cached forever), WR.cache growth, ENC bridge matching, tide gauge FLOOD/EBB wording, lightning re-warn by distance band.
