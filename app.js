@@ -314,7 +314,12 @@ sheet.addEventListener('click', (e) => {
 sheet.addEventListener('input', (e) => {
   if (e.target.id === 'satMix') { S.settings.chartOnSat = +e.target.value / 100; $('satMixVal').textContent = e.target.value + '%'; applyChart(); saveSoon('settings', () => S.settings, 800); }
 });
-(() => { const ch = document.querySelector('.topbar .chips'); if (ch) { ch.classList.add('chips-free'); $('app').appendChild(ch); } })(); // chips get their own spot top-right
+(() => { // wind, waves, tide and sail/motor live as small buttons at the top of the left column
+  const ch = document.querySelector('.topbar .chips'), fc = $('fabs'); if (!ch || !fc) return;
+  const grp = document.createElement('div'); grp.className = 'fab-info'; grp.id = 'fabInfo';
+  ['windChip', 'waveChip', 'tideChip', 'modeChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
+  fc.insertBefore(grp, fc.firstChild); ch.remove();
+})();
 function applyCalm() { document.documentElement.classList.toggle('calm', !S.settings.chips); placeFabs(); }
 function applyEasy() { document.documentElement.classList.toggle('easy', !!S.settings.easy); }
 /* range rings around the boat, scaled to the zoom */
@@ -467,8 +472,10 @@ function drawRoute() {
   const show = RT.edit || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
   if (!show) return;
+  let sn = 0;
   RT.pts.forEach((p, i) => {
-    const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: 1100, icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + '">' + (i + 1) + '</div>' }) }).addTo(RT.marks);
+    const turn = p.turn && !RT.edit; if (!p.turn) sn++;
+    const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: turn ? 1000 : 1100, icon: turn ? L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6], html: '<div class="rt-turn"></div>' }) : L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + (p.turn ? ' turn' : '') + '">' + (p.turn ? '' : sn) + '</div>' }) }).addTo(RT.marks);
     if (!RT.edit) mk.on('click', () => openRouteMenu());
     if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { store.set('routeDraft', RT.pts); renderRouteSheet(); });
   });
@@ -520,8 +527,8 @@ function renderRouteSheet() {
   h += '<div class="field" style="margin:4px 0 8px"><label for="rtDepart">Depart</label><input id="rtDepart" type="datetime-local" value="' + toLocalInput(RT.depart || Date.now()) + '"></div>';
   h += '<div class="rt-legs">' + st.legs.map((l) => '<div class="rt-leg"><span class="rt-n">' + l.i + '→' + (l.i + 1) + '</span><span class="tnum">' + fmtDist(l.d) + ' · ' + fmtBrg(l.brg) + '°T · ' + fmtDur(l.hrs).replace(' min', 'm') + '</span><span class="rt-w">' + (l.wind ? compass16(l.wind.dir) + ' ' + Math.round(speedOut(l.wind.spd)) + ' g' + Math.round(speedOut(l.wind.gust)) : '') + '</span></div>' +
     l.bridges.map((x) => '<div class="rt-warn v-' + x.j.level + '">' + esc(x.br.name) + ': ' + esc(x.j.text) + '</div>').join('')).join('') + '</div>';
-  h += '<p class="hint" style="margin:6px 0">Straight lines between your waypoints. Tideline does not check depth along the route yet: check the chart for shoals, and the wind shown is the forecast where you are now.</p>';
-  h += '<div class="row-btns"><button class="btn primary" data-act="rtstart">Start</button><button class="btn" data-act="rtsave">Save</button><button class="btn" data-act="rtundo">Undo</button><button class="btn" data-act="rtrev">Reverse</button><button class="btn ghost" data-act="rtclear">Clear</button><button class="btn ghost" data-act="rtclose">Close</button></div></div>';
+  h += '<p class="hint" style="margin:6px 0">Follow the water adds turning points so each leg stays in water NOAA charts as deep enough for your boat. Check the chart for shoals; the wind shown is the forecast where you are now.</p>';
+  h += '<div class="row-btns"><button class="btn primary" data-act="rtstart">Start</button><button class="btn" data-act="rtwater">Follow the water</button><button class="btn" data-act="rtsave">Save</button><button class="btn" data-act="rtundo">Undo</button><button class="btn" data-act="rtrev">Reverse</button><button class="btn ghost" data-act="rtclear">Clear</button><button class="btn ghost" data-act="rtclose">Close</button></div></div>';
   openSheet(h);
 }
 sheet.addEventListener('change', (e) => { if (e.target.id === 'rtDepart') { const t = Date.parse(e.target.value); if (t) { RT.depart = t; renderRouteSheet(); } } });
@@ -533,19 +540,167 @@ sheet.addEventListener('click', (e) => {
   if (act === 'rtrev') { RT.pts.reverse(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclear') { if (!armed(b, 'Tap again to clear')) return; RT.pts = []; store.set('routeDraft', []); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclose') routeMode(false);
-  if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
+  if (act === 'rtwater' && RT.pts.length > 1) { b.disabled = true; (async () => { const keep = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); RT.pts = await routeByWater(keep); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); })(); }
+  if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn || undefined })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
   if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((p) => ({ lat: p.lat, lon: p.lon })); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
   if (act === 'rtdel') { S.routes = S.routes.filter((x) => String(x.id) !== b.dataset.id); store.set('routes', S.routes); renderRouteSheet(); }
   if (act === 'rtstart') {
     let i = 0; if (S.fix && distNm(S.fix, RT.pts[0]) < 0.15) i = 1;
-    const pts = RT.pts.map((p) => ({ lat: p.lat, lon: p.lon }));
+    const pts = RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn, stop: p.stop }));
     RT.edit = false; $('btnRoute').classList.remove('on'); closeSheet(); drawRoute();
     routeLeg(pts, i);
   }
 });
 function routeLeg(pts, i) {
-  const p = pts[i]; setGoto((p.name ? p.name + ' · ' : '') + 'stop ' + (i + 1) + ' of ' + pts.length, p.lat, p.lon);
+  const p = pts[i], hasStops = pts.some((q) => q.stop), stops = hasStops ? pts.filter((q) => q.stop) : pts;
+  const nextStop = pts.slice(i).find((q) => !q.turn) || p, sn = stops.indexOf(nextStop) + 1;
+  const label = p.turn ? 'Turn, then on to ' + (nextStop.name || 'stop ' + sn) : (p.name ? p.name + ' · ' : '') + 'stop ' + sn + ' of ' + stops.length;
+  setGoto(label, p.lat, p.lon);
   S.goto.route = { pts, i }; store.set('goto', S.goto); updateGoto(); RT.pts = pts; drawRoute();
+}
+
+
+/* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds', {}), cache: new Map() };
+async function encLayerIds(svc) {
+  if (WR.ids[svc]) return WR.ids[svc];
+  for (const h of WR.hosts) {
+    try {
+      const j = await fetchT(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 12000).then((r) => r.json());
+      const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
+      const ids = { host: h, depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i) };
+      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds', WR.ids); return ids; }
+    } catch (e) { /* try the other NOAA host */ }
+  }
+  return null;
+}
+async function encQuery(svc, layer, bb, off) {
+  const ids = await encLayerIds(svc); if (!ids || ids[layer] == null) return [];
+  const key = svc + layer + bb.join(',') + off; if (WR.cache.has(key)) return WR.cache.get(key);
+  const out = [];
+  for (let page = 0; page < 8; page++) {
+    const u = ids.host + '/arcgis/rest/services/encdirect/' + svc + '/MapServer/' + ids[layer] + '/query?where=1%3D1&geometry=' + bb.map((v) => v.toFixed(5)).join('%2C') +
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=' + off + '&geometryPrecision=5&resultOffset=' + (page * 1000) + '&resultRecordCount=1000&f=json';
+    const j = await fetchT(u, 25000).then((r) => r.json());
+    if (j.error) throw new Error(j.error.message || 'ENC query failed');
+    (j.features || []).forEach((f) => {
+      const a = f.attributes || {}, k1 = Object.keys(a).find((k) => /^drval1$/i.test(k)), k2 = Object.keys(a).find((k) => /^drval2$/i.test(k));
+      if (f.geometry && f.geometry.rings) out.push({ d1: k1 != null && a[k1] != null ? +a[k1] : null, d2: k2 != null && a[k2] != null ? +a[k2] : null, rings: f.geometry.rings });
+    });
+    if (!j.exceededTransferLimit) break;
+  }
+  WR.cache.set(key, out); return out;
+}
+function wrNeedM() { const d = S.boat.draftFt, sb = S.boat.safetyFt == null ? 2 : S.boat.safetyFt; return d ? (d + sb) * 0.3048 : 1.2; }
+async function waterGrid(a, b) {
+  const lat0 = (a.lat + b.lat) / 2, cosL = Math.cos(lat0 * Math.PI / 180), span = distNm(a, b);
+  const padNm = Math.max(1.5, span * 0.25), dLat = padNm / 60, dLon = padNm / 60 / cosL;
+  const bb = [Math.min(a.lon, b.lon) - dLon, Math.min(a.lat, b.lat) - dLat, Math.max(a.lon, b.lon) + dLon, Math.max(a.lat, b.lat) + dLat];
+  const wM = (bb[2] - bb[0]) * 111320 * cosL, hM = (bb[3] - bb[1]) * 111320;
+  const cell = Math.max(35, Math.max(wM, hM) / 520), W = Math.ceil(wM / cell), H = Math.ceil(hM / cell);
+  const cLat = cell / 111320, cLon = cell / (111320 * cosL), off = (cLat / 2).toFixed(6);
+  const svcs = span > 45 ? ['enc_general', 'enc_coastal', 'enc_approach'] : span > 6 ? ['enc_coastal', 'enc_approach', 'enc_harbour'] : ['enc_coastal', 'enc_approach', 'enc_harbour'];
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d'), need = wrNeedM();
+  let feats = 0;
+  for (const svc of svcs) {
+    let d = [], dr = [];
+    try { [d, dr] = await Promise.all([encQuery(svc, 'depth', bb, off), encQuery(svc, 'dredged', bb, off).catch(() => [])]); } catch (e) { continue; }
+    feats += d.length;
+    d.concat(dr).forEach((f) => {
+      const good = f.d1 != null && f.d1 >= need, maybe = !good && f.d2 != null && f.d2 > need;
+      cx.fillStyle = good ? '#ff0000' : maybe ? '#00ff00' : '#000000';
+      cx.beginPath();
+      f.rings.forEach((r) => r.forEach(([lon, lat], i) => { const x = (lon - bb[0]) / cLon, y = (bb[3] - lat) / cLat; if (i) cx.lineTo(x, y); else cx.moveTo(x, y); }));
+      cx.fill('evenodd');
+    });
+  }
+  if (!feats) return null;
+  const px = cx.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H); // 0 blocked, 1 good, 2 maybe
+  for (let i = 0; i < W * H; i++) { const al = px[i * 4 + 3]; if (al > 100) g[i] = px[i * 4] > 110 ? 1 : px[i * 4 + 1] > 110 ? 2 : 0; }
+  // distance (in cells) to the nearest blocked cell, so the path keeps off the shore and the shoals
+  const dist = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) dist[i] = g[i] ? 1e6 : 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!dist[i]) continue; let m = dist[i]; if (x) m = Math.min(m, dist[i - 1] + 1); if (y) m = Math.min(m, dist[i - W] + 1); if (x && y) m = Math.min(m, dist[i - W - 1] + 1.41); if (y && x < W - 1) m = Math.min(m, dist[i - W + 1] + 1.41); dist[i] = m; }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (!dist[i]) continue; let m = dist[i]; if (x < W - 1) m = Math.min(m, dist[i + 1] + 1); if (y < H - 1) m = Math.min(m, dist[i + W] + 1); if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + 1.41); if (y < H - 1 && x) m = Math.min(m, dist[i + W - 1] + 1.41); dist[i] = m; }
+  return { W, H, g, dist, bb, cLat, cLon, cell, toXY: (p) => [Math.floor((p.lon - bb[0]) / cLon), Math.floor((bb[3] - p.lat) / cLat)], toLL: (x, y) => ({ lat: bb[3] - (y + 0.5) * cLat, lon: bb[0] + (x + 0.5) * cLon }) };
+}
+function wrSnap(G, x, y) {
+  const ok = (i) => G.g[i] === 1 || G.g[i] === 2;
+  for (let r = 0; r < 120; r++) {
+    let best = -1, bd = Infinity;
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= G.W || yy >= G.H) continue;
+      const i = yy * G.W + xx; if (ok(i)) { const d = dx * dx + dy * dy - (G.g[i] === 1 ? 0.5 : 0); if (d < bd) { bd = d; best = i; } }
+    }
+    if (best >= 0) return best;
+  }
+  return -1;
+}
+function wrAstar(G, s, t) {
+  const N = G.W * G.H, gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+  const tx = t % G.W, ty = (t / G.W) | 0, hh = (i) => { const dx = Math.abs(i % G.W - tx), dy = Math.abs(((i / G.W) | 0) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
+  const heap = [], push = (i, f) => { heap.push([f, i]); let k = heap.length - 1; while (k) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+  const step = (i) => { const d = G.dist[i]; return (G.g[i] === 2 ? 4 : 1) + (d < 4 ? (4 - d) * 0.7 : 0); };
+  gs[s] = 0; push(s, hh(s));
+  const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+  let n = 0;
+  while (heap.length) {
+    const [, i] = pop(); if (closed[i]) continue; closed[i] = 1;
+    if (i === t) break; if (++n > 2.5e6) return null;
+    const x = i % G.W, y = (i / G.W) | 0;
+    for (const [dx, dy, c] of NB) {
+      const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= G.W || yy >= G.H) continue;
+      const j = yy * G.W + xx; if (!G.g[j] || closed[j]) continue;
+      if (dx && dy && (!G.g[y * G.W + xx] || !G.g[yy * G.W + x])) continue; // no squeezing diagonally between two land cells
+      const ng = gs[i] + c * step(j); if (ng < gs[j]) { gs[j] = ng; from[j] = i; push(j, ng + hh(j)); }
+    }
+  }
+  if (from[t] < 0 && s !== t) return null;
+  const path = []; for (let i = t; i >= 0; i = from[i]) { path.push(i); if (i === s) break; }
+  return path.reverse();
+}
+function wrClear(G, i, j) { // straight line between two cells stays in water, off the edges
+  let x0 = i % G.W, y0 = (i / G.W) | 0; const x1 = j % G.W, y1 = (j / G.W) | 0, dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy, minD = Math.min(G.dist[i], G.dist[j], 2.5), maybe = G.g[i] === 2 || G.g[j] === 2;
+  for (;;) {
+    const k = y0 * G.W + x0; if (!G.g[k] || G.dist[k] < minD - 0.01) return false; if (G.g[k] === 2 && !maybe) return false;
+    if (x0 === x1 && y0 === y1) return true;
+    const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+async function waterLeg(a, b) {
+  if (distNm(a, b) < 0.15) return { ok: true, pts: [] };
+  const G = await waterGrid(a, b); if (!G) return { ok: false, why: 'nodata' };
+  const [ax, ay] = G.toXY(a), [bx, by] = G.toXY(b), s = wrSnap(G, ax, ay), t = wrSnap(G, bx, by);
+  if (s < 0 || t < 0) return { ok: false, why: 'nowater' };
+  const path = wrAstar(G, s, t); if (!path) return { ok: false, why: 'nopath' };
+  const keep = [path[0]]; let k = 0;
+  while (k < path.length - 1) { let j = path.length - 1; while (j > k + 1 && !wrClear(G, path[k], path[j])) j = Math.max(k + 1, Math.floor(k + (j - k) * 0.85)); keep.push(path[j]); k = j; }
+  const shallow = path.some((i) => G.g[i] === 2);
+  return { ok: true, shallow, pts: keep.map((i) => G.toLL(i % G.W, (i / G.W) | 0)) };
+}
+// turn a list of stops into stops plus turning points that stay in the water
+async function routeByWater(stops) {
+  const out = [], notes = []; let failed = 0;
+  toast('Finding a route through the water…', 20000);
+  for (let i = 0; i < stops.length; i++) {
+    const p = stops[i];
+    if (i) {
+      const prev = stops[i - 1];
+      let r; try { r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; }
+      if (r.ok) {
+        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push({ lat: q.lat, lon: q.lon, turn: true }); });
+        if (r.shallow) notes.push('Part of the way to ' + (p.name || 'stop ' + (i + 1)) + ' is in water the chart shows as close to your draft.');
+      } else failed++;
+    }
+    out.push(Object.assign({}, p, { stop: true }));
+  }
+  if (failed) toast('Could not get NOAA chart depths for ' + (failed === stops.length - 1 ? 'this route' : failed + ' leg' + (failed > 1 ? 's' : '')) + '. Showing straight lines: check the chart before you go.', 6000);
+  else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
+  return out;
 }
 
 /* ---------- go to / navigation ---------- */
@@ -564,9 +719,11 @@ function updateGoto() {
   if (!g.from) { g.from = { lat: S.fix.lat, lon: S.fix.lon }; store.set('goto', g); }
   gotoLine.setLatLngs([[S.fix.lat, S.fix.lon], [g.lat, g.lon]]);
   const info = legInfo(S.fix, g);
-  if (info.d < 0.03 && !g.arrived) {
-    g.arrived = true; store.set('goto', g); beep(2);
-    if (g.route && g.route.i + 1 < g.route.pts.length) { const r = g.route; toast('Waypoint reached. Next: waypoint ' + (r.i + 2) + '.'); headsUp('Waypoint reached. Next leg.'); setTimeout(() => routeLeg(r.pts, r.i + 1), 50); return; }
+  const isTurn = g.route && g.route.pts[g.route.i] && g.route.pts[g.route.i].turn;
+  if (info.d < (isTurn ? 0.08 : 0.03) && !g.arrived) {
+    g.arrived = true; store.set('goto', g);
+    if (g.route && g.route.i + 1 < g.route.pts.length) { const r = g.route, nx = r.pts[r.i + 1]; if (isTurn) { beep(1); const nb = fmtBrg(bearing(S.fix, nx)); toast('Turn to ' + nb + '°T'); headsUp('Turn to ' + nb + ' degrees.'); } else { beep(2); toast('Stop reached. On to the next one.'); headsUp('Stop reached. Next leg.'); } setTimeout(() => routeLeg(r.pts, r.i + 1), 50); return; }
+    beep(2);
     toast(g.route ? 'Route complete. Welcome in.' : 'Arrived at ' + g.name);
   }
   let xteHtml = '';
@@ -991,43 +1148,61 @@ async function maybeWeather(force) {
 /* ---------- tides (NOAA CO-OPS) ---------- */
 let tideBusy = false;
 const ymd = (d) => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+function fetchT(url, ms) { const c = new AbortController(), t = setTimeout(() => c.abort(), ms || 15000); return fetch(url, { signal: c.signal }).finally(() => clearTimeout(t)); }
+// smooth hourly heights from high/low times (cosine between each pair), for NOAA subordinate stations that only publish highs and lows
+function hiloToHourly(hl) {
+  const out = []; if (hl.length < 2) return out;
+  const t0 = Math.ceil(hl[0].t / 3600000) * 3600000;
+  for (let t = t0, i = 0; t <= hl[hl.length - 1].t; t += 3600000) {
+    while (i < hl.length - 2 && hl[i + 1].t < t) i++;
+    const a = hl[i], b = hl[i + 1], f = (t - a.t) / (b.t - a.t);
+    out.push({ t, v: a.v + (b.v - a.v) * (1 - Math.cos(Math.PI * f)) / 2 });
+  }
+  return out;
+}
 async function maybeTide(force) {
   const f = refPos(); if (!f || tideBusy) return;
   const t = S.tide;
-  if (!force && t && Date.now() - t.at < 3 * 3600000 && t.pos && distNm(t.pos, f) < 10) return;
+  // only skip when what we already have is fresh, close by and actually usable
+  if (!force && t && Date.now() - t.at < 3 * 3600000 && t.pos && distNm(t.pos, f) < 10 && (t.none ? Date.now() - t.at < 1800000 : tideNow())) return;
   tideBusy = true;
   try {
-    let st = store.get('stations', null);
+    let st = store.get('stations2', null);
     if (!st) {
-      const r = await fetch('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions');
-      const j = await r.json();
+      const j = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions').then((r) => r.json());
       st = j.stations.map((s) => [s.id, s.name, +s.lat, +s.lng]);
-      store.set('stations', st);
+      store.set('stations2', st);
     }
-    let best = null, bd = Infinity;
-    st.forEach((s) => { const d = distNm(f, { lat: s[2], lon: s[3] }); if (d < bd) { bd = d; best = s; } });
-    if (!best || bd > 30) { S.tide = { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, none: true }; }
-    else {
-      const start = new Date(Date.now() - 6 * 3600000);
+    const near = st.map((s) => [s, distNm(f, { lat: s[2], lon: s[3] })]).filter((x) => x[1] <= 30).sort((a, b) => a[1] - b[1]).slice(0, 4);
+    let got = null;
+    const start = new Date(Date.now() - 6 * 3600000), pt = (s) => new Date(s.replace(' ', 'T')).getTime();
+    for (const [best, bd] of near) {
       const base = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=Tideline&begin_date=' + ymd(start) +
         '&range=54&datum=MLLW&station=' + best[0] + '&time_zone=lst_ldt&units=english&format=json&interval=';
-      const [h1, h2] = await Promise.all([fetch(base + 'hilo').then((r) => r.json()), fetch(base + 'h').then((r) => r.json())]);
-      const pt = (s) => new Date(s.replace(' ', 'T')).getTime();
+      const [h1, h2] = await Promise.all([fetchT(base + 'hilo').then((r) => r.json()).catch(() => ({})), fetchT(base + 'h').then((r) => r.json()).catch(() => ({}))]);
+      const hilo = (h1.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v, type: p.type }));
+      let hourly = (h2.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v }));
+      if (hourly.length < 2) hourly = hiloToHourly(hilo); // subordinate station: NOAA gives only highs and lows
+      if (hourly.length < 2) continue; // this station has nothing for us, try the next nearest
       let mhw = null;
       try {
-        const dj = await fetch('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/' + best[0] + '/datums.json?units=english').then((r) => r.json());
+        const dj = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/' + best[0] + '/datums.json?units=english').then((r) => r.json());
         const dv = (n) => { const d = (dj.datums || []).find((x) => x.name === n); return d ? +d.value : null; };
         if (dv('MHW') != null && dv('MLLW') != null) mhw = dv('MHW') - dv('MLLW');
       } catch (e) { /* datums not published for this station */ }
-      S.tide = {
-        at: Date.now(), pos: { lat: f.lat, lon: f.lon }, station: { id: best[0], name: best[1], dist: bd }, mhw,
-        hilo: (h1.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v, type: p.type })),
-        hourly: (h2.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v })),
-      };
+      got = { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, station: { id: best[0], name: best[1], dist: bd }, mhw, hilo, hourly, fromHilo: !(h2.predictions || []).length };
+      break;
     }
+    S.tide = got || { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, none: true, err: near.length ? 'NOAA did not answer' : null };
     store.set('tide', S.tide);
-  } catch (e) { /* offline: keep the last tide table */ }
-  tideBusy = false; renderChips(); renderLive();
+  } catch (e) { S.tideErr = Date.now(); /* offline: keep the last tide table */ }
+  tideBusy = false; renderChips(); renderLive(); try { renderWxBar(); renderSide(); } catch (e) { /* not ready */ }
+}
+function tideEmptyTxt() {
+  if (tideBusy || !S.tide) return 'Getting NOAA tide predictions…';
+  if (S.tideErr && Date.now() - S.tideErr < 600000) return 'Could not reach NOAA tides just now. Check the connection; it retries when you move the chart.';
+  if (S.tide.none && S.tide.err) return 'NOAA tide stations nearby did not answer. Trying again shortly.';
+  return 'No NOAA tide station within 30 nm.';
 }
 function tideNow() {
   const t = S.tide; if (!t || t.none || !t.hourly || t.hourly.length < 2) return null;
@@ -1202,7 +1377,7 @@ function renderTimeline(el) {
       h += '<div class="tl-hours" id="tlHours">' + cells.join('') + '</div>';
       if (false) h += '<div class="wx-legend">' + (v === 'wind' ? WIND_COL : WAVE_COL).map((c, i) => '<span><i style="background:' + c[1] + '"></i>' + (v === 'wind' ? ['<5', '5', '10', '15', '20', '25+'] : ['<1', '1', '2', '3', '5+'])[i] + '</span>').join('') + '<span class="u">' + (v === 'wind' ? SPEED_LBL[S.settings.speedUnit] : lenUnit()) + ' · model forecast' + (w ? ', fetched ' + agoTxt(w.at) : '') + '</span></div>';
     } else if (v === 'tide') {
-      h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="46" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">No NOAA tide station within 30 nm.</p>';
+      h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="46" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">' + tideEmptyTxt() + '</p>';
     } else {
       h += '<div class="tl-sum" style="opacity:.8">Live radar on the chart, updated every 5 minutes.</div>';
     }
@@ -1345,27 +1520,32 @@ function windArrow(dir) {
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(' + ((dir + 180) % 360) + ' 12 12)"><path d="M12 3v16M12 3l-5 6M12 3l5 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></g></svg>';
 }
 function placeFabs() {
-  const ch = document.querySelector('.chips'), fc = $('fabs'); if (!ch || !fc) return;
+  const ch = document.querySelector('.chips'), fc = $('fabs'); if (!ch || !fc) return; // chips now live in the left column
   const r = ch.getBoundingClientRect();
   fc.style.top = isWide() && r.height ? Math.max(170, r.bottom + 10) + 'px' : '';
 }
 function renderChips() {
-  const w = S.weather, wc = $('windChip');
+  const w = S.weather, wc = $('windChip'), U = SPEED_LBL[S.settings.speedUnit];
   if (w && w.cur) {
-    wc.hidden = false;
-    const ob = nearestObs();
-    const cap = ob ? 'Measured ' + esc(ob.name.replace(/,.*$/, '')) + ' ' + compass16(ob.dir) + ' ' + Math.round(speedOut(ob.spd)) + ' · ' + agoTxt(ob.t) : 'Forecast · ' + agoTxt(w.at);
-    wc.innerHTML = '<span class="c-main">' + windArrow(w.cur.dir) + '<b>' + compass16(w.cur.dir) + ' ' + Math.round(speedOut(w.cur.spd)) + '</b>' + SPEED_LBL[S.settings.speedUnit] + ' · gust ' + Math.round(speedOut(w.cur.gust)) + '</span><small>' + cap + '</small>';
+    const ob = nearestObs(), d = ob ? ob : w.cur;
+    wc.hidden = false; wc.classList.toggle('on', wxOn('wind'));
+    wc.innerHTML = '<span class="fi-ic" style="transform:rotate(' + Math.round((d.dir + 180) % 360) + 'deg)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M6 9l6-6 6 6"/></svg></span><b>' + Math.round(speedOut(d.spd)) + '</b>';
+    wc.dataset.tip = 'Wind ' + compass16(d.dir) + ' ' + Math.round(speedOut(d.spd)) + ' ' + U + ', gust ' + Math.round(speedOut(d.gust)) + (ob ? ' · measured at ' + ob.name.replace(/,.*$/, '') + ', ' + agoTxt(ob.t) : ' · forecast, ' + agoTxt(w.at)) + '. Tap to show wind on the chart.';
   } else wc.hidden = true;
   const wv = $('waveChip');
-  if (w && w.wave && w.wave.h != null) { wv.hidden = false; wv.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10c3-3 6-3 9 0s6 3 9 0M3 16c3-3 6-3 9 0s6 3 9 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>Waves <b>' + waveLen(w.wave.h) + '</b>'; wv.innerHTML = '<span class="c-main">' + wv.innerHTML + '</span>'; }
-  else wv.hidden = true;
+  if (w && w.wave && w.wave.h != null) {
+    wv.hidden = false; wv.classList.toggle('on', wxOn('waves'));
+    wv.innerHTML = '<span class="fi-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10c3-3 6-3 9 0s6 3 9 0M3 16c3-3 6-3 9 0s6 3 9 0"/></svg></span><b>' + waveLen(w.wave.h).replace(/\s*(ft|m)$/, '') + '</b>';
+    wv.dataset.tip = 'Waves ' + waveLen(w.wave.h) + ' (model forecast). Tap to show waves on the chart.';
+  } else wv.hidden = true;
   const old = w && Date.now() - w.at > 3 * 3600000;
   wc.classList.toggle('stale', !!old); wv.classList.toggle('stale', !!old);
-  if (old) wc.title = 'Forecast is ' + Math.round((Date.now() - w.at) / 3600000) + ' hours old';
   const tn = tideNow(), tc = $('tideChip');
-  if (tn) { tc.hidden = false; tc.className = 'chip light'; tc.innerHTML = '<span class="c-main"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8M8.5 6.5L12 3l3.5 3.5M3 16c3-2.5 6-2.5 9 0s6 2.5 9 0M3 20.5c3-2.5 6-2.5 9 0s6 2.5 9 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Tide ' + (tn.rising == null ? '' : tn.rising ? '↑ ' : '↓ ') + '<b>' + tideLen(tn.v) + '</b></span>' + (S.tide.station ? '<small>' + esc(S.tide.station.name.replace(/,.*$/, '')) + ' · ' + fmtDist(S.tide.station.dist) + ' away</small>' : ''); }
-  else tc.hidden = true;
+  if (tn) {
+    tc.hidden = false;
+    tc.innerHTML = '<span class="fi-ic"><svg viewBox="0 0 24 24" aria-hidden="true">' + (tn.rising === false ? '<path d="M12 3v8M8.5 7.5L12 11l3.5-3.5"/>' : '<path d="M12 3v8M8.5 6.5L12 3l3.5 3.5"/>') + '<path d="M3 16c3-2.5 6-2.5 9 0s6 2.5 9 0M3 20.5c3-2.5 6-2.5 9 0s6 2.5 9 0"/></svg></span><b>' + tideLen(tn.v).replace(/\s*(ft|m)$/, '') + '</b>';
+    tc.dataset.tip = 'Tide ' + tideLen(tn.v) + (tn.rising == null ? '' : tn.rising ? ', rising' : ', falling') + (tn.next ? ' · ' + (tn.next.type === 'H' ? 'high ' : 'low ') + fmtClock(tn.next.t) : '') + (S.tide.station ? ' · NOAA ' + S.tide.station.name.replace(/,.*$/, '') : '') + '. Tap for the tide chart.';
+  } else tc.hidden = true;
   placeFabs(); renderStatusWx();
 }
 
@@ -1415,15 +1595,15 @@ function renderLive() {
 /* iPad side column: the four things a skipper glances at, each with its source and age */
 function ageS(t) { if (!t) return ''; const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + 's ago' : agoTxt(t); }
 function openSideCustom() {
-  const cur = S.settings.sideSlots || ['speed', 'course', 'wind', 'auto'];
+  const cur = S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time'];
   const opts = CK_OPTS.filter(([v]) => v !== 'chart' && v !== 'off').concat([['auto', 'Tide, or destination when navigating']]);
-  openSheet('<h3>Gauges beside the chart</h3><div class="sub">Pick up to four. They show in this order.</div>' + [0, 1, 2, 3].map((i) => '<div class="field"><label>Gauge ' + (i + 1) + '</label><select data-sidepick="' + i + '"><option value="off">None</option>' + opts.map(([v, l]) => '<option value="' + v + '"' + (cur[i] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>').join('') + '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
+  openSheet('<h3>Gauges beside the chart</h3><div class="sub">Pick up to six. They show in this order.</div>' + [0, 1, 2, 3, 4, 5].map((i) => '<div class="field"><label>Gauge ' + (i + 1) + '</label><select data-sidepick="' + i + '"><option value="off">None</option>' + opts.map(([v, l]) => '<option value="' + v + '"' + (cur[i] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>').join('') + '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
 }
-sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sidepick]'); if (!sp) return; const cur = (S.settings.sideSlots || ['speed', 'course', 'wind', 'auto']).slice(); while (cur.length < 4) cur.push('off'); cur[+sp.dataset.sidepick] = sp.value; S.settings.sideSlots = cur.filter((x) => x !== 'off'); if (!S.settings.sideSlots.length) S.settings.sideSlots = ['speed']; saveSettings(); renderSide(); });
+sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sidepick]'); if (!sp) return; const cur = (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).slice(); while (cur.length < 6) cur.push('off'); cur[+sp.dataset.sidepick] = sp.value; S.settings.sideSlots = cur.filter((x) => x !== 'off'); if (!S.settings.sideSlots.length) S.settings.sideSlots = ['speed']; saveSettings(); renderSide(); });
 function renderSide() {
   const p = $('panelSide'); if (!p) return;
   if (S.settings.sideStyle !== 'text') {
-    const ids = (S.settings.sideSlots || ['speed', 'course', 'wind', 'auto']).filter((x) => x !== 'chart' && x !== 'off');
+    const ids = (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).filter((x) => x !== 'chart' && x !== 'off');
     let h = '';
     if (S.goto && S.fix) { const d = distNm(S.fix, S.goto), mv = (S.sog || 0) > 0.6, hrs = mv ? d / S.sog : NaN; h += '<button type="button" class="sd sd-dest" data-sact="nav"><small>Next destination</small><b>' + esc(S.goto.name) + '</b><span class="tnum">' + fmtDist(d) + (isFinite(hrs) ? ' · ETA ' + fmtClock(Date.now() + hrs * 3600000) : '') + '</span></button>'; }
     h += '<div class="side-g" data-n="' + ids.length + '">' + ids.map((id) => '<div class="sg">' + ckGauge(id) + '</div>').join('') + '</div>';
@@ -1515,7 +1695,7 @@ function tripCard() {
     '<div class="nf-quick" style="margin-left:0">' + (S.fix && !st.length ? '<button type="button" class="btn small" data-act="tpboat">My boat</button>' : '') + (st.length > 1 ? '<button type="button" class="btn small" data-act="tpback">Back to start</button>' : '') + '</div></div>';
   if (st.length > 1) {
     h += '<div class="tp-sum tnum"><b>' + fmtDist(L2.tot) + '</b> · ' + fmtDur(L2.hrs) + ' at ' + fmtSpeed(navSpeed()) + ' ' + SPEED_LBL[S.settings.speedUnit] + (L2.fuel != null ? ' · about ' + (Math.round(L2.fuel * 10) / 10) + ' gal' : '') + '</div>' +
-      '<p class="hint" style="margin:4px 0 8px">Straight lines between stops can cross land or shoals. Tap Edit on chart to add turning points, and check the chart.</p>' +
+      '<p class="hint" style="margin:4px 0 8px">Start and Edit on chart work out a path through charted water deep enough for your boat, from NOAA chart depths. Check it on the chart before you go.</p>' +
       '<div class="field"><label for="tpName">Trip name</label><input id="tpName" value="' + esc(S.trip2.name) + '" placeholder="' + esc(st[0].name + ' to ' + st[st.length - 1].name) + '"></div>' +
       '<div class="row-btns"><button class="btn primary" data-act="tpstart">Start</button><button class="btn" data-act="tpedit">Edit on chart</button><button class="btn" data-act="tpsave">Save trip</button><button class="btn ghost" data-act="tpclear">Clear</button></div>';
   }
@@ -1541,8 +1721,9 @@ $('panelNav').addEventListener('click', (e) => {
   if (act === 'tpclear') { if (!armed(b, 'Tap again to clear')) return; S.trip2 = { name: '', stops: [] }; saveTripDraft(); renderNav(); }
   const name = S.trip2.name || (st.length ? st[0].name + ' to ' + st[st.length - 1].name : 'Trip');
   if (act === 'tpsave' && st.length > 1) { S.routes.push({ id: Date.now(), name, pts: st.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })) }); store.set('routes', S.routes); toast('Saved “' + name + '” in My trips'); renderNav(); }
-  if (act === 'tpedit' && st.length > 1) { RT.pts = st.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); store.set('routeDraft', RT.pts); routeMode(true); map.fitBounds(L.latLngBounds(RT.pts.map((q) => [q.lat, q.lon])).pad(0.15)); }
-  if (act === 'tpstart' && st.length > 1) { const pts = st.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); let i = 0; if (S.fix && distNm(S.fix, pts[0]) < 0.3) i = 1; RT.pts = pts; drawRoute(); routeLeg(pts, i); }
+  if (act === 'tpedit' && st.length > 1) { (async () => { RT.pts = await routeByWater(st.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name }))); store.set('routeDraft', RT.pts); routeMode(true); map.fitBounds(L.latLngBounds(RT.pts.map((q) => [q.lat, q.lon])).pad(0.15)); })(); return; }
+  if (false) { RT.pts = st.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); store.set('routeDraft', RT.pts); routeMode(true); map.fitBounds(L.latLngBounds(RT.pts.map((q) => [q.lat, q.lon])).pad(0.15)); }
+  if (act === 'tpstart' && st.length > 1) { b.disabled = true; (async () => { const pts = await routeByWater(st.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name }))); let i = 0; if (S.fix && distNm(S.fix, pts[0]) < 0.3) i = 1; RT.pts = pts; drawRoute(); routeLeg(pts, i); map.fitBounds(L.latLngBounds(pts.map((q) => [q.lat, q.lon])).pad(0.15)); })(); }
 }, true);
 
 /* ---------- trip photos and replay: match camera-roll photos to a recorded track by time ---------- */
@@ -1731,7 +1912,7 @@ $('panelNav').addEventListener('click', (e) => {
   const act = b.dataset.act, dest = S.navDest || null;
   if (act === 'navpick') { setTab('chart'); toast('Press and hold the spot you want, then tap Navigate to.', 4000); return; }
   if (act === 'navgo') {
-    if (dest) { setGoto(dest.name, dest.lat, dest.lon); S.navDest = null; return; }
+    if (dest) { S.navDest = null; if (S.fix && distNm(S.fix, dest) > 0.3) { (async () => { const pts = await routeByWater([{ lat: S.fix.lat, lon: S.fix.lon, name: 'Start' }, { lat: dest.lat, lon: dest.lon, name: dest.name }]); if (pts.length > 2) routeLeg(pts, 1); else setGoto(dest.name, dest.lat, dest.lon); })(); } else setGoto(dest.name, dest.lat, dest.lon); return; }
     toast('Type a destination first, or press and hold a spot on the chart.', 3500); const q = $('navToQ'); if (q) q.focus();
   }
   if (act === 'navplan') { RT.pts = []; if (S.fix) RT.pts.push({ lat: S.fix.lat, lon: S.fix.lon }); if (dest) RT.pts.push({ lat: dest.lat, lon: dest.lon }); store.set('routeDraft', RT.pts); routeMode(true); }
@@ -2641,8 +2822,8 @@ function simAis() {
 function renderModeChip() {
   const c = $('modeChip');
   if (S.settings.boatType !== 'sail') { c.hidden = true; return; }
-  c.hidden = false; c.innerHTML = (S.settings.underSail ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v14H5zM14 6c3 3 4 7 4 11h-4zM3 19h18l-2 2H5z" fill="currentColor"/></svg>Under sail' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h18l-3 5H6zM8 15V9h6l3 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>Motoring');
-  c.title = 'Tap to switch between under sail and motoring';
+  c.hidden = false; c.innerHTML = '<span class="fi-ic">' + (S.settings.underSail ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v14H5zM14 6c3 3 4 7 4 11h-4zM3 19h18l-2 2H5z"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h18l-3 5H6zM8 15V9h6l3 6"/></svg>') + '</span><b>' + (S.settings.underSail ? 'Sail' : 'Motor') + '</b>';
+  c.dataset.tip = (S.settings.underSail ? 'Under sail' : 'Motoring') + '. Tap to switch: it changes which Rules apply to you.';
   placeFabs();
 }
 window.addEventListener('resize', () => placeFabs());
@@ -3402,9 +3583,9 @@ $('quick').addEventListener('click', (e) => {
 map.on('click', () => { if (!$('quick').hidden) toggleQuick(false); });
 function applyPinSize() { const sz = S.settings.pinSize || 'M'; document.documentElement.dataset.pins = sz; if (typeof drawMarinePlaces === 'function') drawMarinePlaces(); if (typeof drawBridges === 'function') drawBridges(); }
 $('btnLayers').addEventListener('click', () => toggleQuick());
-$('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', !wxOn('wind')); });
+$('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', !wxOn('wind')); renderChips(); });
 $('windChip').dataset.tip = 'Wind: tap to show wind across the chart'; $('waveChip').dataset.tip = 'Waves: tap to show waves across the chart'; $('tideChip').dataset.tip = 'Tide: tap for the tide curve'; $('modeChip').dataset.tip = 'Tap to switch between sail and engine';
-$('waveChip').addEventListener('click', () => { setTab('chart'); setWxL('waves', !wxOn('waves')); });
+$('waveChip').addEventListener('click', () => { setTab('chart'); setWxL('waves', !wxOn('waves')); renderChips(); });
 $('tideChip').addEventListener('click', () => { WX.view = 'tide'; WX.open = true; setTab('weather'); });
 $('gpsPill').addEventListener('click', () => {
   if (S.fix) toast(ddm(S.fix.lat, true) + '  ' + ddm(S.fix.lon, false));
@@ -3669,19 +3850,49 @@ function anchorGauge(ft, radius) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, lim, A1) + '" class="g-danger"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (frac > 1 ? ' bad' : '') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + (ft == null ? '–' : Math.round(ftToLen(ft))) + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' of ' + fmtLen(radius) + '</text>';
 }
-const CK_OPTS = [['speed', 'Speed'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['chart', 'Small chart'], ['off', 'Off']];
-function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'course', 'wind', 'auto']; }
+const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['chart', 'Small chart'], ['off', 'Off']];
+if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
+function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
+/* charted depth where the boat is (or the chart centre): NOAA ENC depth area, plus the predicted tide. Not a sounder. */
+const DEP = { at: 0, pos: null, v: null, busy: false, err: false };
+async function maybeDepth() {
+  const f = S.fix || refPos(); if (!f || DEP.busy) return;
+  if (DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000) return;
+  if (Date.now() - DEP.at < 15000 && DEP.pos) return;
+  DEP.busy = true; DEP.at = Date.now();
+  const e = 0.00015, bb = [f.lon - e, f.lat - e, f.lon + e, f.lat + e];
+  let best = null;
+  for (const svc of ['enc_harbour', 'enc_approach', 'enc_coastal']) {
+    try { const d = await encQuery(svc, 'depth', bb, 0.0001); const hit = d.filter((x) => x.d1 != null); if (hit.length) { best = hit.reduce((m, x) => (x.d1 < m.d1 ? x : m)); best.svc = svc; break; } } catch (err) { DEP.err = true; }
+  }
+  DEP.v = best; DEP.pos = { lat: f.lat, lon: f.lon }; DEP.busy = false; if (best) DEP.err = false;
+  try { renderSide(); if (!$('cockpit').hidden) renderCockpit(); } catch (err) { /* not shown */ }
+}
+function depthGauge() {
+  const d = DEP.v, tn = tideNow(), tide = tn ? tn.v : 0;
+  const need = S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null;
+  if (!d) return gWrap('DEPTH', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="96" class="g-unit">' + (DEP.busy || !DEP.pos ? 'Reading the chart…' : DEP.err ? 'NOAA chart not reachable' : 'No charted depth here') + '</text><text x="100" y="120" class="g-unit">no sounder connected</text>', 'Charted depth · NOAA');
+  const lo = d.d1 / 0.3048 + tide, hi = d.d2 != null ? d.d2 / 0.3048 + tide : null;
+  const top = Math.max(20, (need || 6) * 3), frac = Math.min(1, Math.max(0, lo / top)), A0 = -135, A1 = 135, a = A0 + (A1 - A0) * frac;
+  const bad = need && lo < need, warn = need && !bad && lo < need + 3;
+  const lim = need ? A0 + (A1 - A0) * Math.min(1, need / top) : null;
+  return gWrap('DEPTH', '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/>' + (lim ? '<path d="' + arcPath(84, A0, lim) + '" class="g-danger"/>' : '') + '<path d="' + arcPath(84, A0, a) + '" class="g-fill' + (bad ? ' bad' : warn ? ' warnf' : ' depth') + '"/>' +
+    '<text x="100" y="112" class="g-big sm">' + Math.round(ftToLen(lo)) + (hi && hi - lo > 1 ? '<tspan class="g-plus">+</tspan>' : '') + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' · charted' + (tn ? ' + tide' : '') + '</text>' +
+    (need ? '<text x="100" y="160" class="g-unit">' + (bad ? 'SHALLOW' : 'need ' + Math.round(ftToLen(need))) + '</text>' : ''),
+    'NOAA chart ' + Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() + (tn ? ' ' + (tide >= 0 ? '+' : '') + tide.toFixed(1) + ' tide' : '') + ' · not a sounder', bad ? 'alarm' : '');
+}
 function ckGauge(id) {
   const w = S.weather, tn = tideNow(), ob = nearestObs(), moving = (S.sog || 0) > 0.6;
   if (id === 'auto') id = S.goto && S.fix ? 'dest' : 'tide';
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
+  if (id === 'depth') { maybeDepth(); return depthGauge(); }
   if (id === 'course') return gWrap('COURSE', compassGauge(moving ? S.cog : null), 'Course over ground');
   if (id === 'wind') { const wd = ob ? { dir: ob.dir, spd: ob.spd, gust: ob.gust, cap: 'Measured · ' + agoTxt(ob.t) } : w && w.cur ? { dir: w.cur.dir, spd: w.cur.spd, gust: w.cur.gust, cap: 'Forecast · ' + agoTxt(w.at) } : null; return gWrap('WIND ' + (wd ? compass16(wd.dir) : ''), windGauge(wd && wd.dir, wd && wd.spd, wd && wd.gust, moving ? S.cog : 0), wd ? wd.cap + (moving ? ' · arrow relative to bow' : ' · arrow: north up') : 'No wind data yet'); }
   if (id === 'tide') return tn ? gWrap('TIDE', tideGauge(tn), tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · NOAA' : 'NOAA prediction') : gWrap('TIDE', '<text x="100" y="108" class="g-unit">No tide station yet</text>', '');
-  if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); return gWrap('TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'ETA ' + fmtClock(Date.now() + li.hrs * 3600000) + ' · ' + fmtDur(li.hrs) : 'Steer to the arrow'); }
+  if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); const gr = S.goto.route, onTurn = gr && gr.pts[gr.i] && gr.pts[gr.i].turn; return gWrap(onTurn ? 'NEXT TURN' : 'TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'ETA ' + fmtClock(Date.now() + li.hrs * 3600000) + ' · ' + fmtDur(li.hrs) : 'Steer to the arrow'); }
   if (id === 'anchor') return S.anchor ? gWrap('ANCHOR', anchorGauge(S.anchor.lastFt, S.anchor.radiusFt), S.alarmOn ? 'ALARM' : 'Distance from anchor', S.alarmOn ? 'alarm' : '') : gWrap('ANCHOR', '<text x="100" y="108" class="g-unit">Watch is off</text>', '');
   if (id === 'position') { const f = S.fix; return gWrap('GPS POSITION', '<text x="100" y="84" class="g-big pos">' + (f ? ddm(f.lat, true) : '–') + '</text><text x="100" y="124" class="g-big pos">' + (f ? ddm(f.lon, false) : '') + '</text><text x="100" y="156" class="g-unit">' + (f && f.acc ? '±' + Math.round(ftToLen(f.acc * 3.28084)) + ' ' + lenUnit() + ' accuracy' : 'No fix') + '</text>', S.lastFixAt ? 'Last fix ' + Math.max(0, Math.round((Date.now() - S.lastFixAt) / 1000)) + ' s ago' : ''); }
-  if (id === 'time') { const now = Date.now(), ss = w && (w.sunset || []).find((t) => t > now), sr = w && (w.sunrise || []).find((t) => t > now); return gWrap('TIME', '<text x="100" y="108" class="g-big">' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?(AM|PM)/i, '') + '</text><text x="100" y="140" class="g-unit">' + (ss ? 'Sunset ' + fmtClock(ss) : '') + (sr ? (ss ? ' · ' : '') + 'Sunrise ' + fmtClock(sr) : '') + '</text>', ''); }
+  if (id === 'time') { const now = Date.now(), ss = w && (w.sunset || []).find((t) => t > now), sr = w && (w.sunrise || []).find((t) => t > now); return gWrap('TIME', '<text x="100" y="108" class="g-big">' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?(AM|PM)/i, '') + '</text>' + (ss ? '<text x="100" y="142" class="g-unit">Sunset ' + fmtClock(ss) + '</text>' : '') + (sr ? '<text x="100" y="' + (ss ? 164 : 142) + '" class="g-unit">Sunrise ' + fmtClock(sr) + '</text>' : ''), ''); }
   return '';
 }
 let ckMap = null, ckMark = null, ckEdit = false;
@@ -3777,5 +3988,5 @@ $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();
 wake();
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet }; // debugging and demo recording
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
