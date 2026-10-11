@@ -1439,3 +1439,10 @@ html, body { touch-action: manipulation; overscroll-behavior: none; overflow: hi
 .tour-card b { font-size: 18px; } .tour-card p { margin: 6px 0 10px; font-size: 15px; line-height: 1.4; }
 .tour-n { font: 700 11px var(--f-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); }
 .tour-btns { display: flex; gap: 8px; justify-content: flex-end; } .tour-btns [data-tour="end"]:first-child { margin-right: auto; }
+/* first mate: the AI sparkle with an anchor inside */
+.fab.ai svg.ai-ic { width: 27px !important; height: 27px !important; stroke: none !important; filter: drop-shadow(0 1px 1px rgba(0,0,0,.3)); }
+.fab.ai .ai-star { fill: #fff; stroke: none; }
+.fab.ai .ai-anc, .fab.ai .ai-anc * { fill: none; stroke: var(--fab-on, #1C62B4) !important; stroke-width: 1.15; stroke-linecap: round; }
+.fab.ai .ai-anc circle { fill: none; }
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab.ai.ai:not(.on):not(.attn):not(.fish) { background: linear-gradient(135deg, var(--fab-on, #1C62B4), color-mix(in srgb, var(--fab-on, #1C62B4) 55%, #2CD3C5)) !important; }
+:root[data-night] .fab.ai .ai-star, :root[data-dusk] .fab.ai .ai-star { fill: var(--ink); } :root[data-night] .fab.ai .ai-anc *, :root[data-dusk] .fab.ai .ai-anc * { stroke: var(--surface) !important; }

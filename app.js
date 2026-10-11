@@ -2473,7 +2473,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 101. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 102. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5701,7 +5701,9 @@ sheet.addEventListener('click', e => {
 });
 sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' && e.key === 'Enter') { e.preventDefault(); askFirstMate(); } });
 document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) openFirstMate(); if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
-(() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab'; b.dataset.firstMate = 'true'; b.title = 'Ask first mate'; b.setAttribute('aria-label','Ask first mate'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0012 0v-2M12 18v3M8 21h8"/></svg>'; $('fabs').appendChild(b); })();
+// the AI sparkle, with a small anchor at its heart
+const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path class="ai-star" d="M11.6 2.2c.7 5.3 3.9 8.5 9.2 9.2-5.3.7-8.5 3.9-9.2 9.2-.7-5.3-3.9-8.5-9.2-9.2 5.3-.7 8.5-3.9 9.2-9.2z"/><path class="ai-star" d="M19.6 1.6c.25 1.6 1.1 2.45 2.7 2.7-1.6.25-2.45 1.1-2.7 2.7-.25-1.6-1.1-2.45-2.7-2.7 1.6-.25 2.45-1.1 2.7-2.7z"/><g class="ai-anc"><circle cx="11.6" cy="8.7" r=".95"/><path d="M11.6 9.65v5.6M10.1 10.9h3M9.1 13.3a2.5 2.5 0 0 0 5 0"/></g></svg>';
+(() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
 const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
@@ -6185,7 +6187,7 @@ const TOUR = [
   { el: '#fabsR', t: 'Buttons on the right', d: 'Your speed and compass, charted depth under you, zoom, Find me, and the instruments.' },
   { el: '#map', t: 'Tap any spot', d: 'Tap the water anywhere for its wind, waves, current, tide, depth and water temperature. Press and hold to drop a pin or navigate there.' },
   { el: '#btnRoute', t: 'Plan a trip', d: 'Tap here, then tap or type your stops. Every leg follows water deep enough for your boat, under bridges you fit and around closed areas.' },
-  { el: '[data-first-mate]', t: 'Your first mate', d: 'Tap and say “Take me to St. Michaels”, “Show the currents” or “Should I reef?”.' },
+  { el: '[data-first-mate]', t: 'Your first mate (AI)', d: 'The sparkle with the anchor. Tap it and say “Take me to St. Michaels”, “Show the currents” or “Should I reef?”.' },
   { el: '#btnMOB', t: 'Man overboard', d: 'Press and hold the red MOB button to mark the spot and steer back to it.' },
   { el: '.tab[data-tab="menu"]', t: 'Menu', d: 'Set up your boat (draft and air draft make routes safe), the sailing coach, the Great Loop advisor, fishing, themes and your account.' }
 ];
