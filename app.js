@@ -164,10 +164,10 @@ const NoaaLayer = L.TileLayer.extend({
   getTileUrl(c) { return noaaUrl(c.x, c.y, c.z, this.options.transparentChart); },
 });
 const LAYERS = {
-  noaa: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA Office of Coast Survey' }),
+  noaa: new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA Office of Coast Survey' }),
   // a fast, cached ocean basemap under the NOAA chart, so the screen is never blank while NOAA draws its tiles
   ocean: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 13, attribution: 'Base: Esri, GEBCO, NOAA' }),
-  noaaOver: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA' }),
+  noaaOver: new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA' }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics' }),
   satHD: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery: USGS The National Map' }),
   places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.99, maxNativeZoom: 13, minZoom: 5, opacity: 0.8, zIndex: 3, attribution: 'Labels: Esri' }), // quiet grey town names, gone before street names appear
@@ -320,6 +320,7 @@ function openLayersSheet() {
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
   html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats' : S.settings.aisRelay ? 'Live from aisstream.io through your relay: ships and AIS-equipped boats within about 20 nm' + (AISS.n ? ' · ' + [...ais.values()].filter((t) => t.live).length + ' in view' : '') : 'Live ships over the internet need a small relay (below)', S.settings.aisShow !== false);
   if (!S.settings.sim) html += '<div class="ais-key"><input id="aisKeyIn" type="url" autocomplete="off" placeholder="AIS relay address (wss://…)" value="' + esc(S.settings.aisRelay || '') + '"><button type="button" class="btn small" data-act="aiskeysave">' + (S.settings.aisRelay ? 'Update' : 'Save') + '</button></div><p class="hint" style="margin:2px 0 10px">aisstream.io (free) does not let browsers connect directly, so live AIS goes through a small free relay that holds your key. Setup steps: tools/ais-relay in the Tideline repo. ' + (AISS.err ? '<b>' + esc(AISS.err) + '</b>' : '') + '</p>';
+  html += '<div class="row-btns"><button class="btn small" data-act="aislist">AIS target list</button><button class="btn small" data-act="aispreview">Try AIS demo</button></div>';
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
   html += tog('mpBox', 'Marinas, clubs, fuel and ramps', 'Named on the chart when you zoom in', S.settings.mplaces !== false);
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
@@ -329,7 +330,7 @@ function openLayersSheet() {
   html += '<div class="mo-h">Chart colors</div>' + optSeg('chartTint', [['blue', 'Ocean blue'], ['classic', 'Classic NOAA']], st.chartTint || 'blue');
   html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
   if (st.shallowTint !== false) html += optSeg('shallowStyle', [['coral', 'Soft coral'], ['amber', 'Amber'], ['pale', 'Pale'], ['edge', 'Outline only']], st.shallowStyle || 'coral') + optSeg('shallowLevel', [['1', 'Faint'], ['2', 'Medium'], ['3', 'Strong']], String(st.shallowLevel || 2));
-  html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides shipping lanes, cable areas and other special areas. Turn off for the full NOAA chart', st.soundings !== false);
+  html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides traffic routes and special areas; individual cable lines may remain. Turn off for the full NOAA chart', st.soundings !== false);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
   html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wLinesBox', 'Moving wind lines', 'Light streaks that drift with the forecast wind', S.settings.windLines !== false) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
 
@@ -1682,8 +1683,8 @@ function tideCurve(sel) {
   return '<svg class="tl-tide" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-label="Tide curve"><path d="' + path + ' L' + W + ' ' + H + ' L0 ' + H + 'Z" class="fill"/><path d="' + path + '" class="line"/>' +
     '<line x1="' + X(Date.now()) + '" x2="' + X(Date.now()) + '" y1="0" y2="' + H + '" class="now"/>' + (sv != null ? '<circle cx="' + X(st) + '" cy="' + Y(sv) + '" r="6" class="sel"/>' : '') + lab + '</svg>';
 }
-// NWS point forecast: the hourly weather graph (wind, gusts, sky, rain chance, temperature) for an exact spot
-function nwsGraphUrl(p) { return 'https://forecast.weather.gov/MapClick.php?lat=' + p.lat.toFixed(4) + '&lon=' + p.lon.toFixed(4) + '&unit=0&lg=english&FcstType=graph'; }
+// NWS point forecast: NOAA graphical forecast interface for the selected coordinates
+function nwsGraphUrl(p) { return 'https://forecast.weather.gov/MapClick.php?lat=' + p.lat.toFixed(4) + '&lon=' + p.lon.toFixed(4) + '&FcstType=graphical'; }
 function nwsPointUrl(p) { return 'https://forecast.weather.gov/MapClick.php?lat=' + p.lat.toFixed(4) + '&lon=' + p.lon.toFixed(4); }
 function renderTimeline(el) {
   const v = WX.view || 'wind', w = S.weather, wide = isWide(), open = wide || WX.open;
@@ -1702,7 +1703,8 @@ function renderTimeline(el) {
   { const tv = tideAtT(t); if (tv != null) parts.push('tide ' + tideLen(tv)); }
   if (w) { const air = WX.hour ? seriesAt(w.hours, t, 'temp') : w.cur && w.cur.temp, water = S.waterObs ? S.waterObs.f : w.sst; if (air != null) parts.push('air ' + tempTxt(air)); if (water != null) parts.push('water ' + tempTxt(water)); }
   const np = S.fix || refPos();
-  let h = '<button type="button" class="tl-x" data-tlx aria-label="Close weather">&times;</button>' + (np ? '<a class="nws-btn" href="' + nwsGraphUrl(np) + '" target="_blank" rel="noopener" data-tip="National Weather Service hourly graph for exactly where you are">NOAA point forecast ↗</a>' : '') + (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
+  let h = (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
+    '<div class="tl-heading">' + (np ? '<a class="nws-btn" href="' + nwsGraphUrl(np) + '" target="_blank" rel="noopener" data-tip="NOAA graphical forecast for this location"><span>NOAA point forecast</span><span aria-hidden="true">↗</span></a>' : '') + '<button type="button" class="tl-x" data-tlx aria-label="Close weather">&times;</button></div>' +
     '<div class="tl-chips">' + chips + '</div>' +
     '<div class="tl-sum"><b>' + (WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now') + '</b> ' + esc(parts.join(' · ') || 'Waiting for forecast') + '</div>' +
     '<div class="tl-sky">' + skyNotes(new Date(Date.now() + WX.hour * 3600000)).map((x) => '<span>' + esc(x) + '</span>').join('') + '</div>';
@@ -1799,7 +1801,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]'
 document.addEventListener('input', (e) => { if (e.target.id === 'wxHour') wxStop(); }, true);
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
-  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); return; }
+  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button>'); return; }
   el.className = 'wxbar';
   if (!wxAny()) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
@@ -2000,7 +2002,7 @@ function openResources() {
   const L2 = (href, title, sub) => '<a class="res" href="' + href + '" target="_blank" rel="noopener"><b>' + title + '</b><span>' + sub + '</span></a>';
   const h = '<h3>Captain\'s resources</h3><div class="sub">Official sources. They open in your browser, so they are always the current edition.</div>' +
     '<div class="mo-h">Before you go</div>' +
-    L2('https://forecast.weather.gov/MapClick.php?lat=' + lat + '&lon=' + lon, 'NWS forecast for this spot', 'Marine point forecast, advisories and warnings') +
+    L2(nwsGraphUrl({ lat: Number(lat), lon: Number(lon) }), 'NOAA point forecast', 'Graphical forecast for this location') +
     L2('https://www.weather.gov/marine/', 'NWS marine forecasts', 'Coastal waters zones, small craft advisories') +
     (st ? L2('https://tidesandcurrents.noaa.gov/stationhome.html?id=' + encodeURIComponent(st.id), 'NOAA tides and currents: ' + esc(st.name.replace(/,.*$/, '')), 'Predictions, observed water level, datums') : L2('https://tidesandcurrents.noaa.gov/', 'NOAA tides and currents', 'Predictions and observed water levels')) +
     '<div class="mo-h">Pilotage and notices</div>' +
@@ -2025,24 +2027,38 @@ async function suggestPlaces(q, center) {
   const c = center || searchCenter(), out = [];
   S.waypoints.forEach((w) => { const sc = fuzzyScore(q, w.name); if (sc) out.push({ name: w.name, sub: 'Your waypoint', lat: w.lat, lon: w.lon, type: 'place', score: sc + 2, wp: w }); });
   (searchResults || []).forEach((p) => { const sc = fuzzyScore(q, p.name); if (sc) out.push({ name: p.name, sub: PLACE_TYPES[p.type].label, lat: p.lat, lon: p.lon, type: p.type, score: sc + 1, place: p }); });
-  const key = q.toLowerCase() + '|' + c.lat.toFixed(1) + ',' + c.lon.toFixed(1);
-  let ph = sugCache.get(key);
-  if (!ph) {
-    try {
-      const j = await fetch('https://photon.komoot.io/api/?limit=8&q=' + encodeURIComponent(q) + '&lat=' + c.lat.toFixed(3) + '&lon=' + c.lon.toFixed(3)).then((r) => r.json());
-      ph = (j.features || []).map((f) => { const pr = f.properties || {}, [lon, lat] = f.geometry.coordinates;
-        const marine = /marina|harbour|slipway|boat|fuel|sailing|yacht/.test((pr.osm_value || '') + ' ' + (pr.name || '').toLowerCase());
-        return { name: pr.name || pr.street || 'Unnamed place', sub: [pr.osm_value && pr.osm_value.replace(/_/g, ' '), pr.city || pr.county, pr.state].filter(Boolean).join(' · '), lat, lon, type: /marina/.test(pr.osm_value || '') ? 'marina' : 'place', score: marine ? 2.5 : 1.5 }; });
-      sugCache.set(key, ph);
-    } catch (e) { ph = []; }
+  // Keep local suggestions first, but reserve room for unbiased worldwide matches.
+  async function photonMatches(worldwide) {
+    const key = (worldwide ? 'world' : 'near|' + c.lat.toFixed(1) + ',' + c.lon.toFixed(1)) + '|' + q.trim().toLowerCase();
+    if (sugCache.has(key)) return sugCache.get(key);
+    const url = 'https://photon.komoot.io/api/?limit=8&q=' + encodeURIComponent(q) + (worldwide ? '' : '&lat=' + c.lat.toFixed(3) + '&lon=' + c.lon.toFixed(3));
+    const response = await fetchT(url, 10000);
+    if (!response.ok) throw new Error('Destination search ' + response.status);
+    const j = await response.json();
+    const matches = (j.features || []).filter((f) => f.geometry && Array.isArray(f.geometry.coordinates)).map((f) => {
+      const pr = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+      const marine = /marina|harbour|slipway|boat|fuel|sailing|yacht/.test((pr.osm_value || '') + ' ' + (pr.name || '').toLowerCase());
+      return { name: pr.name || pr.street || 'Unnamed place', sub: [pr.osm_value && pr.osm_value.replace(/_/g, ' '), pr.city || pr.county, pr.state, pr.country].filter(Boolean).join(' · '), lat, lon, type: /marina/.test(pr.osm_value || '') ? 'marina' : 'place', score: marine ? 2.5 : 1.5, worldwide };
+    }).filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lon));
+    sugCache.set(key, matches);
+    return matches;
   }
-  ph.forEach((x) => { if (!out.some((o) => o.name === x.name && distNm(o, x) < 0.2)) out.push(Object.assign({}, x)); });
+  const responses = await Promise.allSettled([photonMatches(false), photonMatches(true)]);
+  const near = responses[0].status === 'fulfilled' ? responses[0].value : [];
+  const world = responses[1].status === 'fulfilled' ? responses[1].value : [];
+  const same = (a, b) => a.name === b.name && distNm(a, b) < 0.2;
+  near.forEach((x) => { if (!out.some((o) => same(o, x))) out.push(Object.assign({}, x)); });
   out.forEach((o) => { o.d = distNm(c, o); });
-  return out.sort((a, b) => b.score - a.score || a.d - b.d).slice(0, 8);
+  out.sort((a, b) => b.score - a.score || a.d - b.d);
+  const chosen = out.slice(0, 4);
+  // Worldwide provider relevance order is retained, so distant cities aren't buried.
+  world.forEach((x) => { if (chosen.length < 8 && !chosen.some((o) => same(o, x))) chosen.push(Object.assign({}, x, { d: distNm(c, x) })); });
+  out.forEach((x) => { if (chosen.length < 8 && !chosen.some((o) => same(o, x))) chosen.push(x); });
+  return chosen;
 }
 function placeSugHtml(list, attr) {
-  if (!list.length) return '<div class="sug-empty">No matches yet. Try a shorter name, or pick a spot on the chart.</div>';
-  return list.map((o, i) => '<button type="button" class="sug" ' + attr + '="' + i + '"><b>' + esc(o.name) + '</b><span>' + esc(o.sub || '') + '</span><em class="tnum">' + fmtDist(o.d) + '</em></button>').join('');
+  if (!list.length) return '<div class="sug-empty">No matches yet. Try a name with its state or country, or pick a spot on the chart.</div>';
+  return list.map((o, i) => '<button type="button" class="sug" ' + attr + '="' + i + '"><b>' + esc(o.name) + '</b><span>' + esc((o.worldwide ? 'Worldwide · ' : '') + (o.sub || '')) + '</span><em class="tnum">' + fmtDist(o.d) + '</em></button>').join('');
 }
 
 /* ---------- home port ---------- */
@@ -2252,7 +2268,7 @@ function renderMenu() {
     grp('Your boat', menuTile('boat', 'boat', esc(S.settings.boatName || 'Your boat'), 'Profile, lights now, maintenance') +
       menuTile('dash', 'dash', 'Instruments', 'Gauges for speed, course, wind and tide') +
       menuTile('log', 'log', 'Tracks and waypoints', 'Record, photos and replay, export GPX')) +
-    grp('On the water', menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
+    grp('On the water', menuTile('firstmate', 'dash', 'First mate', 'Ask by voice or type: weather, destinations and AIS') + menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
       menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast') +
       menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
@@ -2261,7 +2277,7 @@ function renderMenu() {
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 81. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 90. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2273,6 +2289,7 @@ document.addEventListener('change', async (e) => {
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
   const a = b.dataset.mact;
+  if (a === 'firstmate') { openFirstMate(); return; }
   if (a === 'rules') { setTab('search'); renderCats(); $('searchInput').value = 'Rules of the Road'; $('searchInput').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); return; }
   if (a === 'cockpit' || a === 'dash') { setTab('chart'); setCockpit(true); return; }
   if (a === 'search') { $('searchPill').click(); return; }
@@ -3168,6 +3185,30 @@ function renderCoach() {
     '<div class="coach-text" style="font-size:12px;font-style:italic">' + esc((r.assume ? r.assume + ' ' : '') + 'AIS report ' + (r.age != null ? (r.age < 60 ? r.age + ' s' : Math.round(r.age / 60) + ' min') : '') + ' old.') + '</div>' +
     '<div class="coach-btns"><button class="btn small primary" data-act="coachmore">What to do</button><button class="btn small" data-act="coachmute">Mute 5 min</button></div>';
 }
+function openAisList() {
+  const targets = [...ais.values()].sort((a, b) => S.fix ? distNm(S.fix, a) - distNm(S.fix, b) : (b.seen || 0) - (a.seen || 0));
+  let h = '<h3>AIS targets</h3><p class="sub">' + (S.settings.sim ? 'SIMULATED TRAFFIC · demo GPS, not real boats.' : S.settings.aisRelay ? 'Internet AIS relay configured. Reports can be delayed or missing.' : 'No AIS feed configured. Turning on AIS visibility does not supply live traffic.') + '</p>';
+  if (!targets.length) h += '<p class="sub">No targets received. Try the demo, or configure your relay in Map options.</p>';
+  h += targets.map((t) => '<div class="li"><div class="li-main"><b>' + esc(t.name || 'Unnamed vessel') + '</b><span>' + (t.demo ? 'Demo · ' : '') + (S.fix ? fmtDist(distNm(S.fix, t)) + ' · ' : '') + fmtSpeed(t.sog) + ' · report ' + Math.max(0, Math.round((Date.now() - (t.seen || Date.now())) / 1000)) + ' s ago</span></div><button class="btn small" data-aisid="' + esc(t.id) + '">Details</button></div>').join('');
+  h += '<div class="row-btns"><button class="btn" data-act="aislist">Refresh</button><button class="btn" data-act="aispreview">Try AIS demo</button>' + (S.settings.sim ? '<button class="btn" data-act="aisdemostop">Return to real GPS</button>' : '') + '<button class="btn ghost" data-act="close">Close</button></div>';
+  openSheet(h);
+}
+sheet.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'aislist') openAisList();
+  if (b.dataset.act === 'aispreview' || b.dataset.act === 'aisdemostop') {
+    if (S.anchor || S.rec.on) { toast('Stop anchor watch and track recording before changing GPS to or from demo mode.', 5000); return; }
+    const on = b.dataset.act === 'aispreview';
+    if (on && !S.settings.sim && !armed(b, 'Tap again: uses fake GPS')) return;
+    S.settings.sim = on; S.settings.aisShow = true; saveSettings(); aissClose(); ais.clear(); demoAisAt = 0;
+    S.fix = null; S.sog = null; S.cog = null;
+    if (on) { sim.i = 0; sim.pos = null; }
+    startGPS();
+    if (on) { map.setView([SIM_ROUTE[0][0], SIM_ROUTE[0][1]], 13); setFollow(true); simAis(); updateAis(); }
+    else { updateAis(); aissConnect(true); }
+    openAisList(); toast(on ? 'Demo GPS and simulated AIS. Tap Details to inspect a target.' : 'Demo stopped. Waiting for real GPS.', 5000);
+  }
+});
 function openAisSheet(t) {
   const r = t.eval || evaluate(t);
   let h = '<h3>' + esc(t.name || 'AIS target') + '</h3><div class="sub">' + esc((t.type === 'ship' ? 'Ship' : t.type === 'sail' ? 'Sailing vessel' : t.type === 'fishing' ? 'Fishing vessel' : 'Power vessel') + (t.len ? ' · ' + Math.round(t.len) + ' m' : '') + (NAV_STATUS[t.status] ? ' · ' + NAV_STATUS[t.status] : '') + (t.demo ? ' · demo target' : '')) + '</div>';
@@ -3189,7 +3230,7 @@ function openAisSheet(t) {
       h += '<ol class="todo">' + r.todo.map((x) => '<li>' + esc(x) + '</li>').join('') + (r.steady ? '<li>The bearing isn\'t changing while the range closes: that is the classic sign of a collision course (Rule 7(d)(i)).</li>' : '') + '</ol>';
       h += '<div class="lbl" style="margin-bottom:6px">IF YOU NEED TO CALL IT</div><div class="script">' + esc(r.hail) + '</div>';
       h += '<div class="lbl" style="margin-bottom:6px">RULES THAT APPLY · TAP TO READ</div><div>' + Array.from(new Set(r.rules)).map((c) => { const ru = RULES.find((x) => x.n === ruleBase(c)); if (!ru) return ''; const part = ru.p.find((x) => x[0] === c); return '<button class="rulechip" data-rule="' + c + '" style="text-align:left;height:auto;padding:8px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%"><span>' + esc(citeLabel(c)) + ' · ' + esc(ru.t) + '</span>' + (part ? '<span style="font-weight:400;font-size:12.5px;color:var(--ink2);line-height:1.35">' + esc(part[2]) + '</span>' : '') + '</button>'; }).join('') + '</div>';
-    } else h += '<p class="sub">No risk of collision right now. Tideline keeps watching it.</p>';
+    } else h += '<p class="sub">No close pass predicted from the current AIS reports. Keep a lookout; reports may be incomplete.</p>';
   }
   h += '<div class="row-btns" style="margin-top:6px"><button class="btn ghost" data-act="close">Close</button></div><p class="disclaim">' + DISCLAIMER + '</p>';
   openSheet(h);
@@ -3364,6 +3405,7 @@ if (!S.fleet) { S.fleet = { active: 1, boats: [{ id: 1, boat: S.boat, set: {} }]
 S.captain = store.get('captain', { name: S.settings.skipper || '', photo: '', license: '', phone: '' });
 function saveFleet() { const cur = S.fleet.boats.find((x) => x.id === S.fleet.active); if (cur) { cur.boat = S.boat; if (S.maint) cur.maint = S.maint; cur.set = {}; BOAT_SET_KEYS.forEach((k) => { cur.set[k] = S.settings[k]; }); } try { store.set('fleet', S.fleet); } catch (e) { toast('Storage is full: try smaller boat photos.'); } }
 function switchBoat(id) {
+  equipmentEdit = null; rcOpen = false;
   saveFleet();
   const nb = S.fleet.boats.find((x) => x.id === id); if (!nb) return;
   S.fleet.active = id; S.boat = Object.assign({}, BOAT_DEFAULT, nb.boat || {}); Object.assign(S.settings, nb.set || {}); S.maint = Object.assign({ items: [], log: [], receipts: [] }, nb.maint || {}); saveMaint();
@@ -3391,8 +3433,28 @@ document.addEventListener('click', (e) => {
   const r = e.target.closest('[data-sufield]'); if (!r) return;
   const f = r.dataset.sufield;
   if (f === 'home') { openHomePort(); return; }
+  if (f === 'bAir') { openAirDraftEditor(); return; }
   boatEditing = true; renderBoat();
   setTimeout(() => { const el = $(f); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus(); el.classList.add('pulse'); setTimeout(() => el.classList.remove('pulse'), 1600); } }, 60);
+});
+function openAirDraftEditor() {
+  const input = $('bAir'), value = input ? input.value : S.boat.airDraftFt ? String(Math.round(ftToLen(S.boat.airDraftFt) * 100) / 100) : '';
+  const check = $('bAirOk'), verified = check ? check.checked : !!S.boat.airVerified;
+  openSheet('<h3>Air draft</h3><p class="sub">Height above the water to the highest point, including antennas and instruments. A model lookup supplies an estimate; confirm it for your actual rig.</p><div class="field"><label for="airDraftEdit">Air draft (' + lenUnit() + ')</label><input id="airDraftEdit" type="text" inputmode="decimal" value="' + esc(value) + '"></div><label class="air-ok"><input type="checkbox" id="airDraftVerified"' + (verified ? ' checked' : '') + '> Verified by measurement or the builder for my actual rig</label><div class="row-btns"><button class="btn primary" data-act="saveairdraft" data-boat="' + S.fleet.active + '">Save air draft</button><button class="btn ghost" data-act="close">Cancel</button></div>');
+  setTimeout(() => { const el = $('airDraftEdit'); if (el) el.focus(); }, 60);
+}
+sheet.addEventListener('input', (e) => { if (e.target.id === 'airDraftEdit' && $('airDraftVerified')) $('airDraftVerified').checked = false; });
+sheet.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act="saveairdraft"]'); if (!b) return;
+  if (String(S.fleet.active) !== b.dataset.boat) { toast('Boat changed. Reopen air draft for the correct boat.'); return; }
+  const raw = $('airDraftEdit').value.trim().replace(',', '.');
+  const value = /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : NaN;
+  if (!(value > 0) || !Number.isFinite(value)) { toast('Enter a positive air draft in ' + lenUnit()); $('airDraftEdit').focus(); return; }
+  S.boat.airDraftFt = lenToFt(value); S.boat.airVerified = $('airDraftVerified').checked;
+  if ($('bAir')) $('bAir').value = String(value);
+  if ($('bAirOk')) $('bAirOk').checked = S.boat.airVerified;
+  saveBoat(); closeSheet(); if (!boatEditing) renderBoat();
+  toast(S.boat.airVerified ? 'Air draft saved and verified.' : 'Air draft saved as an estimate. Verify it for your actual boat.', 5000);
 });
 function resizePhoto(file, maxPx, q) {
   return new Promise((resolve, reject) => {
@@ -3436,6 +3498,20 @@ function boatSummary() {
   if (b.anchorType) bits.push((ANCHORS[b.anchorType] || {}).name + (b.anchorLb ? ' ' + b.anchorLb + ' lb' : '') + ' anchor' + (b.rodeTotalFt ? ', ' + fmtLen(b.rodeTotalFt) + ' rode' : ''));
   return bits.join(' · ');
 }
+const OUTBOARD_MAKES = ['Yamaha', 'Mercury', 'Honda', 'Suzuki', 'Tohatsu', 'Evinrude', 'Johnson', 'Nissan', 'Force', 'British Seagull', 'Torqeedo', 'ePropulsion'];
+function outboardMakeChoice(make) {
+  const value = (make || '').trim();
+  return OUTBOARD_MAKES.find((name) => name.toLowerCase() === value.toLowerCase()) || (value ? 'other' : '');
+}
+function updateEngineMakeFields() {
+  const kind = $('bEngKind'), make = $('bEngMake'), pick = $('bEngManufacturer');
+  if (!kind || !make || !pick) return;
+  const outboard = kind.value === 'outboard';
+  $('bEngManufacturerField').hidden = !outboard;
+  $('bEngMakeField').hidden = outboard && pick.value !== 'other';
+  $('bEngMakeLabel').textContent = outboard ? 'Other manufacturer (optional)' : 'Engine make';
+  $('bShaftRow').hidden = !outboard;
+}
 function profileHtml() {
   const b = S.boat, st = S.settings;
   const photo = b.photo ? '<img src="' + b.photo + '" alt="Your boat" style="width:100%;max-height:200px;object-fit:cover;border-radius:12px;display:block">' :
@@ -3461,8 +3537,9 @@ function profileHtml() {
     '<div class="grid2">' + f('bDraft', 'Draft (' + lenUnit() + ')', L2(b.draftFt), 'number') + f('bAir', 'Air draft (' + lenUnit() + ')' + (st.boatType === 'sail' ? ', masthead and antennas' : ', highest point'), L2(b.airDraftFt), 'number') + '</div>' +
     '<label class="air-ok"><input type="checkbox" id="bAirOk"' + (b.airVerified ? ' checked' : '') + '> Air draft verified (I measured it, or it is from the builder for my rig)</label>' +
     '<div class="grid2">' + sel('bEngKind', 'Engine', b.engineKind, [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive'], ['pod', 'Pod drive (IPS etc.)'], ['none', 'No engine']]) + f('bHp', 'Horsepower', b.engineHp, 'number') + '</div>' +
-    (b.engineKind === 'outboard' || !b.engineKind ? '<div class="grid2">' + sel('bShaft', 'Outboard shaft length', b.shaft || '', [['', 'Not sure'], ['short', 'Short (15 in)'], ['long', 'Long (20 in)'], ['xl', 'Extra long (25 in)'], ['ul', 'Ultra long (30 in)']]) + '<p class="hint" style="align-self:end">Measured from the top of the mounting bracket to the anti-ventilation plate. It decides which replacement or spare fits your transom.</p></div>' : '') +
-    '<div class="grid2">' + f('bEngMake', 'Engine make', b.engineMake) + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
+    '<div id="bShaftRow" class="grid2"' + (b.engineKind && b.engineKind !== 'outboard' ? ' hidden' : '') + '>' + sel('bShaft', 'Outboard shaft length', b.shaft || '', [['', 'Not sure'], ['short', 'Short (15 in)'], ['long', 'Long (20 in)'], ['xl', 'Extra long (25 in)'], ['ul', 'Ultra long (30 in)']]) + '<p class="hint" style="align-self:end">Measured from the top of the mounting bracket to the anti-ventilation plate. It decides which replacement or spare fits your transom.</p></div>' +
+    '<div id="bEngManufacturerField"' + (b.engineKind && b.engineKind !== 'outboard' ? ' hidden' : '') + '>' + sel('bEngManufacturer', 'Outboard manufacturer', outboardMakeChoice(b.engineMake), [['', 'Choose / Not sure'], ...OUTBOARD_MAKES.map((name) => [name, name]), ['other', 'Other — enter a name']]) + '</div>' +
+    '<div class="grid2"><div class="field" id="bEngMakeField"' + ((!b.engineKind || b.engineKind === 'outboard') && outboardMakeChoice(b.engineMake) !== 'other' ? ' hidden' : '') + '><label id="bEngMakeLabel" for="bEngMake">' + ((!b.engineKind || b.engineKind === 'outboard') ? 'Other manufacturer (optional)' : 'Engine make') + '</label><input id="bEngMake" type="text" value="' + esc(b.engineMake || '') + '" placeholder="Enter manufacturer"></div>' + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
     '<div class="grid2">' + f('bEngYear', 'Engine year', b.engineYear, 'number') + f('bEngSerial', 'Engine serial number', b.engineSerial) + '</div>' +
     '<div class="grid2">' + f('bHull', 'Hull ID (HIN)', b.hin) + f('bReg', 'Registration or documentation no.', b.reg) + '</div>' +
     '<div class="grid2">' + f('bHours', 'Engine hours now', b.engineHours, 'number') + sel('bIcon', 'Chart icon', st.iconStyle, [['boat', 'Boat outline'], ['arrow', 'Arrow']]) + '</div>' +
@@ -3738,6 +3815,52 @@ document.addEventListener('click', async (e) => {
     download('receipts-' + (S.settings.boatName || 'boat').replace(/\W+/g, '-').toLowerCase() + '.csv', rows.map((x) => x.map((v) => '"' + String(v || '').replace(/"/g, '""') + '"').join(',')).join('\n'));
   }
 });
+// Equipment belongs to the active boat's maintenance record, alongside receipts.
+const EQ_KINDS = [['sail', 'Sails'], ['fishing', 'Fishing gear'], ['dive', 'Dive gear'], ['safety', 'Safety equipment'], ['other', 'Other']];
+let equipmentEdit = null;
+function equipmentHtml() {
+  const items = S.maint.equipment || [];
+  let h = '<div class="card"><h4>Equipment register</h4><p class="hint">Sails, fishing, dive and other gear for ' + esc(S.settings.boatName || 'this boat') + '. Record dimensions with units, serial numbers and service dates.</p>';
+  if (equipmentEdit !== null) {
+    const q = items.find((x) => x.id === equipmentEdit) || {};
+    const field = (id, label, value, type = 'text', placeholder = '') => '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + type + '" value="' + esc(value || '') + '" placeholder="' + placeholder + '"></div>';
+    h += '<div class="field"><label for="eqKind">Category</label><select id="eqKind">' + EQ_KINDS.map(([v,l]) => '<option value="' + v + '"' + (q.kind === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>';
+    h += field('eqName', 'Equipment name', q.name, 'text', 'Mainsail, fishing rod, dive regulator…') + '<div class="grid2">' + field('eqMaker', 'Manufacturer', q.maker) + field('eqModel', 'Model / serial number', q.model) + '</div>';
+    h += field('eqSpecs', 'Dimensions and specifications (include units)', q.specs, 'text', 'Sail: luff 32 ft, leech 34 ft, foot 11 ft; cloth…') + '<div class="grid2">' + field('eqBought', 'Purchase date', q.bought, 'date') + field('eqNext', 'Next inspection / service due', q.next, 'date') + '</div>' + field('eqNotes', 'Notes / storage location', q.notes);
+    h += '<div class="field"><label for="eqReceipt">Related receipt (optional)</label><select id="eqReceipt"><option value="">None</option>' + (S.maint.receipts || []).map((r) => '<option value="' + r.id + '"' + (String(q.receipt || '') === String(r.id) ? ' selected' : '') + '>' + esc(r.item || 'Purchase') + '</option>').join('') + '</select></div><div class="row-btns"><button class="btn primary" data-act="eqsave">Save equipment</button><button class="btn ghost" data-act="eqcancel">Cancel</button></div>';
+  } else h += '<button class="btn" data-act="eqadd">Add equipment</button>';
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  h += items.map((q) => '<details style="margin-top:12px"><summary><b>' + esc(q.name) + '</b> · ' + esc((EQ_KINDS.find(([v]) => v === q.kind) || ['', 'Other'])[1]) + (q.next ? ' · ' + (q.next <= today ? 'Service due ' : 'Service ') + esc(q.next) : '') + '</summary><p class="sub">' + [q.maker, q.model, q.specs, q.bought ? 'Purchased ' + q.bought : '', q.notes].filter(Boolean).map(esc).join('<br>') + '</p>' + ((S.maint.receipts || []).some((r) => String(r.id) === String(q.receipt)) ? '<p class="hint">Receipt: ' + esc(S.maint.receipts.find((r) => String(r.id) === String(q.receipt)).item || 'Purchase') + '</p>' : '') + '<div class="row-btns"><button class="btn small" data-act="eqedit" data-id="' + q.id + '">Edit</button><button class="btn small" data-act="eqservice" data-id="' + q.id + '">Log service</button><button class="btn small ghost" data-act="eqdelete" data-id="' + q.id + '">Remove</button></div>' + (q.log || []).slice().reverse().map((l) => '<p class="hint">' + esc(l.date) + ' · ' + esc(l.note) + '</p>').join('') + '</details>').join('');
+  return h + '</div>';
+}
+$('panelBoat').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b || !b.dataset.act.startsWith('eq')) return;
+  const items = S.maint.equipment || (S.maint.equipment = []), q = items.find((x) => String(x.id) === b.dataset.id), act = b.dataset.act;
+  if (act === 'eqadd') equipmentEdit = 0;
+  if (act === 'eqedit' && q) equipmentEdit = q.id;
+  if (act === 'eqcancel') equipmentEdit = null;
+  if (act === 'eqsave') {
+    const name = $('eqName').value.trim(); if (!name) { toast('Enter an equipment name'); return; }
+    const data = { name, kind: $('eqKind').value, maker: $('eqMaker').value.trim(), model: $('eqModel').value.trim(), specs: $('eqSpecs').value.trim(), bought: $('eqBought').value, next: $('eqNext').value, notes: $('eqNotes').value.trim(), receipt: $('eqReceipt').value };
+    const old = items.find((x) => x.id === equipmentEdit);
+    if (old) Object.assign(old, data); else items.push(Object.assign({ id: Date.now(), log: [] }, data));
+    saveMaint(); equipmentEdit = null;
+  }
+  if (act === 'eqdelete' && q) { if (!armed(b, 'Tap again')) return; S.maint.equipment = items.filter((x) => x !== q); saveMaint(); }
+  if (act === 'eqservice' && q) {
+    openSheet('<h3>Service: ' + esc(q.name) + '</h3><div class="field"><label for="eqServiceNote">What was done</label><input id="eqServiceNote" placeholder="Inspection, repair, cleaning…"></div><div class="grid2"><div class="field"><label for="eqServiceDate">Service date</label><input type="date" id="eqServiceDate" value="' + new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) + '"></div><div class="field"><label for="eqServiceNext">Next due (optional)</label><input type="date" id="eqServiceNext"></div></div><button class="btn primary" data-act="eqservsave" data-id="' + q.id + '" data-boat="' + S.fleet.active + '">Save service</button>'); return;
+  }
+  renderBoat();
+});
+sheet.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act="eqservsave"]'); if (!b) return;
+  if (String(S.fleet.active) !== b.dataset.boat) { toast('Boat changed. Reopen service from the correct boat.'); return; }
+  const q = (S.maint.equipment || []).find((x) => String(x.id) === b.dataset.id);
+  const note = $('eqServiceNote').value.trim(), date = $('eqServiceDate').value;
+  if (!q || !note || !date) { toast('Enter the service and date'); return; }
+  (q.log || (q.log = [])).push({ date, note }); q.next = $('eqServiceNext').value;
+  saveMaint(); closeSheet(); renderBoat(); toast('Service saved for ' + q.name);
+});
 // battery bank: any number of batteries, each with its type, purchase date and its own dated voltage log
 const BATT_KINDS = [['lead', 'Flooded lead-acid'], ['agm', 'AGM'], ['gel', 'Gel'], ['lifepo4', 'Lithium (LiFePO4)']];
 function batteries() {
@@ -3749,35 +3872,67 @@ function batteries() {
   return b.batteries;
 }
 function battLife(kind) { return kind === 'lifepo4' ? [8, 12] : kind === 'agm' ? [4, 7] : kind === 'gel' ? [4, 7] : [3, 6]; }
+function batteryReadings(bt) { return (bt.log || []).slice().sort((a, b) => a.t - b.t); }
+function batteryReminder(bt, now = Date.now()) {
+  const logs = batteryReadings(bt), last = logs[logs.length - 1];
+  const months = bt.checkMonths == null ? 6 : +bt.checkMonths;
+  if (!months) return { due: false, text: 'Test reminders off' };
+  if (!last) return { due: true, text: 'Baseline test due · Save your first reading' };
+  const date = new Date(last.t), day = date.getDate();
+  date.setDate(1); date.setMonth(date.getMonth() + months);
+  date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()));
+  return { due: now >= date.getTime(), text: (now >= date.getTime() ? 'Battery check overdue · ' : 'Next battery check · ') + date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) };
+}
+function batteryTrend(bt) {
+  // Compare readings from the same test condition and chemistry, not load against rest.
+  const logs = batteryReadings(bt), last = logs[logs.length - 1];
+  if (!last) return '';
+  if (last.kind && last.kind !== bt.kind) return '';
+  const comparable = logs.filter((r) => (r.cond || 'rest') === (last.cond || 'rest') && (!r.kind || r.kind === bt.kind));
+  if (comparable.length < 2) return '';
+  const first = comparable[0], change = last.v - first.v;
+  return first.v.toFixed(2) + ' → ' + last.v.toFixed(2) + ' V · ' + Math.abs(change).toFixed(2) + ' V ' + (change < 0 ? 'lower' : change > 0 ? 'higher' : 'change') + ' since ' + new Date(first.t).toLocaleDateString() + '. Same test condition; charge and temperature can still differ.';
+}
 function batteryHtml() {
   const list = batteries();
-  let h = '<div class="card" style="padding:4px 14px 12px"><h4>Batteries · ' + list.length + '</h4><p class="hint" style="margin:-2px 0 6px">Test resting voltage after 2+ hours with nothing charging or running. Each reading is saved with the date.</p>';
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  let h = '<div class="card" style="padding:4px 14px 12px"><h4>Batteries · ' + list.length + '</h4><p class="hint" style="margin:-2px 0 6px">For nominal 12 V batteries. Test with charging and loads off after the rest period in your manual. Save the date and condition to compare readings. Voltage alone does not prove battery health.</p>';
   list.forEach((bt) => {
-    const bd = bt.bought ? new Date(+bt.bought.slice(0, 4), +bt.bought.slice(5, 7) - 1, 1) : null, age = bd ? (Date.now() - bd) / (365.25 * 86400000) : null, [l0, l1] = battLife(bt.kind), last = (bt.log || [])[bt.log.length - 1];
-    const ageTxt = age != null && isFinite(age) ? 'Bought ' + bd.toLocaleDateString([], { month: 'short', year: 'numeric' }) + ' · ' + age.toFixed(1) + ' years old · ' + (age >= l1 ? '<b class="warn-t">past the usual ' + l0 + '–' + l1 + ' years: plan to replace</b>' : age >= l0 ? '<b class="warn-t">in its last years (' + l0 + '–' + l1 + ' typical)</b>' : 'typically lasts ' + l0 + '–' + l1 + ' years') : 'Add the purchase month to track its age';
-    const bad = last && last.replace;
-    h += '<div class="batt' + (bad ? ' bad' : '') + '">' + (bad ? '<div class="batt-flag">Needs replacing · tested ' + last.v.toFixed(1) + ' V ' + (last.cond === 'charged' ? 'after charging' : last.cond === 'load' ? 'under load' : 'at rest') + ' on ' + new Date(last.t).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '</div>' : '') +
+    const logs = batteryReadings(bt), last = logs[logs.length - 1], reminder = batteryReminder(bt), trend = batteryTrend(bt);
+    const bd = bt.bought ? new Date(+bt.bought.slice(0, 4), +bt.bought.slice(5, 7) - 1, 1) : null, age = bd ? (Date.now() - bd) / (365.25 * 86400000) : null;
+    const ageTxt = age != null && isFinite(age) ? 'Bought ' + bd.toLocaleDateString([], { month: 'short', year: 'numeric' }) + ' · ' + Math.max(0, age).toFixed(1) + ' years old' + (age >= 2 ? '<br>Two-year check-in: inspect connections and review test history. Age alone is not a reason to replace.' : '') : 'Add the purchase month to track its age';
+    const bad = last && last.v < 11 && (last.cond || 'rest') !== 'load';
+    h += '<div class="batt' + (bad ? ' bad' : '') + '">' + (bad ? '<div class="batt-flag">Very low recorded voltage · Check charging, connections and battery condition before relying on it.</div>' : '') +
       '<div class="batt-top"><input class="batt-name" data-bname="' + bt.id + '" value="' + esc(bt.name) + '" aria-label="Battery name"><select data-bkind="' + bt.id + '" aria-label="Battery type">' + BATT_KINDS.map(([v, l]) => '<option value="' + v + '"' + (bt.kind === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' +
       '<div class="batt-row"><label>Purchased <input type="month" data-bbought="' + bt.id + '" value="' + esc(bt.bought || '') + '"></label><div class="batt-in"><select data-bcond="' + bt.id + '" aria-label="When it was tested"><option value="rest">At rest</option><option value="charged">After charging</option><option value="load">Under load</option></select><input type="text" inputmode="decimal" data-bv="' + bt.id + '" placeholder="' + (bt.kind === 'lifepo4' ? '13.3' : '12.6') + '" aria-label="Voltage for ' + esc(bt.name) + '"><span class="u">V</span><button type="button" class="btn small" data-act="battsave" data-id="' + bt.id + '">Save</button></div></div>' +
+      '<div class="grid2"><div class="field"><label>Test date<input type="date" data-bdate="' + bt.id + '" value="' + today + '" max="' + today + '"></label></div><div class="field"><label>Remind me to test<select data-binterval="' + bt.id + '">' + [[1, 'Monthly'], [3, 'Every 3 months'], [6, 'Every 6 months'], [12, 'Yearly'], [0, 'Off']].map(([m, label]) => '<option value="' + m + '"' + ((bt.checkMonths == null ? 6 : +bt.checkMonths) === m ? ' selected' : '') + '>' + label + '</option>').join('') + '</select></label></div></div>' +
+      '<div class="field"><label>Test note (optional)<input type="text" data-bnote="' + bt.id + '" placeholder="Rested overnight, fully charged, temperature…"></label></div>' +
+      '<p class="hint' + (reminder.due ? ' warn-t' : '') + '">' + esc(reminder.text) + '</p>' +
       '<div class="hint batt-out" data-bout="' + bt.id + '">' + ageTxt + (last ? '<br>Last: ' + last.v.toFixed(2) + ' V on ' + new Date(last.t).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + esc(last.note || '') : '') + '</div>' +
-      logList(bt.log, (r) => r.v.toFixed(2) + ' V', (r) => r.note, 'battdel" data-id="' + bt.id) +
+      (trend ? '<p class="hint">' + esc(trend) + '</p>' : '') +
+      (logs.length ? '<details><summary>Test history · ' + logs.length + ' readings</summary>' + logList(logs, (r) => r.v.toFixed(2) + ' V', (r) => [({ rest: 'At rest', charged: 'After charging', load: 'Under load' }[r.cond || 'rest']), r.note, r.userNote].filter(Boolean).join(' · '), 'battdel" data-id="' + bt.id, true) + '</details>' : '') +
       (list.length > 1 ? '<button type="button" class="link-btn" data-act="battrm" data-id="' + bt.id + '">Remove this battery</button>' : '') + '</div>';
   });
   return h + '<button type="button" class="btn" style="width:100%;margin-top:8px" data-act="battadd">Add a battery</button></div>';
 }
 // a dated record of readings, newest first, so you can see a battery or engine trend over the season
-function logList(arr, val, sub, delAct) {
+function logList(arr, val, sub, delAct, showAll = false) {
   if (!arr || !arr.length) return '';
-  return '<div class="rlog"><div class="rlog-h">Recorded</div>' + arr.slice().reverse().slice(0, 12).map((r) => '<div class="rlog-r"><span class="tnum">' + new Date(r.t).toLocaleDateString([], { month: 'short', day: 'numeric', year: new Date(r.t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) + ' ' + new Date(r.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</span><b class="tnum">' + esc(val(r)) + '</b><em>' + esc(sub(r) || '') + '</em><button type="button" class="rlog-x" data-act="' + delAct + '" data-t="' + r.t + '" aria-label="Delete this reading">×</button></div>').join('') + '</div>';
+  return '<div class="rlog"><div class="rlog-h">Recorded</div>' + arr.slice().reverse().slice(0, showAll ? arr.length : 12).map((r) => '<div class="rlog-r"><span class="tnum">' + new Date(r.t).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + new Date(r.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</span><b class="tnum">' + esc(val(r)) + '</b><em>' + esc(sub(r) || '') + '</em><button type="button" class="rlog-x" data-act="' + delAct + '" data-t="' + r.t + '" aria-label="Delete this reading">×</button></div>').join('') + '</div>';
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b || !$('panelBoat').contains(b)) return;
   const bt = b.dataset.id && batteries().find((x) => x.id === b.dataset.id);
   if (b.dataset.act === 'battsave' && bt) {
-    const inp = document.querySelector('[data-bv="' + bt.id + '"]'), v = parseFloat(((inp && inp.value) || '').replace(',', '.'));
+    const inp = document.querySelector('[data-bv="' + bt.id + '"]'), v = Number(((inp && inp.value) || '').trim().replace(',', '.'));
     if (!(v > 5 && v < 20)) { toast('Enter the voltage you measured, such as 12.6'); return; }
     const cnd = (document.querySelector('[data-bcond="' + bt.id + '"]') || {}).value || 'rest', vd = batteryVerdict(v, bt.kind, cnd) || '';
-    bt.log = (bt.log || []).concat([{ t: Date.now(), v, cond: cnd, note: ({ rest: 'At rest', charged: 'After charging', load: 'Under load' }[cnd]) + ': ' + vd.split('.')[0], replace: /replace/i.test(vd) }]); saveBoat(); renderBoat(); toast(bt.name + ': ' + v.toFixed(2) + ' V saved');
+    const rawDate = (document.querySelector('[data-bdate="' + bt.id + '"]') || {}).value || '', parts = rawDate.split('-').map(Number), date = new Date(parts[0], parts[1] - 1, parts[2], 12);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || !isFinite(date.getTime()) || date.getFullYear() !== parts[0] || date.getMonth() !== parts[1] - 1 || date.getDate() !== parts[2] || date.toDateString() !== new Date().toDateString() && date.getTime() > Date.now()) { toast('Choose a valid test date, today or earlier'); return; }
+    let t = date.toDateString() === new Date().toDateString() ? Date.now() : date.getTime();
+    while ((bt.log || []).some((r) => r.t === t)) t++;
+    const userNote = ((document.querySelector('[data-bnote="' + bt.id + '"]') || {}).value || '').trim();
+    bt.log = (bt.log || []).concat([{ t, recordedAt: Date.now(), v, cond: cnd, kind: bt.kind, note: vd, userNote }]); saveBoat(); renderBoat(); toast(bt.name + ': ' + v.toFixed(2) + ' V saved');
   }
   if (b.dataset.act === 'battdel' && bt) { if (!armed(b, 'Tap again')) return; bt.log = (bt.log || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
   if (b.dataset.act === 'battadd') { const L3 = batteries(), n = L3.length + 1; L3.push({ id: 'b' + Date.now(), name: n === 2 ? 'Starting' : 'Battery ' + n, kind: L3[0] ? L3[0].kind : 'lead', bought: '', log: [] }); saveBoat(); renderBoat(); }
@@ -3791,42 +3946,33 @@ function logHours(v) { // one entry per day: the latest reading that day
 function batteryVerdict(v, kind, cond) {
   const k = kind || S.boat.batteryKind;
   if (!(v > 5 && v < 20)) return '';
-  if (cond === 'charged') { // after a full charge and an hour or two of rest, a healthy battery should read near full
-    const full = k === 'lifepo4' ? 13.3 : k === 'gel' ? 12.85 : k === 'agm' ? 12.8 : 12.65;
-    if (v >= full - 0.1) return 'Holding a full charge. Healthy.';
-    if (v >= full - 0.4) return 'Not reaching full after charging. Check the charger and connections, and watch it.';
-    return 'Not holding a charge after charging: replace it soon. A battery this low after charging can fail without warning.';
-  }
-  if (cond === 'load') return v >= 12.0 ? 'Under load: holding up.' : v >= 10.5 ? 'Under load: sagging. Re-test at rest.' : 'Under load: collapsing below 10.5 V. Replace it.';
+  if (cond === 'load') return 'Under-load reading: compare only with the same load and test duration. A resting or manufacturer-specified load test is needed to assess condition.';
   if (k === 'lifepo4') {
-    if (v >= 13.3) return 'About full.'; if (v >= 13.1) return 'Roughly 50 to 90 percent.'; if (v >= 12.9) return 'Low, roughly 20 percent. Charge soon.';
-    return 'Very low for lithium. Charge now and check the battery management system for a cut-off.';
+    return 'Lithium voltage alone cannot reliably show charge or health. Check the BMS or battery monitor and your manufacturer’s guidance.';
   }
-  const t = k === 'gel' ? [12.85, 12.6, 12.4, 12.2] : k === 'agm' ? [12.8, 12.6, 12.4, 12.2] : [12.65, 12.45, 12.25, 12.05];
-  if (v >= t[0]) return 'About full.';
-  if (v >= t[1]) return 'About 75 percent. Fine.';
-  if (v >= t[2]) return 'About 50 percent. Recharge soon; regularly going below half shortens its life.';
-  if (v >= t[3]) return 'About 25 percent. Recharge now.';
-  if (v >= 11.0) return 'Deeply discharged. Recharge fully, then re-test after resting. If it won\'t hold above 12.4 V, plan to replace it.';
-  return 'Below 11 volts: likely a failed cell or a battery that has been flat for a long time. Have it load-tested and plan to replace it.';
+  if (v < 11) return 'Very low for a nominal 12 V lead-acid battery. Check the reading, charging and connections; arrange a proper battery test before relying on it. A failed test may mean replacement.';
+  if (v < 12.4) return (cond === 'charged' ? 'Low reading after charging. Check the charger and connections, then ' : 'Low resting reading. ') + 'charge and retest after the rest period in your manual. Repeated low readings warrant a capacity or load test.';
+  return 'Recorded. Compare with your manufacturer’s resting-voltage table. This reading alone does not confirm capacity or health.';
 }
 
 /* ---------- Boat tab ---------- */
 function setupChecklist() { // the few facts every safety check depends on
-  const b = S.boat, items = [['Make and model', !!(b.make && b.model), 'bMake'], ['Draft', !!b.draftFt, 'bDraft'], ['Air draft, verified', !!(b.airDraftFt && b.airVerified), 'bAir'], ['Beam', !!b.beamFt, 'bBeam'], ['Home port', !!S.settings.homePort, 'home']];
+  const b = S.boat, items = [['Make and model', !!(b.make && b.model), 'bMake'], ['Draft', !!b.draftFt, 'bDraft'], [b.airDraftFt ? (b.airVerified ? 'Air draft, verified' : 'Air draft entered · needs verification') : 'Air draft', !!(b.airDraftFt && b.airVerified), 'bAir'], ['Beam', !!b.beamFt, 'bBeam'], ['Home port', !!S.settings.homePort, 'home']];
   const left = items.filter((x) => !x[1]).length; if (!left) return '';
   return '<div class="card setup"><h4>Finish setting up · ' + left + ' left</h4><p class="hint" style="margin:-2px 0 8px">Depth warnings, water routes and bridge checks use these. Pick your make and model below and most fill in for you.</p>' +
-    items.map(([l, ok, f]) => '<button type="button" class="su-row' + (ok ? ' ok' : '') + '" data-sufield="' + f + '"><i>' + (ok ? '✓' : '') + '</i><span>' + l + '</span><em>' + (ok ? 'Change' : 'Add') + ' ›</em></button>').join('') + '</div>';
+    items.map(([l, ok, f]) => '<button type="button" class="su-row' + (ok ? ' ok' : '') + '" data-sufield="' + f + '"><i>' + (ok ? '✓' : '') + '</i><span>' + l + '</span><em>' + (ok ? 'Change' : f === 'bAir' && b.airDraftFt ? 'Verify' : 'Add') + ' ›</em></button>').join('') + '</div>';
 }
 function renderBoat() {
   setTimeout(() => { if (boatEditing && $('bDbNote') && (($('bMake') || {}).value || ($('bModel') || {}).value)) boatFinderShow(); }, 0);
   const p = $('panelBoat');
   const due = S.maint.items.filter((i) => ['over', 'soon'].includes(dueInfo(i).cls)).length;
-  $('maintDot').hidden = !due;
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const gearDue = (S.maint.equipment || []).some((q) => q.next && q.next <= today);
+  $('maintDot').hidden = !due && !gearDue && !batteries().some((bt) => batteryReminder(bt).due);
   p.innerHTML = '<div class="p-head"><div><div class="eyebrow">Boat</div><h2>' + esc(S.settings.boatName || 'Your boat') + '</h2></div><button class="btn small" data-act="appsettings">App settings</button></div>' + setupChecklist() +
     fleetHtml() + profileHtml() + lightsCoachHtml() +
     '<div class="card" style="padding:12px 14px"><div class="li" style="border:0;padding:0"><div class="li-main"><b>What am I looking at?</b><span>Identify a vessel from its lights or shapes, cross-checked with AIS</span></div><button class="btn small primary" data-act="identify">Identify</button></div></div>' +
-    maintHtml() + receiptsHtml() + batteryHtml() +
+    maintHtml() + equipmentHtml() + receiptsHtml() + batteryHtml() +
     '<p class="hint">Coming in the app-store version: photo recognition of lights, engine fault-code lookup, and live battery and engine data from onboard monitors.</p>';
 }
 $('panelBoat').addEventListener('click', async (e) => {
@@ -3851,8 +3997,19 @@ $('panelBoat').addEventListener('click', async (e) => {
   if (act === 'msave') { const t = $('mText').value.trim(); if (!t) return; S.maint.log.push({ id: Date.now(), date: Date.parse($('mDate').value) || Date.now(), hours: S.boat.engineHours || 0, text: t, cost: $('mCost').value }); saveMaint(); renderBoat(); toast('Saved to the maintenance log'); }
 });
 $('panelBoat').addEventListener('change', async (e) => {
-  const bk = e.target.closest('[data-bkind]'), bb = e.target.closest('[data-bbought]');
-  if (bk || bb) { const bt = batteries().find((x) => x.id === (bk ? bk.dataset.bkind : bb.dataset.bbought)); if (bt) { if (bk) bt.kind = bk.value; else bt.bought = bb.value; saveBoat(); renderBoat(); } return; }
+  if (e.target.id === 'bEngKind') {
+    $('bEngManufacturer').value = outboardMakeChoice($('bEngMake').value);
+    updateEngineMakeFields();
+  }
+  if (e.target.id === 'bEngManufacturer') {
+    const make = $('bEngMake');
+    if (e.target.value === 'other') make.value = make.dataset.customMake || (outboardMakeChoice(make.value) === 'other' ? make.value : '');
+    else { if (outboardMakeChoice(make.value) === 'other') make.dataset.customMake = make.value; make.value = e.target.value; }
+    updateEngineMakeFields();
+    if (e.target.value === 'other') make.focus();
+  }
+  const bk = e.target.closest('[data-bkind]'), bb = e.target.closest('[data-bbought]'), bi = e.target.closest('[data-binterval]');
+  if (bk || bb || bi) { const bt = batteries().find((x) => x.id === (bk ? bk.dataset.bkind : bb ? bb.dataset.bbought : bi.dataset.binterval)); if (bt) { if (bk) bt.kind = bk.value; else if (bb) bt.bought = bb.value; else bt.checkMonths = +bi.value; saveBoat(); renderBoat(); } return; }
   if (e.target.id === 'capPhoto' && e.target.files[0]) { try { S.captain.photo = await resizePhoto(e.target.files[0]); store.set('captain', S.captain); renderBoat(); } catch (err) { toast('Could not read that photo'); } }
   if (e.target.id === 'capName' || e.target.id === 'capLic') { S.captain.name = $('capName').value.trim(); S.captain.license = $('capLic').value.trim(); S.settings.skipper = S.captain.name.split(' ')[0] || S.settings.skipper; saveSettings(); store.set('captain', S.captain); }
   if (e.target.id === 'boatPhoto' && e.target.files[0]) {
@@ -3898,10 +4055,11 @@ function boatFinderShow() {
 function boatFinderUse() {
   const d = BF.d; if (!d) return; const V = d.variants || {};
   const rig = (V.rig || []).find((x) => x.id === BF.rig) || (V.rig || [])[0], keel = (V.keel || []).find((x) => x.id === BF.keel) || (V.keel || [])[0];
-  const L3 = (ft) => String(Math.round(ftToLen(ft) * 10) / 10), put = (id, v) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('pulse'); setTimeout(() => el.classList.remove('pulse'), 1400); } };
+  const L3 = (ft) => ft == null ? null : String(Math.round(ftToLen(ft) * 10) / 10), put = (id, v) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('pulse'); setTimeout(() => el.classList.remove('pulse'), 1400); } };
   put('bLen', L3(d.loa)); put('bLwl', L3(d.lwl)); put('bBeam', L3(d.beam)); put('bDraft', L3(keel ? keel.draft : d.draft)); put('bDisp', d.disp); put('bAir', L3(rig ? rig.air : d.air));
   const v = $('bAirOk'); if (v) v.checked = false;
-  toast('Filled in. Check each number against your boat, then tap Save.', 4000);
+  const air = $('bAir'); if (air && air.value) air.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  toast('Numbers filled in. Air draft is an estimate: check it, tick Verified only when confirmed, then tap Save.', 6000);
 }
 $('panelBoat').addEventListener('change', (e) => { if (e.target.id === 'bMake' || e.target.id === 'bModel') boatFinderShow(); });
 $('panelBoat').addEventListener('input', (e) => { if (e.target.id === 'bMake' || e.target.id === 'bModel') { clearTimeout(BF.t); BF.t = setTimeout(boatFinderShow, 500); } });
@@ -3910,8 +4068,10 @@ $('panelBoat').addEventListener('pointerdown', (e) => { // pointerdown, so leavi
   if (e.target.closest('[data-act="bfuse"]')) { e.preventDefault(); boatFinderUse(); }
 });
 $('panelBoat').addEventListener('click', (e) => {
+  if (e.detail === 0 && e.target.closest('[data-act="bfuse"]')) boatFinderUse();
 });
 $('panelBoat').addEventListener('input', (e) => {
+  if (e.target.id === 'bAir' && $('bAirOk')) $('bAirOk').checked = false;
   const bvi = e.target.closest && e.target.closest('[data-bv]');
   if (bvi) { const bt = batteries().find((x) => x.id === bvi.dataset.bv), o = document.querySelector('[data-bout="' + bvi.dataset.bv + '"]'), v = parseFloat(bvi.value.replace(',', '.')); if (o && bt && v > 5) o.textContent = batteryVerdict(v, bt.kind, (document.querySelector('[data-bcond="' + bt.id + '"]') || {}).value) || ''; }
   const bn = e.target.closest && e.target.closest('[data-bname]');
@@ -4111,7 +4271,7 @@ let srchSugList = [], srchSugSeq = 0;
 $('searchInput').addEventListener('input', (e) => {
   clearTimeout(searchDebounce); const q = e.target.value.trim(), box = $('searchSugs');
   if (q.length < 2) { box.hidden = true; return; }
-  searchDebounce = setTimeout(async () => { const seq = ++srchSugSeq; const list = await suggestPlaces(q); if (seq !== srchSugSeq) return; srchSugList = list; box.hidden = false; box.innerHTML = placeSugHtml(list, 'data-ssug') + '<button type="button" class="sug all" data-ssugall="1"><b>Search everything for “' + esc(q) + '”</b><span>Marinas, marks and places within 40 nm</span></button>'; }, 250);
+  searchDebounce = setTimeout(async () => { const seq = ++srchSugSeq; const list = await suggestPlaces(q); if (seq !== srchSugSeq) return; srchSugList = list; box.hidden = false; box.innerHTML = placeSugHtml(list, 'data-ssug') + '<button type="button" class="sug all" data-ssugall="1"><b>Search everything for “' + esc(q) + '”</b><span>Worldwide destinations · nearby marine facilities</span></button>'; }, 250);
 });
 $('searchSugs').addEventListener('click', (e) => {
   const a = e.target.closest('[data-ssugall]'); if (a) { $('searchSugs').hidden = true; textSearch($('searchInput').value.trim()); return; }
@@ -4757,9 +4917,18 @@ function depthGauge() {
     'NOAA chart ' + Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() + (tn ? ' ' + (tide >= 0 ? '+' : '') + tide.toFixed(1) + ' tide' : '') + ' · not a sounder', bad ? 'g-alarm' : '');
 }
 /* ---------- weather warnings from the National Weather Service: tornado, special marine, thunderstorm, gale and small craft ---------- */
-const ALR = { list: [], at: 0, seen: new Set(store.get('alrSeen', [])), hide: new Set(), busy: false };
+const ALR = { list: [], at: 0, seen: new Set(store.get('alrSeen', [])), hide: new Set(store.get('alrHidden', [])), read: new Set(store.get('alrRead', [])), busy: false };
 const ALR_LOUD = /tornado|special marine|severe thunderstorm|hurricane|tropical storm|storm warning|gale warning|waterspout|tsunami|extreme wind/i;
 function alrClass(a) { return /warning/i.test(a.event) ? 'warn' : /watch/i.test(a.event) ? 'watch' : 'adv'; }
+// A changed bulletin is new even when NWS retains the same alert identifier.
+function alertKey(a) {
+  const text = JSON.stringify([a.id, a.sent, a.event, a.severity, a.urgency, a.certainty, a.headline, a.description, a.instruction, a.ends, a.expires]);
+  let hash = 2166136261; for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  return String(a.id || 'alert') + ':' + (hash >>> 0).toString(16);
+}
+function saveAlertState() {
+  store.set('alrRead', [...ALR.read].slice(-160)); store.set('alrHidden', [...ALR.hide].slice(-160));
+}
 async function checkAlerts() {
   const c = S.fix || refPos(); if (!c || ALR.busy) return;
   if (!(c.lat > 17 && c.lat < 72 && c.lon < -60 && c.lon > -180)) { ALR.list = []; renderAlertBar(); return; } // NWS covers US waters
@@ -4768,24 +4937,41 @@ async function checkAlerts() {
     const j = await fetchT('https://api.weather.gov/alerts/active?point=' + c.lat.toFixed(4) + ',' + c.lon.toFixed(4), 15000).then((r) => r.json());
     ALR.list = (j.features || []).map((f) => f.properties).filter((p) => p && p.status === 'Actual' && p.event).sort((a, b) => ({ warn: 0, watch: 1, adv: 2 }[alrClass(a)] - { warn: 0, watch: 1, adv: 2 }[alrClass(b)]));
     ALR.at = Date.now();
-    ALR.list.forEach((a) => { if (!ALR.seen.has(a.id)) { ALR.seen.add(a.id); if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the red bar for details', 8000); } } });
+    ALR.list.forEach((a) => { if (!ALR.seen.has(alertKey(a))) { ALR.seen.add(alertKey(a)); if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the red bar for details', 8000); } } });
     store.set('alrSeen', [...ALR.seen].slice(-80));
   } catch (e) { /* offline or outside NWS coverage */ }
   ALR.busy = false; renderAlertBar();
 }
+function dismissWeatherAlert(key) {
+  ALR.hide.add(key); ALR.read.add(key); saveAlertState(); renderAlertBar();
+}
 function renderAlertBar() {
-  let el = $('alertBar'); if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; el.className = 'alert-bar'; $('app').appendChild(el); el.addEventListener('click', (e) => { const x = e.target.closest('[data-abx]'); if (x) { e.stopPropagation(); ALR.hide.add(x.dataset.abx); renderAlertBar(); return; } openAlerts(); }); }
-  const live = ALR.list.filter((x) => !ALR.hide.has(x.id)), a = live[0];
-  const home = (mini) => { const want = mini ? $('fabs') : $('app'); if (el.parentNode !== want) want.appendChild(el); }; // small ⚠ sits at the foot of the left buttons; big warnings span the top
-  if (!a) { home(true); el.hidden = !ALR.list.length; el.className = 'alert-bar mini'; el.innerHTML = '⚠'; el.dataset.tip = ALR.list.length ? ALR.list.length + ' weather alert' + (ALR.list.length > 1 ? 's' : '') + ': tap to read' : ''; return; }
-  const big = /warning/i.test(a.event) && ALR_LOUD.test(a.event); // only serious warnings take the full bar; the rest stay a small ⚠
-  home(!big); el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini');
-  el.dataset.tip = esc(a.event) + ': tap to read';
-  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(a.id) + '" title="Hide this alert">×</i>' : '⚠';
+  let el = $('alertBar');
+  if (!el) {
+    el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; $('app').appendChild(el);
+    el.addEventListener('click', (e) => { const x = e.target.closest('[data-abx]'); if (x) { e.stopPropagation(); dismissWeatherAlert(x.dataset.abx); return; } openAlerts(); });
+  }
+  const live = ALR.list.filter((x) => !ALR.hide.has(alertKey(x)));
+  const unread = live.filter((x) => !ALR.read.has(alertKey(x))), a = unread[0] || live[0];
+  if (!a) { el.hidden = true; return; }
+  const fresh = unread.length > 0, big = fresh && /warning/i.test(a.event) && ALR_LOUD.test(a.event);
+  const want = big ? $('app') : $('fabs'); if (el.parentNode !== want) want.appendChild(el);
+  el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini') + (fresh ? ' is-new' : '');
+  const label = (fresh ? 'New weather alert: ' : 'Weather alert: ') + a.event + '. Tap to read.';
+  el.title = label; el.dataset.tip = label; el.setAttribute('aria-label', label);
+  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">⚠</b><small>' + (fresh ? 'NEW' : 'WEATHER') + '</small>';
 }
 function openAlerts() {
-  openSheet('<h3>Weather warnings here</h3><div class="sub">From the National Weather Service · checked ' + agoTxt(ALR.at) + '</div>' + ALR.list.map((a) => '<div class="alr ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details></div>').join('') + '<p class="hint">Also monitor VHF weather channels (WX1–WX7) for NOAA Weather Radio.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+  ALR.list.forEach((a) => ALR.read.add(alertKey(a))); saveAlertState(); renderAlertBar();
+  openSheet('<h3>Weather alerts here</h3><div class="sub">National Weather Service · checked ' + (ALR.at ? agoTxt(ALR.at) : 'not yet') + '</div>' + (ALR.list.length ? ALR.list.map((a) => {
+    const key = alertKey(a), hidden = ALR.hide.has(key);
+    return '<div class="alr ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details><button class="btn small" data-weather-dismiss="' + esc(key) + '"' + (hidden ? ' disabled' : '') + '>' + (hidden ? 'Dismissed from chart' : 'Dismiss from chart') + '</button><p class="hint">A new or changed bulletin will appear again.</p></div>';
+  }).join('') : '<p class="sub">No active alerts received for this location.</p>') + '<p class="hint">Dismissed bulletins remain here while active. Also monitor NOAA Weather Radio on VHF WX channels.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
 }
+document.addEventListener('click', (e) => {
+  const d = e.target.closest('[data-weather-dismiss]'); if (d) { dismissWeatherAlert(d.dataset.weatherDismiss); openAlerts(); return; }
+  if (e.target.closest('[data-weather-alerts]')) openAlerts();
+});
 setTimeout(checkAlerts, 3500); setInterval(checkAlerts, 5 * 60000);
 const WMO = { 0: ['Clear', '☀'], 1: ['Mostly clear', '🌤'], 2: ['Partly cloudy', '⛅'], 3: ['Overcast', '☁'], 45: ['Fog', '🌫'], 48: ['Freezing fog', '🌫'], 51: ['Light drizzle', '🌦'], 53: ['Drizzle', '🌦'], 55: ['Heavy drizzle', '🌧'], 61: ['Light rain', '🌦'], 63: ['Rain', '🌧'], 65: ['Heavy rain', '🌧'], 71: ['Light snow', '🌨'], 73: ['Snow', '🌨'], 75: ['Heavy snow', '❄'], 80: ['Showers', '🌦'], 81: ['Showers', '🌧'], 82: ['Violent showers', '⛈'], 95: ['Thunderstorms', '⛈'], 96: ['Thunderstorms, hail', '⛈'], 99: ['Severe thunderstorms', '⛈'] };
 const wmo = (c) => WMO[c] || WMO[Math.floor((c || 0) / 10) * 10] || ['', ''];
@@ -4886,7 +5072,7 @@ function buildCockpit() {
     ckMap = L.map('ckMap', { zoomControl: false, attributionControl: false, dragging: true, zoomSnap: 0 });
     const base = LAYERS[S.settings.chart === 'street' ? 'street' : S.settings.chart === 'satellite' ? 'satellite' : 'noaa'];
     if (window.TL_DEMO) L.imageOverlay(window.TL_DEMO.chart, window.TL_DEMO.bounds).addTo(ckMap); else L.tileLayer(base._url || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', base.options).addTo(ckMap);
-    if (!window.TL_DEMO && S.settings.chart === 'noaa') { ckMap.eachLayer((l) => ckMap.removeLayer(l)); new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18 }).addTo(ckMap); }
+    if (!window.TL_DEMO && S.settings.chart === 'noaa') { ckMap.eachLayer((l) => ckMap.removeLayer(l)); new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18 }).addTo(ckMap); }
     ckMark = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 3, fillColor: '#087E83', fillOpacity: 1 }).addTo(ckMap);
     const f = S.fix || refPos(); ckMap.setView([f.lat, f.lon], 14);
   }
@@ -5024,6 +5210,11 @@ function renderMini() {
   el.innerHTML = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text>' +
     (cog != null ? '<g transform="rotate(' + rot.toFixed(0) + ' 30 30)"><path d="M30 4 L34 13 L30 11 L26 13 Z" class="mi-arrow"/></g>' : '') +
     '<text x="30" y="33" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="30" y="42" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text><text x="30" y="51" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '°' : '') + '</text></svg>';
+  maybeDepth();
+  const d = DEP.v, validDepth = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000;
+  const depthText = validDepth ? Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() : '—';
+  el.insertAdjacentHTML('beforeend', '<span class="mini-depth"><b>' + depthText + '</b><small>CHARTED DEPTH</small></span>');
+  el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
   el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + '. Tap for the full gauges.' : 'Speed and course: waiting for GPS';
 }
 $('miniInst').addEventListener('click', () => setCockpit(true));
@@ -5089,8 +5280,100 @@ sheet.addEventListener('click', async (e) => {
   if (a === 'sbout') { await SB.client.auth.signOut(); SB.user = null; openAccount(true); }
 });
 setTimeout(sbInit, 1500);
-// a soft blue wash over the chart (water bluer, land a quiet blue-grey), under every marker so buoy colours are untouched
-(() => { const t = document.createElement('div'); t.className = 'chart-tint'; map.getContainer().appendChild(t); })();
+/* ---------- natural-language first mate: typed or tap-to-talk, authenticated backend ---------- */
+const FM = { view: 0, busy: false, recognition: null, history: [], destinations: [] };
+const firstMateSpots = L.layerGroup().addTo(map);
+function firstMateMessage(text) { const el = $('firstMateReply'); if (el) el.textContent = text; }
+function openFirstMate() {
+  FM.view++; if (FM.recognition) FM.recognition.stop();
+  openSheet('<h3>First mate</h3><p class="sub">Ask naturally: “Show rain”, “Take me to Baltimore”, or “Show the ship ahead”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + (S.settings.assistantUrl ? 'Ready. Navigation requests open a destination for review.' : 'AI connection is not set up yet. Open Connection setup below.') + '</p><div id="firstMateResults"></div><details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
+}
+function firstMateListen() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { firstMateMessage('Use the microphone on your keyboard to dictate into the request box, then tap Send.'); $('firstMateRequest').focus(); return; }
+  if (FM.recognition) { FM.recognition.stop(); return; }
+  const r = new Recognition(); FM.recognition = r; r.lang = navigator.language || 'en-US'; r.interimResults = false; r.continuous = false;
+  firstMateMessage('Listening… Tap Talk again to stop. Review the words before Send.');
+  r.onresult = e => { const input = $('firstMateRequest'); if (input) input.value = e.results[0][0].transcript; firstMateMessage('Check the words, then tap Send.'); };
+  r.onerror = () => firstMateMessage('Could not hear you. Try keyboard dictation or type your request.');
+  r.onend = () => { FM.recognition = null; };
+  try { r.start(); } catch (e) { FM.recognition = null; firstMateMessage('Microphone unavailable. Type or use keyboard dictation.'); }
+}
+function firstMateAheadTargets() {
+  if (!S.fix || (S.sog || 0) < 0.6 || !Number.isFinite(S.cog) || Date.now() - S.lastFixAt > 30000) return null;
+  return [...ais.values()].filter(t => Date.now() - (t.seen || 0) < 180000 && Math.abs(((bearing(S.fix, t) - S.cog + 540) % 360) - 180) <= 35).sort((a,b) => (b.len || 0) - (a.len || 0) || distNm(S.fix, a) - distNm(S.fix, b));
+}
+function firstMateSpotDistance(p, a, b) {
+  const scale = Math.cos((a.lat + b.lat) * Math.PI / 360), x = (b.lon-a.lon)*scale, y = b.lat-a.lat, px = (p.lon-a.lon)*scale, py = p.lat-a.lat;
+  const t = x*x+y*y ? Math.max(0, Math.min(1, (px*x+py*y)/(x*x+y*y))) : 0;
+  return Math.hypot(px-t*x, py-t*y)*60;
+}
+async function firstMateExecute(a) {
+  const boatAtStart = S.fleet.active, viewAtStart = FM.view;
+  if (!a || !['weather','navigate','ais','fishing','clarify'].includes(a.action)) throw new Error('Unsupported request. No action taken.');
+  if (a.action === 'clarify') { firstMateMessage(String(a.message || 'Could you say what you want to display?').slice(0,1200)); return; }
+  if (a.action === 'weather') {
+    if (!['rain','wind','waves','tide'].includes(a.layer) || typeof a.visible !== 'boolean') throw new Error('Which weather layer would you like?');
+    if (a.layer === 'tide') { if (a.visible) { WX.view = 'tide'; WX.open = true; setTab('weather'); } else { WX.view = 'wind'; WX.open = false; renderWxBar(); } }
+    else { setTab('chart'); setWxL(a.layer, a.visible); }
+    toast((a.visible ? 'Showing ' : 'Hiding ') + (a.layer === 'rain' ? 'rain radar' : a.layer) + '.'); return;
+  }
+  if (a.action === 'navigate') {
+    if (typeof a.destination !== 'string' || !a.destination.trim() || a.destination.length > 200) throw new Error('Where would you like to go?');
+    FM.destinations = await suggestPlaces(a.destination.trim(), searchCenter());
+    if (boatAtStart !== S.fleet.active || viewAtStart !== FM.view || !$('firstMateResults')) return;
+    firstMateMessage(FM.destinations.length ? 'Choose the destination. Navigate opens for review; guidance has not started.' : 'No matching destination found. Try a marina name or town.');
+    $('firstMateResults').innerHTML = FM.destinations.map((d,i) => '<button class="sug" type="button" data-fm-dest="' + i + '"><b>' + esc(d.name) + '</b><span>' + esc(d.sub || '') + '</span><em>' + fmtDist(d.d) + '</em></button>').join(''); return;
+  }
+  if (a.action === 'ais') {
+    if (a.scope !== 'ahead') { openAisList(); return; }
+    const targets = firstMateAheadTargets();
+    if (targets === null) { firstMateMessage('I need a fresh GPS course while moving to narrow “ahead”. You can open the full AIS list instead.'); $('firstMateResults').innerHTML = '<button class="btn" data-act="aislist">Open AIS list</button>'; return; }
+    firstMateMessage(targets.length ? 'Candidates ahead of your course, larger vessels first. Course is not where the phone is pointing; select the vessel you mean.' : 'No fresh AIS targets received ahead of your course. That does not mean the water is clear.');
+    $('firstMateResults').innerHTML = targets.slice(0,8).map(t => '<div class="li"><div class="li-main"><b>' + esc(t.name || 'Unnamed vessel') + '</b><span>' + (t.demo ? 'SIMULATED · ' : '') + fmtDist(distNm(S.fix,t)) + (t.len ? ' · ' + Math.round(t.len) + ' m' : ' · length unknown') + '</span></div><button class="btn small" data-aisid="' + esc(t.id) + '">Details</button></div>').join(''); return;
+  }
+  if (a.action === 'fishing') {
+    let spots = S.spots || [];
+    if (a.scope === 'along_route') {
+      const pts = S.goto && S.goto.route ? S.goto.route.pts.slice(Math.max(0,S.goto.route.i-1)) : S.goto && S.fix ? [S.fix,S.goto] : RT.pts;
+      if (!pts || pts.length < 2) { firstMateMessage('Plan or select a route first so I can find your saved spots along it.'); return; }
+      spots = spots.filter(p => pts.some((b,i) => i && firstMateSpotDistance(p,pts[i-1],b) <= 1));
+    }
+    firstMateSpots.clearLayers();
+    if (!spots.length) { firstMateMessage('No saved fishing spots match. This version has your personal spots, not a public fishing-location feed.'); return; }
+    spots.forEach(p => { const m = L.marker([p.lat,p.lon]).bindTooltip(esc(p.species || 'Saved fishing spot')); m.on('click',()=>openSpot(p)); firstMateSpots.addLayer(m); });
+    setTab('chart'); closeSheet(); map.fitBounds(L.latLngBounds(spots.map(p=>[p.lat,p.lon])).pad(.2), { maxZoom: 15 });
+    toast('Showing ' + spots.length + ' saved fishing spots' + (a.scope === 'along_route' ? ' within 1 nm of your route.' : '.')); return;
+  }
+}
+async function askFirstMate() {
+  if (FM.busy) return;
+  const request = ($('firstMateRequest').value || '').trim(); if (!request) return;
+  if (!S.settings.assistantUrl) { firstMateMessage('Set up the assistant backend first.'); return; }
+  FM.busy = true; const boat = S.fleet.active, view = FM.view; firstMateMessage('Thinking…');
+  const send = sheet.querySelector('[data-fm="send"]'); if (send) send.disabled = true;
+  try {
+    await sbInit(); if (!SB.client) throw new Error('Set up Account and sign in first.');
+    const { data } = await SB.client.auth.getSession(); if (!data.session) throw new Error('Sign in through Menu → Account first.');
+    const response = await fetch(S.settings.assistantUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, signal: AbortSignal.timeout(35000), body: JSON.stringify({ request, context: { boatName: S.settings.boatName, boatType: S.settings.boatType, hasGps: !!S.fix, destination: S.goto && S.goto.name || null, previousRequests: FM.history.slice(-3) } }) });
+    const action = await response.json(); if (!response.ok) throw new Error(action.error || 'Assistant connection failed.');
+    if (boat !== S.fleet.active || view !== FM.view || !$('firstMateReply')) return;
+    FM.history.push(request); FM.history = FM.history.slice(-3);
+    await firstMateExecute(action);
+  } catch (e) { firstMateMessage(e.message || 'Assistant unavailable. No action taken.'); }
+  finally { FM.busy = false; if (send && send.isConnected) send.disabled = false; }
+}
+sheet.addEventListener('click', e => {
+  const d = e.target.closest('[data-fm-dest]'); if (d) { const dest = FM.destinations[+d.dataset.fmDest]; if (dest) { S.navDest = dest; closeSheet(); setTab('nav'); } return; }
+  const b = e.target.closest('[data-fm]'); if (!b) return;
+  if (b.dataset.fm === 'listen') firstMateListen();
+  if (b.dataset.fm === 'send') askFirstMate();
+  if (b.dataset.fm === 'setup') { try { const url = new URL($('firstMateEndpoint').value.trim()); if (url.protocol !== 'https:' || url.username || url.password) throw new Error(); S.settings.assistantUrl = url.href; saveSettings(); firstMateMessage('Connection saved. Sign in and try a request.'); } catch (e) { firstMateMessage('Enter the HTTPS backend URL, not an API key.'); } }
+});
+sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' && e.key === 'Enter') { e.preventDefault(); askFirstMate(); } });
+document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) openFirstMate(); if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
+(() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab'; b.dataset.firstMate = 'true'; b.title = 'Ask first mate'; b.setAttribute('aria-label','Ask first mate'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0012 0v-2M12 18v3M8 21h8"/></svg>'; $('fabs').appendChild(b); })();
+
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
 applyTint();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording

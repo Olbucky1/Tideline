@@ -1,17 +1,17 @@
-/* Tideline — chart-room look: paper chart, navy instrument panels, teal = good, amber = attention, red = alarm. */
+/* Tideline — coastal blue interface; green = good, amber = attention, red = alarm. */
 :root {
-  --chart: #DCEEF2;
+  --chart: #DCEEFF;
   --surface: #FFFFFF;
-  --surface2: #F5F2E9;
-  --line: #E4DFD3;
-  --ink: #142D3D;
-  --ink2: #4F6170;
-  --accent: #087E83;
-  --panel: #0B1824;
-  --tile: #12273A;
-  --tile-line: #2A4560;
-  --p-ink: #EAF1F6;
-  --p-muted: #8EA3B5;
+  --surface2: #EDF5FF;
+  --line: #CADCF0;
+  --ink: #102F52;
+  --ink2: #476580;
+  --accent: #1565C0;
+  --panel: #EDF5FF;
+  --tile: #FFFFFF;
+  --tile-line: #CADCF0;
+  --p-ink: #102F52;
+  --p-muted: #476580;
   --teal: #2BB3A3;
   --teal-ink: #0F5E55;
   --teal-bg: #DDF4F1;
@@ -372,7 +372,7 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 32px; }
 body { font-variant-numeric: tabular-nums; }
 :root[data-dusk] {
   --chart: #1A2836; --surface: #15212D; --surface2: #101A24; --line: #2A3B4C; --ink: #F1E7D3; --ink2: #BFB29B;
-  --accent: #E8A23B; --panel: #0C151E; --tile: #142231; --tile-line: #2A4058; --p-ink: #F1E7D3; --p-muted: #A99C86;
+  --accent: #8CC8FF; --panel: #0C151E; --tile: #142231; --tile-line: #2A4058; --p-ink: #F1E7D3; --p-muted: #A99C86;
   --teal: #4FC1B1; --teal-ink: #9BE3D8; --teal-bg: #16322F; --amber-bg: #3A2A10; --amber-ink: #F2C27A;
   --shadow: 0 4px 18px rgba(0, 0, 0, 0.35); color-scheme: dark;
 }
@@ -555,9 +555,9 @@ html.calm #app.wide .topbar { left: calc((100% - 400px) / 2); right: auto; }
 
 /* Day theme: anchor and instrument screens go light to match the chart (night keeps its red-on-black) */
 :root:not([data-night]):not([data-dusk]) #panelAnchor, :root:not([data-night]):not([data-dusk]) #panelDash {
-  --panel: #F5F2E9; --tile: #FFFFFF; --tile-line: #E4DFD3; --p-ink: #142D3D; --p-muted: #4F6170; --teal-hi: #087E83;
+  --panel: #EDF5FF; --tile: #FFFFFF; --tile-line: #CADCF0; --p-ink: #102F52; --p-muted: #476580; --teal-hi: #0F5E55;
 }
-:root:not([data-night]):not([data-dusk]) #panelAnchor .btn.primary, :root:not([data-night]):not([data-dusk]) #panelDash .btn.primary { background: #087E83; border-color: #087E83; color: #fff; }
+:root:not([data-night]):not([data-dusk]) #panelAnchor .btn.primary, :root:not([data-night]):not([data-dusk]) #panelDash .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ---------- 0.6b: instrument gauges (glass cockpit) ---------- */
 .cockpit { bottom: var(--tabbar-h) !important; z-index: 880 !important; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 12px !important; gap: 10px;
@@ -677,7 +677,7 @@ html.calm #app.wide .topbar { left: calc((100% - 400px) / 2); right: auto; }
 .sheet-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 18px; border: 0; background: var(--surface2); color: var(--ink); font-size: 24px; line-height: 1; display: grid; place-items: center; z-index: 3; }
 .sheet h3 { padding-right: 44px; }
 .tl-x { position: absolute; top: 6px; right: 8px; width: 30px; height: 30px; border-radius: 15px; border: 0; background: var(--surface2); color: var(--ink); font-size: 20px; line-height: 1; z-index: 2; }
-.wxbar.tl .tl-chips { padding-right: 36px; }
+.wxbar.tl .tl-chips { padding-right: 0; }
 .sd-small .tl-tide { height: 60px; margin: 6px 0 2px; pointer-events: none; }
 button.sd { cursor: pointer; }
 .dot.desk { background: #8a9aa6; }
@@ -1203,10 +1203,75 @@ html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px))
 .pm-x { font-size: 13px; margin: 6px 0 2px; } .pm-c { font-size: 11.5px; } .pm-c a { color: var(--accent); }
 #sheet.sheet { position: absolute !important; max-height: calc(100% - var(--tabbar-h) - 16px) !important; overflow-y: auto; overscroll-behavior: contain; }
 #sheet .sheet-x { position: sticky !important; top: 0; float: right; z-index: 5; }
-.nws-btn { position: absolute; top: 10px; right: 54px; font-size: 12.5px; font-weight: 600; color: var(--accent); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; background: var(--surface); z-index: 3; }
-/* ocean-blue chart tint (Map options → Chart colors) */
-.chart-tint { position: absolute; inset: 0; z-index: 250; pointer-events: none; mix-blend-mode: multiply; background: #CFE3F5; opacity: 0; transition: opacity .3s; }
-html[data-tint="blue"]:not(.sat) .chart-tint { opacity: 1; }
-html[data-tint="blue"]:not(.sat) #map .leaflet-tile-pane { filter: saturate(0.8) brightness(1.04); }
-:root[data-dusk][data-tint="blue"]:not(.sat) .chart-tint { background: #9DB8D6; }
-:root[data-night] .chart-tint { opacity: 0 !important; }
+.tl-heading { display: flex; align-items: center; gap: 8px; min-width: 0; padding-bottom: 4px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.nws-btn { position: static; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: 1; min-width: 0; min-height: 44px; font-size: 13.5px; font-weight: 600; color: var(--accent); text-decoration: none; padding: 0 6px; overflow-wrap: anywhere; }
+.tl-heading .tl-x { position: static; flex: 0 0 44px; width: 44px; height: 44px; margin-left: auto; border-radius: 14px; }
+
+/* Coastal blue: quiet pale surfaces, clear blue actions, navy text. Chart symbols retain their colors. */
+:root:not([data-night]):not([data-dusk]) .panel.dark .btn.primary {
+  background: var(--accent); border-color: var(--accent); color: #FFFFFF;
+}
+:root:not([data-night]):not([data-dusk]) .tab.on {
+  background: #E6F1FF; color: #1256A4;
+}
+:root:not([data-night]):not([data-dusk]) .tabbar {
+  background: #F9FCFF; border-top-color: #CADCF0;
+}
+/* An opaque blue surface keeps chart detail from competing with each control. */
+:root:not([data-night]):not([data-dusk]) .fab:not(.on):not(.attn):not(.fish) {
+  background: #E9F4FF;
+  border-color: #92B9DF;
+  box-shadow: 0 2px 5px rgba(16,47,82,.16), inset 0 1px 0 rgba(255,255,255,.8);
+}
+@media (hover: hover) {
+  :root:not([data-night]):not([data-dusk]) .fab:not(.on):not(.attn):not(.fish):hover {
+    background: #D9EBFC;
+    border-color: #659ACD;
+  }
+}
+:root:not([data-night]):not([data-dusk]) .fab:not(.on):not(.attn) svg {
+  stroke: #1565C0;
+}
+:root:not([data-night]):not([data-dusk]) .card h4,
+:root:not([data-night]):not([data-dusk]) .p-head h2 {
+  color: #174E88;
+}
+:root:not([data-night]):not([data-dusk]) .field input,
+:root:not([data-night]):not([data-dusk]) .field select {
+  border-color: #BBD0E8;
+}
+:root:not([data-night]):not([data-dusk]) input:focus-visible,
+:root:not([data-night]):not([data-dusk]) select:focus-visible,
+:root:not([data-night]):not([data-dusk]) button:focus-visible {
+  outline: 3px solid #1565C0; outline-offset: 2px;
+}
+:root:not([data-night]) input[type=range],
+:root:not([data-night]) input[type=checkbox] { accent-color: var(--accent); }
+:root:not([data-night]):not([data-dusk]) .pill,
+:root:not([data-night]):not([data-dusk]) .navcard {
+  border: 1px solid #CADCF0;
+}
+
+/* Blue water on NOAA tiles only. Imagery, weather overlays and vector marks retain their colors. */
+:root[data-tint="blue"]:not([data-night]):not([data-dusk]) .noaa-chart-tile {
+  filter: url(#coastalBlueWater);
+}
+
+/* Slightly larger helm readout, with an explicitly charted (not measured) depth. */
+.mini-inst { width: 68px !important; height: auto !important; margin: 0 -15px 6px -15px !important; }
+.mini-inst > svg { display: block; width: 68px; height: 68px; }
+.mi-cog { font-size: 7.5px; font-weight: 700; fill: var(--ink); }
+.mini-depth { display: flex; flex-direction: column; padding: 4px 2px; margin-top: 3px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.mini-depth b { font: 600 19px/1.1 var(--f-num); }
+.mini-depth small { font: 600 7px/1.4 var(--f-ui); color: var(--ink2); }
+/* New bulletins pulse gently until read; dismissed bulletins leave the chart. */
+#fabs .alert-bar.mini { width: 44px; height: 46px; flex-direction: column; gap: 0; border: 2px solid #FFFFFF; box-shadow: 0 1px 5px rgba(0,0,0,.3); }
+.alert-bar.mini b { font-size: 20px; line-height: 1.1; }
+.alert-bar.mini small { font-size: 8px; font-weight: 700; letter-spacing: .03em; }
+.alert-bar.adv { background: #8A5000; }
+.alert-bar.watch { background: #995A00; }
+.alert-bar.warn { background: #B3261E; }
+.alert-bar.is-new { animation: weather-attention 2s ease-in-out infinite; }
+@keyframes weather-attention { 0%,100% { box-shadow: 0 0 0 0 rgba(237,142,25,.65); } 50% { box-shadow: 0 0 0 6px rgba(237,142,25,.18); } }
+@media (prefers-reduced-motion: reduce) { .alert-bar.is-new { animation: none; outline: 3px solid #F2B64B; outline-offset: 2px; } }
+.weather-alert-link { margin: 6px 10px; background: var(--surface); }

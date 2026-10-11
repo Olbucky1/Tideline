@@ -16,9 +16,26 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="app.css?v=81">
+<link rel="stylesheet" href="app.css?v=89">
 </head>
 <body>
+<!-- Tint only pale blue chart fills; keep land, dark text and nautical symbol colors. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;pointer-events:none">
+  <defs>
+    <filter id="coastalBlueWater" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  -12 0 12 0 -0.35" result="blueMask"/>
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 10 0 0 -6.5" result="lightMask"/>
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 -20 20 0 -0.25" result="notGreenMask"/>
+      <feComposite in="blueMask" in2="lightMask" operator="in" result="paleBlueMask"/>
+      <feComposite in="paleBlueMask" in2="notGreenMask" operator="in" result="waterMask"/>
+      <feFlood flood-color="#A6D4FF" result="blueTint"/>
+      <feBlend in="SourceGraphic" in2="blueTint" mode="multiply" result="blueChart"/>
+      <feComposite in="blueChart" in2="waterMask" operator="in" result="water"/>
+      <feComposite in="SourceGraphic" in2="waterMask" operator="out" result="originalDetails"/>
+      <feComposite in="water" in2="originalDetails" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+  </defs>
+</svg>
 <div id="app">
   <div id="map" aria-label="Chart"></div>
 
@@ -134,7 +151,7 @@
   <div id="toast" class="toast" hidden role="status"></div>
 </div>
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="rules.js?v=81"></script>
-<script src="app.js?v=81"></script>
+<script src="rules.js?v=89"></script>
+<script src="app.js?v=89"></script>
 </body>
 </html>
