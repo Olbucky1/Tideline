@@ -1316,26 +1316,77 @@ html, body { touch-action: manipulation; overscroll-behavior: none; overflow: hi
   .mini-inst { width: 58px !important; margin: 0 -9px 4px -9px !important; } .mini-inst > svg { width: 58px; height: 58px; }
 }
 
-/* Blue control theme (day): solid blue buttons with white icons; a button that's switched on turns white with a blue icon and ring */
-:root:not([data-night]):not([data-dusk]) .fab:not(.attn):not(.fish),
-:root:not([data-night]):not([data-dusk]) .mini-depth {
-  background: linear-gradient(180deg, #2C7BD0 0%, #1A5DA8 100%) !important;
-  border: 1px solid #154C8A !important; color: #fff !important;
-  box-shadow: 0 2px 6px rgba(13, 52, 98, .30), inset 0 1px 0 rgba(255,255,255,.25) !important;
+/* Button themes (day colours): frosted glass in the theme colour, crisp white icons; a switched-on button is the strong colour with a ring.
+   Pick one in Menu → Map options → Button theme. */
+:root { --fab-bg: rgba(46, 112, 190, .52); --fab-hover: rgba(46, 112, 190, .68); --fab-bd: rgba(255, 255, 255, .55); --fab-on: rgba(28, 98, 180, .9); --fab-ring: #fff; --fab-sh: rgba(13, 52, 98, .18); }
+:root[data-btheme="green"] { --fab-bg: rgba(34, 139, 96, .52); --fab-hover: rgba(34, 139, 96, .68); --fab-on: rgba(20, 110, 72, .92); --fab-sh: rgba(10, 60, 40, .2); }
+:root[data-btheme="navy"] { --fab-bg: rgba(18, 42, 78, .62); --fab-hover: rgba(18, 42, 78, .78); --fab-on: rgba(36, 120, 210, .95); --fab-sh: rgba(5, 20, 40, .25); }
+:root[data-btheme="teal"] { --fab-bg: rgba(16, 140, 150, .5); --fab-hover: rgba(16, 140, 150, .66); --fab-on: rgba(8, 110, 120, .92); --fab-sh: rgba(5, 60, 65, .2); }
+:root[data-btheme="july4"] { --fab-bg: rgba(26, 46, 110, .66); --fab-hover: rgba(26, 46, 110, .8); --fab-bd: rgba(255, 255, 255, .8); --fab-on: rgba(200, 30, 45, .95); --fab-ring: #fff; --fab-sh: rgba(10, 20, 60, .25); }
+:root[data-btheme="xmas"] { --fab-bg: rgba(20, 100, 60, .62); --fab-hover: rgba(20, 100, 60, .78); --fab-bd: rgba(232, 196, 92, .85); --fab-on: rgba(196, 30, 40, .95); --fab-ring: #E8C45C; --fab-sh: rgba(10, 40, 20, .25); }
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab:not(.attn):not(.fish),
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .mini-depth {
+  background: var(--fab-bg) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid var(--fab-bd) !important; color: #fff !important;
+  box-shadow: 0 1px 4px var(--fab-sh) !important;
 }
-:root:not([data-night]):not([data-dusk]) .fab:not(.attn):not(.fish) svg { stroke: #fff !important; }
-:root:not([data-night]):not([data-dusk]) .fab.info b,
-:root:not([data-night]):not([data-dusk]) .fab.wxbtn b,
-:root:not([data-night]):not([data-dusk]) .fab .ais-n,
-:root:not([data-night]):not([data-dusk]) .mini-depth b { color: #fff !important; }
-:root:not([data-night]):not([data-dusk]) .mini-depth small { color: #CFE4FA !important; }
-:root:not([data-night]):not([data-dusk]) .fab.on:not(.attn):not(.fish) {
-  background: #fff !important; border: 2px solid #1A5DA8 !important;
-}
-:root:not([data-night]):not([data-dusk]) .fab.on:not(.attn):not(.fish) svg,
-:root:not([data-night]):not([data-dusk]) .fab.info.on .fi-ic svg { stroke: #1A5DA8 !important; }
-:root:not([data-night]):not([data-dusk]) .fab.on b,
-:root:not([data-night]):not([data-dusk]) .fab.on .ais-n { color: #1A5DA8 !important; }
-@media (hover: hover) {
-  :root:not([data-night]):not([data-dusk]) .fab:not(.on):not(.attn):not(.fish):hover { background: linear-gradient(180deg, #3A8BE0 0%, #2068B6 100%) !important; }
-}
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab:not(.attn):not(.fish) svg { stroke: #fff !important; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3)); }
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab.info b,
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab.wxbtn b,
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab .ais-n,
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .mini-depth b { color: #fff !important; text-shadow: 0 1px 1px rgba(0, 0, 0, .3); }
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .mini-depth small { color: rgba(255, 255, 255, .88) !important; }
+:root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab.on:not(.attn):not(.fish) { background: var(--fab-on) !important; border: 2px solid var(--fab-ring) !important; }
+@media (hover: hover) { :root:not([data-night]):not([data-dusk]):not([data-btheme="white"]) .fab:not(.on):not(.attn):not(.fish):hover { background: var(--fab-hover) !important; } }
+/* holiday touches */
+:root[data-btheme="july4"]:not([data-night]):not([data-dusk]) .tabbar { border-top: 3px solid; border-image: linear-gradient(90deg, #C81E2D 0 33%, #fff 33% 66%, #1A2E6E 66%) 1; }
+:root[data-btheme="xmas"]:not([data-night]):not([data-dusk]) .tabbar { border-top: 3px solid; border-image: repeating-linear-gradient(90deg, #C41E28 0 14px, #fff 14px 20px, #14643C 20px 34px, #fff 34px 40px) 1; }
+:root[data-btheme="july4"]:not([data-night]):not([data-dusk]) .tab.on, :root[data-btheme="xmas"]:not([data-night]):not([data-dusk]) .tab.on { color: #C41E28 !important; }
+.btheme-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+.btheme-row button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: 600 12px var(--f-ui); }
+.btheme-row button.on { border: 2px solid var(--accent); }
+.btheme-row i { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+
+/* Weather alerts coloured by severity: red severe, orange watch, blue advisory, green statement. New ones pulse in their own colour until read. */
+.alert-bar.warn { background: #C62828 !important; --pulse: 220, 40, 40; }
+.alert-bar.watch { background: #E07A10 !important; --pulse: 235, 130, 20; }
+.alert-bar.adv { background: #1E78C8 !important; --pulse: 40, 125, 210; }
+.alert-bar.info { background: #2E8B57 !important; --pulse: 50, 150, 90; }
+@keyframes weather-attention { 0%,100% { box-shadow: 0 0 0 0 rgba(var(--pulse, 220, 40, 40), .7); transform: scale(1); } 50% { box-shadow: 0 0 0 8px rgba(var(--pulse, 220, 40, 40), 0); transform: scale(1.06); } }
+.alert-bar:not(.mini).is-new { animation-name: weather-attention-bar; }
+@keyframes weather-attention-bar { 0%,100% { box-shadow: 0 0 0 0 rgba(var(--pulse, 220, 40, 40), .7); } 50% { box-shadow: 0 0 0 8px rgba(var(--pulse, 220, 40, 40), 0); } }
+.alr { border-left-width: 5px; } .alr.warn { border-color: #C62828; } .alr.watch { border-color: #E07A10; } .alr.adv { border-color: #1E78C8; } .alr.info { border-color: #2E8B57; }
+.alr-tag { display: inline-block; font: 700 10px/1 var(--f-ui); letter-spacing: .05em; text-transform: uppercase; color: #fff; border-radius: 6px; padding: 3px 6px; margin-right: 6px; vertical-align: 2px; }
+.alr.warn .alr-tag { background: #C62828; } .alr.watch .alr-tag { background: #E07A10; } .alr.adv .alr-tag { background: #1E78C8; } .alr.info .alr-tag { background: #2E8B57; }
+:root[data-night] .alert-bar { filter: brightness(.7); }
+.rt-status { margin: 6px 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; background: var(--tile, #EEF5FC); }
+.rt-status.ok { background: #E3F4EA; color: #1B5E3A; }
+.rt-status.bad { background: #FFF1D6; color: #7A4B00; font-weight: 600; }
+:root[data-night] .rt-status.ok, :root[data-night] .rt-status.bad { background: transparent; color: inherit; border: 1px solid currentColor; }
+
+/* tidal current arrows */
+.cur-a { width: 46px; height: 46px; display: grid; place-items: center; position: relative; pointer-events: auto; }
+.cur-a svg { fill: var(--c); stroke: #fff; stroke-width: 1.4; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.cur-a b { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); font: 700 10.5px/1 var(--f-num); color: #fff; background: var(--c); border-radius: 7px; padding: 2px 4px; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.cur-a.slack b { bottom: 4px; font-weight: 600; font-size: 9.5px; }
+.cur-a .cur-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); border: 2px solid #fff; margin-top: -10px; }
+:root[data-night] .cur-a { filter: brightness(.75); }
+.cur-now { border-left: 5px solid var(--c); padding: 8px 12px; margin: 8px 0; border-radius: 8px; background: var(--tile, #EEF5FC); display: flex; flex-direction: column; gap: 2px; }
+.cur-now b { font-size: 17px; } .cur-now span { font-size: 13px; color: var(--ink2); }
+.cur-spark { width: 100%; height: 70px; display: block; margin: 4px 0 8px; }
+.cur-spark .cs-0 { stroke: var(--line); stroke-width: 1; } .cur-spark .cs-l { fill: none; stroke: #0FA3A3; stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+.cur-spark .cs-now { stroke: #E08A00; stroke-width: 3; } .cur-spark .cs-t { font: 600 10px var(--f-ui); fill: var(--ink2); }
+.cur-ev { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.wx-dots .d-current { background: #0FA3A3; }
+/* sailing coach */
+.sc-wind { display: flex; flex-direction: column; margin: 8px 0; } .sc-wind b { font-size: 16px; } .sc-wind span { font-size: 12px; color: var(--ink2); }
+.sc-card { border: 1px solid var(--line); border-left: 5px solid #2E86DE; border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
+.sc-card h4 { margin: 0 0 4px; font-size: 15px; } .sc-card p { margin: 4px 0; font-size: 14px; } .sc-card ul { margin: 4px 0 2px 18px; padding: 0; font-size: 14px; } .sc-card li { margin: 3px 0; }
+.sc-card.ok { border-left-color: #2E8B57; } .sc-card.warn { border-left-color: #E07A10; } .sc-card.bad { border-left-color: #C62828; } .sc-card.info { border-left-color: #7C8B99; }
+.sc-win { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 8px 0; }
+.sc-win.best { border: 2px solid #2E8B57; background: color-mix(in srgb, #2E8B57 7%, transparent); }
+.sc-win > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 10px; }
+.sc-win > div b { font-size: 16px; } .sc-win > div span { font-size: 13px; color: var(--ink2); }
+.sc-win.best > div b::after { content: ' · best'; color: #2E8B57; font-size: 12px; }
+.sc-win ul { margin: 4px 0 0 18px; padding: 0; font-size: 13.5px; } .sc-win li.good { color: #1B7A45; } .sc-win li.bad { color: #A35200; }

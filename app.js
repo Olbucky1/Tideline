@@ -329,6 +329,7 @@ function openLayersSheet() {
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += '<div class="mo-h">Chart colors</div>' + optSeg('chartTint', [['blue', 'Ocean blue'], ['classic', 'Classic NOAA']], st.chartTint || 'blue');
+  html += '<div class="mo-h">Button theme</div><div class="btheme-row">' + BTHEMES.map(([v, l, c]) => '<button type="button" data-btheme="' + v + '" class="' + ((st.btheme || 'blue') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Day colors for the round buttons. Dusk and Night keep their dim look.</small>';
   html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
   if (st.shallowTint !== false) html += optSeg('shallowStyle', [['coral', 'Soft coral'], ['amber', 'Amber'], ['pale', 'Pale'], ['edge', 'Outline only']], st.shallowStyle || 'coral') + optSeg('shallowLevel', [['1', 'Faint'], ['2', 'Medium'], ['3', 'Strong']], String(st.shallowLevel || 2));
   html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides traffic routes and special areas; individual cable lines may remain. Turn off for the full NOAA chart', st.soundings !== false);
@@ -360,7 +361,7 @@ sheet.addEventListener('input', (e) => {
   const grp = document.createElement('div'); grp.className = 'fab-info'; grp.id = 'fabInfo';
   const rb = document.createElement('button'); rb.id = 'rainChip'; rb.type = 'button'; rb.hidden = true; ch.appendChild(rb);
   // one Weather button opens a small row of wind, waves, rain and tide toggles; AIS gets its own button
-  const wb = document.createElement('button'); wb.id = 'btnWx'; wb.type = 'button'; wb.className = 'fab wxbtn'; wb.setAttribute('aria-label', 'Weather on the chart: wind, waves, rain, tide');
+  const wb = document.createElement('button'); wb.id = 'btnWx'; wb.type = 'button'; wb.className = 'fab wxbtn'; wb.setAttribute('aria-label', 'Weather on the chart: wind, waves, rain, tide, current');
   grp.className = 'wx-pop'; grp.hidden = true;
   ['windChip', 'waveChip', 'rainChip', 'tideChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
   const mc = $('modeChip'); if (mc) { mc.className = 'fab info'; mc.hidden = true; document.body.appendChild(mc); mc.style.display = 'none'; } // sail/motor lives in Layers now
@@ -374,11 +375,11 @@ sheet.addEventListener('input', (e) => {
   ab.addEventListener('click', () => { S.settings.aisShow = S.settings.aisShow === false; saveSettings(); updateAis(); try { aissConnect(true); } catch (err) { /* relay not ready */ } renderAisBtn(); toast(S.settings.aisShow ? 'AIS ships on' : 'AIS ships off'); });
 })();
 function renderWxBtn() {
-  const b = $('btnWx'); if (!b) return; const on = ['wind', 'waves', 'rain'].filter(wxOn).concat(S.tideCardOn ? ['tide'] : []);
+  const b = $('btnWx'); if (!b) return; const on = ['wind', 'waves', 'rain'].filter(wxOn).concat(S.tideCardOn ? ['tide'] : []).concat(S.settings.curOn ? ['current'] : []);
   const w = S.weather, spd = w && w.cur ? Math.round(speedOut(w.cur.spd)) : null;
   b.classList.toggle('on', on.length > 0);
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9.5a3.5 3.5 0 0 1 0 7.5z"/></svg><b>' + (spd != null ? spd : '') + '</b>' + (on.length ? '<i class="wx-dots">' + on.map((k) => '<em class="d-' + k + '"></em>').join('') + '</i>' : '');
-  b.dataset.tip = 'Weather' + (spd != null ? ': wind ' + spd + ' ' + SPEED_LBL[S.settings.speedUnit] : '') + (on.length ? ' · showing ' + on.join(', ') : '') + '. Tap for wind, waves, rain and tide.';
+  b.dataset.tip = 'Weather' + (spd != null ? ': wind ' + spd + ' ' + SPEED_LBL[S.settings.speedUnit] : '') + (on.length ? ' · showing ' + on.join(', ') : '') + '. Tap for wind, waves, rain, tide and current.';
 }
 function renderAisBtn() {
   const b = $('btnAis'); if (!b) return; const on = S.settings.aisShow !== false, n = [...ais.values()].filter((t) => t.lat != null).length;
@@ -516,6 +517,62 @@ function clearMeasure() { setMeasure(false); }
 
 /* ---------- route planner (manual, savvy navvy style) ---------- */
 S.routes = store.get('routes', []);
+/* ---------- places a route must not go: Coast Guard event safety zones (33 CFR 165.506) on their dates, and areas you mark yourself ---------- */
+// Fireworks safety zones for Sector Maryland-NCR, from the table in 33 CFR 165.506. Enforced 5:30 pm on the date until 1 am the next day unless the Coast Guard announces otherwise.
+const EVENT_ZONES = [
+  { name: 'Annapolis Fourth of July fireworks', where: 'Severn River and Spa Creek, Annapolis', lat: 38.977222, lon: -76.478056, r: 183, dates: ['07-04'], ref: '33 CFR 165.506, Sector MD-NCR no. 2', note: '200-yard safety zone around the fireworks barge' },
+  { name: 'Annapolis New Year’s Eve fireworks', where: 'Spa Creek, Annapolis', lat: 38.975689, lon: -76.482653, r: 122, dates: ['12-31'], ref: '33 CFR 165.506, Sector MD-NCR no. 15', note: '400-foot safety zone' },
+  { name: 'Sherwood Forest fireworks', where: 'Severn River, Sherwood Forest', lat: 39.031667, lon: -76.544944, r: 137, dates: ['07-03'], ref: '33 CFR 165.506, Sector MD-NCR no. 26', note: '150-yard safety zone. May instead be the weekend after July 4' },
+  { name: 'Kent Island Narrows fireworks', where: 'Chester River, Kent Island Narrows', lat: 38.979167, lon: -76.248, r: 244, dates: ['07-04'], ref: '33 CFR 165.506, Sector MD-NCR no. 25', note: '800-foot safety zone. May instead be a weekday before July 4' },
+  { name: 'Baltimore Harbor fireworks', where: 'Baltimore Inner Harbor', lat: 39.276861, lon: -76.598278, r: 244, dates: ['07-04', '12-31'], ref: '33 CFR 165.506, Sector MD-NCR no. 24', note: '800-foot safety zone' },
+  { name: 'Inner Harbor fireworks', where: 'Baltimore Inner Harbor, Patapsco River', lat: 39.284444, lon: -76.61, r: 91, dates: ['07-04', '12-31'], ref: '33 CFR 165.506, Sector MD-NCR no. 6', note: '100-yard safety zone' },
+  { name: 'Middle Branch fireworks', where: 'Patapsco River, Middle Branch', lat: 39.258797, lon: -76.620542, r: 244, dates: ['07-04'], ref: '33 CFR 165.506, Sector MD-NCR no. 27', note: '800-foot safety zone' }
+];
+S.avoid = store.get('avoidZones', []);
+function eventZoneOn(z, t) { // the evening of the date, through 1 am the next morning
+  const d = new Date(t), md = (x) => String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  const prev = new Date(t - 86400000);
+  return (z.dates.includes(md(d)) && d.getHours() >= 12) || (z.dates.includes(md(prev)) && d.getHours() < 1);
+}
+function avoidZonesFor(t) { return EVENT_ZONES.filter((z) => eventZoneOn(z, t)).map((z) => Object.assign({ event: true }, z)).concat(S.avoid); }
+function addAvoidZone(lat, lon) { S.avoid.push({ id: Date.now(), lat, lon, r: 150, name: 'My avoid area' }); store.set('avoidZones', S.avoid); drawAvoid(); toast('Avoid area added. Routes now go around it. Tap it to remove.', 4000); if (RT.pts.length > 1 && S.settings.autoWater !== false) { const stops = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); routeByWater(stops).then((pts) => { RT.pts = pts; store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }); } }
+let AVL = null;
+function drawAvoid() {
+  if (!AVL) AVL = L.layerGroup().addTo(map); AVL.clearLayers();
+  const t = RT.edit ? (RT.depart || Date.now()) : Date.now();
+  avoidZonesFor(t).forEach((z) => {
+    const c = L.circle([z.lat, z.lon], { radius: z.r, color: '#D32F2F', weight: 2, dashArray: '5 5', fillColor: '#D32F2F', fillOpacity: 0.16 }).addTo(AVL);
+    c.on('click', (e) => { L.DomEvent.stop(e); openAvoidSheet(z); });
+  });
+}
+function openAvoidSheet(z) {
+  openSheet('<h3>' + esc(z.name) + '</h3>' + (z.event ? '<div class="sub">Coast Guard safety zone · ' + esc(z.where) + '</div><p>' + esc(z.note) + '. No vessel may enter without Coast Guard permission while it is enforced, usually 5:30 pm until 1 am. Routes planned for that evening go around it.</p><p class="hint">' + esc(z.ref) + '. The Coast Guard can change the dates or times; check the Local Notice to Mariners and listen on VHF 16 and 22A.</p><div class="row-btns"><a class="btn" href="https://www.navcen.uscg.gov/msi" target="_blank" rel="noopener">Local Notice to Mariners</a><button class="btn ghost" data-act="close">Close</button></div>'
+    : '<div class="sub">Your own area to keep out of</div><p>Routes go around this circle (' + fmtLen(z.r / 0.3048) + ' across the middle to the edge).</p><div class="row-btns"><button class="btn danger" data-avoid-del="' + z.id + '">Remove it</button><button class="btn ghost" data-act="close">Close</button></div>'));
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-avoid-del]'); if (!b) return; S.avoid = S.avoid.filter((z) => String(z.id) !== b.dataset.avoidDel); store.set("avoidZones", S.avoid); drawAvoid(); closeSheet(); toast('Avoid area removed'); });
+// Live Coast Guard temporary rules (safety zones, regattas, closures) for Chesapeake waters, from the Federal Register. Titles and dates only: the exact areas are in each notice.
+const CGN = { list: store.get('cgNotices', []), at: store.get('cgNoticesAt', 0) };
+async function fetchCgNotices(force) {
+  if (!force && Date.now() - CGN.at < 6 * 3600000) return CGN.list;
+  const q = 'https://www.federalregister.gov/api/v1/documents.json?per_page=40&order=newest&conditions[agencies][]=coast-guard&conditions[type][]=RULE&conditions[term]=' + encodeURIComponent('(Annapolis | Severn | Chesapeake | Baltimore | Patapsco | Magothy | "South River" | "Rhode River" | "West River" | "Chester River" | "Kent Island" | "Eastern Bay" | "Miles River" | "St. Michaels" | Choptank | Patuxent | Solomons) ("safety zone" | "special local" | "regulated area" | "security zone")') + '&fields[]=title&fields[]=html_url&fields[]=publication_date&fields[]=effective_on&fields[]=dates&fields[]=abstract';
+  try {
+    const j = await fetchT(q, 15000).then((r) => r.json());
+    CGN.list = (j.results || []).map((d) => ({ title: d.title, url: d.html_url, pub: d.publication_date, eff: d.effective_on, dates: d.dates || '', abs: d.abstract || '' }));
+    CGN.at = Date.now(); store.set('cgNotices', CGN.list); store.set('cgNoticesAt', CGN.at);
+  } catch (e) { CGN.err = true; }
+  return CGN.list;
+}
+async function openCgNotices() {
+  openSheet('<h3>Closures and safety zones</h3><div class="sub">Checking the Coast Guard…</div>');
+  await fetchCgNotices(true);
+  const now = Date.now(), up = EVENT_ZONES.map((z) => { const y = new Date().getFullYear(); const next = z.dates.map((md) => { let t = Date.parse(y + '-' + md + 'T17:30'); if (t + 8 * 3600000 < now) t = Date.parse((y + 1) + '-' + md + 'T17:30'); return t; }).sort((a, b) => a - b)[0]; return { z, next }; }).sort((a, b) => a.next - b.next);
+  openSheet('<h3>Closures and safety zones</h3><div class="sub">Places a route will not go, and what the Coast Guard has announced</div>' +
+    '<div class="mo-h">Every year (built in, routes avoid them on the day)</div>' + up.map(({ z, next }) => '<div class="li"><div class="li-main"><b>' + esc(z.name) + '</b><span>' + new Date(next).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ' from 5:30 pm · ' + esc(z.note) + '</span></div><button class="btn small" data-zone-show="' + EVENT_ZONES.indexOf(z) + '">Show</button></div>').join('') +
+    '<div class="mo-h">My avoid areas</div>' + (S.avoid.length ? S.avoid.map((z) => '<div class="li"><div class="li-main"><b>' + esc(z.name) + '</b></div><button class="btn small" data-avoid-del="' + z.id + '">Remove</button></div>').join('') : '<p class="sub">None yet. In the route planner, tap “Avoid an area”, then tap the chart.</p>') +
+    '<div class="mo-h">Latest Coast Guard rules for Chesapeake waters</div>' + (CGN.list.length ? CGN.list.slice(0, 15).map((d) => '<a class="li" href="' + esc(d.url) + '" target="_blank" rel="noopener"><div class="li-main"><b>' + esc(d.title) + '</b><span>' + esc((d.dates || '').slice(0, 160) || ('Published ' + d.pub)) + '</span></div></a>').join('') : '<p class="sub">' + (CGN.err ? 'Could not reach the Federal Register just now.' : 'Nothing found.') + '</p>') +
+    '<p class="hint">These come from the Federal Register and list the exact area in each notice; Tideline cannot yet draw them automatically. Short-notice closures (a search and rescue, a security zone around a ship) are broadcast on VHF 16 and 22A and in the weekly Local Notice to Mariners.</p><div class="row-btns"><a class="btn" href="https://www.navcen.uscg.gov/msi" target="_blank" rel="noopener">Local Notice to Mariners</a><button class="btn ghost" data-act="close">Close</button></div>');
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-zone-show]'); if (b) { const z = EVENT_ZONES[+b.dataset.zoneShow]; closeSheet(); setTab('chart'); map.setView([z.lat, z.lon], 15); L.circle([z.lat, z.lon], { radius: z.r, color: '#D32F2F', weight: 2, dashArray: '5 5', fillOpacity: 0.16 }).addTo(map).bindTooltip(z.name, { permanent: true }).openTooltip(); } if (e.target.closest('[data-cg-notices]')) openCgNotices(); });
 const RT = { edit: false, pts: store.get('routeDraft', []), marks: L.layerGroup().addTo(map), line: L.polyline([], { color: '#C2185B', weight: 5, opacity: 0.9, interactive: true }).addTo(map), depart: null, drag: null };
 function dragHandle(mk, onMove, onEnd) { // finger drag for a marker, with zoom-out at the screen edge
   const el = mk.getElement(); if (!el) return;
@@ -540,13 +597,16 @@ function drawRoute() {
   RT.marks.clearLayers();
   const show = RT.edit || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
+  if (!RT.bad) RT.bad = L.layerGroup().addTo(map); RT.bad.clearLayers();
+  if (show) RT.pts.forEach((p, i) => { if (i && p.unchecked) L.polyline([[RT.pts[i - 1].lat, RT.pts[i - 1].lon], [p.lat, p.lon]], { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
+  drawAvoid();
   if (!show) return;
   let sn = 0;
   RT.pts.forEach((p, i) => {
-    const turn = p.turn && !RT.edit; if (!p.turn) sn++;
-    const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: turn ? 1000 : 1100, icon: turn ? L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6], html: '<div class="rt-turn"></div>' }) : L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + (p.turn ? ' turn' : '') + '">' + (p.turn ? '' : sn) + '</div>' }) }).addTo(RT.marks);
+    const turn = (p.turn || p.via) && !RT.edit; if (!p.turn && !p.via) sn++;
+    const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: turn ? 1000 : 1100, icon: turn ? L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6], html: '<div class="rt-turn"></div>' }) : L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + (p.turn || p.via ? ' turn' : '') + '">' + (p.turn || p.via ? '' : sn) + '</div>' }) }).addTo(RT.marks);
     if (!RT.edit) mk.on('click', () => openRouteMenu());
-    if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { store.set('routeDraft', RT.pts); renderRouteSheet(); });
+    if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtRerouteAround(p); });
   });
 }
 setTimeout(() => RT.line.on('click', (e) => { L.DomEvent.stop(e); if (!RT.edit) openRouteMenu(); }), 0);
@@ -569,10 +629,50 @@ sheet.addEventListener('input', (e) => {
 });
 sheet.addEventListener('click', (e) => {
   const g = e.target.closest('[data-rtsug]'); if (!g) return; const o = rtList[+g.dataset.rtsug];
-  RT.pts.push({ lat: o.lat, lon: o.lon, name: o.name.replace(/\s*\(sample spot\)/, '') }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit();
+  RT.pts.push({ lat: o.lat, lon: o.lon, name: o.name.replace(/\s*\(sample spot\)/, '') }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); rtAutoLeg();
   setTimeout(() => { const q = $('rtQ'); if (q) q.focus(); }, 40);
 });
-function routeAdd(ll) { RT.pts.push({ lat: ll.lat, lon: ll.lng }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
+function routeAdd(ll) {
+  if (RT.avoidPick) { RT.avoidPick = false; addAvoidZone(ll.lat, ll.lng); renderRouteSheet(); return; }
+  RT.pts.push({ lat: ll.lat, lon: ll.lng }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtAutoLeg();
+}
+// Each new leg follows the water on its own, so a tapped or typed route never cuts across land
+function rtQueue(fn) { RT.q = (RT.q || Promise.resolve()).then(fn).catch(() => {}); return RT.q; }
+function rtStopBefore(i) { let k = i - 1; while (k >= 0 && RT.pts[k].turn) k--; return k; }
+function rtStopAfter(i) { let k = i + 1; while (k < RT.pts.length && RT.pts[k].turn) k++; return k < RT.pts.length ? k : -1; }
+async function rtFillLeg(a, b) { // replace whatever lies between stops a and b with water turning points
+  let ia = RT.pts.indexOf(a), ib = RT.pts.indexOf(b); if (ia < 0 || ib < 0 || ib <= ia) return;
+  let r; try { r = await waterLeg(a, b); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
+  ia = RT.pts.indexOf(a); ib = RT.pts.indexOf(b); if (ia < 0 || ib < 0 || ib <= ia) return;
+  const mid = r.ok ? r.pts.filter((q, k) => !(k === 0 && distNm(q, a) < 0.12) && !(k === r.pts.length - 1 && distNm(q, b) < 0.12)).map((q) => ({ lat: q.lat, lon: q.lon, turn: true })) : [];
+  RT.pts.splice(ia + 1, ib - ia - 1, ...mid);
+  if (r.ok) delete b.unchecked; else b.unchecked = r.why || 'net';
+  return r;
+}
+function rtAutoLeg() {
+  if (S.settings.autoWater === false || RT.pts.length < 2) return;
+  const b = RT.pts[RT.pts.length - 1], k = rtStopBefore(RT.pts.length - 1); if (k < 0) return; const a = RT.pts[k];
+  RT.busy = (RT.busy || 0) + 1; renderRouteSheet();
+  rtQueue(async () => {
+    const r = await rtFillLeg(a, b); RT.busy--; store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet();
+    if (r && !r.ok) toast(wrWhy(r.why), 6000); else if (r && WR.lowBridges && WR.lowBridges.length) toast('Routed around ' + WR.lowBridges[0] + ': too low for your air draft.', 5000);
+  });
+}
+function rtRerouteAround(p) { // after a stop is dragged, re-run the legs on either side of it
+  if (S.settings.autoWater === false) return;
+  rtQueue(async () => {
+    const i = RT.pts.indexOf(p); if (i < 0) return;
+    const ka = rtStopBefore(i), kb = rtStopAfter(i), a = ka >= 0 ? RT.pts[ka] : null, b = kb >= 0 ? RT.pts[kb] : null;
+    RT.busy = (RT.busy || 0) + 1; renderRouteSheet();
+    if (a) await rtFillLeg(a, p); if (b) await rtFillLeg(p, b);
+    RT.busy--; store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet();
+  });
+}
+function wrWhy(why) {
+  return why === 'nowater' ? 'That point is not in charted water deep enough for your boat. The leg is shown dashed: move the point onto water.' :
+    why === 'nopath' ? 'No water route deep enough for your draft was found for that leg (it may be blocked by shoals, a low bridge or a closed area). Shown dashed: do not follow it.' :
+    'Could not reach NOAA chart data' + (WR.lastErr ? ' (' + WR.lastErr + ')' : '') + ', so that leg is a straight line, shown dashed. It is NOT checked for land or depth.';
+}
 function windAt(t) {
   const h = S.weather && S.weather.hours; if (!h || !h.length) return null;
   let best = h[0]; h.forEach((x) => { if (Math.abs(x.t - t) < Math.abs(best.t - t)) best = x; });
@@ -613,20 +713,24 @@ function renderRouteSheet() {
   h += rtSearchHtml(n);
   h += '<div class="rt-legs">' + st.legs.map((l) => '<div class="rt-leg"><span class="rt-n">' + l.i + '→' + (l.i + 1) + '</span><span class="tnum">' + fmtDist(l.d) + ' · ' + fmtBrg(l.brg) + '°T · ' + fmtDur(l.hrs).replace(' min', 'm') + '</span><span class="rt-w">' + (l.wind ? compass16(l.wind.dir) + ' ' + Math.round(speedOut(l.wind.spd)) + ' g' + Math.round(speedOut(l.wind.gust)) : '') + '</span></div>' +
     l.bridges.map((x) => '<div class="rt-warn v-' + x.j.level + '">' + esc(x.br.name) + ': ' + esc(x.j.text) + '</div>').join('')).join('') + '</div>';
-  h += '<p class="hint" style="margin:6px 0">Follow the water adds turning points so each leg stays in water NOAA charts as deep enough for your boat. Check the chart for shoals; the wind shown is the forecast where you are now.</p>';
-  h += '<div class="row-btns"><button class="btn primary" data-act="rtstart">Start</button><button class="btn" data-act="rtwater">Follow the water</button><button class="btn" data-act="rtsave">Save</button><button class="btn" data-act="rtundo">Undo</button><button class="btn" data-act="rtrev">Reverse</button><button class="btn ghost" data-act="rtclear">Clear</button><button class="btn ghost" data-act="rtclose">Close</button></div></div>';
+  const bad = RT.pts.filter((p) => p.unchecked).length, zones = avoidZonesFor(RT.depart || Date.now());
+  h += RT.busy ? '<p class="rt-status">Finding a route through the water…</p>' : bad ? '<p class="rt-status bad">' + bad + ' leg' + (bad > 1 ? 's are' : ' is') + ' NOT checked (dashed). ' + esc(wrWhy(RT.pts.find((p) => p.unchecked).unchecked)) + '</p>' : S.settings.autoWater !== false && RT.pts.some((p) => p.turn) ? '<p class="rt-status ok">Follows water at least ' + fmtLen(wrNeedM() / 0.3048) + ' deep (your draft plus buffer)' + (S.boat.airDraftFt ? ', under bridges taller than your ' + fmtLen(S.boat.airDraftFt) + ' air draft' : '') + ', around closed areas' + (zones.length ? ' and ' + zones.length + ' avoid area' + (zones.length > 1 ? 's' : '') : '') + '.</p>' : '';
+  h += '<p class="hint" style="margin:6px 0">Each leg follows NOAA chart depths for your boat' + (S.boat.draftFt ? '' : ' (set your draft in Boat for a better route)') + '. Drag any point to reshape it. Always keep a lookout and watch the depth; the wind shown is the forecast where you are now.</p>';
+  h += '<div class="row-btns"><button class="btn primary" data-act="rtstart"' + (RT.busy ? ' disabled' : '') + '>Start</button><button class="btn" data-act="rtwater">Re-route by water</button><button class="btn" data-act="rtavoid">Avoid an area</button><button class="btn" data-scact="plan2">Best time to leave</button><button class="btn" data-act="rtautow">Auto-follow water: ' + (S.settings.autoWater === false ? 'off' : 'on') + '</button><button class="btn" data-act="rtsave">Save</button><button class="btn" data-act="rtundo">Undo</button><button class="btn" data-act="rtrev">Reverse</button><button class="btn ghost" data-act="rtclear">Clear</button><button class="btn ghost" data-act="rtclose">Close</button></div></div>';
   openSheet(h);
 }
-sheet.addEventListener('change', (e) => { if (e.target.id === 'rtDepart') { const t = Date.parse(e.target.value); if (t) { RT.depart = t; renderRouteSheet(); } } });
+sheet.addEventListener('change', (e) => { if (e.target.id === 'rtDepart') { const t = Date.parse(e.target.value); if (t) { const z0 = avoidZonesFor(RT.depart || Date.now()).length; RT.depart = t; drawAvoid(); const z1 = avoidZonesFor(t); if (z1.length !== z0 && RT.pts.length > 1 && S.settings.autoWater !== false) { if (z1.some((z) => z.event)) toast('Heads up: ' + z1.find((z) => z.event).name + ' that evening. The route keeps out of the safety zone.', 6000); routeByWater(RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name }))).then((pts) => { RT.pts = pts; store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }); } else renderRouteSheet(); } } });
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b || !b.dataset.act.startsWith('rt')) return;
   const act = b.dataset.act;
-  if (act === 'rtboat' && S.fix) { RT.pts.unshift({ lat: S.fix.lat, lon: S.fix.lon }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
-  if (act === 'rtundo') { RT.pts.pop(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
+  if (act === 'rtboat' && S.fix) { RT.pts.unshift({ lat: S.fix.lat, lon: S.fix.lon }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); if (RT.pts.length > 1) rtRerouteAround(RT.pts[0]); }
+  if (act === 'rtavoid') { RT.avoidPick = true; closeSheet(); toast('Tap the chart where the route must not go.', 4000); }
+  if (act === 'rtautow') { S.settings.autoWater = S.settings.autoWater === false; saveSettings(); renderRouteSheet(); }
+  if (act === 'rtundo') { RT.pts.pop(); while (RT.pts.length && RT.pts[RT.pts.length - 1].turn) RT.pts.pop(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
   if (act === 'rtrev') { RT.pts.reverse(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclear') { if (!armed(b, 'Tap again to clear')) return; RT.pts = []; store.set('routeDraft', []); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclose') routeMode(false);
-  if (act === 'rthome' && homePort()) { const hp = homePort(); if (RT.pts.length) RT.pts.push({ lat: hp.lat, lon: hp.lon, name: hp.name }); else RT.pts.unshift({ lat: hp.lat, lon: hp.lon, name: hp.name }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); }
+  if (act === 'rthome' && homePort()) { const hp = homePort(); const had = RT.pts.length; if (had) RT.pts.push({ lat: hp.lat, lon: hp.lon, name: hp.name }); else RT.pts.unshift({ lat: hp.lat, lon: hp.lon, name: hp.name }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); if (had) rtAutoLeg(); }
   if (act === 'rtwater' && RT.pts.length > 1) { b.disabled = true; (async () => { const keep = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); RT.pts = await routeByWater(keep); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); })(); }
   if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn || undefined })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
   if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((p) => ({ lat: p.lat, lon: p.lon })); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
@@ -648,15 +752,15 @@ function routeLeg(pts, i) {
 
 
 /* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
-const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds4', {}), cache: new Map() };
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds5', {}), cache: new Map() };
 async function encLayerIds(svc) {
   if (WR.ids[svc]) return WR.ids[svc];
   for (const h of WR.hosts) {
     try {
       const j = await fetchT(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 12000).then((r) => r.json());
       const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
-      const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i) };
-      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds4', WR.ids); return ids; }
+      const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area$/i) };
+      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds5', WR.ids); return ids; }
     } catch (e) { /* try the other NOAA host */ }
   }
   return null;
@@ -672,37 +776,55 @@ async function encQuery(svc, layer, bb, off) {
     if (j.error) throw new Error(j.error.message || 'ENC query failed');
     (j.features || []).forEach((f) => {
       const a = f.attributes || {}, k1 = Object.keys(a).find((k) => /^drval1$/i.test(k)), k2 = Object.keys(a).find((k) => /^drval2$/i.test(k));
-      if (f.geometry && f.geometry.rings) out.push({ d1: k1 != null && a[k1] != null ? +a[k1] : null, d2: k2 != null && a[k2] != null ? +a[k2] : null, rings: f.geometry.rings });
+      const A = {}; Object.keys(a).forEach((k) => { const K = k.toUpperCase(); if (/^(RESTRN|VERCLR|VERCCL|VERCOP|CATBRG|OBJNAM|CATREA)$/.test(K)) A[K] = a[k]; });
+      if (f.geometry && (f.geometry.rings || f.geometry.paths)) out.push({ d1: k1 != null && a[k1] != null ? +a[k1] : null, d2: k2 != null && a[k2] != null ? +a[k2] : null, rings: f.geometry.rings || null, paths: f.geometry.paths || null, a: A });
     });
     if (!j.exceededTransferLimit) break;
   }
   WR.cache.set(key, out); return out;
 }
 function wrNeedM() { const d = S.boat.draftFt, sb = S.boat.safetyFt == null ? 2 : S.boat.safetyFt; return d ? (d + sb) * 0.3048 : 1.2; }
-async function waterGrid(a, b) {
+async function waterGrid(a, b, padK) {
   const lat0 = (a.lat + b.lat) / 2, cosL = Math.cos(lat0 * Math.PI / 180), span = distNm(a, b);
-  const padNm = Math.max(1.5, span * 0.25), dLat = padNm / 60, dLon = padNm / 60 / cosL;
+  const padNm = Math.max(1.5 * (padK || 1) / 0.25, span * (padK || 0.25)), dLat = padNm / 60, dLon = padNm / 60 / cosL;
   const bb = [Math.min(a.lon, b.lon) - dLon, Math.min(a.lat, b.lat) - dLat, Math.max(a.lon, b.lon) + dLon, Math.max(a.lat, b.lat) + dLat];
   const wM = (bb[2] - bb[0]) * 111320 * cosL, hM = (bb[3] - bb[1]) * 111320;
   const cell = Math.max(35, Math.max(wM, hM) / 520), W = Math.ceil(wM / cell), H = Math.ceil(hM / cell);
   const cLat = cell / 111320, cLon = cell / (111320 * cosL), off = (cLat / 2).toFixed(6);
   const svcs = span > 45 ? ['enc_general', 'enc_coastal', 'enc_approach'] : span > 6 ? ['enc_coastal', 'enc_approach', 'enc_harbour'] : ['enc_coastal', 'enc_approach', 'enc_harbour'];
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const cx = cv.getContext('2d'), need = wrNeedM();
-  let feats = 0;
-  for (const svc of svcs) {
-    let d = [], dr = [];
-    try { [d, dr] = await Promise.all([encQuery(svc, 'depth', bb, off), encQuery(svc, 'dredged', bb, off).catch(() => [])]); } catch (e) { continue; }
-    feats += d.length;
-    d.concat(dr).forEach((f) => {
-      const good = f.d1 != null && f.d1 >= need, maybe = !good && f.d2 != null && f.d2 > need;
-      cx.fillStyle = good ? '#ff0000' : maybe ? '#00ff00' : '#000000';
-      cx.beginPath();
-      f.rings.forEach((r) => r.forEach(([lon, lat], i) => { const x = (lon - bb[0]) / cLon, y = (bb[3] - lat) / cLat; if (i) cx.lineTo(x, y); else cx.moveTo(x, y); }));
-      cx.fill('evenodd');
+  const cx = cv.getContext('2d'), need = wrNeedM(), toX = (lon) => (lon - bb[0]) / cLon, toY = (lat) => (bb[3] - lat) / cLat;
+  const ring = (f) => { cx.beginPath(); (f.rings || []).forEach((r) => r.forEach(([lon, lat], i) => { if (i) cx.lineTo(toX(lon), toY(lat)); else cx.moveTo(toX(lon), toY(lat)); })); cx.fill('evenodd'); };
+  const line = (f, w) => { cx.lineWidth = w; cx.lineCap = 'round'; cx.beginPath(); (f.paths || []).forEach((r) => r.forEach(([lon, lat], i) => { if (i) cx.lineTo(toX(lon), toY(lat)); else cx.moveTo(toX(lon), toY(lat)); })); cx.stroke(); };
+  // fetch every chart scale at once, then paint coarse to fine so the most detailed chart has the last word
+  const got = await Promise.all(svcs.map(async (svc) => {
+    try {
+      const [d, dr, land, restr, brL, brA] = await Promise.all([encQuery(svc, 'depth', bb, off), encQuery(svc, 'dredged', bb, off).catch(() => []), encQuery(svc, 'land', bb, off).catch(() => []), encQuery(svc, 'restr', bb, off).catch(() => []), encQuery(svc, 'bridgeL', bb, off).catch(() => []), encQuery(svc, 'bridgeA', bb, off).catch(() => [])]);
+      return { svc, d, dr, land, restr, br: brL.concat(brA) };
+    } catch (e) { WR.lastErr = e.message || String(e); return null; }
+  }));
+  let feats = 0; const restrAll = [], brAll = [];
+  got.forEach((x) => {
+    if (!x) return; feats += x.d.length;
+    x.d.concat(x.dr).forEach((f) => {
+      if (f.d1 == null) return; // no depth given: leave what a coarser chart said
+      const good = f.d1 >= need, maybe = !good && f.d2 != null && f.d2 > need;
+      cx.fillStyle = good ? '#ff0000' : maybe ? '#00ff00' : '#000000'; ring(f);
     });
-  }
-  if (!feats) return null;
+    cx.fillStyle = '#000000'; x.land.forEach((f) => { if (f.rings) ring(f); }); // land from the same chart wipes out any water a coarser chart drew over it
+    restrAll.push(...x.restr); brAll.push(...x.br);
+  });
+  // areas you may not enter: charted "entry prohibited" and "area to be avoided", event safety zones on the trip day, and your own avoid areas
+  cx.fillStyle = '#000000'; cx.strokeStyle = '#000000';
+  restrAll.forEach((f) => { const r = String(f.a.RESTRN || '').split(',').map(Number); if (f.rings && (r.includes(7) || r.includes(14))) ring(f); });
+  const air = S.boat.airDraftFt ? (S.boat.airDraftFt + 2) * 0.3048 : null, lowBr = [];
+  brAll.forEach((f) => {
+    const cat = String(f.a.CATBRG || '').split(',').map(Number), opens = cat.some((c) => [2, 3, 4, 5, 7, 8].includes(c));
+    const clr = opens ? null : (f.a.VERCLR != null ? +f.a.VERCLR : f.a.VERCCL != null ? +f.a.VERCCL : null);
+    if (air && clr != null && clr > 0 && clr < air) { lowBr.push(f.a.OBJNAM || 'a bridge'); if (f.rings) ring(f); if (f.paths) line(f, 3); }
+  });
+  avoidZonesFor(RT.depart || Date.now()).forEach((z) => { const [x, y] = [toX(z.lon), toY(z.lat)], r = z.r / cell + 1; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill(); });
+  WR.lowBridges = lowBr;
   const px = cx.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H); // 0 blocked, 1 good, 2 maybe
   for (let i = 0; i < W * H; i++) { const al = px[i * 4 + 3]; if (al > 100) g[i] = px[i * 4] > 110 ? 1 : px[i * 4 + 1] > 110 ? 2 : 0; }
   // distance (in cells) to the nearest blocked cell, so the path keeps off the shore and the shoals
@@ -760,10 +882,15 @@ function wrClear(G, i, j) { // straight line between two cells stays in water, o
 }
 async function waterLeg(a, b) {
   if (distNm(a, b) < 0.15) return { ok: true, pts: [] };
-  const G = await waterGrid(a, b); if (!G) return { ok: false, why: 'nodata' };
-  const [ax, ay] = G.toXY(a), [bx, by] = G.toXY(b), s = wrSnap(G, ax, ay), t = wrSnap(G, bx, by);
-  if (s < 0 || t < 0) return { ok: false, why: 'nowater' };
-  const path = wrAstar(G, s, t); if (!path) return { ok: false, why: 'nopath' };
+  // try a box just around the two points first; if land closes it off (a peninsula, an island), look wider for the way around
+  let G = null, path = null, s = -1, t = -1;
+  for (const k of [0.25, 0.9, 2]) {
+    G = await waterGrid(a, b, k); if (!G) return { ok: false, why: 'net' };
+    const [ax, ay] = G.toXY(a), [bx, by] = G.toXY(b); s = wrSnap(G, ax, ay); t = wrSnap(G, bx, by);
+    if (s < 0 || t < 0) return { ok: false, why: 'nowater' };
+    path = wrAstar(G, s, t); if (path) break;
+  }
+  if (!path) return { ok: false, why: 'nopath' };
   const keep = [path[0]]; let k = 0;
   while (k < path.length - 1) { let j = path.length - 1; while (j > k + 1 && !wrClear(G, path[k], path[j])) j = Math.max(k + 1, Math.floor(k + (j - k) * 0.85)); keep.push(path[j]); k = j; }
   const shallow = path.some((i) => G.g[i] === 2);
@@ -777,15 +904,16 @@ async function routeByWater(stops) {
     const p = stops[i];
     if (i) {
       const prev = stops[i - 1];
-      let r; try { r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; }
+      let r; try { r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
+      p.__ok = r.ok; p.__why = r.why;
       if (r.ok) {
         r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push({ lat: q.lat, lon: q.lon, turn: true }); });
         if (r.shallow) notes.push('Part of the way to ' + (p.name || 'stop ' + (i + 1)) + ' is in water the chart shows as close to your draft.');
       } else failed++;
     }
-    out.push(Object.assign({}, p, { stop: true }));
+    const o = Object.assign({}, p, { stop: true }); delete o.__ok; delete o.__why; delete o.unchecked; if (i && p.__ok === false) o.unchecked = p.__why || 'net'; out.push(o);
   }
-  if (failed) toast('Could not get NOAA chart depths for ' + (failed === stops.length - 1 ? 'this route' : failed + ' leg' + (failed > 1 ? 's' : '')) + '. Showing straight lines: check the chart before you go.', 6000);
+  if (failed) toast(wrWhy((out.find((q) => q.unchecked) || {}).unchecked), 8000);
   else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
   return out;
 }
@@ -1809,7 +1937,7 @@ function scrubLabel(k) { if (!k) return 'Now'; const d = new Date(Date.now() + k
 function setWxHour(k) {
   WX.hour = Math.max(0, Math.min(WXH, k)); const r = $('wxHour'); if (r) r.value = WX.hour;
   const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / WXH * 100).toFixed(1) + '%'; }
-  $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid();
+  $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid(); try { if (curOn()) { drawCurrents(); } } catch (e) { /* currents not ready */ }
 }
 document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) { wxStop(); setWxHour(WX.hour + +st.dataset.wxstep); } });
 // play the forecast: steps an hour about every 0.9 s through all the layers you have on, then stops at the end
@@ -1825,7 +1953,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]'
 document.addEventListener('input', (e) => { if (e.target.id === 'wxHour') wxStop(); }, true);
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
-  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button>'); return; }
+  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button><button type="button" class="btn small weather-alert-link" data-cur-near>⇄ Currents near you</button>'); return; }
   el.className = 'wxbar';
   if (!wxAny()) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
@@ -2293,15 +2421,17 @@ function renderMenu() {
       menuTile('dash', 'dash', 'Instruments', 'Gauges for speed, course, wind and tide') +
       menuTile('log', 'log', 'Tracks and waypoints', 'Record, photos and replay, export GPX')) +
     grp('On the water', menuTile('firstmate', 'dash', 'First mate', 'Ask by voice or type: weather, destinations and AIS') + menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
+      menuTile('closures', 'rules', 'Closures and safety zones', 'Fireworks zones, Coast Guard notices, your avoid areas') +
       menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast') +
       menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
+      menuTile('sailcoach', 'dash', 'Sailing coach', 'Sail plan, trim, which tack, best time to leave') +
       menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 98. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 100. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2314,6 +2444,7 @@ $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
   const a = b.dataset.mact;
   if (a === 'firstmate') { openFirstMate(); return; }
+  if (a === 'closures') { openCgNotices(); return; }
   if (a === 'rules') { setTab('search'); renderCats(); $('searchInput').value = 'Rules of the Road'; $('searchInput').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); return; }
   if (a === 'cockpit' || a === 'dash') { setTab('chart'); setCockpit(true); return; }
   if (a === 'search') { $('searchPill').click(); return; }
@@ -2328,6 +2459,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'restore') { $('restoreIn').click(); return; }
   if (a === 'update') { toast('Getting the latest version…'); (async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith('tl-app-')).map((k) => caches.delete(k))); } catch (e) { /* nothing cached */ } location.reload(); })(); return; }
   if (a === 'fish') { setTab('chart'); openFishWild(); return; }
+  if (a === 'sailcoach') { openSailCoach(); return; }
   setTab(a);
 });
 
@@ -4963,7 +5095,15 @@ function depthGauge() {
 /* ---------- weather warnings from the National Weather Service: tornado, special marine, thunderstorm, gale and small craft ---------- */
 const ALR = { list: [], at: 0, seen: new Set(store.get('alrSeen', [])), hide: new Set(store.get('alrHidden', [])), read: new Set(store.get('alrRead', [])), busy: false };
 const ALR_LOUD = /tornado|special marine|severe thunderstorm|hurricane|tropical storm|storm warning|gale warning|waterspout|tsunami|extreme wind/i;
-function alrClass(a) { return /warning/i.test(a.event) ? 'warn' : /watch/i.test(a.event) ? 'watch' : 'adv'; }
+// Colour by how serious it is, the way weather apps do: red severe, orange watch or moderate, blue minor advisory, green statement
+function alrClass(a) {
+  const e = a.event || '', sv = a.severity || '';
+  if (/tornado|severe thunderstorm|special marine|hurricane|tropical storm|storm warning|gale warning|high wind warning|extreme wind|waterspout|tsunami|flash flood warning/i.test(e) || (/warning/i.test(e) && /extreme|severe/i.test(sv))) return 'warn';
+  if (/watch/i.test(e) || /warning/i.test(e) || /small craft|gale|wind advisory|hazardous seas/i.test(e) || /moderate/i.test(sv)) return 'watch';
+  if (/advisory/i.test(e) || /minor/i.test(sv)) return 'adv';
+  return 'info';
+}
+const ALR_RANK = { warn: 0, watch: 1, adv: 2, info: 3 }, ALR_WORD = { warn: 'Severe', watch: 'Watch', adv: 'Advisory', info: 'Statement' };
 // A changed bulletin is new even when NWS retains the same alert identifier.
 function alertKey(a) {
   const text = JSON.stringify([a.id, a.sent, a.event, a.severity, a.urgency, a.certainty, a.headline, a.description, a.instruction, a.ends, a.expires]);
@@ -4979,9 +5119,9 @@ async function checkAlerts() {
   ALR.busy = true;
   try {
     const j = await fetchT('https://api.weather.gov/alerts/active?point=' + c.lat.toFixed(4) + ',' + c.lon.toFixed(4), 15000).then((r) => r.json());
-    ALR.list = (j.features || []).map((f) => f.properties).filter((p) => p && p.status === 'Actual' && p.event).sort((a, b) => ({ warn: 0, watch: 1, adv: 2 }[alrClass(a)] - { warn: 0, watch: 1, adv: 2 }[alrClass(b)]));
+    ALR.list = (j.features || []).map((f) => f.properties).filter((p) => p && p.status === 'Actual' && p.event).sort((a, b) => ALR_RANK[alrClass(a)] - ALR_RANK[alrClass(b)]);
     ALR.at = Date.now();
-    ALR.list.forEach((a) => { if (!ALR.seen.has(alertKey(a))) { ALR.seen.add(alertKey(a)); if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the red bar for details', 8000); } } });
+    ALR.list.forEach((a) => { if (!ALR.seen.has(alertKey(a))) { ALR.seen.add(alertKey(a)); if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the alert for details', 8000); } } });
     store.set('alrSeen', [...ALR.seen].slice(-80));
   } catch (e) { /* offline or outside NWS coverage */ }
   ALR.busy = false; renderAlertBar();
@@ -5003,13 +5143,13 @@ function renderAlertBar() {
   el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini') + (fresh ? ' is-new' : '');
   const label = (fresh ? 'New weather alert: ' : 'Weather alert: ') + a.event + '. Tap to read.';
   el.title = label; el.dataset.tip = label; el.setAttribute('aria-label', label);
-  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">⚠</b><small>' + (fresh ? 'NEW' : 'WEATHER') + '</small>';
+  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + (alrClass(a) === 'info' ? 'i' : '⚠') + '</b><small>' + (fresh ? 'NEW' : ALR_WORD[alrClass(a)].toUpperCase().slice(0, 7)) + '</small>';
 }
 function openAlerts() {
   ALR.list.forEach((a) => ALR.read.add(alertKey(a))); saveAlertState(); renderAlertBar();
   openSheet('<h3>Weather alerts here</h3><div class="sub">National Weather Service · checked ' + (ALR.at ? agoTxt(ALR.at) : 'not yet') + '</div>' + (ALR.list.length ? ALR.list.map((a) => {
     const key = alertKey(a), hidden = ALR.hide.has(key);
-    return '<div class="alr ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details><button class="btn small" data-weather-dismiss="' + esc(key) + '"' + (hidden ? ' disabled' : '') + '>' + (hidden ? 'Dismissed from chart' : 'Dismiss from chart') + '</button><p class="hint">A new or changed bulletin will appear again.</p></div>';
+    return '<div class="alr ' + alrClass(a) + '"><span class="alr-tag">' + ALR_WORD[alrClass(a)] + '</span><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details><div class="row-btns"><button class="btn small primary" data-weather-dismiss="' + esc(key) + '"' + (hidden ? ' disabled' : '') + '>' + (hidden ? 'Cleared from chart' : 'Clear alert') + '</button>' + (hidden ? '' : '<button class="btn small" data-act="close">Keep it on the chart, stop flashing</button>') + '</div><p class="hint">A new or changed bulletin will appear again.</p></div>';
   }).join('') : '<p class="sub">No active alerts received for this location.</p>') + '<p class="hint">Dismissed bulletins remain here while active. Also monitor NOAA Weather Radio on VHF WX channels.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
 }
 document.addEventListener('click', (e) => {
@@ -5330,7 +5470,7 @@ const firstMateSpots = L.layerGroup().addTo(map);
 function firstMateMessage(text) { const el = $('firstMateReply'); if (el) el.textContent = text; }
 function openFirstMate() {
   FM.view++; if (FM.recognition) FM.recognition.stop();
-  openSheet('<h3>First mate</h3><p class="sub">Ask naturally: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Show me the waves”, “Show the weather”, “Hide wind and rain”, “Night mode”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + (S.settings.assistantUrl ? 'Ready. Navigation requests open a destination for review.' : 'AI connection is not set up yet. Open Connection setup below.') + '</p><div id="firstMateResults"></div><details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
+  openSheet('<h3>First mate</h3><p class="sub">Try: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Take me to St. Michaels”, “Show the currents”, “Show me the waves”, “Should I reef?”, “When should I leave?”, “Night mode”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + 'Ready. Tap Talk and speak, or type and tap Send.' + '</p><div id="firstMateResults"></div><details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
 }
 function firstMateListen() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -5338,7 +5478,7 @@ function firstMateListen() {
   if (FM.recognition) { FM.recognition.stop(); return; }
   const r = new Recognition(); FM.recognition = r; r.lang = navigator.language || 'en-US'; r.interimResults = false; r.continuous = false;
   firstMateMessage('Listening… Tap Talk again to stop. Review the words before Send.');
-  r.onresult = e => { const input = $('firstMateRequest'); if (input) input.value = e.results[0][0].transcript; firstMateMessage('Check the words, then tap Send.'); };
+  r.onresult = e => { const input = $('firstMateRequest'); if (input) input.value = e.results[0][0].transcript; firstMateMessage('Heard: “' + e.results[0][0].transcript + '”'); setTimeout(askFirstMate, 250); };
   r.onerror = () => firstMateMessage('Could not hear you. Try keyboard dictation or type your request.');
   r.onend = () => { FM.recognition = null; };
   try { r.start(); } catch (e) { FM.recognition = null; firstMateMessage('Microphone unavailable. Type or use keyboard dictation.'); }
@@ -5393,16 +5533,29 @@ async function firstMateExecute(a) {
 // Built-in understanding of everyday requests, so the first mate works with no AI service, no sign-in and no cost.
 // Anything it can't place falls through to the AI backend when one is set up.
 const FM_PLACE_FIX = [[/\bssa\b|severn sailing( association)?/i, 'Severn Sailing Association'], [/\bbaltimore harbou?r\b|inner harbou?r/i, 'Baltimore Inner Harbor'], [/\bnaval academy\b/i, 'Naval Academy Annapolis']];
+// well-known Chesapeake spots, so the first mate finds them instantly, even with a weak signal (each point is in the water off the place)
+const FM_KNOWN = [
+  [/severn sailing|\bssa\b/, 'Severn Sailing Association', 38.97542, -76.48041], [/city dock|ego alley|downtown annapolis|^annapolis( harbou?r)?$/, 'Annapolis City Dock', 38.9774, -76.4853],
+  [/spa creek|eastport/, 'Spa Creek, Annapolis', 38.9740, -76.4830], [/naval academy|usna/, 'Naval Academy, Annapolis', 38.9800, -76.4775], [/annapolis yacht club|\bayc\b/, 'Annapolis Yacht Club', 38.9763, -76.4838],
+  [/baltimore|inner harbou?r|fells point/, 'Baltimore Inner Harbor', 39.2850, -76.6085], [/st\.? michaels|saint michaels/, 'St. Michaels', 38.7870, -76.2210],
+  [/^oxford/, 'Oxford', 38.6915, -76.1700], [/rock hall/, 'Rock Hall', 39.1350, -76.2440], [/solomons/, 'Solomons', 38.3270, -76.4560],
+  [/thomas point/, 'Thomas Point Shoal Light', 38.8990, -76.4360], [/bay bridge/, 'Chesapeake Bay Bridge', 38.9930, -76.3780],
+  [/gibson island/, 'Gibson Island', 39.0750, -76.4300], [/magothy/, 'Magothy River', 39.0700, -76.4600], [/kent narrows/, 'Kent Narrows', 38.9720, -76.2460],
+  [/galesville|west river/, 'Galesville, West River', 38.8420, -76.5370], [/rhode river/, 'Rhode River', 38.8800, -76.5200], [/south river/, 'South River', 38.9300, -76.5400],
+  [/chestertown/, 'Chestertown', 39.2050, -76.0640], [/cambridge/, 'Cambridge', 38.5750, -76.0760], [/havre de grace/, 'Havre de Grace', 39.5450, -76.0900]
+];
 async function fmPlace(q, near) {
   q = q.replace(/^(the|a)\s+/i, '').replace(/[.?!]+$/, '').trim();
   if (/^(here|me|my boat|my location|where i am|current location)$/i.test(q)) return S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : null;
   if (/^(home|home port|my (home )?port|my dock|my slip)$/i.test(q) && homePort()) return Object.assign({}, homePort());
   const hp = homePort(); if (hp && q.toLowerCase() === hp.name.toLowerCase()) return Object.assign({}, hp);
+  const kn = FM_KNOWN.find(([re]) => re.test(q.toLowerCase().replace(/^seven sailing/, 'severn sailing')));
+  if (kn) return { name: kn[1], lat: kn[2], lon: kn[3] };
   FM_PLACE_FIX.forEach(([re, v]) => { if (re.test(q)) q = v; });
-  const list = await suggestPlaces(q, near || searchCenter());
+  let list = []; try { list = await suggestPlaces(q, near || searchCenter()); } catch (e) { list = []; }
   const o = list[0]; return o ? { name: o.name.replace(/\s*\(sample spot\)/, ''), lat: o.lat, lon: o.lon, sub: o.sub } : null;
 }
-const FM_LAYER = { wind: 'wind', winds: 'wind', waves: 'waves', wave: 'waves', seas: 'waves', swell: 'waves', rain: 'rain', radar: 'rain', storms: 'rain', tide: 'tide', tides: 'tide', current: 'tide' };
+const FM_LAYER = { wind: 'wind', winds: 'wind', waves: 'waves', wave: 'waves', seas: 'waves', swell: 'waves', rain: 'rain', radar: 'rain', storms: 'rain', tide: 'tide', tides: 'tide', current: 'cur', currents: 'cur' };
 const CRAB_TIPS = '<div class="fm-card"><b>Blue crabs: telling them apart</b><p><b>Male (jimmy):</b> the apron on the belly is long and narrow, shaped like the Washington Monument or a T. Claw tips are blue.</p><p><b>Mature female (sook):</b> the apron is wide and rounded, like the Capitol dome. Claw tips are red, “painted fingernails”.</p><p><b>Young female (sally):</b> apron is a triangle. <b>Sponge crab:</b> a female carrying an orange or brown egg mass under the apron.</p><p><b>What you can keep:</b> Maryland sets the minimum size (measured point to point across the shell), the bushel limit and whether females may be kept, and it changes by season and year. Sponge crabs must always go back.</p><p><a href="https://dnr.maryland.gov/fisheries/Pages/regulations/crab.aspx" target="_blank" rel="noopener">Current Maryland crabbing rules ›</a></p></div>';
 function fishAdvice(c) {
   if (/crab|jimmy|sook|sally/.test(c)) return CRAB_TIPS;
@@ -5432,8 +5585,21 @@ async function fmLocal(text) {
       closeSheet(); setTab('chart');
       const pts = await routeByWater([{ lat: from.lat, lon: from.lon, name: from.name }, { lat: to.lat, lon: to.lon, name: to.name }]);
       RT.pts = pts; store.set('routeDraft', RT.pts); routeMode(true); map.fitBounds(L.latLngBounds(pts.map((q) => [q.lat, q.lon])).pad(0.15));
-      headsUp('Course plotted from ' + from.name + ' to ' + to.name + '. ' + fmtDist(distNm(from, to)) + ' as the crow flies. Review it, then tap Start.');
+      const bad = pts.some((q) => q.unchecked), sail = pts.reduce((sum, q, i) => i ? sum + distNm(pts[i - 1], q) : 0, 0);
+      headsUp(bad ? 'I could not check that course against the chart, so it is drawn dashed. Do not follow it blindly.' : 'Course plotted by water from ' + from.name + ' to ' + to.name + ': ' + fmtDist(sail) + '. Review it, then tap Start.');
       return true;
+    }
+    if (/\b(trim|reef|reefing|sail plan|sailing coach|coach|tack|tacking|gybe|jibe|point of sail|telltales?|upwind|downwind|beat|which sails?)\b/.test(c)) { firstMateMessage(''); $('firstMateResults').innerHTML = '<div class="fm-card">' + await sailCoachHtml() + '</div>'; return true; }
+    // sailing coach: trim, reefing, when to leave
+    if (/\b(more|all|every|detailed|racing) currents?\b|currents? (detail|everywhere)/.test(c)) { S.settings.curDensity = 'all'; setCurrents(true); firstMateMessage('Showing every current station. Zoom in on a channel to see how it runs.'); return true; }
+    if (/\b(fewer|less|simpler) currents?\b/.test(c)) { S.settings.curDensity = 'few'; setCurrents(true); firstMateMessage('Showing just a few current arrows.'); return true; }
+    if (/\b(best time|when should (i|we)|what time should (i|we))\b.*\b(leave|go|sail|depart|head out)\b/.test(c)) {
+      const dm = c.match(/\b(?:for|to)\s+(.+?)[?.!]*$/), dq = dm ? dm[1].replace(/^(the)\s+/, '').trim() : '';
+      if (dq && !/^(go|sail|leave)$/.test(dq)) {
+        const from = S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : homePort(), to = await fmPlace(dq, from);
+        if (from && to) { firstMateMessage('Plotting a course to ' + to.name + '…'); RT.pts = await routeByWater([{ lat: from.lat, lon: from.lon, name: from.name }, { lat: to.lat, lon: to.lon, name: to.name }]); store.set('routeDraft', RT.pts); drawRoute(); }
+      }
+      closeSheet(); openSailCoach('plan'); return true;
     }
     // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
     if (S.settings.fishTips !== false && /\b(fish|fishing|biting|bait|lure|catch|keep|limit|crab|crabs|crabbing|jimmy|sook)\b/.test(c)) { const r = fishAdvice(c); if (r) { firstMateMessage(''); $('firstMateResults').innerHTML = r; return true; } }
@@ -5441,7 +5607,7 @@ async function fmLocal(text) {
     m = c.match(/^(show|display|bring up|turn on|switch on|open|hide|remove|turn off|switch off|clear)(?: me)?(?: the)? (.+)/);
     const verbOn = m ? !/hide|remove|off|clear/.test(m[1]) : true, what = (m ? m[2] : c).replace(/[.?!]/g, '').trim();
     const words = what.split(/[\s,&]+/), layers = [...new Set(words.map((w) => FM_LAYER[w]).filter(Boolean))];
-    if (layers.length) { layers.forEach((l) => { if (l === 'tide') { S.tideCardOn = verbOn; renderTideCard(); } else setWxL(l, verbOn); }); setTab('chart'); done.push((verbOn ? 'Showing ' : 'Hiding ') + layers.join(' and ')); continue; }
+    if (layers.length) { layers.forEach((l) => { if (l === 'tide') { S.tideCardOn = verbOn; renderTideCard(); } else if (l === 'cur') setCurrents(verbOn); else setWxL(l, verbOn); }); setTab('chart'); done.push((verbOn ? 'Showing ' : 'Hiding ') + layers.map((l) => l === 'cur' ? 'currents' : l).join(' and ')); continue; }
     if (/^(the )?(weather|forecast)\b/.test(what)) { if (verbOn) { WX.view = 'wind'; WX.open = true; setTab('weather'); done.push('Here is the forecast'); } else { setWxL('wind', false); setWxL('waves', false); setWxL('rain', false); done.push('Weather hidden'); } continue; }
     if (/\bais\b|ships|boats|traffic|vessels/.test(what)) { S.settings.aisShow = verbOn; saveSettings(); updateAis(); renderAisBtn(); done.push(verbOn ? 'AIS ships on' : 'AIS ships off'); continue; }
     if (/satellite|aerial/.test(what)) { S.settings.satOver = verbOn; saveSettings(); applyChart(); done.push(verbOn ? 'Satellite on' : 'Satellite off'); continue; }
@@ -5463,7 +5629,7 @@ async function askFirstMate() {
   FM.busy = true; let handled = false;
   try { handled = await fmLocal(request); } catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); handled = true; } finally { FM.busy = false; }
   if (handled) return;
-  if (!S.settings.assistantUrl) { firstMateMessage('I did not catch that. Try: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Show the waves”, “Hide wind”, “Night mode”, “How far to St. Michaels”.'); return; }
+  if (!S.settings.assistantUrl) { firstMateMessage('I did not catch “' + request + '”. Try: “Take me to St. Michaels”, “Set a course from SSA to Baltimore Harbor”, “Show the currents”, “Hide wind”, “Should I reef?”, “How far to Rock Hall”.'); return; }
   FM.busy = true; const boat = S.fleet.active, view = FM.view; firstMateMessage('Thinking…');
   const send = sheet.querySelector('[data-fm="send"]'); if (send) send.disabled = true;
   try {
@@ -5489,6 +5655,10 @@ document.addEventListener('click', e => { if (e.target.closest('[data-first-mate
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab'; b.dataset.firstMate = 'true'; b.title = 'Ask first mate'; b.setAttribute('aria-label','Ask first mate'); b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 10v2a6 6 0 0012 0v-2M12 18v3M8 21h8"/></svg>'; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
+const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)']];
+function applyBTheme() { document.documentElement.dataset.btheme = S.settings.btheme || 'blue'; }
+applyBTheme();
+sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-btheme]'); if (!b) return; S.settings.btheme = b.dataset.btheme; saveSettings(); applyBTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); });
 applyTint();
 // iPhone Safari ignores "no zoom" in the page header, so stop the page itself from being pinched or double-tapped bigger; the chart still zooms
 (() => {
@@ -5514,7 +5684,292 @@ applyTint();
     fit();
   }
 })();
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+/* ---------- tidal currents: NOAA current prediction stations, drawn as arrows where the water actually runs (e.g. the channel off Thomas Point) ---------- */
+const CUR = { st: null, loading: null, pred: new Map(), busy: new Set(), layer: L.layerGroup().addTo(map), err: false };
+const curOn = () => !!S.settings.curOn;
+async function curStations() {
+  if (CUR.st) return CUR.st;
+  const cached = store.get('curSt2', null);
+  if (cached && Date.now() - cached.at < 30 * 86400000) { CUR.st = cached.list; return CUR.st; }
+  if (!CUR.loading) CUR.loading = (async () => {
+    const j = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=currentpredictions&units=english', 25000).then((r) => r.json());
+    const seen = new Map();
+    (j.stations || []).forEach((x) => { if (x.lat == null || x.lng == null) return; const o = { id: x.id, n: x.name, lat: +x.lat, lon: +x.lng, b: x.currbin != null ? x.currbin : null, d: x.depth != null ? +x.depth : null }; const p = seen.get(x.id); if (!p || (o.d != null && p.d != null && o.d < p.d)) seen.set(x.id, o); });
+    CUR.st = [...seen.values()]; store.set('curSt2', { at: Date.now(), list: CUR.st }); return CUR.st;
+  })().catch((e) => { CUR.err = true; CUR.loading = null; return []; });
+  return CUR.loading;
+}
+const ymdUTC = (t) => { const d = new Date(t); return d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0'); };
+async function curPred(st) {
+  const day = ymdUTC(Date.now() - 86400000), key = st.id + ':' + day;
+  if (CUR.pred.has(key)) return CUR.pred.get(key);
+  if (CUR.busy.has(key)) return null; CUR.busy.add(key);
+  try {
+    const u = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=currents_predictions&application=Tideline&station=' + encodeURIComponent(st.id) + (st.b != null ? '&bin=' + st.b : '') + '&begin_date=' + day + '&range=' + (24 * 9) + '&interval=MAX_SLACK&units=english&time_zone=gmt&format=json';
+    const j = await fetchT(u, 20000).then((r) => r.json());
+    const cp = (j.current_predictions && j.current_predictions.cp) || [];
+    const ev = cp.map((c) => ({ t: Date.parse(c.Time.replace(' ', 'T') + ':00Z'), v: +(c.Velocity_Major != null ? c.Velocity_Major : c.Speed), type: String(c.Type || '').toLowerCase(), fd: c.meanFloodDir != null ? +c.meanFloodDir : null, ed: c.meanEbbDir != null ? +c.meanEbbDir : null })).filter((e) => isFinite(e.t) && isFinite(e.v));
+    const out = { ev, fd: (ev.find((e) => e.fd != null) || {}).fd, ed: (ev.find((e) => e.ed != null) || {}).ed };
+    if (out.fd == null && out.ed != null) out.fd = (out.ed + 180) % 360; if (out.ed == null && out.fd != null) out.ed = (out.fd + 180) % 360;
+    CUR.pred.set(key, ev.length ? out : { ev: [] }); return CUR.pred.get(key);
+  } catch (e) { return null; } finally { CUR.busy.delete(key); }
+}
+// speed and set at a moment, smoothly between NOAA's predicted slacks and maximums (positive = flood)
+function curAt(p, t) {
+  if (!p || !p.ev || p.ev.length < 2) return null;
+  const ev = p.ev; let i = ev.findIndex((e) => e.t > t); if (i <= 0) return null;
+  const a = ev[i - 1], b = ev[i], f = (t - a.t) / (b.t - a.t), v = a.v + (b.v - a.v) * (1 - Math.cos(Math.PI * f)) / 2;
+  const dir = v >= 0 ? p.fd : p.ed;
+  const nextSlack = ev.slice(i).find((e) => e.type === 'slack' || Math.abs(e.v) < 0.15), nextMax = ev.slice(i).find((e) => e.type === 'flood' || e.type === 'ebb' || Math.abs(e.v) >= 0.15);
+  return { v, kn: Math.abs(v), dir, flood: v >= 0, nextSlack, nextMax };
+}
+const curTime = () => Date.now() + (WX.hour || 0) * 3600000;
+function curColor(kn) { return kn < 0.4 ? '#7C8B99' : kn < 1 ? '#2E86DE' : kn < 1.6 ? '#0FA3A3' : kn < 2.3 ? '#E08A00' : '#D32F2F'; }
+async function drawCurrents() {
+  CUR.layer.clearLayers(); if (!curOn() || S.tab === 'weather' && false) return;
+  const z = map.getZoom(); if (z < 9) { renderCurChip(); return; }
+  const list = await curStations(); if (!curOn()) return;
+  const b = map.getBounds().pad(0.15), c = map.getCenter();
+  // how much to show: Few (cruising under power), Normal, or Every station (racing: see exactly how the current runs)
+  const dens = S.settings.curDensity || 'normal', cap = dens === 'few' ? (z >= 12 ? 10 : 6) : dens === 'all' ? 200 : (z >= 12 ? 40 : 25), gap = dens === 'few' ? 90 : dens === 'all' ? 18 : 48;
+  const placed = [], vis = list.filter((x) => b.contains([x.lat, x.lon])).sort((p, q) => map.distance(c, [p.lat, p.lon]) - map.distance(c, [q.lat, q.lon])).filter((x) => {
+    if (placed.length >= cap) return false; const pt = map.latLngToContainerPoint([x.lat, x.lon]);
+    if (placed.some((q) => q.distanceTo(pt) < gap)) return false; placed.push(pt); return true;
+  });
+  const t = curTime();
+  const paint = () => {
+    CUR.layer.clearLayers(); if (!curOn()) return;
+    vis.forEach((st) => {
+      const p = CUR.pred.get(st.id + ':' + ymdUTC(Date.now() - 86400000)), now = curAt(p, t); if (!now) return;
+      const col = curColor(now.kn), len = Math.round(18 + Math.min(3, now.kn) * 9), slack = now.kn < 0.4, lbl = S.settings.curLbl || 'all';
+      if (slack && dens === 'few') return;
+      const showN = lbl === 'all' || (lbl === 'strong' && now.kn >= 1);
+      const html = '<div class="cur-a' + (slack ? ' slack' : '') + '" style="--c:' + col + '">' + (slack ? '<i class="cur-dot"></i>' : '<svg width="' + len + '" height="' + len + '" viewBox="0 0 24 24" style="transform:rotate(' + Math.round(now.dir || 0) + 'deg)"><path d="M12 2l6 10h-4v10h-4V12H6z"/></svg>') + (showN ? '<b>' + (slack ? 'slack' : now.kn.toFixed(1)) + '</b>' : '') + '</div>';
+      const m = L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [46, 46], iconAnchor: [23, 23], html }) }).addTo(CUR.layer);
+      m.on('click', (e) => { L.DomEvent.stop(e); openCurrent(st); });
+      m.bindTooltip(esc(st.n) + ': ' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn ' + (now.flood ? 'flood' : 'ebb') + ' toward ' + compass16(now.dir || 0)), { direction: 'top' });
+    });
+    renderCurChip();
+  };
+  paint();
+  const need = vis.filter((st) => !CUR.pred.has(st.id + ':' + ymdUTC(Date.now() - 86400000)));
+  for (let k = 0; k < need.length; k += 6) { await Promise.all(need.slice(k, k + 6).map(curPred)); if (!curOn()) return; paint(); }
+}
+async function nearestCurrent(pt) {
+  const list = await curStations(); if (!list.length || !pt) return null;
+  let best = null, bd = Infinity; list.forEach((x) => { const d = distNm(pt, x); if (d < bd) { bd = d; best = x; } });
+  return best && bd < 15 ? Object.assign({ dNm: bd }, best) : null;
+}
+async function renderCurChip() {
+  const c = $('curChip'); if (!c) return;
+  const pt = S.fix || refPos(); const st = CUR.chipSt && distNm(CUR.chipSt, pt || CUR.chipSt) < 3 ? CUR.chipSt : await nearestCurrent(pt);
+  CUR.chipSt = st; const p = st ? CUR.pred.get(st.id + ':' + ymdUTC(Date.now() - 86400000)) || await curPred(st) : null, now = curAt(p, curTime());
+  c.classList.toggle('on', curOn());
+  c.innerHTML = '<span class="fi-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h13l-3-3M3 8h13l-3 3"/><path d="M21 16H8l3-3M21 16H8l3 3"/></svg></span><b>' + (now ? (now.kn < 0.4 ? 'slack' : now.kn.toFixed(1)) : 'Curr') + '</b>';
+  c.dataset.tip = 'Current' + (now ? ': ' + (now.kn < 0.4 ? 'slack' : now.kn.toFixed(1) + ' kn ' + (now.flood ? 'flood' : 'ebb')) + ' at ' + st.n : '') + '. Tap to show current arrows on the chart; tap an arrow for that spot.';
+}
+function curSpark(p, t0) {
+  const W = 300, H = 70, pts = []; let mx = 0.5;
+  for (let h = 0; h <= 24; h += 0.25) { const n = curAt(p, t0 + h * 3600000); if (n) { pts.push([h, n.v]); mx = Math.max(mx, Math.abs(n.v)); } }
+  if (!pts.length) return '';
+  const X = (h) => (h / 24 * W).toFixed(1), Y = (v) => (H / 2 - v / mx * (H / 2 - 6)).toFixed(1);
+  return '<svg class="cur-spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><line x1="0" x2="' + W + '" y1="' + H / 2 + '" y2="' + H / 2 + '" class="cs-0"/><path d="M' + pts.map(([h, v]) => X(h) + ' ' + Y(v)).join(' L') + '" class="cs-l"/><line x1="0" x2="0" y1="0" y2="' + H + '" class="cs-now"/><text x="4" y="12" class="cs-t">flood</text><text x="4" y="' + (H - 4) + '" class="cs-t">ebb</text><text x="' + (W - 4) + '" y="' + (H - 4) + '" text-anchor="end" class="cs-t">+24 h</text></svg>';
+}
+async function openCurrent(st) {
+  openSheet('<h3>' + esc(st.n) + '</h3><div class="sub">Tidal current · reading NOAA predictions…</div>');
+  const p = await curPred(st) || CUR.pred.get(st.id + ':' + ymdUTC(Date.now() - 86400000)), t = curTime(), now = curAt(p, t);
+  if (!now) { openSheet('<h3>' + esc(st.n) + '</h3><p class="sub">No current prediction available right now.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>'); return; }
+  const up = p.ev.filter((e) => e.t > t).slice(0, 8);
+  const word = now.kn < 0.4 ? 'Slack water' : (now.flood ? 'Flood' : 'Ebb') + ' ' + now.kn.toFixed(1) + ' kn toward ' + compass16(now.dir || 0) + ' (' + Math.round(now.dir || 0) + '°T)';
+  const set = S.settings.underSail && S.weather && S.weather.cur ? '' : '';
+  openSheet('<h3>' + esc(st.n) + '</h3><div class="sub">Tidal current ' + (WX.hour ? 'at ' + scrubLabel(WX.hour) : 'now') + ' · NOAA station ' + esc(st.id) + '</div>' +
+    '<div class="cur-now" style="--c:' + curColor(now.kn) + '"><b>' + esc(word) + '</b>' + (now.nextSlack ? '<span>Next slack ' + fmtClock(now.nextSlack.t) + '</span>' : '') + '</div>' + curSpark(p, t) +
+    '<div class="mo-h">Coming up</div>' + up.map((e) => '<div class="cur-ev"><span class="tnum">' + new Date(e.t).toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtClock(e.t) + '</span><b>' + (e.type === 'slack' || Math.abs(e.v) < 0.15 ? 'Slack' : (e.v > 0 ? 'Max flood ' : 'Max ebb ') + Math.abs(e.v).toFixed(1) + ' kn') + '</b></div>').join('') +
+    '<p class="hint">Flood runs up the Bay (toward ' + compass16(p.fd || 0) + '), ebb runs down it. These are predictions: a strong wind or a big rain can make the current run harder, start early or late. Plan to pass narrow, fast spots near slack, and with the current behind you.</p>' +
+    curSettingsHtml() + '<div class="row-btns"><a class="btn" href="https://tidesandcurrents.noaa.gov/noaacurrents/predictions?id=' + encodeURIComponent(st.id) + '" target="_blank" rel="noopener">NOAA page</a><button class="btn ghost" data-act="close">Close</button></div>');
+}
+function curSettingsHtml() {
+  const d = S.settings.curDensity || 'normal', l = S.settings.curLbl || 'all', seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-cur' + k + '="' + v + '" class="' + (cur === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  return '<div class="mo-h">How much current to show</div><div class="field"><label>Arrows on the chart</label>' + seg('dens', d, [['few', 'Few'], ['normal', 'Normal'], ['all', 'Every station']]) + '<small class="hint">Few suits cruising under power. Every station shows exactly how the current runs through a channel: for racing.</small></div>' +
+    '<div class="field"><label>Speed numbers</label>' + seg('lbl', l, [['all', 'On every arrow'], ['strong', 'Only 1 kn and up'], ['none', 'Off']]) + '</div>';
+}
+sheet.addEventListener('click', (e) => {
+  const d = e.target.closest('[data-curdens]'), l = e.target.closest('[data-curlbl]'); if (!d && !l) return;
+  if (d) S.settings.curDensity = d.dataset.curdens; if (l) S.settings.curLbl = l.dataset.curlbl; saveSettings();
+  (d || l).parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === (d || l))); drawCurrents();
+});
+function openCurSettings() { openSheet('<h3>Tidal currents</h3><div class="sub">Arrows show where the water is running and how fast, from NOAA predictions. Tap an arrow for that spot.</div>' + curSettingsHtml() + '<div class="row-btns"><button class="btn" data-curtoggle>' + (curOn() ? 'Hide currents' : 'Show currents') + '</button><button class="btn ghost" data-act="close">Close</button></div>'); }
+document.addEventListener('click', async (e) => { if (!e.target.closest('[data-cur-near]')) return; const st = await nearestCurrent(S.fix || homePort() || refPos()); if (st) openCurrent(st); else openCurSettings(); });
+sheet.addEventListener('click', (e) => { if (e.target.closest('[data-curtoggle]')) { setCurrents(!curOn()); openCurSettings(); } });
+function setCurrents(on) { S.settings.curOn = on; saveSettings(); drawCurrents(); renderCurChip(); try { renderWxBtn(); } catch (e) { /* early */ } }
+(() => { // the current button sits with wind, waves, rain and tide in the weather pop-out
+  const grp = document.querySelector('.wx-pop'); if (!grp) return;
+  const b = document.createElement('button'); b.id = 'curChip'; b.type = 'button'; b.className = 'fab info'; b.setAttribute('aria-label', 'Tidal currents on the chart');
+  const tc = $('tideChip'); grp.insertBefore(b, tc ? tc.nextSibling : null);
+  let lp = null, held = false;
+  b.addEventListener('pointerdown', () => { held = false; lp = setTimeout(() => { held = true; openCurSettings(); }, 550); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => clearTimeout(lp)));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('click', () => { if (held) { held = false; return; } setTab('chart'); setCurrents(!curOn()); toast(curOn() ? 'Current arrows on. Tap an arrow for a spot; press and hold this button to show more or fewer.' : 'Current arrows off', 4500); });
+  renderCurChip();
+})();
+map.on('moveend', () => { if (curOn()) { clearTimeout(CUR.mt); CUR.mt = setTimeout(drawCurrents, 300); } });
+setInterval(() => { if (curOn()) drawCurrents(); else renderCurChip(); }, 5 * 60000);
+setTimeout(() => { if (curOn()) drawCurrents(); }, 2500);
+QUICK.splice(QUICK.findIndex((q) => q[0] === 'rain') + 1, 0, ['cur', 'Tidal currents (long-press the current button for detail)', () => curOn(), (on) => setCurrents(on)]);
+FM_LAYER.current = 'cur'; FM_LAYER.currents = 'cur';
+/* ---------- sailing coach: sail plan, trim and how to sail the course, from the wind, your heading, the current and the forecast ---------- */
+function pointOfSail(twa) {
+  return twa < 35 ? ['In irons', 'too close to the wind to sail'] : twa < 60 ? ['Close-hauled', 'beating to windward'] : twa < 80 ? ['Close reach', ''] : twa < 110 ? ['Beam reach', 'usually the fastest point of sail'] : twa < 150 ? ['Broad reach', ''] : ['Running', 'wind from behind'];
+}
+const TRIM = {
+  'In irons': ['Bear away until the sails fill: back the jib to the side you want the bow to go if it will not come round.', 'Pick a tack and sail close-hauled; you cannot sail straight at the wind.'],
+  'Close-hauled': ['Jib sheeted in hard, about a hand off the spreader. Steer by the telltales: both streaming, inside one just lifting.', 'Main: traveler near the middle, sheet in until the top batten is parallel to the boom. Outhaul and backstay on as the wind builds to flatten the sails.', 'Heeling past about 20° is slower, not faster: ease the traveler down in the puffs, then reef.'],
+  'Close reach': ['Ease the jib and main a few inches from close-hauled; move the jib lead slightly forward.', 'Keep the telltales streaming and the boat flat: drop the traveler in gusts.'],
+  'Beam reach': ['Ease both sails out until they just start to luff, then pull them back in a touch.', 'Ease the outhaul for a fuller, more powerful main; a bit of vang keeps the boom from lifting.', 'Move the jib lead forward or outboard so the whole sail breaks evenly.'],
+  'Broad reach': ['Sails well out; ease until the luff just curls, then trim back.', 'Vang on to stop the main twisting off; ease the backstay.', 'Watch the wind angle: below about 150° the jib collapses behind the main.'],
+  'Running': ['Main out to the shrouds and rig a preventer so an accidental gybe cannot swing the boom.', 'Try wing-on-wing (jib on the opposite side) or head up 10–20° to a broad reach and gybe: it is often faster and steadier.', 'Keep your head below the boom line and gybe with the main sheeted to the middle first.']
+};
+function sailPlan(kn, gust) {
+  const g = Math.max(kn || 0, gust || 0);
+  if (g >= 30) return { lvl: 'bad', t: 'Stay in or get in: gusts ' + Math.round(g) + ' kn are beyond comfortable sailing for most cruising boats. If you are out, deep reefs and a small jib, or motor to shelter.' };
+  if (g >= 24 || kn >= 20) return { lvl: 'warn', t: 'Second reef in the main and a well-rolled jib (about half). Reef at the dock before you go out.' };
+  if (g >= 18 || kn >= 14) return { lvl: 'warn', t: 'First reef in the main; roll a few turns into the jib if you are overpowered. Rule of thumb: the time to reef is the first time you think about it.' };
+  if (kn >= 10) return { lvl: 'ok', t: 'Full sail. Flatten the sails (outhaul, backstay, cunningham) and ease the traveler in the puffs.' };
+  if (kn >= 5) return { lvl: 'ok', t: 'Full sail, fuller shape: ease the outhaul and backstay, and sit to leeward to help the sails hang.' };
+  return { lvl: 'info', t: 'Very light wind. Keep the sails full and soft, move smoothly, and be ready to motor if you have a schedule.' };
+}
+async function sailCoachHtml() {
+  const w = S.weather, t = curTime();
+  if (!w || !w.cur) return '<p class="sub">Waiting for the wind forecast here. Try again in a moment.</p>';
+  const sa = (k) => { const v = WX.hour ? seriesAt(w.hours, t, k) : null; return v != null ? v : w.cur[k]; }, kn = sa('spd'), gust = sa('gust'), from = sa('dir');
+  const moving = S.fix && (S.sog || 0) > 1.2 && isFinite(S.cog);
+  let dest = null; if (S.goto) dest = S.goto; else if (RT.pts.length > 1) dest = RT.pts[1];
+  const here = S.fix || homePort() || refPos();
+  const hdg = moving ? S.cog : dest && here ? bearing(here, dest) : null;
+  const plan = sailPlan(kn, gust), out = [];
+  out.push('<div class="sc-wind"><b>Wind ' + Math.round(speedOut(kn)) + (gust ? ' gusting ' + Math.round(speedOut(gust)) : '') + ' ' + SPEED_LBL[S.settings.speedUnit] + ' from the ' + compass16(from) + '</b><span>' + (WX.hour ? 'forecast for ' + scrubLabel(WX.hour) : 'now') + '</span></div>');
+  out.push('<div class="sc-card ' + plan.lvl + '"><h4>Sail plan</h4><p>' + esc(plan.t) + '</p></div>');
+  if (hdg != null) {
+    const twa = angDiff(hdg, from), [pos, note] = pointOfSail(twa), side = (((from - hdg + 360) % 360) < 180) ? 'starboard' : 'port';
+    out.push('<div class="sc-card"><h4>' + (moving ? 'You are ' : 'Heading ' + (S.goto ? 'to ' + esc(S.goto.name) + ' is ' : 'to your first waypoint is ')) + esc(pos.toLowerCase()) + (twa >= 35 ? ' on ' + side + ' tack' : '') + '</h4><p class="sub">' + Math.round(twa) + '° off the wind' + (note ? ' · ' + esc(note) : '') + '</p><ul>' + TRIM[pos].map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>');
+    if (dest && here) {
+      const brg = bearing(here, dest), dwa = angDiff(brg, from), d = distNm(here, dest), spd = S.settings.sailSpeed || 5;
+      if (dwa < 42) {
+        const portH = (from + 45) % 360, stbdH = (from - 45 + 360) % 360, favor = angDiff(portH, brg) < angDiff(stbdH, brg) ? ['port', portH] : ['starboard', stbdH];
+        const sailed = d / Math.cos((45 - dwa) * Math.PI / 180) * 1.05, hrs = sailed / (spd * 0.85);
+        const later = w.hours ? seriesAt(w.hours, t + 3 * 3600000, 'dir') : null, shift = later != null ? ((later - from + 540) % 360) - 180 : 0;
+        out.push('<div class="sc-card"><h4>Getting there: it is upwind</h4><p>' + esc(dest.name || 'Your destination') + ' is ' + fmtDist(d) + ' at ' + fmtBrg(brg) + '°T, only ' + Math.round(dwa) + '° off the wind, so you will tack. Headings about <b>' + fmtBrg(portH) + '°</b> on port and <b>' + fmtBrg(stbdH) + '°</b> on starboard.</p><p>Start on <b>' + favor[0] + ' tack (' + fmtBrg(favor[1]) + '°)</b>: it points closer to the mark. Expect roughly ' + fmtDist(sailed) + ' through the water, about ' + fmtDur(hrs) + '.</p>' + (Math.abs(shift) >= 15 ? '<p>The wind is forecast to ' + (shift > 0 ? 'veer (shift right) ' : 'back (shift left) ') + Math.abs(Math.round(shift)) + '° in the next 3 hours: sail toward the new wind first, the ' + (shift > 0 ? 'right' : 'left') + ' side of the course looking upwind.</p>' : '') + '<p class="hint">Stay inside the laylines and do not overstand. Tack in the lulls, not the puffs.</p></div>');
+      } else if (dwa > 160) {
+        out.push('<div class="sc-card"><h4>Getting there: dead downwind</h4><p>Rather than running straight at ' + fmtBrg(brg) + '°, broad reach at about ' + fmtBrg((from + 180 + 30) % 360) + '° and ' + fmtBrg((from + 180 - 30 + 360) % 360) + '° and gybe once or twice: steadier, safer, often as quick.</p></div>');
+      } else out.push('<div class="sc-card"><h4>Getting there: one tack</h4><p>' + esc(dest.name || 'Your destination') + ' is ' + fmtDist(d) + ' at ' + fmtBrg(brg) + '°T: a ' + esc(pointOfSail(dwa)[0].toLowerCase()) + ' all the way. About ' + fmtDur(d / spd) + ' at ' + fmtSpeed(spd) + ' ' + SPEED_LBL[S.settings.speedUnit] + '.</p></div>');
+    }
+  } else out.push('<div class="sc-card"><h4>Trim</h4><p>Start moving, or set a destination, and I will tell you your point of sail, how to trim and which tack to start on.</p></div>');
+  try {
+    const st = await nearestCurrent(here), p = st ? await curPred(st) : null, c = curAt(p, t);
+    if (c && c.kn >= 0.5) {
+      const against = angDiff(c.dir || 0, (from + 180) % 360) > 120; // current running into the wind
+      out.push('<div class="sc-card' + (against && kn >= 12 && c.kn >= 1 ? ' warn' : '') + '"><h4>Current ' + c.kn.toFixed(1) + ' kn ' + (c.flood ? 'flood' : 'ebb') + ' toward ' + compass16(c.dir || 0) + '</h4><p>' + (against ? 'It runs against the wind: expect a short, steep chop' + (kn >= 12 ? ', especially in the channels' : '') + '.' : 'It runs with the wind: flatter water.') + (c.nextSlack ? ' Next slack ' + fmtClock(c.nextSlack.t) + '.' : '') + '</p><p class="hint">' + esc(st.n) + '. Ride a fair current, and cross strong, narrow spots near slack.</p></div>');
+    }
+  } catch (e) { /* current not available */ }
+  const bt = baroTrend(); if (bt && bt.warn) out.push('<div class="sc-card warn"><h4>Barometer ' + esc(bt.word) + '</h4><p>Falling pressure means more wind is on the way. Reef early and keep a way home.</p></div>');
+  return out.join('');
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-sailcoach]')) openSailCoach(); });
+/* ---------- sailing coach: sail plan and trim for the wind now, and the best time to leave for a route given wind and current ---------- */
+function scHull() { const h = hullSpeed(); return h ? h.kn : 6.3; }
+// a rough cruising-boat polar: speed as a share of hull speed, by true wind speed and angle
+function scSpeed(tws, twa) {
+  if (twa < 35 || tws < 1.5) return 0;
+  const f = Math.min(1, Math.pow(Math.max(0, tws - 1) / 13, 0.65)), A = [[35, 0.55], [45, 0.78], [60, 0.9], [90, 1], [120, 0.97], [150, 0.82], [180, 0.7]];
+  let af = A[A.length - 1][1]; for (let i = 1; i < A.length; i++) if (twa <= A[i][0]) { const [a0, v0] = A[i - 1], [a1, v1] = A[i]; af = v0 + (v1 - v0) * (twa - a0) / (a1 - a0); break; }
+  return scHull() * 0.92 * f * af * (tws > 22 ? 0.9 : 1);
+}
+async function scCurrentNear(pt, t) { try { const st = await nearestCurrent(pt); if (!st || st.dNm > 4) return null; const p = await curPred(st); const n = curAt(p, t); return n ? Object.assign({ st }, n) : null; } catch (e) { return null; } }
+function scLegs() { // the legs of the route you are planning or navigating, else the line to your destination
+  const pts = RT.pts && RT.pts.length > 1 ? RT.pts : S.goto && S.goto.route ? S.goto.route.pts : S.goto ? [S.fix || refPos(), S.goto] : null;
+  if (!pts) return null; const legs = [];
+  for (let i = 1; i < pts.length; i++) { const d = distNm(pts[i - 1], pts[i]); if (d > 0.02) legs.push({ a: pts[i - 1], b: pts[i], d, brg: bearing(pts[i - 1], pts[i]) }); }
+  return legs.length ? legs : null;
+}
+// how long a route takes leaving at time t: wind from the forecast each hour, tacking or gybing as needed, current at the nearest NOAA station
+async function scPassage(legs, t0) {
+  const w = S.weather; if (!w || !w.hours) return null;
+  let t = t0, tack = 0, foulNm = 0, fairNm = 0, chop = false, maxG = 0, minW = 99, motor = 0, pos = [];
+  for (const L0 of legs) {
+    const tws = seriesAt(w.hours, t, 'spd'), dir = seriesAt(w.hours, t, 'dir'), gust = seriesAt(w.hours, t, 'gust'); if (tws == null || dir == null) return null;
+    maxG = Math.max(maxG, gust || tws); minW = Math.min(minW, tws);
+    const twa = angDiff(dir, L0.brg);
+    let made; // speed made good along the leg
+    if (twa < 45) { made = scSpeed(tws, 45) * Math.cos(45 * Math.PI / 180) / Math.cos(twa * Math.PI / 180); tack++; }
+    else if (twa > 160) { made = scSpeed(tws, 150) * Math.cos(30 * Math.PI / 180) / Math.cos((180 - twa) * Math.PI / 180); }
+    else made = scSpeed(tws, twa);
+    const mid = { lat: (L0.a.lat + L0.b.lat) / 2, lon: (L0.a.lon + L0.b.lon) / 2 }, cur = await scCurrentNear(mid, t);
+    if (cur && cur.dir != null) { const along = cur.kn * Math.cos(angDiff(cur.dir, L0.brg) * Math.PI / 180); made += along; if (along < -0.3) foulNm += L0.d; if (along > 0.3) fairNm += L0.d; if (cur.kn > 0.9 && tws > 10 && angDiff(cur.dir, (dir + 180) % 360) > 135) chop = true; }
+    if (made < 1.2) { motor += L0.d; made = Math.max(made, S.settings.cruise || 5); }
+    t += L0.d / made * 3600000; pos.push(pointOfSail(Math.max(twa, 35))[0].toLowerCase());
+  }
+  return { t0, t1: t, hrs: (t - t0) / 3600000, tack, foulNm, fairNm, chop, maxG, minW, motor, pos: [...new Set(pos)] };
+}
+async function scBestTimes(legs) {
+  const w = S.weather; if (!w || !w.hours) return [];
+  const start = Math.ceil(Date.now() / 3600000) * 3600000, out = [];
+  for (let h = 0; h < 36; h++) {
+    const t = start + h * 3600000, here = legs[0].a, end = legs[legs.length - 1].b;
+    if (sunElev(here.lat, here.lon, t) < 2) continue; // leave in daylight
+    const r = await scPassage(legs, t); if (!r) continue;
+    r.dark = sunElev(end.lat, end.lon, r.t1) < -4; // arrives after dark
+    let score = r.hrs; score += r.motor * 0.6; score += r.maxG > 25 ? 6 : r.maxG > 20 ? 2 : 0; score += r.chop ? 1.5 : 0; score += r.tack ? 0.4 : 0; score += r.dark ? 4 : 0;
+    const ss = typeof sunTimes === 'function' ? null : null; // daylight handled by the hour filter
+    out.push(Object.assign({ score }, r));
+  }
+  return out.sort((a, b) => a.score - b.score);
+}
+async function openSailCoach(tab) {
+  tab = tab || 'now'; SC.tab = tab;
+  const w = S.weather, tws = w && w.cur ? w.cur.spd : null, gust = w && w.cur ? w.cur.gust : null, dir = w && w.cur ? w.cur.dir : null;
+  const tabs = '<div class="seg fw-tabs">' + [['now', 'Sail now'], ['plan', 'Best time to go'], ['basics', 'Basics']].map(([v, l]) => '<button type="button" data-sctab="' + v + '" class="' + (tab === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  let h = '<h3>Sailing coach</h3>' + tabs;
+  if (tab === 'now') {
+    openSheet(h + '<p class="sub">Reading the wind…</p>');
+    const body = await sailCoachHtml(); if (SC.tab !== 'now') return;
+    h += body + '<label class="air-ok"><input type="checkbox" id="scTips"' + (S.settings.sailTips !== false ? ' checked' : '') + '> Coach me while sailing (a short tip when it is time to reef or shake one out)</label>';
+  } else if (tab === 'plan') {
+    const legs = scLegs();
+    if (!legs) h += '<p class="sub">Plan a route first (Navigate → Route, or ask the first mate “set a course to St. Michaels”). Then I will find the best time to leave, using the hour-by-hour wind forecast and NOAA tidal currents along the way.</p><div class="row-btns"><button class="btn primary" data-scact="route">Plan a route</button></div>';
+    else {
+      openSheet(h + '<p class="sub">Working through the next 36 hours of wind and current…</p>');
+      const best = await scBestTimes(legs); if (SC.tab !== 'plan') return;
+      const total = legs.reduce((s, l) => s + l.d, 0);
+      if (!best.length) h += '<p class="sub">No forecast yet. Try again in a moment.</p>';
+      else {
+        h += '<div class="sub">' + fmtDist(total) + ' route · daylight departures in the next 36 hours, best first (arriving before dark counts)</div>';
+        h += best.slice(0, 5).map((r, i) => '<div class="sc-win' + (i ? '' : ' best') + '"><div><b>' + new Date(r.t0).toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtClock(r.t0) + '</b><span>arrive ' + fmtClock(r.t1) + ' · ' + fmtDur(r.hrs) + '</span></div><ul>' +
+          '<li>Wind ' + Math.round(speedOut(r.minW)) + (r.maxG > r.minW + 2 ? '–' + Math.round(speedOut(r.maxG)) : '') + ' ' + SPEED_LBL[S.settings.speedUnit] + ' · ' + esc(r.pos.join(', ')) + '</li>' +
+          (r.tack ? '<li>Upwind on ' + r.tack + ' leg' + (r.tack > 1 ? 's' : '') + ': expect to tack</li>' : '') +
+          (r.fairNm > 0.5 ? '<li class="good">Current with you for ' + fmtDist(r.fairNm) + '</li>' : '') + (r.foulNm > 0.5 ? '<li class="bad">Current against you for ' + fmtDist(r.foulNm) + '</li>' : '') +
+          (r.chop ? '<li class="bad">Wind against current somewhere on the way: steep chop</li>' : '') + (r.motor > 0.5 ? '<li>Too light to sail for about ' + fmtDist(r.motor) + ' (motoring)</li>' : '') + (r.maxG > 22 ? '<li class="bad">Gusts over 22: reef before you leave</li>' : '') + (r.dark ? '<li class="bad">Arrives after dark</li>' : '') + '</ul></div>').join('');
+        h += '<p class="hint">From the hourly wind forecast, a rough polar for your boat (hull speed ' + fmtSpeed(scHull()) + ') and NOAA current predictions at the station nearest each leg. It is a guide; check the forecast and the sky before you go.</p>';
+      }
+    }
+  } else {
+    h += '<div class="fm-card"><b>Points of sail</b><ul><li><b>Close-hauled</b> (about 45° off the wind): sails in tight, steer by the jib telltales.</li><li><b>Reaching</b> (60–150°): ease the sails until they just luff, then trim back a touch.</li><li><b>Running</b> (wind behind): main way out, preventer on, watch for an accidental gybe.</li></ul></div>' +
+      '<div class="fm-card"><b>Reading telltales</b><ul><li>Both streaming back: trimmed right.</li><li>Windward (inside) one lifting: head down or sheet in.</li><li>Leeward (outside) one lifting: head up or ease out.</li><li>Main: the top leech telltale should stream most of the time; if it hides behind the sail, ease the sheet or vang a little.</li></ul></div>' +
+      '<div class="fm-card"><b>Reefing the main (slab reef)</b><ul><li>Head up to about 50° off the wind, ease the mainsheet and vang.</li><li>Lower the halyard to the reef mark; hook the tack ring on the horn.</li><li>Re-tension the halyard, then pull in the reef line at the clew.</li><li>Tie the reef points loosely around the bunched sail only, never around the boom.</li></ul></div>' +
+      '<div class="fm-card"><b>Heaving to</b><ul><li>Tack without releasing the jib, so it is backed.</li><li>Ease the main a little and lash the tiller to leeward (wheel to windward).</li><li>The boat sits quietly, drifting slowly: a good way to reef, rest or eat.</li></ul></div>' +
+      '<div class="fm-card"><b>Chesapeake notes</b><ul><li>Afternoon thunderstorms in summer: watch the west, and reef when the sky darkens.</li><li>A southerly sea-breeze often fills in by early afternoon.</li><li>Wind against current off Thomas Point, the Bay Bridge and river mouths makes steep, short chop.</li></ul></div>';
+  }
+  h += '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
+  openSheet(h);
+}
+const SC = { tab: 'now', last: null };
+sheet.addEventListener('click', (e) => { const t = e.target.closest('[data-sctab]'); if (t) { openSailCoach(t.dataset.sctab); return; } const a = e.target.closest('[data-scact]'); if (a && a.dataset.scact === 'route') { closeSheet(); routeMode(true); } if (a && a.dataset.scact === 'plan2') openSailCoach('plan'); });
+sheet.addEventListener('change', (e) => { if (e.target.id === 'scTips') { S.settings.sailTips = e.target.checked; saveSettings(); } });
+setInterval(() => { // a quiet nudge when the wind crosses a reefing step, only while under sail
+  if (!S.settings.underSail || S.settings.sailTips === false || !S.weather || !S.weather.cur) return;
+  const p = sailPlan(S.weather.cur.spd, S.weather.cur.gust); if (SC.last != null && p.lvl !== SC.last) toast('Sailing coach: ' + p.t, 9000); SC.last = p.lvl;
+}, 5 * 60000);
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
