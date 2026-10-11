@@ -1838,7 +1838,7 @@ function renderAnchor() {
       '<button class="btn primary big" data-act="drop">Drop anchor here</button>' +
       '<div class="p-btns" style="margin-top:0"><button class="btn" data-act="testsiren">Test the alarm sound</button><button class="btn" data-act="docktest">Dock test</button></div>' +
       '<p class="hint">Dock test: sets a 40 ft circle where you stand. Walk the phone away and the alarm should sound about 15 seconds after you leave it.</p>' +
-      '<p class="hint">Tap when the anchor hits the bottom. The circle centers on your bow, using the GPS-to-bow distance in Settings (' + fmtLen(S.settings.gpsToBow) + '). You can drag the anchor on the chart to fine-tune it.</p>' +
+      '<p class="hint">Tap when the anchor hits the bottom. The circle centers on your bow, using where you keep the phone (Settings: ' + fmtLen(S.settings.gpsToBow) + ' from the bow). You can drag the anchor on the chart to fine-tune it.</p>' +
       '<p class="hint">Keep Tideline open with the screen on and the phone charging, and turn the ringer on. Phone browsers pause web apps when the screen locks.</p>' +
       '</div>';
     return;
@@ -1939,7 +1939,7 @@ function adviceHtml() {
 }
 function sugHtml(f, sug, scope) {
   return '<span class="eyebrow">Suggested circle</span><span class="mid tnum">' + fmtLen(sug.radius) + '</span>' +
-    '<span class="note">' + fmtLen(sug.reach) + ' of rode reach + ' + fmtLen(S.settings.gpsToBow) + ' GPS to bow + margin</span>' +
+    '<span class="note">' + fmtLen(sug.reach) + ' of rode reach + ' + fmtLen(S.settings.gpsToBow) + ' from phone to bow + margin</span>' +
     '<span class="note" style="margin-top:4px">Scope ' + (scope ? scope.toFixed(1) + ':1' : '–') + (scope && scope < 5 ? ' · short scope; 5:1 or more holds better' : '') + '</span>';
 }
 function renderAnchorLive() {
@@ -2093,6 +2093,25 @@ function sw(key, label, note) {
 function numRow(key, label, note, toDisplay) {
   return '<div class="set-row"><div class="sr-text"><b>' + label + '</b><span>' + note + '</span></div><input type="number" inputmode="decimal" data-num="' + key + '" value="' + Math.round(toDisplay(S.settings[key]) * 10) / 10 + '" aria-label="' + label + '"></div>';
 }
+
+/* where the phone lives: tap a spot on the boat instead of measuring to the bow */
+function gpsSpotHtml() {
+  const L = S.settings.boatLen || 27, d = Math.min(L, Math.max(0, S.settings.gpsToBow || 0)), x = 20 + (d / L) * 280; // bow at x=20, stern at x=300
+  const sail = S.settings.boatType === 'sail';
+  const presets = sail ? [['Bow', 0.08], ['Mast', 0.38], ['Cabin', 0.55], ['Cockpit', 0.8]] : [['Bow', 0.08], ['Center console', 0.5], ['Helm', 0.62], ['Stern', 0.92]];
+  return '<div class="set-block"><b>Where you keep the phone or GPS</b><span class="note">Tap the spot on your boat. It puts the anchor circle on your bow, not on your phone.</span>' +
+    '<svg class="gps-hull" viewBox="0 0 320 90" role="img" aria-label="Tap where the phone is on the boat" data-hull>' +
+    '<path d="M20 45 C60 12 200 10 300 20 L300 70 C200 80 60 78 20 45Z" class="hull"/>' + (sail ? '<line x1="126" y1="45" x2="126" y2="4" class="mast"/>' : '') +
+    '<text x="22" y="86" class="lbl">bow</text><text x="270" y="86" class="lbl">stern</text>' +
+    '<circle cx="' + x.toFixed(0) + '" cy="45" r="11" class="spot"/><path d="M' + x.toFixed(0) + ' 39v12M' + (x - 6).toFixed(0) + ' 45h12" class="spot-x"/></svg>' +
+    '<div class="nf-quick" style="margin:4px 0">' + presets.map(([l, f]) => '<button type="button" class="btn small" data-gpsf="' + f + '">' + l + '</button>').join('') + '</div>' +
+    '<span class="note tnum">' + fmtLen(d) + ' from the bow, on a ' + fmtLen(L) + ' boat</span></div>';
+}
+function setGpsSpot(frac) { const L = S.settings.boatLen || 27; S.settings.gpsToBow = Math.round(Math.min(1, Math.max(0, frac)) * L); saveSettings(); renderSettings(); }
+$('panelSettings').addEventListener('click', (e) => {
+  const pf = e.target.closest('[data-gpsf]'); if (pf) { setGpsSpot(+pf.dataset.gpsf); return; }
+  const hull = e.target.closest('[data-hull]'); if (hull) { const r = hull.getBoundingClientRect(), xv = (e.clientX - r.left) / r.width * 320; setGpsSpot((xv - 20) / 280); }
+});
 function renderSettings() {
   const p = $('panelSettings');
   p.innerHTML = '<div class="p-head"><div><div class="eyebrow">Settings</div><h2>App settings</h2></div><button class="btn small" data-act="toboat">Back to Boat</button></div>' +
@@ -2102,7 +2121,7 @@ function renderSettings() {
     '<div class="set-row"><div class="sr-text"><b>Boat type</b><span>Used by the rules coach</span></div></div>' + seg('boatType', [['sail', 'Sailboat'], ['power', 'Powerboat']]) +
     '<div class="set-row"><div class="sr-text"><b>Boat name</b><span>Used in radio scripts</span></div><input type="text" data-text="boatName" value="' + esc(S.settings.boatName) + '" placeholder="Name" aria-label="Boat name" style="width:150px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:16px;padding:0 10px"></div>' +
     numRow('boatLen', 'Boat length (' + lenUnit() + ')', 'Used for the anchor circle', ftToLen) +
-    numRow('gpsToBow', 'Phone or GPS to bow (' + lenUnit() + ')', 'Where you usually keep the phone, measured to the bow', ftToLen) +
+    gpsSpotHtml() +
     numRow('cruise', 'Cruising speed (' + SPEED_LBL[S.settings.speedUnit] + ')', 'For ETAs while you are stopped', speedOut) +
     numRow('bridgeMargin', 'Bridge safety margin (' + lenUnit() + ')', 'Warns when a bridge leaves less room than this over your air draft', ftToLen) + '</div>' +
     '<div class="card"><h4>Captain\'s coach</h4><div class="set-row"><div class="sr-text"><b>How the coach speaks up</b><span>Off: no tips. Chime: a gentle ding-ding and a card you can tap for more. Spoken: a calm voice too, like turn-by-turn directions.</span></div></div>' + seg('coachMode', [['off', 'Off'], ['chime', 'Chime'], ['voice', 'Spoken']]) + '<div style="height:10px"></div><div class="row-btns"><button class="btn" data-act="testvoice">Test the sound</button></div><div style="height:10px"></div>' +

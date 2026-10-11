@@ -721,3 +721,11 @@ html.nogps .mob { display: none; }
 .m-row i svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .m-txt { flex: 1; min-width: 0; } .m-txt b { display: block; font-size: 16px; font-weight: 600; } .m-txt span { font-size: 13px; color: var(--ink2); }
 .m-chev { width: 18px; height: 18px; fill: none; stroke: var(--ink2); stroke-width: 2; flex: none; }
+.set-block { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.set-block .note { font-size: 13px; color: var(--ink2); }
+.gps-hull { width: 100%; max-width: 420px; cursor: pointer; margin: 6px 0 2px; }
+.gps-hull .hull { fill: var(--surface2); stroke: var(--ink2); stroke-width: 2; }
+.gps-hull .mast { stroke: var(--ink2); stroke-width: 3; stroke-linecap: round; }
+.gps-hull .lbl { font-size: 11px; fill: var(--ink2); }
+.gps-hull .spot { fill: var(--accent); stroke: #fff; stroke-width: 2.5; }
+.gps-hull .spot-x { stroke: #fff; stroke-width: 2; }
