@@ -19,7 +19,7 @@ function saveSoon(key, getter, ms = 3000) {
 const DEFAULTS = {
   speedUnit: 'kn', distUnit: 'nm', boatLen: 27, gpsToBow: 20, cruise: 5,
   chart: 'noaa', seamarks: true, night: false, keepAwake: true, sim: false, simRate: 5,
-  boatType: 'sail', underSail: true, boatName: '', aisCoach: false, voice: true, skipper: '', iconStyle: 'boat',
+  boatType: 'sail', underSail: true, boatName: '', aisCoach: false, aisShow: true, voice: true, skipper: '', iconStyle: 'boat',
   wx: 'none', bridges: true, bridgeMargin: 2, cockpit: false, theme: 'auto', satOver: true, chartOnSat: 0.6, sailSpeed: 5, navMode: 'engine', rings: false, easy: false, coachMode: 'off', chips: false, satSrc: 'std',
 };
 const savedSettings = store.get('settings', {});
@@ -265,6 +265,7 @@ function openLayersSheet() {
   html += tog('satBox', 'Satellite imagery', 'Aerial photo under the chart', st.satOver && st.chart !== 'satellite');
   if (st.satOver && st.chart !== 'satellite') html += '<div class="field" style="margin:4px 0 8px"><label for="satMix">Chart on top: <b id="satMixVal">' + Math.round(st.chartOnSat * 100) + '%</b></label><input id="satMix" type="range" min="20" max="100" step="5" value="' + Math.round(st.chartOnSat * 100) + '"></div>';
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
+  html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats. Live AIS comes from your boat\'s receiver' : 'Live AIS needs your boat\'s AIS receiver connected (app-store version)', S.settings.aisShow !== false);
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
@@ -308,6 +309,7 @@ sheet.addEventListener('change', (e) => {
   if (e.target.id === 'wxWind' || e.target.id === 'wxWaves' || e.target.id === 'wxRain') setWxL({ wxWind: 'wind', wxWaves: 'waves', wxRain: 'rain' }[e.target.id], e.target.checked);
   if (e.target.id === 'bridgesBox') { S.settings.bridges = e.target.checked; saveSettings(); refreshBridges(true); }
   if (e.target.id === 'satBox') { S.settings.satOver = e.target.checked; if (S.settings.chart === 'satellite') S.settings.chart = 'noaa'; saveSettings(); applyChart(); openLayersSheet(); }
+  if (e.target.id === 'aisBox') { S.settings.aisShow = e.target.checked; saveSettings(); updateAis(); }
   if (e.target.id === 'chipsBox') { S.settings.chips = e.target.checked; saveSettings(); applyCalm(); }
   if (e.target.id === 'ringsBox') { S.settings.rings = e.target.checked; saveSettings(); drawRings(); }
   if (e.target.id === 'easyBox') { S.settings.easy = e.target.checked; saveSettings(); applyEasy(); }
@@ -577,6 +579,7 @@ function renderStrip() {
 
 /* ---------- GPS ---------- */
 function setGps(cls, text) { $('gpsDot').className = 'dot ' + cls; $('gpsText').textContent = text; renderStatusWx(); }
+$('gpsPill').addEventListener('click', (e) => { if (tideNow()) { e.stopImmediatePropagation(); WX.view = 'tide'; WX.open = true; setTab('weather'); } }, true);
 function renderStatusWx() {
   const el = $('statusWx'); if (!el) return;
   const w = S.weather, ob = typeof nearestObs === 'function' ? nearestObs() : null;
@@ -1161,7 +1164,20 @@ document.addEventListener('click', (e) => {
   if (th) { WX.hour = +th.dataset.tlh; drawGrid(); renderWxBar(); return; }
   if (e.target.closest('[data-tlopen]')) { WX.open = !WX.open; renderWxBar(); }
 });
-document.addEventListener('input', (e) => { if (e.target.id === 'tlTide') { WX.hour = +e.target.value; const svg = document.querySelector('.tl-tide'); if (svg) svg.outerHTML = tideCurve(WX.hour); const n = document.querySelector('.tl-now'); if (n) { const tv = tideAtT(Date.now() + WX.hour * 3600000); n.querySelector('b').textContent = WX.hour ? hourLabel(WX.hour) : 'Now'; n.querySelector('span').textContent = tv != null ? 'Tide ' + tideLen(tv) + ' above MLLW' : ''; } } });
+function tideSet(h) {
+  WX.hour = Math.max(0, Math.min(46, Math.round(h * 4) / 4));
+  const svg = document.querySelector('.tl-tide'); if (svg) svg.outerHTML = tideCurve(WX.hour);
+  const sl = $('tlTide'); if (sl) sl.value = WX.hour;
+  const t = Date.now() + WX.hour * 3600000, tv = tideAtT(t), n = document.querySelector('.tl-now'), nx = (S.tide.hilo || []).find((p) => p.t > t), rising = nx ? nx.type === 'H' : null;
+  if (n) { n.querySelector('b').textContent = WX.hour ? new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'Now'; n.querySelector('span').textContent = tv != null ? tideLen(tv) + (rising == null ? '' : rising ? ' rising' : ' falling') + (nx ? ' · ' + (nx.type === 'H' ? 'high ' : 'low ') + fmtClock(nx.t) : '') : ''; }
+}
+document.addEventListener('pointerdown', (e) => {
+  const svg = e.target.closest('.tl-tide'); if (!svg) return; e.preventDefault();
+  const move = (ev) => { const r = document.querySelector('.tl-tide').getBoundingClientRect(); const fx = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)); tideSet(fx * 48 - 2); };
+  move(e); const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+  document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+});
+document.addEventListener('input', (e) => { if (e.target.id === 'tlTide') tideSet(+e.target.value); });
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
   if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); return; }
@@ -1344,6 +1360,38 @@ function openResources() {
     '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
   setTab('chart'); openSheet(h);
 }
+
+/* ---------- destination suggestions as you type ---------- */
+function lev(a, b) { if (Math.abs(a.length - b.length) > 2) return 9; const d = Array.from({ length: b.length + 1 }, (_, i) => i); for (let i = 1; i <= a.length; i++) { let prev = d[0]; d[0] = i; for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = t; } } return d[b.length]; }
+function fuzzyScore(q, name) { // 0 = no match; tolerant of typos like "severance" for "severn"
+  const qs = q.toLowerCase().split(/\s+/).filter(Boolean), ns = String(name || '').toLowerCase().split(/[^a-z0-9']+/).filter(Boolean); if (!qs.length || !ns.length) return 0;
+  let sc = 0; for (const w of qs) { let best = 0; for (const n of ns) { if (n.startsWith(w)) best = Math.max(best, 3); else if (w.length >= 4 && (n.startsWith(w.slice(0, 4)) || lev(w, n.slice(0, w.length)) <= (w.length > 6 ? 2 : 1))) best = Math.max(best, 2); } if (!best && w.length > 2) return 0; sc += best; }
+  return sc;
+}
+const sugCache = new Map();
+async function suggestPlaces(q, center) {
+  const c = center || searchCenter(), out = [];
+  S.waypoints.forEach((w) => { const sc = fuzzyScore(q, w.name); if (sc) out.push({ name: w.name, sub: 'Your waypoint', lat: w.lat, lon: w.lon, type: 'place', score: sc + 2, wp: w }); });
+  (searchResults || []).forEach((p) => { const sc = fuzzyScore(q, p.name); if (sc) out.push({ name: p.name, sub: PLACE_TYPES[p.type].label, lat: p.lat, lon: p.lon, type: p.type, score: sc + 1, place: p }); });
+  const key = q.toLowerCase() + '|' + c.lat.toFixed(1) + ',' + c.lon.toFixed(1);
+  let ph = sugCache.get(key);
+  if (!ph) {
+    try {
+      const j = await fetch('https://photon.komoot.io/api/?limit=8&q=' + encodeURIComponent(q) + '&lat=' + c.lat.toFixed(3) + '&lon=' + c.lon.toFixed(3)).then((r) => r.json());
+      ph = (j.features || []).map((f) => { const pr = f.properties || {}, [lon, lat] = f.geometry.coordinates;
+        const marine = /marina|harbour|slipway|boat|fuel|sailing|yacht/.test((pr.osm_value || '') + ' ' + (pr.name || '').toLowerCase());
+        return { name: pr.name || pr.street || 'Unnamed place', sub: [pr.osm_value && pr.osm_value.replace(/_/g, ' '), pr.city || pr.county, pr.state].filter(Boolean).join(' · '), lat, lon, type: /marina/.test(pr.osm_value || '') ? 'marina' : 'place', score: marine ? 2.5 : 1.5 }; });
+      sugCache.set(key, ph);
+    } catch (e) { ph = []; }
+  }
+  ph.forEach((x) => { if (!out.some((o) => o.name === x.name && distNm(o, x) < 0.2)) out.push(Object.assign({}, x)); });
+  out.forEach((o) => { o.d = distNm(c, o); });
+  return out.sort((a, b) => b.score - a.score || a.d - b.d).slice(0, 8);
+}
+function placeSugHtml(list, attr) {
+  if (!list.length) return '<div class="sug-empty">No matches yet. Try a shorter name, or pick a spot on the chart.</div>';
+  return list.map((o, i) => '<button type="button" class="sug" ' + attr + '="' + i + '"><b>' + esc(o.name) + '</b><span>' + esc(o.sub || '') + '</span><em class="tnum">' + fmtDist(o.d) + '</em></button>').join('');
+}
 /* ---------- Menu ---------- */
 const ICON = {
   boat: '<path d="M3 15h18l-3 5H6z"/><path d="M12 3v12M12 4l6 9h-6"/>', dash: '<path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/>',
@@ -1388,9 +1436,8 @@ function renderNav() {
   if (g) h += '<div class="card nav-active"><div class="li"><div class="li-main"><b>Navigating to ' + esc(g.name) + '</b><span class="tnum">' + (S.fix ? fmtDist(distNm(S.fix, g)) + ' · ' + fmtBrg(bearing(S.fix, g)) + '°T' : 'Waiting for GPS') + '</span></div><div class="li-btns"><button class="btn small" data-act="navshow">Show</button><button class="btn small danger" data-act="navend">End</button></div></div></div>';
   h += '<div class="card"><div class="nav-fields">' +
     '<div class="nf"><span class="nf-dot from"></span><div><small>From</small><b>' + (S.fix ? 'My boat' : 'Tap the chart in the route planner') + '</b></div></div>' +
-    '<div class="nf"><span class="nf-dot to"></span><div style="flex:1;min-width:0"><small>To</small><select id="navTo"><option value="">Choose a destination…</option>' +
-    S.waypoints.map((w) => '<option value="wp:' + w.id + '">' + esc(w.name) + (S.fix ? ' · ' + fmtDist(distNm(S.fix, w)) : '') + '</option>').join('') +
-    '<option value="chart">Pick on the chart…</option><option value="search">Search marinas and places…</option></select></div></div></div>' +
+    '<div class="nf"><span class="nf-dot to"></span><div style="flex:1;min-width:0"><small>To</small><input id="navToQ" type="search" autocomplete="off" enterkeyhint="search" placeholder="Marina, club, anchorage, town…" value="' + esc(S.navDest ? S.navDest.name : '') + '"><div id="navSugs" class="sugs" hidden></div></div></div>' +
+    '<div class="nf-quick"><button type="button" class="btn small" data-act="navpick">Pick on the chart</button>' + S.waypoints.slice(-3).reverse().map((w) => '<button type="button" class="btn small" data-wpdest="' + w.id + '">' + esc(w.name) + '</button>').join('') + '</div></div>' +
     '<div class="set-row"><div class="sr-text"><b>Under</b></div></div>' + optSeg2('navMode', [['engine', 'Engine · ' + fmtSpeed(st.cruise) + ' ' + SPEED_LBL[st.speedUnit]], ['sail', 'Sail · ' + fmtSpeed(st.sailSpeed || 5) + ' ' + SPEED_LBL[st.speedUnit]]], st.navMode) +
     '<div class="row-btns" style="margin-top:12px"><button class="btn primary" data-act="navgo">Go direct</button><button class="btn" data-act="navplan">Plan a route</button></div>' +
     '<p class="hint" style="margin:8px 0 0">Autoroute, which finds a safe path for your draft, comes later. Routes are straight lines you place.</p></div>';
@@ -1407,12 +1454,11 @@ function optSeg2(name, opts, cur) {
 $('panelNav').addEventListener('click', (e) => {
   const sg = e.target.closest('[data-nseg]'); if (sg) { S.settings[sg.dataset.nseg] = sg.dataset.val; saveSettings(); renderNav(); return; }
   const b = e.target.closest('[data-act]'); if (!b) return;
-  const act = b.dataset.act, to = $('navTo') ? $('navTo').value : '';
-  const dest = to.startsWith('wp:') ? S.waypoints.find((w) => 'wp:' + w.id === to) : null;
+  const act = b.dataset.act, dest = S.navDest || null;
+  if (act === 'navpick') { setTab('chart'); toast('Press and hold the spot you want, then tap Navigate to.', 4000); return; }
   if (act === 'navgo') {
-    if (dest) { setGoto(dest.name, dest.lat, dest.lon); return; }
-    if (to === 'search') { $('searchPill').click(); return; }
-    toast('Choose a destination, or long-press anywhere on the chart and tap Navigate to.', 4000); setTab('chart');
+    if (dest) { setGoto(dest.name, dest.lat, dest.lon); S.navDest = null; return; }
+    toast('Type a destination first, or press and hold a spot on the chart.', 3500); const q = $('navToQ'); if (q) q.focus();
   }
   if (act === 'navplan') { RT.pts = []; if (S.fix) RT.pts.push({ lat: S.fix.lat, lon: S.fix.lon }); if (dest) RT.pts.push({ lat: dest.lat, lon: dest.lon }); store.set('routeDraft', RT.pts); routeMode(true); }
   if (act === 'navroute') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((q) => ({ lat: q.lat, lon: q.lon })); store.set('routeDraft', RT.pts); routeMode(true); map.fitBounds(L.latLngBounds(RT.pts.map((q) => [q.lat, q.lon])).pad(0.2)); } }
@@ -1421,11 +1467,18 @@ $('panelNav').addEventListener('click', (e) => {
   if (act === 'navlog') setTab('log');
   if (act === 'navrec' || act === 'navrecstop') { const btn = document.createElement('button'); btn.dataset.act = act === 'navrec' ? 'recstart' : 'recstop'; $('panelLog').appendChild(btn); btn.click(); btn.remove(); renderNav(); }
 });
-$('panelNav').addEventListener('change', (e) => {
-  if (e.target.id !== 'navTo') return;
-  if (e.target.value === 'chart') { setTab('chart'); toast('Long-press the spot you want, then tap Navigate to.', 4000); }
-  if (e.target.value === 'search') $('searchPill').click();
+let navSugList = [], navSugT = null, navSugSeq = 0;
+$('panelNav').addEventListener('input', (e) => {
+  if (e.target.id !== 'navToQ') return;
+  const q = e.target.value.trim(); S.navDest = null; clearTimeout(navSugT);
+  const box = $('navSugs'); if (q.length < 2) { box.hidden = true; return; }
+  box.hidden = false; box.innerHTML = '<div class="sug-empty">Searching…</div>';
+  navSugT = setTimeout(async () => { const seq = ++navSugSeq; const list = await suggestPlaces(q, S.fix || searchCenter()); if (seq !== navSugSeq || !$('navSugs')) return; navSugList = list; $('navSugs').innerHTML = placeSugHtml(list, 'data-nsug'); }, 250);
 });
+$('panelNav').addEventListener('click', (e) => {
+  const g = e.target.closest('[data-nsug]'); if (g) { const o = navSugList[+g.dataset.nsug]; S.navDest = { name: o.name, lat: o.lat, lon: o.lon }; $('navToQ').value = o.name; $('navSugs').hidden = true; return; }
+  const w = e.target.closest('[data-wpdest]'); if (w) { const wp = S.waypoints.find((x) => String(x.id) === w.dataset.wpdest); if (wp) { S.navDest = { name: wp.name, lat: wp.lat, lon: wp.lon }; $('navToQ').value = wp.name; } }
+}, true);
 
 /* ---------- Safety and education (secondary to the coach; kept short) ---------- */
 const VSC = ['State registration and numbers displayed', 'A wearable life jacket for everyone aboard, the right size', 'A throwable device (boats 16 ft and over)', 'Fire extinguishers, charged and in date', 'Visual distress signals, in date (coastal waters)', 'Horn or whistle', 'Navigation lights working', 'Engine-space ventilation and backfire flame arrester (gas engines)', 'Oil pollution and garbage placards (boats 26 ft and over)', 'Marine head with a legal holding tank or treatment system'];
@@ -2132,7 +2185,7 @@ function aisIcon(t, level) {
 }
 function updateAis() {
   aisLayer.clearLayers();
-  if (!S.fix || !S.settings.aisCoach) { $('coachCard').hidden = true; return; }
+  if (!S.fix || S.settings.aisShow === false) { $('coachCard').hidden = true; return; }
   let worst = null;
   ais.forEach((t) => {
     const r = evaluate(t); t.eval = r;
@@ -2148,7 +2201,7 @@ function updateAis() {
       aisLayer.addLayer(L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { color: r.level === 'danger' ? C.red : C.amber, weight: 1.5, opacity: 0.7, interactive: false }));
     }
   });
-  coachTarget = worst ? worst.r : null;
+  coachTarget = worst && S.settings.aisCoach ? worst.r : null;
   renderCoach();
 }
 const coachDismissed = new Set();
@@ -2755,9 +2808,8 @@ async function textSearch(q) {
   $('searchStatus').textContent = 'Searching…';
   const rx = q.replace(/[.*+?^${}()|[\]\\"]/g, '\\$&');
   const body = around('nwr["name"~"' + rx + '",i];nwr["seamark:name"~"' + rx + '",i];', 40, c);
-  const nomUrl = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=' + encodeURIComponent(q) +
-    '&viewbox=' + (c.lon - 1.2) + ',' + (c.lat + 1) + ',' + (c.lon + 1.2) + ',' + (c.lat - 1);
-  const [ov, nom] = await Promise.allSettled([overpass(body), fetch(nomUrl, { headers: { Accept: 'application/json' } }).then((r) => r.json())]);
+  const [ov, sg] = await Promise.allSettled([overpass(body), suggestPlaces(q, c)]);
+  const nom = { status: sg.status, value: sg.status === 'fulfilled' ? sg.value.filter((x) => !x.wp && !x.place).map((x, i) => ({ place_id: 'ph' + i + Date.now(), name: x.name, display_name: x.name + ', ' + (x.sub || ''), type: x.type, lat: x.lat, lon: x.lon })) : null };
   if (seq !== searchSeq) return;
   const list = [];
   if (ov.status === 'fulfilled') ov.value.forEach((el) => list.push(toPlace(el)));
@@ -2826,12 +2878,19 @@ function showPlace(p) {
 let searchDebounce;
 $('searchPill').addEventListener('click', () => { setTab('search'); renderCats(); if (!searchResults.length) $('searchStatus').textContent = 'Pick a category or type a name. Nearest results come first.'; setTimeout(() => $('searchInput').focus(), 50); });
 $('searchBack').addEventListener('click', () => setTab('chart'));
+let srchSugList = [], srchSugSeq = 0;
 $('searchInput').addEventListener('input', (e) => {
-  clearTimeout(searchDebounce); const q = e.target.value.trim();
-  if (q.length < 2) return;
-  searchDebounce = setTimeout(() => textSearch(q), 500);
+  clearTimeout(searchDebounce); const q = e.target.value.trim(), box = $('searchSugs');
+  if (q.length < 2) { box.hidden = true; return; }
+  searchDebounce = setTimeout(async () => { const seq = ++srchSugSeq; const list = await suggestPlaces(q); if (seq !== srchSugSeq) return; srchSugList = list; box.hidden = false; box.innerHTML = placeSugHtml(list, 'data-ssug') + '<button type="button" class="sug all" data-ssugall="1"><b>Search everything for “' + esc(q) + '”</b><span>Marinas, marks and places within 40 nm</span></button>'; }, 250);
 });
-$('searchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(searchDebounce); const q = e.target.value.trim(); if (q.length >= 2) textSearch(q); e.target.blur(); } });
+$('searchSugs').addEventListener('click', (e) => {
+  const a = e.target.closest('[data-ssugall]'); if (a) { $('searchSugs').hidden = true; textSearch($('searchInput').value.trim()); return; }
+  const g = e.target.closest('[data-ssug]'); if (!g) return; const o = srchSugList[+g.dataset.ssug]; $('searchSugs').hidden = true;
+  if (o.place) { showPlace(o.place); return; }
+  showPlace({ id: 'sug' + Date.now(), name: o.name, type: o.type || 'place', lat: o.lat, lon: o.lon, tags: { address: o.sub || '' }, badges: [], light: '' });
+});
+$('searchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(searchDebounce); $('searchSugs').hidden = true; const q = e.target.value.trim(); if (q.length >= 2) textSearch(q); e.target.blur(); } });
 $('catRow').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (b) categorySearch(b.dataset.cat); });
 $('ruleResults').addEventListener('click', (e) => { const b = e.target.closest('[data-rule]'); if (b) { setTab('chart'); openRuleSheet(b.dataset.rule); } });
 $('searchResults').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) showPlace(searchResults[+b.dataset.i]); });
@@ -2851,15 +2910,18 @@ const satErr = { n: 0, ok: 0 };
 ['satellite', 'satHD'].forEach((k) => LAYERS[k].on('tileload', () => { satErr.ok++; }));
 ['satellite', 'satHD'].forEach((k) => LAYERS[k].on('tileerror', () => {
   satErr.n++;
-  if (!S.satFailed && satErr.n >= 6 && satErr.ok === 0 && S.settings.satOver) { S.satFailed = true; applyChart(); toast('Satellite imagery is not loading here, so you are seeing the chart alone. Tap the globe to try again.', 5000); }
+  if (!S.satFailed && satErr.n >= 16 && satErr.ok === 0 && (S.settings.satOver || S.settings.chart === 'satellite')) { S.satFailed = true; applyChart(); toast('Satellite imagery is not loading here, so you are seeing the chart alone. Tap the globe to try again.', 5000); }
 }));
 $('btnSat').addEventListener('click', () => {
   if (window.TL_DEMO) { toast('The demo uses a sample chart. In the app, this button lays the chart over satellite imagery.', 4500); return; }
-  if (S.satFailed) { S.satFailed = false; satErr.n = satErr.ok = 0; S.settings.satOver = true; }
-  else S.settings.satOver = !(S.settings.satOver || S.settings.chart === 'satellite');
-  if (S.settings.chart === 'satellite') S.settings.chart = 'noaa';
+  // cycle: chart only -> chart over satellite -> satellite only -> chart only
+  const st = S.settings, mode = st.chart === 'satellite' ? 'sat' : st.satOver ? 'blend' : 'chart';
+  S.satFailed = false; satErr.n = satErr.ok = 0;
+  if (mode === 'chart') { st.chart = 'noaa'; st.satOver = true; }
+  else if (mode === 'blend') { st.chart = 'satellite'; }
+  else { st.chart = 'noaa'; st.satOver = false; }
   saveSettings(); applyChart();
-  toast(S.settings.satOver ? 'Satellite under the chart. Map options sets the blend.' : 'Chart only', 2200);
+  toast(st.chart === 'satellite' ? 'Satellite only (' + (st.satSrc === 'hd' ? 'HD' : 'standard') + '). Tap again for the chart.' : st.satOver ? 'Chart over satellite. Tap again for satellite only.' : 'Chart only. Tap again for satellite.', 2600);
 });
 
 $('btnLayers').addEventListener('click', () => { if (!sheet.hidden && sheet.querySelector('[name=chart]')) closeSheet(); else openLayersSheet(); });
