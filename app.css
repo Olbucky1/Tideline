@@ -965,3 +965,40 @@ html.wlines .wx-pt b { font-size: 11px; opacity: 0.85; }
 .fab.info.on .fi-ic svg { stroke: #fff !important; }
 /* night chart, v3: dark and warm, but buoy and light colours keep their meaning (red stays red, green stays green) */
 :root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) hue-rotate(180deg) brightness(0.56) contrast(1.15) saturate(1.7) sepia(0.28) hue-rotate(-10deg) !important; }
+
+/* MOB: smaller, in the bottom-left corner; the left buttons line up with zoom on the right */
+.mob { top: auto !important; bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)); left: 12px; width: 44px !important; height: 44px !important; font-size: 11px !important; border-width: 2px; box-shadow: 0 2px 8px rgba(120, 20, 20, .25); }
+.fab-col:not(.fab-right), #app.wide .fab-col:not(.fab-right), html.calm .fab-col:not(.fab-right), html.calm #app.wide .fab-col:not(.fab-right) { top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+.ais-key { display: flex; gap: 8px; margin: 2px 0 4px; }
+.ais-key input { flex: 1; min-width: 0; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2, var(--surface)); color: var(--ink); padding: 0 12px; font: inherit; }
+@media (hover: hover) and (pointer: fine) { #btnMOB[data-tip]:hover::after { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; } }
+#app.wide .bottom-stack { left: 66px; }
+html.nogps #app.wide .bottom-stack { left: 10px; }
+@media (max-width: 899px) { /* phones: the bottom of the screen belongs to the instruments, so MOB sits small at the top of the left column */
+  .mob { bottom: auto; top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+  html:not(.nogps) .fab-col:not(.fab-right) { top: calc(108px + env(safe-area-inset-top, 0px)) !important; }
+}
+
+/* night chart, v4: back to the red night view; colour comes from the small buoy and light markers drawn on top */
+:root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) brightness(0.37) sepia(1) hue-rotate(-45deg) saturate(2.4) contrast(1.05) !important; }
+
+/* buoy, beacon and light markers (NOAA ENC) */
+.nv { position: relative; width: 24px; height: 24px; display: grid; place-items: center; opacity: 0; cursor: pointer; }
+.nv.show { opacity: 1; }
+.nv i { display: block; }
+.nv-nun { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--nc); }
+.nv-can { width: 8px; height: 8px; background: var(--nc); border-radius: 1.5px; }
+.nv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--nc); }
+.nv-light { width: 5px; height: 5px; border-radius: 50%; background: var(--nc); box-shadow: 0 0 6px 2px var(--nc); }
+.nv b { position: absolute; left: 19px; top: 4px; white-space: nowrap; font: 600 11px/1 var(--f-num); color: var(--nc); letter-spacing: .02em; }
+.nv-red { --nc: #E0483A; } .nv-green { --nc: #3FAE5A; } .nv-yellow { --nc: #E3C34A; } .nv-white { --nc: #E9E2D0; } .nv-black, .nv-other, .nv-orange, .nv-blue { --nc: #B9A58F; }
+:root[data-night] .nv-red { --nc: #D2412F; } :root[data-night] .nv-green { --nc: #2F9A4C; } :root[data-night] .nv-yellow { --nc: #B89A2E; } :root[data-night] .nv-white { --nc: #B07A6A; }
+:root[data-night] .nv.show { filter: brightness(0.85); }
+:root:not([data-night]) .nv.show b { text-shadow: 0 0 2px #fff, 0 0 3px #fff; color: #333; }
+#btnMOB.mob { position: absolute !important; }
+.card.setup .su-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; color: var(--p-ink, var(--ink)); }
+.card.setup .su-row i { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--p-muted, var(--ink2)); display: grid; place-items: center; font-style: normal; font-size: 11px; }
+.card.setup .su-row.ok { color: var(--p-muted, var(--ink2)); text-decoration: line-through; }
+.card.setup .su-row.ok i { background: var(--teal, #087E83); border-color: transparent; color: #fff; }
+.air-ok { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: -2px 0 10px; color: var(--p-muted, var(--ink2)); }
+.air-ok input { margin-top: 2px; }

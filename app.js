@@ -302,12 +302,14 @@ function openLayersSheet() {
   html += tog('satBox', 'Satellite imagery', 'Aerial photo under the chart', st.satOver && st.chart !== 'satellite');
   if (st.satOver && st.chart !== 'satellite') html += '<div class="field" style="margin:4px 0 8px"><label for="satMix">Chart on top: <b id="satMixVal">' + Math.round(st.chartOnSat * 100) + '%</b></label><input id="satMix" type="range" min="20" max="100" step="5" value="' + Math.round(st.chartOnSat * 100) + '"></div>';
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
-  html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats. Live AIS comes from your boat\'s receiver' : 'Live AIS needs your boat\'s AIS receiver connected (app-store version)', S.settings.aisShow !== false);
+  html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats' : S.settings.aisKey ? 'Live from aisstream.io: ships and AIS-equipped boats within about 20 nm' + (AISS.n ? ' · ' + [...ais.values()].filter((t) => t.live).length + ' in view' : '') : 'Add a free aisstream.io key below for live ships over the internet', S.settings.aisShow !== false);
+  if (!S.settings.sim) html += '<div class="ais-key"><input id="aisKeyIn" type="password" autocomplete="off" placeholder="aisstream.io API key" value="' + esc(S.settings.aisKey || '') + '"><button type="button" class="btn small" data-act="aiskeysave">' + (S.settings.aisKey ? 'Update' : 'Save') + '</button></div><p class="hint" style="margin:2px 0 10px">Free: sign in at aisstream.io with GitHub, copy your key, paste it here. Shows ships and boats that broadcast AIS; small boats without AIS will not appear. ' + (AISS.err ? '<b>' + esc(AISS.err) + '</b>' : '') + '</p>';
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
   html += tog('mpBox', 'Marinas, clubs, fuel and ramps', 'Named on the chart when you zoom in', S.settings.mplaces !== false);
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
+  html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
   if (st.shallowTint !== false) html += optSeg('shallowStyle', [['coral', 'Soft coral'], ['amber', 'Amber'], ['pale', 'Pale'], ['edge', 'Outline only']], st.shallowStyle || 'coral') + optSeg('shallowLevel', [['1', 'Faint'], ['2', 'Medium'], ['3', 'Strong']], String(st.shallowLevel || 2));
   html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides shipping lanes, cable areas and other special areas. Turn off for the full NOAA chart', st.soundings !== false);
@@ -319,11 +321,13 @@ function openLayersSheet() {
   openSheet(html);
 }
 sheet.addEventListener('click', (e) => {
+  if (e.target.closest('[data-act="aiskeysave"]')) { S.settings.aisKey = ($('aisKeyIn').value || '').trim(); S.settings.aisShow = true; saveSettings(); AISS.retry = 0; aissConnect(true); toast(S.settings.aisKey ? 'AIS key saved. Ships appear as their next broadcast comes in, usually within a minute or two.' : 'AIS key removed.', 4500); return; }
   const o = e.target.closest('[data-opt]'); if (!o) return;
   const k = o.dataset.opt, v = o.dataset.val;
   S.settings[k] = v; saveSettings();
   if (k === 'chart' || k === 'satSrc') { S.satFailed = false; applyChart(); }
   if (k === 'wx') applyWx();
+  if (k === 'navaids') { NV.key = ''; drawNavaids(); }
   if (k === 'shallowStyle' || k === 'shallowLevel') { SH.drawnKey = ''; drawShallow(); }
   if (k === 'theme') { applyNight(); updateBoat(); }
   openLayersSheet();
@@ -601,15 +605,15 @@ function routeLeg(pts, i) {
 
 
 /* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
-const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds', {}), cache: new Map() };
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds3', {}), cache: new Map() };
 async function encLayerIds(svc) {
   if (WR.ids[svc]) return WR.ids[svc];
   for (const h of WR.hosts) {
     try {
       const j = await fetchT(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 12000).then((r) => r.json());
       const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
-      const ids = { host: h, depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i) };
-      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds', WR.ids); return ids; }
+      const ids = { host: h, depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i) };
+      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds3', WR.ids); return ids; }
     } catch (e) { /* try the other NOAA host */ }
   }
   return null;
@@ -742,6 +746,62 @@ async function routeByWater(stops) {
   else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
   return out;
 }
+
+/* ---------- buoys, beacons and lights from the NOAA chart data: tap for what it is; coloured at night so red and green still read ---------- */
+const NV = { layer: null, tiles: new Map(), key: '' };
+async function encPoints(svc, layer, bb) {
+  const ids = await encLayerIds(svc); if (!ids || ids[layer] == null) return [];
+  const key = 'p' + svc + layer + bb.join(','); if (WR.cache.has(key)) return WR.cache.get(key);
+  const u = ids.host + '/arcgis/rest/services/encdirect/' + svc + '/MapServer/' + ids[layer] + '/query?where=1%3D1&geometry=' + bb.map((v) => v.toFixed(5)).join('%2C') +
+    '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=1000&f=json';
+  const j = await fetchT(u, 20000).then((r) => r.json()); if (j.error) throw new Error('ENC');
+  const out = (j.features || []).filter((f) => f.geometry && f.geometry.x != null).map((f) => { const a = {}; Object.keys(f.attributes || {}).forEach((k) => { a[k.toUpperCase()] = f.attributes[k]; }); return { lat: f.geometry.y, lon: f.geometry.x, a, kind: layer }; });
+  WR.cache.set(key, out); return out;
+}
+const S57_COL = { 1: 'white', 2: 'black', 3: 'red', 4: 'green', 5: 'blue', 6: 'yellow', 11: 'orange' };
+function navaidInfo(p) {
+  const a = p.a, cols = String(a.COLOUR || '').split(',').map((c) => S57_COL[+c]).filter(Boolean), col = cols[0] || (p.kind === 'light' ? 'white' : 'other');
+  const name = a.OBJNAM || '', num = (name.match(/(?:Buoy|Light|Beacon|Daybeacon|Daymark)\s+"?([A-Z0-9]{1,4})"?\s*$/i) || [])[1] || '';
+  const shp = +a.BOYSHP || 0, bcn = +a.BCNSHP || 0;
+  const shape = p.kind === 'buoy' ? ({ 1: 'nun', 2: 'can', 3: 'sphere', 4: 'pillar', 5: 'spar' }[shp] || 'buoy') : p.kind === 'beacon' ? ({ 1: 'pile', 3: 'tower', 4: 'lattice tower', 5: 'pile', 7: 'post' }[bcn] || 'daybeacon') : 'light';
+  const chr = a.LITCHR ? ({ 1: 'F', 2: 'Fl', 3: 'LFl', 4: 'Q', 7: 'Iso', 8: 'Oc' }[+a.LITCHR] || '') : '';
+  const rhythm = p.kind === 'light' && chr ? chr + (a.SIGGRP && a.SIGGRP !== '()' ? a.SIGGRP.replace(/[()]/g, '') : '') + ' ' + ({ red: 'R', green: 'G', white: 'W', yellow: 'Y' }[col] || '') + (a.SIGPER ? ' ' + a.SIGPER + 's' : '') : '';
+  const label = ({ red: 'R', green: 'G', yellow: 'Y', white: 'W' }[col] || '') + (num ? ' ' + num : '');
+  return { col, cols, num, shape, name, rhythm: rhythm.trim(), label: label.trim() };
+}
+function navaidOn() { return S.settings.navaids === 'always' || (S.settings.navaids !== 'off' && document.documentElement.hasAttribute('data-night')); }
+async function drawNavaids() {
+  if (!NV.layer) NV.layer = L.layerGroup().addTo(map);
+  const z = map.getZoom();
+  if (z < 12 || S.settings.chart === 'street') { NV.layer.clearLayers(); NV.key = ''; return; }
+  const svc = z >= 14 ? 'enc_harbour' : 'enc_approach', step = svc === 'enc_harbour' ? 0.04 : 0.12, b = map.getBounds().pad(0.1), keys = [];
+  for (let la = Math.floor(b.getSouth() / step) * step; la < b.getNorth(); la += step) for (let lo = Math.floor(b.getWest() / step) * step; lo < b.getEast(); lo += step) keys.push([svc, +la.toFixed(3), +lo.toFixed(3)].join(':'));
+  if (keys.length > 24) return;
+  await Promise.all(keys.filter((k) => !NV.tiles.has(k)).map(async (k) => {
+    NV.tiles.set(k, null); const [, la, lo] = k.split(':').map(Number), bb = [lo, la, lo + step, la + step];
+    try { const r = await Promise.all(['buoy', 'beacon', 'light'].map((l) => encPoints(svc, l, bb).catch(() => []))); NV.tiles.set(k, r.flat()); } catch (e) { NV.tiles.delete(k); }
+  }));
+  const vis = navaidOn(), key = keys.join('|') + vis + Math.round(z * 2);
+  if (key === NV.key) return; NV.key = key;
+  NV.layer.clearLayers(); const seen = new Set();
+  keys.forEach((k) => (NV.tiles.get(k) || []).forEach((p) => {
+    const id = p.lat.toFixed(5) + p.lon.toFixed(5); if (seen.has(id)) return; seen.add(id);
+    const n = navaidInfo(p), showLbl = vis && z >= 13.5 && n.label;
+    const glyph = p.kind === 'light' ? '<i class="nv-light"></i>' : n.shape === 'nun' ? '<i class="nv-nun"></i>' : n.shape === 'can' ? '<i class="nv-can"></i>' : '<i class="nv-dot"></i>';
+    const html = '<div class="nv nv-' + n.col + (vis ? ' show' : '') + '">' + glyph + (showLbl ? '<b>' + esc(n.label) + '</b>' : '') + '</div>';
+    const m = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: 500, icon: L.divIcon({ className: '', iconSize: [24, 24], iconAnchor: [12, 12], html }) });
+    m.on('click', () => openNavaid(p, n)); NV.layer.addLayer(m);
+  }));
+}
+function openNavaid(p, n) {
+  const what = (n.cols.length > 1 ? n.cols.join(' and ') : n.col) + ' ' + n.shape;
+  const side = n.col === 'red' ? 'Red, right, returning: keep it on your starboard side heading in from sea.' : n.col === 'green' ? 'Keep it on your port side heading in from sea.' : '';
+  openSheet('<h3>' + esc(what.charAt(0).toUpperCase() + what.slice(1)) + (n.num ? ' "' + esc(n.num) + '"' : '') + '</h3><div class="sub">' + esc(n.name || 'Aid to navigation') + '</div>' +
+    (n.rhythm ? '<p><b>Light:</b> ' + esc(n.rhythm) + (p.a.VALNMR ? ', visible ' + esc(p.a.VALNMR) + ' nm' : '') + (p.a.HEIGHT ? ', ' + Math.round(p.a.HEIGHT / 0.3048) + ' ft high' : '') + '</p>' : '') +
+    (side ? '<p class="hint">' + side + '</p>' : '') + '<p class="hint">From NOAA chart data (ENC). Positions of buoys can shift: always check against what you see.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+map.on('moveend', () => { clearTimeout(NV.t); NV.t = setTimeout(drawNavaids, 500); });
+setTimeout(drawNavaids, 3500);
 
 /* ---------- shallow water tint: NOAA ENC depth areas shaded by this boat's draft, so shoals stand out without reading numbers ---------- */
 const SH = { layer: null, tiles: new Map(), busy: 0, drawnKey: '' };
@@ -2605,7 +2665,7 @@ function themeNow() {
 function applyNight() {
   const th = themeNow(), root = document.documentElement;
   S.settings.night = th === 'night';
-  root.toggleAttribute('data-night', th === 'night'); root.toggleAttribute('data-dusk', th === 'dusk'); if (typeof SH !== 'undefined') { SH.drawnKey = ''; setTimeout(drawShallow, 50); }
+  root.toggleAttribute('data-night', th === 'night'); root.toggleAttribute('data-dusk', th === 'dusk'); if (typeof SH !== 'undefined') { SH.drawnKey = ''; setTimeout(drawShallow, 50); } if (typeof NV !== 'undefined') { NV.key = ''; setTimeout(drawNavaids, 60); }
   renderThemeBtn(th);
   document.querySelector('meta[name=theme-color]').setAttribute('content', th === 'night' ? '#0A0202' : th === 'dusk' ? '#0F1A25' : '#0B1824');
 }
@@ -2897,10 +2957,10 @@ function aisIcon(t, level) {
 }
 function updateAis() {
   aisLayer.clearLayers();
-  if (!S.fix || S.settings.aisShow === false) { $('coachCard').hidden = true; return; }
+  if (S.settings.aisShow === false || (!S.fix && !ais.size)) { $('coachCard').hidden = true; return; }
   let worst = null;
   ais.forEach((t) => {
-    const r = evaluate(t); t.eval = r;
+    const r = S.fix ? evaluate(t) : null; t.eval = r;
     if (r && r.level !== 'none') { const score = (r.level === 'danger' ? 0 : 10) + r.tcpa * 10; if (!worst || score < worst.score) worst = { r, score }; }
     const m = L.marker([t.lat, t.lon], { icon: aisIcon(t, r ? r.level : 'none'), zIndexOffset: 800 });
     m.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [12, 0], className: 'ais-label' });
@@ -2971,6 +3031,39 @@ function aisUpsert(t) {
   if (S.fix) { hist.push({ time: Date.now(), brg: bearing(S.fix, t), range: distNm(S.fix, t) }); while (hist.length > 40) hist.shift(); }
   ais.set(t.id, Object.assign(prev || {}, t, { hist, seen: Date.now() }));
 }
+/* ---------- live AIS over the internet (aisstream.io, free key): ships and AIS-equipped boats around the chart ---------- */
+const AISS = { ws: null, center: null, at: 0, retry: 0, timer: null, n: 0, err: '' };
+function aisShipType(code) { const c = +code || 0; if (c === 36) return 'sail'; if (c === 37) return 'power'; if (c === 30) return 'fishing'; if (c === 31 || c === 32 || c === 52) return 'tug'; if (c >= 60 && c < 70) return 'passenger'; if (c >= 70 && c < 90) return 'ship'; return c ? 'other' : null; }
+function aissConnect(force) {
+  const key = (S.settings.aisKey || '').trim();
+  if (!key || S.settings.aisShow === false || S.settings.sim) { aissClose(); return; }
+  const c = S.fix || refPos(); if (!c) return;
+  if (!force && AISS.ws && AISS.ws.readyState <= 1 && AISS.center && distNm(AISS.center, c) < 8) return;
+  aissClose(); AISS.center = { lat: c.lat, lon: c.lon };
+  const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); AISS.ws = ws;
+  ws.onopen = () => { AISS.retry = 0; AISS.err = ''; ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[c.lat - 0.35, c.lon - 0.45], [c.lat + 0.35, c.lon + 0.45]]], FilterMessageTypes: ['PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport', 'ShipStaticData', 'StaticDataReport'] })); };
+  ws.onmessage = async (ev) => {
+    let m; try { m = JSON.parse(typeof ev.data === 'string' ? ev.data : await ev.data.text()); } catch (e) { return; }
+    if (m.error) { AISS.err = m.error; return; }
+    const md = m.MetaData || {}, id = 'ais-' + md.MMSI; if (!md.MMSI) return;
+    const msg = (m.Message || {})[m.MessageType] || {}, prev = ais.get(id) || { id, mmsi: md.MMSI };
+    const t = Object.assign({}, prev, { name: (md.ShipName || prev.name || '').trim() || 'MMSI ' + md.MMSI });
+    if (/Position/.test(m.MessageType)) { t.lat = md.latitude; t.lon = md.longitude; t.sog = msg.Sog != null && msg.Sog < 102.3 ? msg.Sog : 0; t.cog = msg.Cog != null && msg.Cog < 360 ? msg.Cog : (msg.TrueHeading < 360 ? msg.TrueHeading : 0); if (msg.NavigationalStatus != null) t.status = msg.NavigationalStatus; t.live = true; }
+    if (m.MessageType === 'ShipStaticData') { const d = msg.Dimension || {}; t.type = aisShipType(msg.Type) || t.type; if (d.A != null) { t.len = (d.A || 0) + (d.B || 0); t.beam = (d.C || 0) + (d.D || 0); } if (msg.MaximumStaticDraught) t.draft = msg.MaximumStaticDraught; if (msg.CallSign) t.callsign = msg.CallSign.trim(); if (msg.Destination) t.dest = msg.Destination.trim(); }
+    if (m.MessageType === 'StaticDataReport') { const rb = msg.ReportB || {}; if (rb.ShipType) t.type = aisShipType(rb.ShipType) || t.type; if (rb.CallSign) t.callsign = rb.CallSign.trim(); }
+    if (t.lat == null) { ais.set(id, Object.assign(t, { seen: prev.seen || 0, hist: prev.hist || [] })); return; }
+    if (!t.type) t.type = 'other';
+    aisUpsert(t); AISS.n++;
+    clearTimeout(AISS.timer); AISS.timer = setTimeout(updateAis, 700);
+  };
+  ws.onerror = () => { AISS.err = 'Could not reach aisstream.io'; };
+  ws.onclose = () => { if (AISS.ws !== ws) return; AISS.ws = null; if ((S.settings.aisKey || '') && AISS.retry < 6) setTimeout(() => aissConnect(true), Math.min(60000, 3000 * 2 ** AISS.retry++)); };
+}
+function aissClose() { const w = AISS.ws; AISS.ws = null; if (w) try { w.close(); } catch (e) { /* closed */ } }
+setInterval(() => { const now = Date.now(); let ch = false; ais.forEach((t, id) => { if (t.live && now - (t.seen || 0) > 12 * 60000) { ais.delete(id); ch = true; } }); if (ch) updateAis(); }, 60000);
+map.on('moveend', () => { if (!S.fix && S.settings.aisKey) { clearTimeout(AISS.mt); AISS.mt = setTimeout(() => aissConnect(false), 2000); } });
+setTimeout(() => aissConnect(true), 2500);
+
 /* demo AIS traffic: a crossing sailboat, a ship in the channel, a powerboat overtaking */
 let demoAisAt = 0;
 function simAis() {
@@ -3131,7 +3224,7 @@ const lenM = () => S.settings.boatLen * 0.3048;
 /* a few well-known boats, from the builders' published specs; anything filled in is shown so the owner can check it */
 const BOAT_DB = [
   { make: 'Catalina', model: '22', loa: 21.5, lwl: 19.33, beam: 7.67, disp: 2490, type: 'sail' },
-  { make: 'Catalina', model: '27', loa: 27.0, lwl: 21.75, beam: 8.83, draft: 4.0, disp: 6850, type: 'sail' },
+  { make: 'Catalina', model: '27', loa: 27.0, lwl: 21.75, beam: 8.83, draft: 4.0, disp: 6850, type: 'sail', air: 38, airNote: 'standard rig, waterline to masthead as owners report it; add antennas and the wind instrument' },
   { make: 'Catalina', model: '30', loa: 29.92, lwl: 25.0, beam: 10.83, draft: 5.25, disp: 10200, type: 'sail' },
   { make: 'J/Boats', alias: /^j\/?\s*24$/i, model: 'J/24', loa: 24.0, lwl: 20.0, beam: 8.9, draft: 4.0, disp: 3100, type: 'sail' },
 ];
@@ -3177,6 +3270,7 @@ function profileHtml() {
     '<div class="grid2">' + f('bLwl', 'Waterline length (' + lenUnit() + ')', L2(b.lwlFt), 'number') + f('bDisp', 'Displacement (lb)', b.dispLb, 'number') + '</div>' +
     '<p class="hint" id="bDbNote" style="margin:-2px 0 4px">Enter make and model: known boats fill in their specs for you to check.</p>' +
     '<div class="grid2">' + f('bDraft', 'Draft (' + lenUnit() + ')', L2(b.draftFt), 'number') + f('bAir', 'Air draft (' + lenUnit() + ')' + (st.boatType === 'sail' ? ', masthead and antennas' : ', highest point'), L2(b.airDraftFt), 'number') + '</div>' +
+    '<label class="air-ok"><input type="checkbox" id="bAirOk"' + (b.airVerified ? ' checked' : '') + '> Air draft verified (I measured it, or it is from the builder for my rig)</label>' +
     '<div class="grid2">' + sel('bEngKind', 'Engine', b.engineKind, [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive'], ['pod', 'Pod drive (IPS etc.)'], ['none', 'No engine']]) + f('bHp', 'Horsepower', b.engineHp, 'number') + '</div>' +
     '<div class="grid2">' + f('bEngMake', 'Engine make', b.engineMake) + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
     '<div class="grid2">' + f('bHours', 'Engine hours now', b.engineHours, 'number') + sel('bIcon', 'Chart icon', st.iconStyle, [['boat', 'Boat outline'], ['arrow', 'Arrow']]) + '</div>' +
@@ -3193,7 +3287,7 @@ function saveBoatForm() {
   st.boatName = v('bName'); st.skipper = v('bSkipper'); st.boatType = v('bType'); st.useMode = v('bUse') || 'cruise'; applyUseMode(); st.iconStyle = v('bIcon');
   if (n('bLen')) st.boatLen = lenToFt(n('bLen'));
   b.year = v('bYear'); b.make = v('bMake'); b.model = v('bModel');
-  b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null;
+  b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null; b.airVerified = !!($('bAirOk') && $('bAirOk').checked);
   b.engineKind = v('bEngKind'); b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineHours = n('bHours') || 0;
   b.batteryKind = v('bBatt'); b.batteryInstalled = v('bBattDate');
   b.lwlFt = n('bLwl') != null ? lenToFt(n('bLwl')) : null; b.dispLb = n('bDisp');
@@ -3432,11 +3526,17 @@ function batteryVerdict(v) {
 }
 
 /* ---------- Boat tab ---------- */
+function setupChecklist() { // the few facts every safety check depends on
+  const b = S.boat, items = [['Make and model', !!(b.make && b.model)], ['Draft', !!b.draftFt], ['Air draft, verified', !!(b.airDraftFt && b.airVerified)], ['Beam', !!b.beamFt], ['Home port', !!S.settings.homePort]];
+  const left = items.filter((x) => !x[1]).length; if (!left) return '';
+  return '<div class="card setup"><h4>Finish setting up · ' + left + ' left</h4><p class="hint" style="margin:-2px 0 8px">Depth warnings, water routes and bridge checks use these. Pick your make and model below and most fill in for you.</p>' +
+    items.map(([l, ok]) => '<div class="su-row' + (ok ? ' ok' : '') + '"><i>' + (ok ? '✓' : '') + '</i>' + l + '</div>').join('') + '</div>';
+}
 function renderBoat() {
   const p = $('panelBoat');
   const due = S.maint.items.filter((i) => ['over', 'soon'].includes(dueInfo(i).cls)).length;
   $('maintDot').hidden = !due;
-  p.innerHTML = '<div class="p-head"><div><div class="eyebrow">Boat</div><h2>' + esc(S.settings.boatName || 'Your boat') + '</h2></div><button class="btn small" data-act="appsettings">App settings</button></div>' +
+  p.innerHTML = '<div class="p-head"><div><div class="eyebrow">Boat</div><h2>' + esc(S.settings.boatName || 'Your boat') + '</h2></div><button class="btn small" data-act="appsettings">App settings</button></div>' + setupChecklist() +
     fleetHtml() + profileHtml() + lightsCoachHtml() +
     '<div class="card" style="padding:12px 14px"><div class="li" style="border:0;padding:0"><div class="li-main"><b>What am I looking at?</b><span>Identify a vessel from its lights or shapes, cross-checked with AIS</span></div><button class="btn small primary" data-act="identify">Identify</button></div></div>' +
     maintHtml() + batteryHtml() +
@@ -3476,9 +3576,9 @@ $('panelBoat').addEventListener('change', (e) => {
   if (e.target.id !== 'bMake' && e.target.id !== 'bModel') return;
   const d = boatLookup($('bMake') && $('bMake').value, $('bModel') && $('bModel').value); if (!d) return;
   const L3 = (ft) => String(Math.round(ftToLen(ft) * 10) / 10), put = (id, v) => { const el = $(id); if (el && v != null && !el.value) el.value = v; };
-  put('bLen', L3(d.loa)); put('bLwl', L3(d.lwl)); put('bBeam', L3(d.beam)); if (d.draft) put('bDraft', L3(d.draft)); put('bDisp', d.disp);
+  put('bLen', L3(d.loa)); put('bLwl', L3(d.lwl)); put('bBeam', L3(d.beam)); if (d.draft) put('bDraft', L3(d.draft)); put('bDisp', d.disp); if (d.air) { put('bAir', L3(d.air)); const v = $('bAirOk'); if (v) v.checked = false; }
   const hs = 1.34 * Math.sqrt(lenToFt(parseFloat($('bLwl').value) || ftToLen(d.lwl)));
-  if ($('bDbNote')) $('bDbNote').textContent = 'Filled in from the published ' + d.make + ' ' + d.model + ' specs (hull speed about ' + fmtSpeed(hs) + ' ' + SPEED_LBL[S.settings.speedUnit] + '). Check them against your boat; keels and rigs vary.';
+  if ($('bDbNote')) $('bDbNote').textContent = 'Filled in from the published ' + d.make + ' ' + d.model + ' specs (hull speed about ' + fmtSpeed(hs) + ' ' + SPEED_LBL[S.settings.speedUnit] + ').' + (d.air ? ' Air draft ' + fmtLen(d.air) + ' is an estimate (' + d.airNote + '): measure yours and tick Verified.' : ' Air draft is not in the database for this boat: measure it or check the manual, then tick Verified.') + ' Keels and rigs vary.';
 });
 $('panelBoat').addEventListener('input', (e) => {
   if (e.target.id === 'battV') $('battOut').textContent = batteryVerdict(parseFloat(e.target.value)) || 'Enter a reading such as 12.4';
@@ -3800,7 +3900,7 @@ map.on('click', (e) => {
 
 
 /* ---------- bridges: clearance labels and checks against your boat ---------- */
-const BR = { list: new Map(store.get('bridges', [])), tiles: store.get('bridgeTiles', {}), busy: false, timer: null, warned: new Map(), layer: L.layerGroup().addTo(map) };
+const BR = { list: new Map(store.get('bridges2', [])), tiles: store.get('bridgeTiles2', {}), busy: false, timer: null, warned: new Map(), layer: L.layerGroup().addTo(map) };
 const M2FT = 3.28084;
 const num = (v) => { const n = parseFloat(String(v || '').replace(',', '.')); return isFinite(n) ? n : null; };
 const isFeet = (v) => /ft|feet|'|"/i.test(String(v || ''));
@@ -3809,14 +3909,47 @@ function toBridge(el) {
   if (lat == null) return null;
   const cat = t['seamark:bridge:category'] || '';
   const movable = /opening|bascule|swing|lifting|draw|retractable|transporter/.test(cat) || !!t['bridge:movable'];
-  const h = (k) => { const v = num(t[k]); return v == null ? null : isFeet(t[k]) ? v : v * M2FT; }; // OpenSeaMap stores metres; some mappers type feet
+  const us = lat > 17 && lat < 50 && lon < -60 && lon > -170;
+  const h = (k) => { const v = num(t[k]); if (v == null) return null; if (isFeet(t[k])) return v; if (/\bm\b|metre|meter/i.test(String(t[k]))) return v * M2FT; return us ? v : v * M2FT; }; // OpenSeaMap asks for metres, but US mappers usually copy the chart's feet
   const closed = h('seamark:bridge:clearance_height_closed') ?? h('seamark:bridge:clearance_height') ?? (num(t.maxheight) != null && t['seamark:type'] === 'bridge' ? num(t.maxheight) * M2FT : null);
   return {
     id: el.type + el.id, lat, lon, name: t.name || t['seamark:name'] || t['bridge:name'] || (movable ? 'Drawbridge' : 'Bridge'),
     closed, open: h('seamark:bridge:clearance_height_open'), width: h('seamark:bridge:clearance_width'), movable, cat,
     vhf: t['seamark:radio_station:channel'] || t.vhf || t['communication:vhf'] || t['vhf:channel'] || '',
-    phone: t.phone || t['contact:phone'] || '', hours: t['seamark:bridge:opening_hours'] || t.opening_hours || '',
+    phone: t.phone || t['contact:phone'] || '', hours: t['seamark:bridge:opening_hours'] || t.opening_hours || '', src: 'osm',
   };
+}
+// NOAA ENC bridges: official vertical (VERCLR / VERCCL / VERCOP) and horizontal (HORCLR) clearances, in metres. These replace volunteer values.
+async function bridgesFromEnc(bb) {
+  const enc = [];
+  for (const svc of ['enc_harbour', 'enc_approach']) {
+    const ids = await encLayerIds(svc); if (!ids) continue;
+    for (const k of ['bridgeL', 'bridgeA']) {
+      if (ids[k] == null) continue;
+      const u = ids.host + '/arcgis/rest/services/encdirect/' + svc + '/MapServer/' + ids[k] + '/query?where=1%3D1&geometry=' + bb.map((v) => v.toFixed(4)).join('%2C') + '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=0.0002&f=json';
+      const j = await fetchT(u, 20000).then((r) => r.json()); if (j.error) continue;
+      (j.features || []).forEach((f) => {
+        const a = {}; Object.keys(f.attributes || {}).forEach((x) => { a[x.toUpperCase()] = f.attributes[x]; });
+        const pts = (f.geometry.paths || f.geometry.rings || []).flat(); if (!pts.length) return;
+        const lat = pts.reduce((s2, p) => s2 + p[1], 0) / pts.length, lon = pts.reduce((s2, p) => s2 + p[0], 0) / pts.length;
+        const m = (v) => (v == null || v === '' || +v <= 0 ? null : +v * M2FT);
+        const cat = +a.CATBRG || 0, movable = [2, 3, 4, 5, 7, 8].includes(cat);
+        const closed = m(a.VERCCL) ?? m(a.VERCLR), open = m(a.VERCOP), width = m(a.HORCLR);
+        if (closed == null && open == null && !movable) return;
+        enc.push({ lat, lon, name: a.OBJNAM || '', closed, open, width, movable, cat: movable ? 'opening' : 'fixed', scale: svc });
+      });
+    }
+  }
+  if (!enc.length) return;
+  enc.sort((x, y) => (x.scale === 'enc_harbour' ? -1 : 1) - (y.scale === 'enc_harbour' ? -1 : 1));
+  const used = new Set();
+  enc.forEach((e) => {
+    const key = e.lat.toFixed(3) + e.lon.toFixed(3); if (used.has(key)) return; used.add(key);
+    let best = null, bd = 0.25;
+    BR.list.forEach((o) => { const d = distNm(o, e); if (d < bd) { bd = d; best = o; } });
+    if (best) Object.assign(best, { closed: e.closed ?? best.closed, open: e.open ?? best.open, width: e.width ?? null, movable: best.movable || e.movable, src: 'noaa', name: best.name && !/^(Bridge|Drawbridge)$/.test(best.name) ? best.name : e.name || best.name });
+    else BR.list.set('enc' + key, { id: 'enc' + key, lat: e.lat, lon: e.lon, name: e.name || (e.movable ? 'Drawbridge' : 'Bridge'), closed: e.closed, open: e.open, width: e.width, movable: e.movable, cat: e.cat, vhf: '', phone: '', hours: '', src: 'noaa' });
+  });
 }
 function tideAboveMHW() {
   const tn = tideNow(), t = S.tide;
@@ -3832,6 +3965,8 @@ function judgeBridge(b) {
   out.eff = b.closed - (tide ? tide.ft : 0);
   if (!air) { out.text = 'Estimated clearance ' + fmtLen(out.eff) + '. Add your air draft in Boat to get a check.'; return out; }
   const room = out.eff - out.unc - air, est = 'estimated ' + fmtLen(out.eff) + ' (±' + tideLen(out.unc) + ')';
+  if (!S.boat.airVerified) out.notes.push('Your air draft is not marked verified in Boat. Measure it before trusting this.');
+  if (b.src !== 'noaa') out.notes.push('This clearance is from volunteers, not NOAA. Check the number printed on the chart.');
   if (room >= margin) { out.level = 'ok'; out.text = 'Clearance ' + est + ', your air draft ' + fmtLen(air) + '. Estimated margin ' + fmtLen(room + out.unc) + '.'; }
   else if (out.eff - air >= 0) { out.level = 'caution'; out.text = 'Estimated margin only ' + fmtLen(Math.max(0, out.eff - air)) + ', below your ' + fmtLen(margin) + ' setting (clearance ' + est + ', air draft ' + fmtLen(air) + '). Water level and clearance are uncertain. Verify clearance before proceeding.'; }
   else if (b.movable) { out.level = 'opening'; out.text = 'Too low for you closed: clearance ' + est + ', air draft ' + fmtLen(air) + '. You need an opening' + (b.vhf ? '; call on VHF ' + b.vhf : '') + '.'; }
@@ -3855,7 +3990,7 @@ function drawBridges() {
     const pt = map.latLngToContainerPoint([br.lat, br.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 96 && Math.abs(q.y - pt.y) < 30)) return; taken.push(pt);
     const j = judgeBridge(br), col = BR_COL[j.level];
     const h = br.closed == null ? '?' : Math.round(ftToLen(j.eff != null ? j.eff : br.closed));
-    const html = '<div class="br-pin" style="--c:' + col + '" title="Height under the bridge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg><b>' + h + '</b>' + lenUnit() + '<span>' + (br.movable ? 'high · opens' : 'high') + '</span></div>';
+    const html = '<div class="br-pin" style="--c:' + col + '" title="Height under the bridge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg><b>' + h + (br.src === 'noaa' ? '' : '?') + '</b>' + lenUnit() + '<span>' + (br.movable ? 'high · opens' : 'high') + (br.src === 'noaa' ? '' : ' · unverified') + '</span></div>';
     const m = L.marker([br.lat, br.lon], { zIndexOffset: 600, keyboard: false, icon: L.divIcon({ className: '', iconSize: [92, 28], iconAnchor: [46, 14], html }) });
     m.on('click', () => openBridgeSheet(br));
     BR.layer.addLayer(m);
@@ -3876,7 +4011,7 @@ function openBridgeSheet(br) {
   add('Openings', br.hours ? esc(br.hours) : br.movable ? 'Schedules and restrictions: Coast Guard drawbridge rules (33 CFR 117)' : '');
   S.sheetPoint = { p: { lat: br.lat, lon: br.lon }, place: { name: br.name } };
   openSheet('<h3>' + esc(br.name) + '</h3><div class="verdict v-' + j.level + '">' + esc(j.text) + (j.notes.length ? '<br>' + j.notes.map(esc).join('<br>') : '') + '</div><div class="facts">' + rows.join('') + '</div>' +
-    '<p class="hint"><b>Source: OpenSeaMap volunteers, not yet checked against NOAA.</b> The NOAA chart prints the official clearance beside each bridge (zoom in). If they differ, trust the chart. Clearance is measured at average high water. Predicted tide is applied where the station publishes its datums; wind and surge can raise the water further. Verify by eye and with the bridge tender.</p>' +
+    '<p class="hint"><b>' + (br.src === 'noaa' ? 'Source: NOAA chart data (ENC), official clearances.' : 'Source: OpenSeaMap volunteers, not checked against NOAA. Treat as unverified.') + '</b> The NOAA chart prints the official clearance beside each bridge (zoom in). If they differ, trust the chart. Clearance is measured at average high water. Predicted tide is applied where the station publishes its datums; wind and surge can raise the water further. Verify by eye and with the bridge tender.</p>' +
     '<div class="row-btns"><button class="btn primary" data-act="goto">Go to</button>' + (br.movable ? '<a class="btn" href="https://www.ecfr.gov/current/title-33/chapter-I/subchapter-J/part-117" target="_blank" rel="noopener">Opening rules</a>' : '') + '<button class="btn ghost" data-act="close">Close</button></div>');
 }
 const TILE_DEG = 0.1;
@@ -3902,9 +4037,10 @@ async function refreshBridges(force) {
       if (dup) { if (dup.closed == null && br.closed != null) { BR.list.delete(dup.id); BR.list.set(br.id, br); } return; }
       BR.list.set(br.id, br);
     });
+    try { await bridgesFromEnc([w0 * TILE_DEG, s0 * TILE_DEG, e0 * TILE_DEG, n0 * TILE_DEG]); } catch (e) { /* NOAA chart data unavailable: keep OpenSeaMap values, marked unverified */ }
     batch.forEach((k) => { BR.tiles[k[2]] = Date.now(); });
     if (BR.list.size > 1500) BR.list = new Map([...BR.list.entries()].slice(-1500));
-    store.set('bridges', [...BR.list.entries()]); store.set('bridgeTiles', BR.tiles);
+    store.set('bridges2', [...BR.list.entries()]); store.set('bridgeTiles2', BR.tiles);
   } catch (e) { /* offline: keep what we have */ }
   BR.busy = false; drawBridges(); checkBridgesAhead();
   if (keys.length > 30) { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 1500); }
