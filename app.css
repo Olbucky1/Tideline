@@ -1974,3 +1974,13 @@ html:root:not([data-night]) .fab.fab.on[data-gl] { box-shadow: 0 0 0 2px var(--g
 /* the handle that moves a whole row or column while arranging */
 .arr-grip { position: fixed; z-index: 3200; user-select: none; -webkit-user-select: none; width: 30px; height: 30px; border-radius: 9px; border: 0; background: #2E86DE; color: #fff; font: 700 18px/30px var(--f-ui); box-shadow: 0 2px 8px rgba(0,0,0,.35); touch-action: none; padding: 0; }
 html.arr-dragging .arr-grip { opacity: .85; }
+/* the rest of the chart's controls follow the look too: badges, the compass rose button, the tab bar */
+html:root[data-fablook="gauge"]:not([data-night]) .fab .or-lbl,
+html:root[data-fablook="gauge"]:not([data-night]) .fab .ais-n { background: var(--bt-c2) !important; color: var(--bt-f2) !important; border-color: var(--bt-f1) !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .fab.orient .rose-s, html:root[data-fablook="gauge"]:not([data-night]) .fab.orient .rose-c { fill: var(--bt-ink) !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .fab.orient .rose-ew { fill: var(--gi-muted) !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .tabbar { background: linear-gradient(180deg, var(--bt-f1), var(--bt-f2)) !important; border-top: 2px solid var(--bt-c2) !important; border-image: none !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .tab { color: var(--gi-muted) !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .tab svg { stroke: currentColor !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .tab.on { color: var(--bt-ink) !important; background: color-mix(in srgb, var(--bt-c2) 22%, transparent) !important; box-shadow: inset 0 2px 0 var(--bt-c2) !important; }
+html:root[data-fablook="gauge"]:not([data-night]) .mini-inst .mi-face, html:root[data-fablook="gauge"]:not([data-night]) .alert-bar.mini { border-color: var(--bt-c2) !important; }

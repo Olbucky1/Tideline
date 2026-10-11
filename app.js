@@ -2736,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 125. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 126. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -7148,7 +7148,7 @@ function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div>' + glPicker(st.gTheme || 'midnight') +
     '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
-    '<div class="field"><label>Buttons on the chart</label>' + seg('fabLook', st.fabLook || 'theme', [['theme', 'Their own colors'], ['gauge', 'Match this look']]) + '</div>' +
+    '<div class="field"><label>Buttons and tab bar</label>' + seg('fabLook', st.fabLook || 'theme', [['gauge', 'Match this look'], ['theme', 'Their own colors']]) + '</div>' +
     '<p class="hint" style="margin:-4px 0 8px">To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
 }document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
@@ -7658,6 +7658,7 @@ sheet.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-fabone]'); if (b && S.fabFor) { const each = S.settings.fabEach || (S.settings.fabEach = {}); if (b.dataset.fabone) each[S.fabFor] = b.dataset.fabone; else delete each[S.fabFor]; saveSettings(); applyFabLook(); sheet.querySelectorAll('button[data-fabone]').forEach((x) => x.classList.toggle('on', x === b)); const all = sheet.querySelector('[data-faball]'); if (all) all.dataset.faball = b.dataset.fabone; return; }
   const a = e.target.closest('button[data-faball]'); if (a) { const id = a.dataset.faball; S.settings.fabEach = {}; if (id) { S.settings.gTheme = id; applyGTheme(); S.settings.fabLook = 'gauge'; } else S.settings.fabLook = 'theme'; saveSettings(); applyFabLook(); closeSheet(); toast(id ? 'Every button and the gauges now use ' + gtOf(id).l + '.' : 'Buttons back to their own colors.'); }
 });
+if (!S.settings.fabLookSeeded) { if (!S.settings.fabLook) S.settings.fabLook = 'gauge'; S.settings.fabLookSeeded = 1; saveSettings(); } // Andy: buttons and gauges in one look by default
 setTimeout(applyFabLook, 350);
 /* ---------- move a whole row or column of buttons at once: grab its ⠿ handle; tap the handle to turn a column into a row and back ---------- */
 function arrGroupsNow() {
