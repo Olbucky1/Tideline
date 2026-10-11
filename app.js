@@ -936,6 +936,8 @@ function renderStrip() {
 /* ---------- GPS ---------- */
 function setGps(cls, text) { $('gpsDot').className = 'dot ' + cls; $('gpsText').textContent = text; renderStatusWx(); }
 $('gpsPill').addEventListener('click', (e) => { if (tideNow()) { e.stopImmediatePropagation(); WX.view = 'tide'; WX.open = true; setTab('weather'); } }, true);
+function applyStatus() { document.documentElement.classList.toggle('no-status', !S.settings.statusOn); }
+setTimeout(applyStatus, 0);
 function renderStatusWx() {
   const el = $('statusWx'); if (!el) return;
   const w = S.weather, ob = typeof nearestObs === 'function' ? nearestObs() : null;
@@ -4120,6 +4122,7 @@ const QUICK = [
   ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
   ['wild', 'Wildlife sightings', () => !!S.settings.wildOn, (on) => { S.settings.wildOn = on; drawWild(true); }],
   ['struct', 'Fish structure', () => !!S.settings.structOn, (on) => { S.settings.structOn = on; drawStruct(); }],
+  ['status', 'Status line (GPS, wind, tide)', () => !!S.settings.statusOn, (on) => { S.settings.statusOn = on; applyStatus(); }],
   ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
   ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
 ];
@@ -4705,7 +4708,7 @@ function depthGauge() {
     'NOAA chart ' + Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() + (tn ? ' ' + (tide >= 0 ? '+' : '') + tide.toFixed(1) + ' tide' : '') + ' · not a sounder', bad ? 'g-alarm' : '');
 }
 /* ---------- weather warnings from the National Weather Service: tornado, special marine, thunderstorm, gale and small craft ---------- */
-const ALR = { list: [], at: 0, seen: new Set(store.get('alrSeen', [])), busy: false };
+const ALR = { list: [], at: 0, seen: new Set(store.get('alrSeen', [])), hide: new Set(), busy: false };
 const ALR_LOUD = /tornado|special marine|severe thunderstorm|hurricane|tropical storm|storm warning|gale warning|waterspout|tsunami|extreme wind/i;
 function alrClass(a) { return /warning/i.test(a.event) ? 'warn' : /watch/i.test(a.event) ? 'watch' : 'adv'; }
 async function checkAlerts() {
@@ -4722,10 +4725,13 @@ async function checkAlerts() {
   ALR.busy = false; renderAlertBar();
 }
 function renderAlertBar() {
-  let el = $('alertBar'); if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; el.className = 'alert-bar'; $('app').appendChild(el); el.addEventListener('click', openAlerts); }
-  const a = ALR.list[0]; if (!a) { el.hidden = true; return; }
-  el.hidden = false; el.className = 'alert-bar ' + alrClass(a);
-  el.innerHTML = '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + (ALR.list.length > 1 ? ' · +' + (ALR.list.length - 1) + ' more' : '') + '</span>';
+  let el = $('alertBar'); if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; el.className = 'alert-bar'; $('app').appendChild(el); el.addEventListener('click', (e) => { const x = e.target.closest('[data-abx]'); if (x) { e.stopPropagation(); ALR.hide.add(x.dataset.abx); renderAlertBar(); return; } openAlerts(); }); }
+  const live = ALR.list.filter((x) => !ALR.hide.has(x.id)), a = live[0];
+  if (!a) { el.hidden = !ALR.list.length; el.className = 'alert-bar mini'; el.innerHTML = '⚠'; el.dataset.tip = ALR.list.length ? ALR.list.length + ' weather alert' + (ALR.list.length > 1 ? 's' : '') + ': tap to read' : ''; return; }
+  const big = /warning/i.test(a.event) && ALR_LOUD.test(a.event); // only serious warnings take the full bar; the rest stay a small ⚠
+  el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini');
+  el.dataset.tip = esc(a.event) + ': tap to read';
+  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(a.id) + '" title="Hide this alert">×</i>' : '⚠';
 }
 function openAlerts() {
   openSheet('<h3>Weather warnings here</h3><div class="sub">From the National Weather Service · checked ' + agoTxt(ALR.at) + '</div>' + ALR.list.map((a) => '<div class="alr ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details></div>').join('') + '<p class="hint">Also monitor VHF weather channels (WX1–WX7) for NOAA Weather Radio.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');

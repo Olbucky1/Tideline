@@ -1187,3 +1187,9 @@ html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
 #navCard .pages, #navCard #pageDots { display: none !important; }
 #navCard:has(#gotoRow[hidden]) { display: none !important; }
 .mini-inst { margin: 0 0 6px -26px !important; align-self: flex-end; }
+/* status line is optional (Layers → Status line); hidden by default to keep the chart calm */
+html.no-status .topbar { display: none !important; }
+.alert-bar.mini { width: 34px; height: 34px; padding: 0; justify-content: center; align-items: center; border-radius: 50%; font-size: 15px; left: auto !important; right: 64px; transform: none; top: calc(10px + env(safe-area-inset-top, 0px)); }
+#app.wide .alert-bar.mini { right: 476px; }
+.alert-bar .ab-x { font-style: normal; margin-left: 6px; padding: 0 4px; font-size: 16px; opacity: .8; }
+.alert-bar:not(.mini) { top: calc(10px + env(safe-area-inset-top, 0px)); }
