@@ -712,3 +712,12 @@ html.nogps .mob { display: none; }
 :root[data-night] .cockpit { --g-bg: #070B10 !important; --g-face: #0E141B !important; --g-line: #23303B !important; --g-ink: #C9BBA8 !important; --g-muted: #8E8273 !important; --g-acc: #D08A3C !important; --g-acc2: #C79A5C !important; --g-amber: #D08A3C !important; --g-port: #8C3A33 !important; --g-stbd: #3F7A55 !important; --g-red: #B4483E !important; background: #070B10 !important; }
 :root[data-night] .ring-lbl { color: #C9BBA8; }
 :root[data-night] .tl-chips button.on, :root[data-night] .tl-tabs button.on { color: #070B10; }
+/* menu as a calm grouped list */
+.m-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); margin: 16px 4px 6px; }
+.m-list { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.m-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 11px 12px; color: var(--ink); min-height: 60px; }
+.m-row:last-child { border-bottom: 0; }
+.m-row i { width: 34px; height: 34px; border-radius: 10px; background: var(--surface2); display: grid; place-items: center; flex: none; }
+.m-row i svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.m-txt { flex: 1; min-width: 0; } .m-txt b { display: block; font-size: 16px; font-weight: 600; } .m-txt span { font-size: 13px; color: var(--ink2); }
+.m-chev { width: 18px; height: 18px; fill: none; stroke: var(--ink2); stroke-width: 2; flex: none; }

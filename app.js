@@ -1609,26 +1609,27 @@ const ICON = {
   boat: '<path d="M3 15h18l-3 5H6z"/><path d="M12 3v12M12 4l6 9h-6"/>', dash: '<path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/>',
   log: '<path d="M4 4h12l4 4v12H4z"/><path d="M8 10h8M8 14h8M8 18h5"/>', safety: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   rules: '<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2z"/><path d="M4 19V5M8 7h8M8 11h6"/>', settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.7-2.5 2-2.5 3.5"/><circle cx="12" cy="16.8" r="0.6"/>',
   layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   cockpit: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 15v-3M12 15V9M16 15v-5"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
 };
 function menuTile(act, icon, title, sub) {
-  return '<button type="button" class="m-tile" data-mact="' + act + '"><i><svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[icon] + '</svg></i><b>' + title + '</b><span>' + sub + '</span></button>';
+  return '<button type="button" class="m-row" data-mact="' + act + '"><i><svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[icon] + '</svg></i><span class="m-txt"><b>' + title + '</b><span>' + sub + '</span></span><svg class="m-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>';
 }
 function renderMenu() {
+  const grp = (t, rows) => '<div class="m-h">' + t + '</div><div class="m-list">' + rows + '</div>';
   $('panelMenu').innerHTML = '<div class="p-head"><div><div class="eyebrow">Tideline</div><h2>Menu</h2></div></div>' +
-    '<div class="m-grid">' +
-    menuTile('help', 'search', 'Help', 'Ask how to do anything') +
-    menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline') +
-    menuTile('boat', 'boat', esc(S.settings.boatName || 'Your boat'), 'Profile, lights now, maintenance') +
-    menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
-    menuTile('dash', 'dash', 'Instruments', 'Speed, course, wind and tide gauges') +
-    menuTile('log', 'log', 'Tracks and waypoints', 'Record, save, export GPX') +
-    menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast, bridge rules') +
-    menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
-    menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
-        menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, overlays, theme') +
-    '</div><p class="hint" style="margin-top:14px">Tideline prototype 0.6. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    grp('Your boat', menuTile('boat', 'boat', esc(S.settings.boatName || 'Your boat'), 'Profile, lights now, maintenance') +
+      menuTile('dash', 'dash', 'Instruments', 'Gauges for speed, course, wind and tide') +
+      menuTile('log', 'log', 'Tracks and waypoints', 'Record, photos and replay, export GPX')) +
+    grp('On the water', menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
+      menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast') +
+      menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
+      menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan')) +
+    grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
+      menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
+      menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
+    '<p class="hint" style="margin-top:14px">Tideline prototype 0.6. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
