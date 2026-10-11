@@ -3208,6 +3208,14 @@ function fleetHtml() {
 }
 
 let boatEditing = false;
+// setup checklist: tap a row to jump straight to that field
+document.addEventListener('click', (e) => {
+  const r = e.target.closest('[data-sufield]'); if (!r) return;
+  const f = r.dataset.sufield;
+  if (f === 'home') { openHomePort(); return; }
+  boatEditing = true; renderBoat();
+  setTimeout(() => { const el = $(f); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus(); el.classList.add('pulse'); setTimeout(() => el.classList.remove('pulse'), 1600); } }, 60);
+});
 function resizePhoto(file) {
   return new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(file);
@@ -3546,10 +3554,10 @@ function batteryVerdict(v) {
 
 /* ---------- Boat tab ---------- */
 function setupChecklist() { // the few facts every safety check depends on
-  const b = S.boat, items = [['Make and model', !!(b.make && b.model)], ['Draft', !!b.draftFt], ['Air draft, verified', !!(b.airDraftFt && b.airVerified)], ['Beam', !!b.beamFt], ['Home port', !!S.settings.homePort]];
+  const b = S.boat, items = [['Make and model', !!(b.make && b.model), 'bMake'], ['Draft', !!b.draftFt, 'bDraft'], ['Air draft, verified', !!(b.airDraftFt && b.airVerified), 'bAir'], ['Beam', !!b.beamFt, 'bBeam'], ['Home port', !!S.settings.homePort, 'home']];
   const left = items.filter((x) => !x[1]).length; if (!left) return '';
   return '<div class="card setup"><h4>Finish setting up · ' + left + ' left</h4><p class="hint" style="margin:-2px 0 8px">Depth warnings, water routes and bridge checks use these. Pick your make and model below and most fill in for you.</p>' +
-    items.map(([l, ok]) => '<div class="su-row' + (ok ? ' ok' : '') + '"><i>' + (ok ? '✓' : '') + '</i>' + l + '</div>').join('') + '</div>';
+    items.map(([l, ok, f]) => '<button type="button" class="su-row' + (ok ? ' ok' : '') + '" data-sufield="' + f + '"><i>' + (ok ? '✓' : '') + '</i><span>' + l + '</span><em>' + (ok ? 'Change' : 'Add') + ' ›</em></button>').join('') + '</div>';
 }
 function renderBoat() {
   const p = $('panelBoat');
@@ -3946,6 +3954,27 @@ function toBridge(el) {
     phone: t.phone || t['contact:phone'] || '', hours: t['seamark:bridge:opening_hours'] || t.opening_hours || '', src: 'osm',
   };
 }
+// Checked by hand against NOAA U.S. Coast Pilot 3, Chapter 13 (30 Aug 2026 edition). These win over every other source.
+// Clearances are at mean high water, at the centre of the navigation span.
+const CP_BRIDGES = [
+  { name: 'Naval Academy Bridge (MD 450)', re: /naval academy|450|severn/i, near: { lat: 38.992, lon: -76.494 }, r: 0.7, closed: 75, movable: false, cp: '2.4 miles above the mouth of the Severn: fixed span, 75 ft' },
+  { name: 'US 50/301 Severn River Bridge', re: /50|301|severn|hanson/i, near: { lat: 39.011, lon: -76.508 }, r: 0.8, closed: 80, movable: false, cp: '3.5 miles above the mouth: 80 ft at the center span' },
+  { name: 'Weems Creek drawbridge', re: /weems|ridgely/i, near: { lat: 38.9931, lon: -76.5075 }, r: 0.4, closed: 8, width: 28, movable: true, cp: 'Weems Creek, 0.5 mile above the entrance: swing span, 28 ft wide, 8 ft closed' },
+  { name: 'Weems Creek fixed bridge (Rowe Blvd)', re: /weems|rowe|\b70\b/i, near: { lat: 38.9935, lon: -76.5090 }, r: 0.4, closed: 28, movable: false, cp: 'Weems Creek, about 500 ft above the drawbridge: fixed, 28 ft' },
+  { name: 'Spa Creek Bridge', re: /spa creek|compromise|eastport/i, near: { lat: 38.9752, lon: -76.4855 }, r: 0.35, closed: 15, width: 40, movable: true, cp: 'Spa Creek, 0.4 mile above the entrance: bascule, 40 ft wide, 15 ft closed' },
+];
+function applyCoastPilot() {
+  CP_BRIDGES.forEach((c) => {
+    let best = null, bd = c.r;
+    BR.list.forEach((o) => {
+      const d = distNm(o, c.near); if (d > c.r) return;
+      if (c.movable !== !!o.movable && (o.src !== 'osm' || o.movable)) return; // keep the swing bridge and the fixed bridge apart
+      const score = d - (c.re.test(o.name || '') ? 0.3 : 0);
+      if (score < bd) { bd = score; best = o; }
+    });
+    if (best) Object.assign(best, { name: c.name, closed: c.closed, open: c.movable ? best.open : null, width: c.width ?? (best.src === 'noaa' ? best.width : null), movable: c.movable, src: 'coastpilot', cp: c.cp });
+  });
+}
 // NOAA ENC bridges: official vertical (VERCLR / VERCCL / VERCOP) and horizontal (HORCLR) clearances, in metres. These replace volunteer values.
 async function bridgesFromEnc(bb) {
   const enc = [];
@@ -3993,7 +4022,7 @@ function judgeBridge(b) {
   if (!air) { out.text = 'Estimated clearance ' + fmtLen(out.eff) + '. Add your air draft in Boat to get a check.'; return out; }
   const room = out.eff - out.unc - air, est = 'estimated ' + fmtLen(out.eff) + ' (±' + tideLen(out.unc) + ')';
   if (!S.boat.airVerified) out.notes.push('Your air draft is not marked verified in Boat. Measure it before trusting this.');
-  if (b.src !== 'noaa') out.notes.push('This clearance is from volunteers, not NOAA. Check the number printed on the chart.');
+  if (b.src !== 'noaa' && b.src !== 'coastpilot') out.notes.push('This clearance is from volunteers, not NOAA. Check the number printed on the chart.');
   if (room >= margin) { out.level = 'ok'; out.text = 'Clearance ' + est + ', your air draft ' + fmtLen(air) + '. Estimated margin ' + fmtLen(room + out.unc) + '.'; }
   else if (out.eff - air >= 0) { out.level = 'caution'; out.text = 'Estimated margin only ' + fmtLen(Math.max(0, out.eff - air)) + ', below your ' + fmtLen(margin) + ' setting (clearance ' + est + ', air draft ' + fmtLen(air) + '). Water level and clearance are uncertain. Verify clearance before proceeding.'; }
   else if (b.movable) { out.level = 'opening'; out.text = 'Too low for you closed: clearance ' + est + ', air draft ' + fmtLen(air) + '. You need an opening' + (b.vhf ? '; call on VHF ' + b.vhf : '') + '.'; }
@@ -4017,7 +4046,7 @@ function drawBridges() {
     const pt = map.latLngToContainerPoint([br.lat, br.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 96 && Math.abs(q.y - pt.y) < 30)) return; taken.push(pt);
     const j = judgeBridge(br), col = BR_COL[j.level];
     const h = br.closed == null ? '?' : Math.round(ftToLen(j.eff != null ? j.eff : br.closed));
-    const html = '<div class="br-pin" style="--c:' + col + '" title="Height under the bridge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg><b>' + h + (br.src === 'noaa' ? '' : '?') + '</b>' + lenUnit() + '<span>' + (br.movable ? 'high · opens' : 'high') + (br.src === 'noaa' ? '' : ' · unverified') + '</span></div>';
+    const html = '<div class="br-pin" style="--c:' + col + '" title="Height under the bridge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg><b>' + h + (br.src === 'noaa' || br.src === 'coastpilot' ? '' : '?') + '</b>' + lenUnit() + '<span>' + (br.movable ? 'high · opens' : 'high') + (br.src === 'noaa' || br.src === 'coastpilot' ? '' : ' · unverified') + '</span></div>';
     const m = L.marker([br.lat, br.lon], { zIndexOffset: 600, keyboard: false, icon: L.divIcon({ className: '', iconSize: [92, 28], iconAnchor: [46, 14], html }) });
     m.on('click', () => openBridgeSheet(br));
     BR.layer.addLayer(m);
@@ -4038,7 +4067,7 @@ function openBridgeSheet(br) {
   add('Openings', br.hours ? esc(br.hours) : br.movable ? 'Schedules and restrictions: Coast Guard drawbridge rules (33 CFR 117)' : '');
   S.sheetPoint = { p: { lat: br.lat, lon: br.lon }, place: { name: br.name } };
   openSheet('<h3>' + esc(br.name) + '</h3><div class="verdict v-' + j.level + '">' + esc(j.text) + (j.notes.length ? '<br>' + j.notes.map(esc).join('<br>') : '') + '</div><div class="facts">' + rows.join('') + '</div>' +
-    '<p class="hint"><b>' + (br.src === 'noaa' ? 'Source: NOAA chart data (ENC), official clearances.' : 'Source: OpenSeaMap volunteers, not checked against NOAA. Treat as unverified.') + '</b> The NOAA chart prints the official clearance beside each bridge (zoom in). If they differ, trust the chart. Clearance is measured at average high water. Predicted tide is applied where the station publishes its datums; wind and surge can raise the water further. Verify by eye and with the bridge tender.</p>' +
+    '<p class="hint"><b>' + (br.src === 'coastpilot' ? 'Source: NOAA U.S. Coast Pilot 3, Ch. 13 (Aug 2026): ' + esc(br.cp) + '.' : br.src === 'noaa' ? 'Source: NOAA chart data (ENC), official clearances.' : 'Source: OpenSeaMap volunteers, not checked against NOAA. Treat as unverified.') + '</b> Clearance is measured at mean high water at the center of the channel span; toward the edges of an arched span it is lower, and high tides, wind tides and storm surge take more off it.<b>' + '</b> The NOAA chart prints the official clearance beside each bridge (zoom in). If they differ, trust the chart. Clearance is measured at average high water. Predicted tide is applied where the station publishes its datums; wind and surge can raise the water further. Verify by eye and with the bridge tender.</p>' +
     '<div class="row-btns"><button class="btn primary" data-act="goto">Go to</button>' + (br.movable ? '<a class="btn" href="https://www.ecfr.gov/current/title-33/chapter-I/subchapter-J/part-117" target="_blank" rel="noopener">Opening rules</a>' : '') + '<button class="btn ghost" data-act="close">Close</button></div>');
 }
 const TILE_DEG = 0.1;
@@ -4065,6 +4094,7 @@ async function refreshBridges(force) {
       BR.list.set(br.id, br);
     });
     try { await bridgesFromEnc([w0 * TILE_DEG, s0 * TILE_DEG, e0 * TILE_DEG, n0 * TILE_DEG]); } catch (e) { /* NOAA chart data unavailable: keep OpenSeaMap values, marked unverified */ }
+    applyCoastPilot();
     batch.forEach((k) => { BR.tiles[k[2]] = Date.now(); });
     if (BR.list.size > 1500) BR.list = new Map([...BR.list.entries()].slice(-1500));
     store.set('bridges2', [...BR.list.entries()]); store.set('bridgeTiles2', BR.tiles);
@@ -4143,7 +4173,7 @@ function checkBridgesAhead() {
 document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-bclose]'); if (x) { (BR.dismissed = BR.dismissed || new Set()).add(x.dataset.bclose); $('bridgeCard').hidden = true; return; }
   const b = e.target.closest('[data-bridge]'); if (b) { const br = BR.list.get(b.dataset.bridge); if (br) openBridgeSheet(br); }
-  const a = e.target.closest('[data-act="editboatair"]'); if (a) { e.preventDefault(); closeSheet(); setTab('boat'); }
+  const a = e.target.closest('[data-act="editboatair"]'); if (a) { e.preventDefault(); closeSheet(); setTab('boat'); boatEditing = true; renderBoat(); setTimeout(() => { const el = $('bAir'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }, 80); }
 });
 setInterval(checkBridgesAhead, 5000);
 

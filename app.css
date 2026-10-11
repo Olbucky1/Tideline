@@ -1014,3 +1014,10 @@ html.nogps #app.wide .bottom-stack { left: 10px; }
 .rlog-r span { color: var(--p-muted, var(--ink2)); }
 .rlog-r em { font-style: normal; color: var(--p-muted, var(--ink2)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rlog-x { border: 0; background: none; color: var(--p-muted, var(--ink2)); font-size: 16px; padding: 0 4px; cursor: pointer; }
+.card.setup .su-row { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 10px; padding: 7px 6px; font: inherit; font-size: 14.5px; color: inherit !important; text-decoration: none !important; display: flex; align-items: center; gap: 10px; }
+.card.setup .su-row span { flex: 1; }
+.card.setup .su-row em { font-style: normal; font-size: 13px; font-weight: 600; color: var(--accent); }
+.card.setup .su-row.ok span { opacity: .6; }
+.card.setup .su-row.ok em { opacity: .6; color: inherit; font-weight: 500; }
+@media (hover: hover) { .card.setup .su-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); } }
+.pulse { outline: 3px solid var(--accent) !important; outline-offset: 2px; transition: outline-color .3s; }
