@@ -158,6 +158,8 @@ const LAYERS = {
   noaaOver: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, attribution: 'Chart: NOAA' }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics' }),
   satHD: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery: USGS The National Map' }),
+  places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, opacity: 0.75, zIndex: 3, attribution: 'Places: Esri' }),
+  roads: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, opacity: 0.45, zIndex: 2, attribution: 'Roads: Esri' }),
   street: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
   seamarks: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Seamarks: OpenSeaMap' }),
 };
@@ -173,6 +175,8 @@ function chartLayerKeys() {
   if (ch !== 'satellite' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
   else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : CHARTS[ch].layers.slice();
   if (S.settings.seamarks && ch !== 'noaa') keys.push('seamarks');
+  if (ch !== 'street' && S.settings.landPlaces !== false) keys.push('places');
+  if (ch !== 'street' && S.settings.landRoads) keys.push('roads');
   return keys;
 }
 let demoChart = null;
@@ -285,6 +289,7 @@ function openLayersSheet() {
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
   html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats. Live AIS comes from your boat\'s receiver' : 'Live AIS needs your boat\'s AIS receiver connected (app-store version)', S.settings.aisShow !== false);
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
+  html += tog('placesBox', 'Towns and state lines', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
@@ -327,6 +332,8 @@ sheet.addEventListener('change', (e) => {
   if (e.target.id === 'wxWind' || e.target.id === 'wxWaves' || e.target.id === 'wxRain') setWxL({ wxWind: 'wind', wxWaves: 'waves', wxRain: 'rain' }[e.target.id], e.target.checked);
   if (e.target.id === 'bridgesBox') { S.settings.bridges = e.target.checked; saveSettings(); refreshBridges(true); }
   if (e.target.id === 'satBox') { S.settings.satOver = e.target.checked; if (S.settings.chart === 'satellite') S.settings.chart = 'noaa'; saveSettings(); applyChart(); openLayersSheet(); }
+  if (e.target.id === 'placesBox') { S.settings.landPlaces = e.target.checked; saveSettings(); applyChart(); }
+  if (e.target.id === 'roadsBox') { S.settings.landRoads = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'aisBox') { S.settings.aisShow = e.target.checked; saveSettings(); updateAis(); }
   if (e.target.id === 'chipsBox') { S.settings.chips = e.target.checked; saveSettings(); applyCalm(); }
   if (e.target.id === 'ringsBox') { S.settings.rings = e.target.checked; saveSettings(); drawRings(); }
