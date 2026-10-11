@@ -1579,3 +1579,11 @@ html[data-mi="m"] { --mi: 72px; } html[data-mi="l"] { --mi: 92px; } html[data-mi
 :root[data-night] .sp-c svg { stroke: var(--ink) !important; } :root[data-night] .sp-c svg.sp-arr { fill: var(--ink) !important; } :root[data-night] .sp-btn.pri { background: #7A2A22 !important; }
 .tl-model { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 14px; padding: 4px 10px; font: 600 12px var(--f-ui); margin: 6px 0 0; }
 .wx-mod.on { border-color: var(--accent); } .wx-mod { width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 6px 0; padding: 8px 12px; color: var(--ink); }
+.uses { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; justify-content: center; }
+.uses button { border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 20px; padding: 9px 14px; font: 600 14px var(--f-ui); }
+.uses button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ev { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ev-d { flex: 0 0 48px; text-align: center; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 4px 0; }
+.ev-d b { display: block; font: 700 11px var(--f-ui); text-transform: uppercase; color: var(--accent); } .ev-d span { font: 700 15px var(--f-num); }
+.ev-m b { display: block; font-size: 15px; } .ev-m > span { font-size: 12.5px; color: var(--ink2); }
+.ev-a { display: flex; gap: 14px; margin-top: 4px; } .ev-a a { font: 600 13px var(--f-ui); color: var(--accent); }

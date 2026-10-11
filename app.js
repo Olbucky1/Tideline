@@ -2523,6 +2523,7 @@ function renderMenu() {
       menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast') +
       menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
+      menuTile('month', 'log', new Date().toLocaleString([], { month: 'long' }) + ' on the water', 'Events, seasons and tips for how you boat') +
       menuTile('sailcoach', 'dash', 'Sailing coach', 'Sail plan, trim, which tack, best time to leave') +
       menuTile('loop', 'log', 'Great Loop advisor', 'The route leg by leg, your boat\'s limits, live notices, looper reports') +
       menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
@@ -2531,7 +2532,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 113. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 114. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2562,6 +2563,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'sailcoach') { openSailCoach(); return; }
   if (a === 'loop') { openLoop(); return; }
   if (a === 'tour') { startTour(0); return; }
+  if (a === 'month') { openThisMonth(); return; }
   setTab(a);
 });
 
@@ -5759,6 +5761,7 @@ async function fmLocal(text) {
     if (/\bgreat loop|\blooper|\bthe loop\b/.test(c)) { closeSheet(); openLoop(/limit|fit|air draft|bridge|my boat/.test(c) ? 'boat' : /lock|notice|closed|status/.test(c) ? 'live' : /report/.test(c) ? 'reports' : 'plan'); return true; }
     { const rm = c.match(/\brange rings?\b(?:.*?\b(\d+(?:\.\d+)?|half|quarter)\s*(?:nm|nautical|mile|miles)?)?/); if (rm) { const off = /\b(off|hide|remove)\b/.test(c); if (off) { S.settings.rings = false; } else { S.settings.rings = true; if (rm[1]) S.settings.ringStep = rm[1] === 'half' ? '0.5' : rm[1] === 'quarter' ? '0.25' : rm[1]; } saveSettings(); drawRings(); firstMateMessage(off ? 'Range rings off.' : 'Range rings on' + (rm[1] ? ', every ' + fmtDist(+S.settings.ringStep) : '') + '. Tap a ring label to change them.'); return true; } }
     if (/\blightning\b/.test(c)) { closeSheet(); openLightning(); return true; }
+    if (/\b(what'?s (happening|going on|coming up)|this month|events?|tournaments?|regattas?|boat show)\b/.test(c)) { closeSheet(); openThisMonth(); return true; }
     if (/\b(stop listening|quit listening)\b/.test(c)) { wakeStop(); firstMateMessage('Stopped listening.'); return true; }
     // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
     if (S.settings.fishTips !== false && /\b(fish|fishing|biting|bait|lure|catch|keep|limit|crab|crabs|crabbing|jimmy|sook)\b/.test(c)) { const r = fishAdvice(c); if (r) { firstMateMessage(''); $('firstMateResults').innerHTML = r; return true; } }
@@ -6340,7 +6343,7 @@ function showWelcome(force) {
     '<p id="wlMsg" class="wl-msg" role="status"></p><button class="btn ghost" data-wl="skip">' + (acc ? 'Continue without signing in' : 'Get started') + '</button></div>';
   el.hidden = false; return true;
 }
-function closeWelcome(tour) { const el = $('welcome'); if (el) el.hidden = true; store.set('welcomed', true); if (tour && !store.get('toured', false)) setTimeout(() => startTour(), 400); }
+function closeWelcome(tour) { if (tour && !(S.settings.uses && S.settings.uses.length)) { openUses(true); return; } const el = $('welcome'); if (el) el.hidden = true; store.set('welcomed', true); if (tour && !store.get('toured', false)) setTimeout(() => startTour(), 400); }
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-wl]'); if (!b) return; const a = b.dataset.wl, msg = (t) => { const m = $('wlMsg'); if (m) m.textContent = t; };
   if (a === 'skip') { closeWelcome(true); return; }
@@ -6631,6 +6634,53 @@ document.addEventListener('click', (e) => {
   S.settings.wxModel = b.dataset.wxm; saveSettings(); WX.grids = {}; maybeWeather(true); loadGrids(true); openWxModels(); renderWxBar();
   toast('Forecast now from ' + (WX_MODELS.find((m) => m[0] === S.settings.wxModel) || WX_MODELS[0])[1], 2500);
 });
+/* ---------- what you use Tideline for, and "This month": events, seasons and get-ready nudges for your kind of boating ---------- */
+const USES = [['fish', 'Fishing'], ['sail', 'Sailing'], ['race', 'Racing'], ['cruise', 'Cruising / power'], ['loop', 'Great Loop'], ['paddle', 'Kayak / paddle'], ['pro', 'Work on the water']];
+// Dated events are checked against their organizers' sites; "every year" items give the usual month only: always check the dates.
+const EVENTS = [
+  { n: 'White Marlin Open', where: 'Ocean City, MD (Harbour Island Marina)', from: '2026-08-03', to: '2026-08-08', uses: ['fish'], url: 'https://whitemarlinopen.com/', stay: 'Ocean City, Maryland' },
+  { n: 'Annapolis Powerboat Show', where: 'City Dock, Annapolis', from: '2026-10-08', to: '2026-10-11', uses: ['cruise', 'fish', 'pro'], url: 'https://www.annapolisboatshows.com/', stay: 'Annapolis, Maryland' },
+  { n: 'United States Sailboat Show', where: 'City Dock, Annapolis', from: '2026-10-15', to: '2026-10-18', uses: ['sail', 'race', 'cruise', 'loop'], url: 'https://www.annapolisboatshows.com/', stay: 'Annapolis, Maryland' },
+  { n: 'Annapolis Fourth of July fireworks', where: 'Annapolis Harbor (safety zone in force that evening)', month: 7, day: 4, uses: ['sail', 'cruise', 'fish', 'paddle'], url: 'https://www.navcen.uscg.gov/msi' },
+  { n: 'Eastport Yacht Club Lights Parade', where: 'Annapolis Harbor and Spa Creek', month: 12, note: 'usually a Saturday in early December', uses: ['sail', 'cruise'], url: 'https://www.eastportyc.org/' }
+];
+const SEASON = {
+  fish: { 4: 'Rockfish season rules change through spring: check Maryland DNR before you keep one.', 5: 'Rockfish trophy fish on the main Bay; check DNR dates and size limits.', 6: 'Croaker and spot arrive; crabbing picks up.', 7: 'Spanish mackerel and bluefish on the main Bay; crabs are running.', 8: 'White Marlin Open in Ocean City; Spanish mackerel and cobia lower Bay.', 9: 'Fall run starts: bluefish and rockfish busting on bait at dawn and dusk.', 10: 'Big fall jimmies; rockfish schooling on bait; watch for birds working.', 11: 'Late-fall rockfish on deeper channel edges; water cooling fast.', 12: 'Winter rockfish rules apply: check DNR; dress for cold water.' },
+  sail: { 4: 'Commissioning: check standing rigging and the bottom before launch.', 5: 'Wednesday-night race series start around Annapolis.', 7: 'Light mornings, sea-breeze afternoons; watch for thunderstorms after 3 PM.', 9: 'Best sailing of the year: steady northerlies and cooler air.', 10: 'Sailboat Show in Annapolis; fall breezes are strong, reef early.', 11: 'Frostbite season begins for small boats; plan your haul-out.', 12: 'Winterize: engine, water tanks, head; remove sails.' },
+  race: { 5: 'Spring series start: get your rating certificate and crew list in.', 10: 'Fall championships and season-closers; the Sailboat Show is the week after the Powerboat Show.', 11: 'Frostbite racing: check your club’s notice of race.' },
+  cruise: { 4: 'Spring commissioning; service the engine and check the bilge pump.', 6: 'Hurricane season runs June to November: have a storm plan.', 9: 'Peak hurricane weeks: watch the tropics before long trips.', 10: 'Powerboat Show in Annapolis; fall cruising is quiet and beautiful.', 11: 'Haul-out and winterizing season.' },
+  loop: { 4: 'Northbound loopers pass the Chesapeake heading for New York and the canals.', 6: 'Canal season: Erie and Trent–Severn are open.', 9: 'Be through Chicago by early September for the rivers.', 10: 'On the rivers and Tenn–Tom; plan the Gulf crossing after November 1.', 11: 'Gulf crossing season: wait for the weather window.' },
+  paddle: { 5: 'Water is still cold: dress for the water, not the air.', 7: 'Go early before the afternoon wind and storms.', 10: 'Calm fall mornings, cold water again soon: bring a dry layer.' }
+};
+const AFF = { stay: '' }; // fill with an affiliate ID when you sign up (e.g. a hotel booking partner); links work without it
+function evDates(e, y) { if (e.from) return [Date.parse(e.from + 'T08:00'), Date.parse(e.to + 'T20:00')]; const a = new Date(y, e.month - 1, e.day || 1, 8), b = new Date(y, e.month - 1, e.day || 28, 22); return [+a, +b]; }
+function myUses() { return S.settings.uses && S.settings.uses.length ? S.settings.uses : [S.settings.boatType === 'sail' ? 'sail' : 'cruise']; }
+function upcoming(days) {
+  const now = Date.now(), y = new Date().getFullYear(), u = myUses(), out = [];
+  EVENTS.forEach((e) => { if (!e.uses.some((x) => u.includes(x))) return; for (const yy of [y, y + 1]) { const [a, b] = evDates(e, yy); if (b > now && a - now < days * 86400000) { out.push(Object.assign({ a, b }, e)); break; } if (e.from) break; } });
+  return out.sort((p, q) => p.a - q.a);
+}
+function openThisMonth() {
+  const m = new Date().getMonth() + 1, u = myUses(), mn = new Date().toLocaleString([], { month: 'long' }), ev = upcoming(120);
+  const tips = u.map((k) => SEASON[k] && SEASON[k][m] ? '<li><b>' + esc((USES.find((x) => x[0] === k) || [k, k])[1]) + ':</b> ' + esc(SEASON[k][m]) + '</li>' : '').join('');
+  openSheet('<h3>' + mn + ' on the water</h3><div class="sub">For ' + esc(u.map((k) => (USES.find((x) => x[0] === k) || [k, k])[1].toLowerCase()).join(', ')) + ' · <a href="#" data-usesedit>change</a></div>' +
+    (tips ? '<div class="fm-card"><b>This month</b><ul>' + tips + '</ul></div>' : '') +
+    '<div class="mo-h">Coming up</div>' + (ev.length ? ev.map((e) => { const days = Math.ceil((e.a - Date.now()) / 86400000), on = e.a <= Date.now();
+      return '<div class="ev"><div class="ev-d"><b>' + new Date(e.a).toLocaleDateString([], { month: 'short' }) + '</b><span>' + new Date(e.a).getDate() + (e.from && e.to !== e.from ? '–' + new Date(e.b).getDate() : '') + '</span></div><div class="ev-m"><b>' + esc(e.n) + '</b><span>' + esc(e.where) + (e.note ? ' · ' + esc(e.note) : '') + ' · ' + (on ? 'on now' : days <= 1 ? 'tomorrow' : 'in ' + days + ' days') + (e.from ? '' : ' · usual date, check') + '</span><div class="ev-a"><a href="' + e.url + '" target="_blank" rel="noopener">Details</a>' + (e.stay ? '<a href="https://www.booking.com/searchresults.html?ss=' + encodeURIComponent(e.stay) + '&checkin=' + new Date(e.a).toISOString().slice(0, 10) + '&checkout=' + new Date(e.b).toISOString().slice(0, 10) + (AFF.stay ? '&aid=' + AFF.stay : '') + '" target="_blank" rel="noopener">Places to stay</a>' : '') + '</div></div></div>'; }).join('') : '<p class="sub">Nothing on the list for the next four months.</p>') +
+    '<p class="hint">Event dates come from the organizers; always check before you go. Want your club’s regattas or tournaments here? That list is growing.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+function openUses(afterWelcome) {
+  const u = new Set(S.settings.uses || []);
+  const html = '<h3>What do you use Tideline for?</h3><div class="sub">Pick all that fit. Tideline tailors tips, events and coaching to them.</div><div class="uses">' + USES.map(([v, l]) => '<button type="button" data-use="' + v + '" class="' + (u.has(v) ? 'on' : '') + '">' + esc(l) + '</button>').join('') + '</div><div class="row-btns"><button class="btn primary" data-usesdone="' + (afterWelcome ? '1' : '') + '">Done</button></div>';
+  if (afterWelcome) { const el = $('welcome'); if (el) { el.querySelector('.wl-card').innerHTML = html; el.hidden = false; return; } } openSheet(html);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-use]'); if (b) { const u = new Set(S.settings.uses || []); u.has(b.dataset.use) ? u.delete(b.dataset.use) : u.add(b.dataset.use); S.settings.uses = [...u]; saveSettings(); b.classList.toggle('on'); return; }
+  const d = e.target.closest('[data-usesdone]'); if (d) { if (d.dataset.usesdone) { const el = $('welcome'); if (el) el.hidden = true; store.set('welcomed', true); if (!store.get('toured', false)) setTimeout(() => startTour(), 400); } else openThisMonth(); return; }
+  if (e.target.closest('[data-usesedit]')) { e.preventDefault(); openUses(false); }
+});
+// a gentle get-ready nudge, at most once per event, a week out
+setTimeout(() => { const seen = store.get('evSeen', {}); const e = upcoming(8).find((x) => !seen[x.n + x.a] && x.a > Date.now()); if (!e) return; seen[e.n + e.a] = 1; store.set('evSeen', seen); toast('Coming up: ' + e.n + ' (' + new Date(e.a).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '). Menu → This month for details.', 7000); }, 9000);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
