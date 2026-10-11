@@ -308,7 +308,8 @@ function openLayersSheet() {
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
-  html += tog('shallowBox', 'Shallow water warning', 'Orange where the chart is shallower than your draft plus buffer, yellow where it is close', st.shallowTint !== false);
+  html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
+  if (st.shallowTint !== false) html += optSeg('shallowStyle', [['coral', 'Soft coral'], ['amber', 'Amber'], ['pale', 'Pale'], ['edge', 'Outline only']], st.shallowStyle || 'coral') + optSeg('shallowLevel', [['1', 'Faint'], ['2', 'Medium'], ['3', 'Strong']], String(st.shallowLevel || 2));
   html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides shipping lanes, cable areas and other special areas. Turn off for the full NOAA chart', st.soundings !== false);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
   html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wLinesBox', 'Moving wind lines', 'Light streaks that drift with the forecast wind', S.settings.windLines !== false) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
@@ -323,6 +324,7 @@ sheet.addEventListener('click', (e) => {
   S.settings[k] = v; saveSettings();
   if (k === 'chart' || k === 'satSrc') { S.satFailed = false; applyChart(); }
   if (k === 'wx') applyWx();
+  if (k === 'shallowStyle' || k === 'shallowLevel') { SH.drawnKey = ''; drawShallow(); }
   if (k === 'theme') { applyNight(); updateBoat(); }
   openLayersSheet();
 });
@@ -744,6 +746,14 @@ async function routeByWater(stops) {
 /* ---------- shallow water tint: NOAA ENC depth areas shaded by this boat's draft, so shoals stand out without reading numbers ---------- */
 const SH = { layer: null, tiles: new Map(), busy: 0, drawnKey: '' };
 function shallowOn() { return S.settings.shallowTint !== false && S.settings.chart !== 'street'; }
+// shallow tint styles: kept light so the Bay never turns into a sheet of mud
+function shallowStyleFor(shallow, night) {
+  const lv = [0.55, 1, 1.5][(+S.settings.shallowLevel || 2) - 1], sty = S.settings.shallowStyle || 'coral';
+  const P = { coral: ['#FF7A6B', '#FFD27A', 0.2, 0.12], amber: ['#F5A623', '#FFE08A', 0.2, 0.12], pale: ['#FFFFFF', '#FFFFFF', 0.5, 0.25], edge: ['#E5484D', '#E8A33A', 0, 0] }[sty];
+  const col = night ? (shallow ? '#C0392B' : '#8A4A2A') : (shallow ? P[0] : P[1]);
+  const fo = (shallow ? P[2] : P[3]) * lv * (night ? 0.9 : 1);
+  return sty === 'edge' ? { fillOpacity: 0, stroke: true, color: col, weight: shallow ? 1.6 * lv : 1, opacity: shallow ? 0.75 : 0.45, dashArray: shallow ? null : '4 4' } : { fillColor: col, fillOpacity: fo, stroke: shallow, color: col, weight: 0.8, opacity: 0.35 * lv };
+}
 async function drawShallow() {
   if (!SH.layer) SH.layer = L.layerGroup().addTo(map);
   const z = map.getZoom();
@@ -757,7 +767,8 @@ async function drawShallow() {
     SH.tiles.set(k, null); const [, la, lo] = k.split(':').map(Number);
     try { const f = await encQuery(svc, 'depth', [lo, la, lo + step, la + step], svc === 'enc_harbour' ? 0.00005 : 0.0002); SH.tiles.set(k, f); } catch (e) { SH.tiles.delete(k); }
   }));
-  if (dk === SH.drawnKey) return; SH.drawnKey = dk;
+  const dk2 = dk + (S.settings.shallowStyle || 'coral') + (S.settings.shallowLevel || 2);
+  if (dk2 === SH.drawnKey) return; SH.drawnKey = dk2;
   const night = document.documentElement.hasAttribute('data-night'), rend = SH.rend || (SH.rend = L.canvas({ padding: 0.2 }));
   SH.layer.clearLayers(); const seen = new Set();
   keys.forEach((k) => (SH.tiles.get(k) || []).forEach((f) => {
@@ -765,7 +776,7 @@ async function drawShallow() {
     const shallow = (f.d2 != null ? f.d2 : f.d1 + 2) <= need, close = !shallow && f.d1 < need;
     if (!shallow && !close) return;
     const id = f.d1 + ':' + f.rings[0].length + ':' + f.rings[0][0].join(','); if (seen.has(id)) return; seen.add(id);
-    const st = shallow ? { fillColor: night ? '#7A1E14' : '#E8743B', fillOpacity: night ? 0.35 : 0.32 } : { fillColor: night ? '#5A2A10' : '#F2C14E', fillOpacity: night ? 0.22 : 0.24 };
+    const st = shallowStyleFor(shallow, night);
     SH.layer.addLayer(L.polygon(f.rings.map((r) => r.map(([lo2, la2]) => [la2, lo2])), Object.assign({ renderer: rend, stroke: false, interactive: false }, st)));
   }));
 }
