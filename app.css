@@ -1150,3 +1150,23 @@ html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
 .ph-tile:hover .ph-change { opacity: 1; }
 #cockpit .ck-slot.add { display: grid; place-items: center; border: 2px dashed var(--g-line, #24435A); border-radius: 16px; }
 #cockpit .ck-add { border: 0; background: transparent; color: var(--g-ink, #fff); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; padding: 20px; }
+
+/* real-instrument look: chrome bezel and a lit face */
+.ch1 { stop-color: #EEF2F5; } .ch2 { stop-color: #8E9AA6; } .ch3 { stop-color: #4F5A64; }
+.fc1 { stop-color: #1C3A52; } .fc2 { stop-color: #08131D; }
+.g-bezel { filter: drop-shadow(0 2px 3px rgba(0,0,0,.55)); }
+.g-bezel-in { stroke: rgba(255,255,255,.12); stroke-width: 1; }
+:root[data-night] .ch1 { stop-color: #5A2A26; } :root[data-night] .ch2 { stop-color: #2A1210; } :root[data-night] .ch3 { stop-color: #160807; }
+:root[data-night] .fc1 { stop-color: #1A0B0A; } :root[data-night] .fc2 { stop-color: #070303; }
+.g-state { text-anchor: middle; font: 700 13px var(--f-num); letter-spacing: .12em; fill: var(--g-muted); }
+.g-state.flood { fill: #4FC3F7; } .g-state.ebb { fill: #FFB547; } .g-state.slack { fill: var(--g-ink); }
+:root[data-night] .g-state.flood, :root[data-night] .g-state.ebb { fill: var(--g-acc); }
+.g-tidecurve { fill: none; stroke: var(--g-acc2); stroke-width: 2.4; stroke-linecap: round; opacity: .85; }
+.g-tidenow { stroke: var(--g-muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.g-wxseg { fill: none; stroke-width: 10; stroke-linecap: butt; opacity: .9; }
+.g-wxic { text-anchor: middle; font-size: 34px; }
+.g-big.xs { font-size: 30px; }
+.tc-state { font-size: 13px; font-weight: 600; margin-top: 2px; } .tc-state.flood { color: #1E88C8; } .tc-state.ebb { color: #C77A12; }
+.tc-notes { font-size: 12.5px; color: var(--ink2); margin: 4px 0; } .tc-notes p { margin: 3px 0; } .tc-notes b { color: var(--ink); }
+.pt-tide { border-top: 1px solid var(--line); padding: 8px 0; margin-top: 6px; } .pt-tide-h b { display: block; font-size: 14px; } .pt-tide-h span { font-size: 12.5px; color: var(--ink2); }
+.alert-bar { z-index: 1300 !important; }

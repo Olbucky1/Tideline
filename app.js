@@ -270,6 +270,18 @@ function openPointSheet(latlng, wp) {
     '</div><div id="ptWx"></div><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
   openSheet(html);
 }
+async function pointTide(p) {
+  const box = $('ptWx'); if (!box) return;
+  let el = $('ptTide'); if (!el) { el = document.createElement('div'); el.id = 'ptTide'; el.className = 'pt-tide'; box.after(el); }
+  el.innerHTML = '<p class="sub">Tide here…</p>';
+  try {
+    const tt = (S.tide && !S.tide.none && S.tide.station && S.tide.pos && distNm(S.tide.pos, p) < 3) ? S.tide : await tideFor(p);
+    if (!$('ptTide')) return;
+    if (tt.none) { el.innerHTML = '<p class="sub">No NOAA tide station within 30 nm of this spot.</p>'; return; }
+    const ts = tideState(tt), nx = ts && ts.next;
+    el.innerHTML = '<div class="pt-tide-h"><b>Tide here: ' + (ts ? tideLen(ts.v) + ', ' + esc(ts.state.toLowerCase()) : '–') + '</b><span>' + (nx ? (nx.type === 'H' ? 'High ' : 'Low ') + fmtClock(nx.t) + ' (' + tideLen(nx.v) + ')' : '') + ' · NOAA ' + esc(tt.station.name.replace(/,.*$/, '')) + ', ' + fmtDist(tt.station.dist) + ' away</span></div>';
+  } catch (e) { if ($('ptTide')) el.innerHTML = '<p class="sub">Could not reach NOAA tides.</p>'; }
+}
 async function pointWeather(p) {
   const box = $('ptWx'); if (!box) return;
   box.innerHTML = '<p class="sub">Getting the forecast for this spot…</p>';
@@ -287,6 +299,7 @@ async function pointWeather(p) {
       rows.push({ t, spd: h.wind_speed_10m[i], dir: h.wind_direction_10m[i], gust: h.wind_gusts_10m[i], wv });
     }
     if (!$('ptWx')) return;
+    pointTide(p);
     $('ptWx').innerHTML = '<div class="pt-wx">' + rows.map((r) => '<div><small>' + fmtClock(r.t) + '</small><i style="--c:' + colFor(WIND_COL, r.spd) + '">' + windArrow(r.dir) + '</i><b class="tnum">' + Math.round(speedOut(r.spd)) + '</b><small>g' + Math.round(speedOut(r.gust)) + (r.wv != null ? ' · ' + waveLen(r.wv) : '') + '</small></div>').join('') + '</div><p class="hint" style="margin:6px 0 0">Model forecast for this spot, every 3 hours. ' + SPEED_LBL[S.settings.speedUnit] + '; g = gust.</p>';
   } catch (e) { if ($('ptWx')) $('ptWx').innerHTML = '<p class="sub">No forecast: check signal.</p>'; }
 }
@@ -1305,43 +1318,74 @@ function hiloToHourly(hl) {
   }
   return out;
 }
+// NOAA tide predictions for any point: nearest stations within 30 nm, hourly heights (built from highs and lows when NOAA only publishes those)
+async function tideFor(f) {
+  let st = store.get('stations2', null);
+  if (!st) {
+    const j = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions').then((r) => r.json());
+    st = j.stations.map((s2) => [s2.id, s2.name, +s2.lat, +s2.lng]); store.set('stations2', st);
+  }
+  const near = st.map((s2) => [s2, distNm(f, { lat: s2[2], lon: s2[3] })]).filter((x) => x[1] <= 30).sort((a2, b2) => a2[1] - b2[1]).slice(0, 4);
+  const start = new Date(Date.now() - 6 * 3600000), pt = (x) => new Date(x.replace(' ', 'T')).getTime();
+  for (const [best, bd] of near) {
+    const base = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=Tideline&begin_date=' + ymd(start) +
+      '&range=180&datum=MLLW&station=' + best[0] + '&time_zone=lst_ldt&units=english&format=json&interval=';
+    const [h1, h2] = await Promise.all([fetchT(base + 'hilo').then((r) => r.json()).catch(() => ({})), fetchT(base + 'h').then((r) => r.json()).catch(() => ({}))]);
+    const hilo = (h1.predictions || []).map((x) => ({ t: pt(x.t), v: +x.v, type: x.type }));
+    let hourly = (h2.predictions || []).map((x) => ({ t: pt(x.t), v: +x.v }));
+    if (hourly.length < 2) hourly = hiloToHourly(hilo);
+    if (hourly.length < 2) continue;
+    let mhw = null;
+    try { const dj = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/' + best[0] + '/datums.json?units=english').then((r) => r.json()); const dv = (n) => { const d = (dj.datums || []).find((x) => x.name === n); return d ? +d.value : null; }; if (dv('MHW') != null && dv('MLLW') != null) mhw = dv('MHW') - dv('MLLW'); } catch (e) { /* no datums */ }
+    return { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, station: { id: best[0], name: best[1], dist: bd }, mhw, hilo, hourly, fromHilo: !(h2.predictions || []).length };
+  }
+  return { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, none: true, err: near.length ? 'NOAA did not answer' : null };
+}
 async function maybeTide(force) {
   const f = refPos(); if (!f || tideBusy) return;
   const t = S.tide;
-  // only skip when what we already have is fresh, close by and actually usable
   if (!force && t && Date.now() - t.at < 3 * 3600000 && t.pos && distNm(t.pos, f) < 10 && (t.none ? Date.now() - t.at < 1800000 : tideNow())) return;
   tideBusy = true;
-  try {
-    let st = store.get('stations2', null);
-    if (!st) {
-      const j = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions').then((r) => r.json());
-      st = j.stations.map((s) => [s.id, s.name, +s.lat, +s.lng]);
-      store.set('stations2', st);
-    }
-    const near = st.map((s) => [s, distNm(f, { lat: s[2], lon: s[3] })]).filter((x) => x[1] <= 30).sort((a, b) => a[1] - b[1]).slice(0, 4);
-    let got = null;
-    const start = new Date(Date.now() - 6 * 3600000), pt = (s) => new Date(s.replace(' ', 'T')).getTime();
-    for (const [best, bd] of near) {
-      const base = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=Tideline&begin_date=' + ymd(start) +
-        '&range=180&datum=MLLW&station=' + best[0] + '&time_zone=lst_ldt&units=english&format=json&interval=';
-      const [h1, h2] = await Promise.all([fetchT(base + 'hilo').then((r) => r.json()).catch(() => ({})), fetchT(base + 'h').then((r) => r.json()).catch(() => ({}))]);
-      const hilo = (h1.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v, type: p.type }));
-      let hourly = (h2.predictions || []).map((p) => ({ t: pt(p.t), v: +p.v }));
-      if (hourly.length < 2) hourly = hiloToHourly(hilo); // subordinate station: NOAA gives only highs and lows
-      if (hourly.length < 2) continue; // this station has nothing for us, try the next nearest
-      let mhw = null;
-      try {
-        const dj = await fetchT('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/' + best[0] + '/datums.json?units=english').then((r) => r.json());
-        const dv = (n) => { const d = (dj.datums || []).find((x) => x.name === n); return d ? +d.value : null; };
-        if (dv('MHW') != null && dv('MLLW') != null) mhw = dv('MHW') - dv('MLLW');
-      } catch (e) { /* datums not published for this station */ }
-      got = { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, station: { id: best[0], name: best[1], dist: bd }, mhw, hilo, hourly, fromHilo: !(h2.predictions || []).length };
-      break;
-    }
-    S.tide = got || { at: Date.now(), pos: { lat: f.lat, lon: f.lon }, none: true, err: near.length ? 'NOAA did not answer' : null };
-    store.set('tide', S.tide);
-  } catch (e) { S.tideErr = Date.now(); /* offline: keep the last tide table */ }
+  try { S.tide = await tideFor(f); store.set('tide', S.tide); checkWaterLevel(true); } catch (e) { S.tideErr = Date.now(); }
   tideBusy = false; renderChips(); renderLive(); try { renderWxBar(); renderSide(); } catch (e) { /* not ready */ }
+}
+// what the tide is doing: flood (rising), ebb (falling) or slack (near the turn). Height-based; tidal current can lag the height by an hour or more.
+function tideState(tt, at) {
+  tt = tt || S.tide; at = at || Date.now(); if (!tt || tt.none || !tt.hourly) return null;
+  const v = (x) => { const h = tt.hourly; for (let i = 1; i < h.length; i++) if (h[i].t >= x) { const a2 = h[i - 1], b2 = h[i]; return a2.v + (b2.v - a2.v) * ((x - a2.t) / (b2.t - a2.t)); } return null; };
+  const now = v(at), soon = v(at + 1800000); if (now == null || soon == null) return null;
+  const turn = (tt.hilo || []).find((p) => Math.abs(p.t - at) < 40 * 60000), next = (tt.hilo || []).find((p) => p.t > at);
+  const state = turn ? (turn.type === 'H' ? 'Slack, high water' : 'Slack, low water') : soon > now ? 'Flood' : 'Ebb';
+  return { v: now, state, short: turn ? 'SLACK' : soon > now ? 'FLOOD' : 'EBB', rising: soon > now, next, rate: (soon - now) * 2 };
+}
+// measured water level vs. the prediction at the NOAA station: wind and pressure push the Bay well away from the tide table
+async function checkWaterLevel(force) {
+  const t = S.tide; if (!t || t.none || !t.station) return;
+  if (!force && S.wl && Date.now() - S.wl.at < 12 * 60000 && S.wl.id === t.station.id) return;
+  try {
+    const j = await fetchT('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_level&application=Tideline&date=latest&datum=MLLW&station=' + t.station.id + '&time_zone=lst_ldt&units=english&format=json', 12000).then((r) => r.json());
+    const d = j.data && j.data[0]; if (!d || d.v === '') { S.wl = { at: Date.now(), id: t.station.id, none: true }; return; }
+    const ot = new Date(d.t.replace(' ', 'T')).getTime(), pred = tideAtT(ot);
+    S.wl = { at: Date.now(), id: t.station.id, obs: +d.v, t: ot, pred, diff: pred != null ? +d.v - pred : null, name: t.station.name };
+    if (S.wl.diff != null && Math.abs(S.wl.diff) >= 1.5) { const k = 'wl' + new Date().toDateString() + (S.wl.diff > 0 ? 'h' : 'l'); if (!ALR.seen.has(k)) { ALR.seen.add(k); toast((S.wl.diff > 0 ? 'Unusually high water: ' : 'Unusually low water: ') + Math.abs(S.wl.diff).toFixed(1) + ' ft ' + (S.wl.diff > 0 ? 'above' : 'below') + ' the tide table at ' + S.wl.name.replace(/,.*$/, '') + '. Check depths and docks.', 9000); beep(1); } }
+  } catch (e) { /* this station does not measure water level */ }
+  try { renderSide(); renderTideCard(); } catch (e) { /* closed */ }
+}
+setInterval(() => checkWaterLevel(false), 12 * 60000);
+// Chesapeake local knowledge: sustained north winds blow water out of the Bay, south winds pile it in; a nor'easter tilts it toward the western shore
+function windTideNote() {
+  const c = S.fix || refPos(), w = S.weather; if (!w || !w.hours || !inChesapeake(c)) return '';
+  const now = Date.now(), past = w.hours.filter((h) => h.t <= now && h.t > now - 30 * 3600000 && h.spd != null);
+  if (past.length < 12) return '';
+  let u = 0, v2 = 0; past.forEach((h) => { const r = h.dir * Math.PI / 180; u += Math.sin(r) * h.spd; v2 += Math.cos(r) * h.spd; });
+  u /= past.length; v2 /= past.length; const spd = Math.hypot(u, v2), from = (Math.atan2(u, v2) * 180 / Math.PI + 360) % 360;
+  if (spd < 10) return '';
+  const name = compass16(from), wl = S.wl && S.wl.diff != null ? S.wl.diff : null;
+  const meas = wl != null && Math.abs(wl) >= 0.5 ? ' NOAA is measuring ' + Math.abs(wl).toFixed(1) + ' ft ' + (wl > 0 ? 'above' : 'below') + ' the prediction at ' + (S.wl.name || '').replace(/,.*$/, '') + '.' : '';
+  if (from >= 315 || from <= 30) return 'A day and more of ' + name + ' wind around ' + Math.round(spd) + ' kn pushes water out of the Bay: expect lower tides than the table (a blowout).' + meas;
+  if (from > 30 && from < 75) return name + ' wind for a day or more (nor\'easter pattern) piles water against the western shore and drains the eastern shore; tides run high on the western side.' + meas;
+  if (from >= 135 && from <= 225) return 'Steady ' + name + ' wind pushes water up the Bay: expect higher tides than the table, especially in the upper Bay.' + meas;
+  return meas.trim();
 }
 function tideEmptyTxt() {
   if (tideBusy || !S.tide) return 'Getting NOAA tide predictions…';
@@ -4102,6 +4146,12 @@ $('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', 
 $('windChip').dataset.tip = 'Wind: tap to show wind across the chart'; $('waveChip').dataset.tip = 'Waves: tap to show waves across the chart'; $('tideChip').dataset.tip = 'Tide: tap for the tide curve'; $('modeChip').dataset.tip = 'Tap to switch between sail and engine';
 $('waveChip').addEventListener('click', () => { setTab('chart'); setWxL('waves', !wxOn('waves')); renderChips(); });
 $('tideChip').addEventListener('click', () => { S.tideCardOn = !S.tideCardOn; setTab('chart'); renderTideCard(); renderChips(); });
+function tideNotesHtml() {
+  const out = [], wl = S.wl;
+  if (wl && wl.diff != null && Math.abs(wl.diff) >= 0.4) out.push('<b>NOAA measures the water ' + Math.abs(wl.diff).toFixed(1) + ' ft ' + (wl.diff > 0 ? 'above' : 'below') + ' the prediction</b> at ' + esc((wl.name || '').replace(/,.*$/, '')) + ' (' + agoTxt(wl.t) + '). Add or take that off the table.');
+  const wn = windTideNote(); if (wn) out.push(esc(wn));
+  return out.length ? '<div class="tc-notes">' + out.map((x) => '<p>' + x + '</p>').join('') + '</div>' : '';
+}
 function renderTideCard() {
   let el = $('tideCard');
   if (!el) { el = document.createElement('div'); el.id = 'tideCard'; el.className = 'tide-card'; $('bottomStack').insertBefore(el, $('wxBar')); }
@@ -4109,7 +4159,7 @@ function renderTideCard() {
   if (!S.tideCardOn || !S.tide || S.tide.none || !tn) { el.hidden = true; return; }
   el.hidden = false;
   el.innerHTML = '<div class="tc-head"><b>Tide ' + tideLen(tn.v) + ' ' + (tn.rising == null ? '' : tn.rising ? '↑ rising' : '↓ falling') + '</b><span>' + (tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · ' : '') + 'NOAA ' + esc((S.tide.station && S.tide.station.name.replace(/,.*$/, '')) || '') + '</span>' +
-    '<button type="button" class="tl-x" data-tcx aria-label="Close tide">&times;</button></div>' + tideCurve(0) + '<button type="button" class="tc-more" data-tcmore>Tide table ›</button>';
+    '<button type="button" class="tl-x" data-tcx aria-label="Close tide">&times;</button></div>' + (() => { const ts = tideState(); return ts ? '<div class="tc-state ' + (ts.short || '').toLowerCase() + '">' + esc(ts.state) + (ts.short !== 'SLACK' ? ' · ' + Math.abs(ts.rate).toFixed(2) + ' ft/h' : '') + '</div>' : ''; })() + tideCurve(0) + tideNotesHtml() + '<button type="button" class="tc-more" data-tcmore>Tide table ›</button>';
 }
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-tcx]')) { S.tideCardOn = false; renderTideCard(); renderChips(); }
@@ -4568,7 +4618,8 @@ let cockTimer = null;
 const G = { cx: 100, cy: 100 };
 function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [G.cx + r * Math.cos(a), G.cy + r * Math.sin(a)]; }
 function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
-function gWrap(label, svg, foot, cls) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
+const BEZEL = '<defs><linearGradient id="gChrome" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" class="ch1"/><stop offset="0.35" class="ch2"/><stop offset="0.5" class="ch3"/><stop offset="0.65" class="ch2"/><stop offset="1" class="ch1"/></linearGradient><radialGradient id="gFace" cx="0.5" cy="0.35" r="0.75"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient></defs><circle cx="100" cy="100" r="96" fill="url(#gFace)" stroke="url(#gChrome)" stroke-width="6" class="g-bezel"/><circle cx="100" cy="100" r="92.5" fill="none" class="g-bezel-in"/>';
+function gWrap(label, svg, foot, cls) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + BEZEL + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
   let ticks = '';
@@ -4597,13 +4648,17 @@ function windGauge(dir, spd, gust, cog) {
     '<text x="100" y="112" class="g-big sm">' + (spd == null ? '–' : Math.round(speedOut(spd))) + '</text><text x="100" y="134" class="g-unit">' + (gust != null ? 'gust ' + Math.round(speedOut(gust)) : SPEED_LBL[S.settings.speedUnit]) + '</text>';
 }
 function tideGauge(tn) {
-  const t = S.tide, now = Date.now(), hl = (t.hilo || []), prev = hl.filter((p) => p.t <= now).pop(), next = tn.next;
-  const lo = Math.min(prev ? prev.v : tn.v, next ? next.v : tn.v), hi = Math.max(prev ? prev.v : tn.v, next ? next.v : tn.v);
-  const frac = hi - lo > 0.05 ? (tn.v - lo) / (hi - lo) : 0.5, A0 = -120, A1 = 120, a = A0 + (A1 - A0) * frac;
-  const [px, py] = polar(84, a);
-  return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, A0, a) + '" class="g-fill tide"/><circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="6" class="g-dot"/>' +
-    '<text x="34" y="176" class="g-num">' + (lo).toFixed(1) + '</text><text x="166" y="176" class="g-num">' + (hi).toFixed(1) + '</text>' +
-    '<text x="100" y="106" class="g-big sm">' + tideLen(tn.v).split(' ')[0] + '</text><text x="100" y="130" class="g-unit">' + lenUnit() + ' · ' + (tn.rising == null ? '' : tn.rising ? 'rising ▲' : 'falling ▼') + '</text>';
+  const t = S.tide, now = Date.now(), ts = tideState() || {}, h = (t.hourly || []).filter((x) => x.t >= now - 6 * 3600000 && x.t <= now + 6 * 3600000);
+  let curve = '', dot = '';
+  if (h.length > 3) {
+    const lo = Math.min(...h.map((x) => x.v)), hi = Math.max(...h.map((x) => x.v)), X = (x) => 38 + (x - (now - 6 * 3600000)) / (12 * 3600000) * 124, Y = (v) => 150 - (v - lo) / Math.max(0.3, hi - lo) * 34;
+    curve = '<path d="' + h.map((x, i) => (i ? 'L' : 'M') + X(x.t).toFixed(1) + ' ' + Y(x.v).toFixed(1)).join('') + '" class="g-tidecurve"/><line x1="100" x2="100" y1="112" y2="156" class="g-tidenow"/>';
+    dot = '<circle cx="100" cy="' + Y(tn.v).toFixed(1) + '" r="4.5" class="g-dot"/>';
+  }
+  const col = ts.short === 'FLOOD' ? 'flood' : ts.short === 'EBB' ? 'ebb' : 'slack';
+  const nx = tn.next, mins = nx ? Math.round((nx.t - now) / 60000) : null, cd = mins == null ? '' : (mins >= 60 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + 'm');
+  return '<text x="100" y="52" class="g-state ' + col + '">' + (ts.short || '') + (ts.short === 'FLOOD' ? ' ▲' : ts.short === 'EBB' ? ' ▼' : '') + '</text>' +
+    '<text x="100" y="92" class="g-big sm">' + tideLen(tn.v).split(' ')[0] + '</text><text x="100" y="108" class="g-unit">' + lenUnit() + (nx ? ' · ' + (nx.type === 'H' ? 'high' : 'low') + ' in ' + cd : '') + '</text>' + curve + dot;
 }
 function steerGauge(brg, cog, d) {
   const off = cog == null ? 0 : ((brg - cog + 540) % 360) - 180;
@@ -4700,9 +4755,17 @@ function ckGauge(id) {
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'depth') { maybeDepth(); return depthGauge(); }
   if (id === 'baro') { const b = baroTrend(); return b ? gWrap('BAROMETER', baroGauge(b), b.warn ? 'Pressure dropping fast: expect wind and squalls' : 'Sea-level pressure · model, Open-Meteo', b.warn ? 'g-alarm' : '') : gWrap('BAROMETER', '<text x="100" y="108" class="g-unit">Waiting for pressure data</text>', ''); }
-  if (id === 'weather') { const c = w && w.cur, nx = w && w.press ? w.press.filter((x) => x.t > Date.now()).filter((_, i) => i % 3 === 2).slice(0, 4) : [];
-    if (!c) return gWrap('WEATHER', '<text x="100" y="108" class="g-unit">Waiting for the forecast</text>', '');
-    const [t, ic] = wmo(c.code); return '<div class="gauge wx-tile"><div class="g-lbl">WEATHER</div><div class="wxt-now"><span class="wxt-ic">' + ic + '</span><div><b>' + esc(t) + '</b><span>' + tempTxt(c.temp) + ' · wind ' + compass16(c.dir) + ' ' + Math.round(speedOut(c.spd)) + ' ' + SPEED_LBL[S.settings.speedUnit] + '</span></div></div><div class="wxt-next">' + nx.map((x) => '<div><em>' + new Date(x.t).toLocaleTimeString([], { hour: 'numeric' }) + '</em><span>' + wmo(x.code)[1] + '</span></div>').join('') + '</div>' + (ALR.list.length ? '<div class="wxt-alert">⚠ ' + esc(ALR.list[0].event) + '</div>' : '') + '<div class="g-foot">Open-Meteo forecast</div></div>'; }
+  if (id === 'weather') {
+    const c = w && w.cur; if (!c) return gWrap('WEATHER', '<text x="100" y="108" class="g-unit">Waiting for the forecast</text>', '');
+    const [txt, ic] = wmo(c.code), now = Date.now(), hrs = (w.press || []).filter((x) => x.t > now - 1800000).slice(0, 12);
+    // a weather clock: the next 12 hours around the dial, coloured by sky, rain and storms
+    const segCol = (code) => code >= 95 ? '#B04CE0' : code >= 61 || (code >= 51 && code < 60) || code >= 80 ? '#3C8FE0' : code >= 45 && code < 50 ? '#9AA6B0' : code >= 3 ? '#7C8A96' : code >= 2 ? '#B8C4CC' : '#F2C14E';
+    const segs = hrs.map((x, i) => '<path d="' + arcPath(84, i * 30 + 2, i * 30 + 28) + '" style="stroke:' + segCol(x.code) + '" class="g-wxseg"/>').join('');
+    const lbl = hrs.map((x, i) => [x, i]).filter(([, i]) => i === 0 || i === 3 || i === 9).map(([x, i]) => { const [px, py] = polar(66, i * 30 + 15); return '<text x="' + px.toFixed(0) + '" y="' + (py + 4).toFixed(0) + '" class="g-num">' + (i === 0 ? 'now' : new Date(x.t).toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?(AM|PM)/i, (m) => m.trim()[0].toLowerCase())) + '</text>'; }).join('');
+    const b = baroTrend();
+    return gWrap('WEATHER', segs + lbl + '<text x="100" y="94" class="g-wxic">' + ic + '</text><text x="100" y="124" class="g-big xs">' + tempTxt(c.temp) + '</text><text x="100" y="142" class="g-unit">' + esc(txt) + '</text>' + (b ? '<text x="100" y="160" class="g-unit">' + (inHg() ? (b.p * 0.02953).toFixed(2) + ' inHg' : Math.round(b.p) + ' hPa') + ' ' + (b.d == null ? '' : b.d <= -1 ? '▼' : b.d >= 1 ? '▲' : '▶') + '</text>' : ''),
+      ALR.list.length ? '<b class="warn-t">⚠ ' + esc(ALR.list[0].event) + '</b>' : 'Next 12 hours around the dial · Open-Meteo', ALR.list.some((a2) => /warning/i.test(a2.event)) ? 'g-alarm' : '');
+  }
   if (id === 'alerts') { const L2 = ALR.list; return '<div class="gauge wx-tile"><div class="g-lbl">WEATHER WARNINGS</div>' + (L2.length ? L2.slice(0, 3).map((a) => '<div class="wxt-al ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><span>until ' + (a.ends ? fmtClock(Date.parse(a.ends)) : '—') + '</span></div>').join('') : '<div class="wxt-ok">No active warnings here</div>') + '<div class="g-foot">National Weather Service · checked ' + (ALR.at ? agoTxt(ALR.at) : '—') + '</div></div>'; }
   if (id === 'photo') { const ph = S.tilePhoto || S.boat.photo; return '<label class="gauge ph-tile"' + (ph ? ' style="background-image:url(' + ph + ')"' : '') + ' title="Tap to choose a photo"><input type="file" accept="image/*" data-tilephoto hidden>' + (ph ? '<span class="ph-change">Change photo</span>' : '<div class="g-lbl">PHOTO</div><p class="g-unit" style="margin:auto;text-align:center">Tap to choose any photo: your boat, your crew, a sunset</p>') + '</label>'; }
   if (id === 'waves') { const wv = w && w.wave; return gWrap('WAVES', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="108" class="g-big sm">' + (wv && wv.h != null ? waveLen(wv.h).replace(/\s*(ft|m)$/, '') : '–') + '</text><text x="100" y="132" class="g-unit">' + lenUnit() + (wv && wv.per ? ' · every ' + Math.round(wv.per) + ' s' : '') + '</text>' + (wv && wv.dir != null ? '<text x="100" y="156" class="g-unit">from ' + compass16(wv.dir) + '</text>' : ''), 'Model forecast · Open-Meteo'); }
@@ -4710,7 +4773,7 @@ function ckGauge(id) {
   if (id === 'temps') { const air = w && w.cur && w.cur.temp, water = S.waterObs && Date.now() - S.waterObs.t < 3 * 3600000 ? S.waterObs.f : w && w.sst; return gWrap('AIR · WATER', '<text x="100" y="66" class="g-unit">AIR</text><text x="100" y="112" class="g-big sm">' + tempTxt(air) + '</text><text x="100" y="146" class="g-unit">WATER ' + tempTxt(water) + '</text>', S.waterObs ? 'Water measured · NOAA' : 'Forecast'); }
   if (id === 'course') return gWrap('COURSE', compassGauge(moving ? S.cog : null), 'Course over ground');
   if (id === 'wind') { const wd = ob ? { dir: ob.dir, spd: ob.spd, gust: ob.gust, cap: 'Measured · ' + agoTxt(ob.t) } : w && w.cur ? { dir: w.cur.dir, spd: w.cur.spd, gust: w.cur.gust, cap: 'Forecast · ' + agoTxt(w.at) } : null; return gWrap('WIND ' + (wd ? compass16(wd.dir) : ''), windGauge(wd && wd.dir, wd && wd.spd, wd && wd.gust, moving ? S.cog : 0), wd ? wd.cap + (moving ? ' · arrow relative to bow' : ' · arrow: north up') : 'No wind data yet'); }
-  if (id === 'tide') return tn ? gWrap('TIDE', tideGauge(tn), tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · NOAA' : 'NOAA prediction') : gWrap('TIDE', '<text x="100" y="108" class="g-unit">No tide station yet</text>', '');
+  if (id === 'tide') return tn ? gWrap('TIDE', tideGauge(tn), (S.wl && S.wl.diff != null && Math.abs(S.wl.diff) >= 0.4 ? '<b class="' + (Math.abs(S.wl.diff) >= 1 ? 'warn-t' : '') + '">Measured ' + Math.abs(S.wl.diff).toFixed(1) + ' ft ' + (S.wl.diff > 0 ? 'above' : 'below') + ' prediction</b> · ' : '') + (tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) : '') + ' · NOAA ' + esc(((S.tide.station || {}).name || '').replace(/,.*$/, ''))) : gWrap('TIDE', '<text x="100" y="108" class="g-unit">No tide station yet</text>', '');
   if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); const gr = S.goto.route, onTurn = gr && gr.pts[gr.i] && gr.pts[gr.i].turn; return gWrap(onTurn ? 'NEXT TURN' : 'TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'ETA ' + fmtClock(Date.now() + li.hrs * 3600000) + ' · ' + fmtDur(li.hrs) : 'Steer to the arrow'); }
   if (id === 'anchor') return S.anchor ? gWrap('ANCHOR', anchorGauge(S.anchor.lastFt, S.anchor.radiusFt), S.alarmOn ? 'ALARM' : 'Distance from anchor', S.alarmOn ? 'g-alarm' : '') : gWrap('ANCHOR', '<text x="100" y="108" class="g-unit">Watch is off</text>', '');
   if (id === 'position') { const f = S.fix; return gWrap('GPS POSITION', '<text x="100" y="84" class="g-big pos">' + (f ? ddm(f.lat, true) : '–') + '</text><text x="100" y="124" class="g-big pos">' + (f ? ddm(f.lon, false) : '') + '</text><text x="100" y="156" class="g-unit">' + (f && f.acc ? '±' + Math.round(ftToLen(f.acc * 3.28084)) + ' ' + lenUnit() + ' accuracy' : 'No fix') + '</text>', S.lastFixAt ? 'Last fix ' + Math.max(0, Math.round((Date.now() - S.lastFixAt) / 1000)) + ' s ago' : ''); }
