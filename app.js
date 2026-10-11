@@ -3213,11 +3213,11 @@ const BOAT_SET_KEYS = ['boatName', 'boatType', 'boatLen', 'gpsToBow', 'cruise', 
 S.fleet = store.get('fleet', null);
 if (!S.fleet) { S.fleet = { active: 1, boats: [{ id: 1, boat: S.boat, set: {} }] }; BOAT_SET_KEYS.forEach((k) => { S.fleet.boats[0].set[k] = S.settings[k]; }); }
 S.captain = store.get('captain', { name: S.settings.skipper || '', photo: '', license: '', phone: '' });
-function saveFleet() { const cur = S.fleet.boats.find((x) => x.id === S.fleet.active); if (cur) { cur.boat = S.boat; cur.set = {}; BOAT_SET_KEYS.forEach((k) => { cur.set[k] = S.settings[k]; }); } try { store.set('fleet', S.fleet); } catch (e) { toast('Storage is full: try smaller boat photos.'); } }
+function saveFleet() { const cur = S.fleet.boats.find((x) => x.id === S.fleet.active); if (cur) { cur.boat = S.boat; if (S.maint) cur.maint = S.maint; cur.set = {}; BOAT_SET_KEYS.forEach((k) => { cur.set[k] = S.settings[k]; }); } try { store.set('fleet', S.fleet); } catch (e) { toast('Storage is full: try smaller boat photos.'); } }
 function switchBoat(id) {
   saveFleet();
   const nb = S.fleet.boats.find((x) => x.id === id); if (!nb) return;
-  S.fleet.active = id; S.boat = Object.assign({}, BOAT_DEFAULT, nb.boat || {}); Object.assign(S.settings, nb.set || {});
+  S.fleet.active = id; S.boat = Object.assign({}, BOAT_DEFAULT, nb.boat || {}); Object.assign(S.settings, nb.set || {}); S.maint = Object.assign({ items: [], log: [], receipts: [] }, nb.maint || {}); saveMaint();
   saveBoat(); saveSettings(); store.set('fleet', S.fleet); applyUseMode(); renderModeChip(); updateBoat(); renderBoat();
   toast('Now on ' + (S.settings.boatName || 'this boat'));
 }
@@ -3245,14 +3245,14 @@ document.addEventListener('click', (e) => {
   boatEditing = true; renderBoat();
   setTimeout(() => { const el = $(f); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus(); el.classList.add('pulse'); setTimeout(() => el.classList.remove('pulse'), 1600); } }, 60);
 });
-function resizePhoto(file) {
+function resizePhoto(file, maxPx, q) {
   return new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = () => {
-      const max = 480, k = Math.min(1, max / Math.max(img.width, img.height));
+      const max = maxPx || 480, k = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-      resolve(c.toDataURL('image/jpeg', 0.78));
+      resolve(c.toDataURL('image/jpeg', q || 0.78));
     };
     img.onerror = reject; img.src = url;
   });
@@ -3494,7 +3494,9 @@ sheet.addEventListener('click', (e) => {
 /* ---------- maintenance ---------- */
 S.maint = store.get('maint', { items: [], log: [] });
 let maintAll = false;
-const saveMaint = () => store.set('maint', S.maint);
+const saveMaint = () => { store.set('maint', S.maint); const cur = S.fleet && S.fleet.boats.find((x) => x.id === S.fleet.active); if (cur) { cur.maint = S.maint; try { store.set('fleet', S.fleet); } catch (e) { /* full */ } } };
+if (!S.maint.receipts) S.maint.receipts = [];
+(() => { const cur = S.fleet && S.fleet.boats.find((x) => x.id === S.fleet.active); if (cur && !cur.maint) { cur.maint = S.maint; try { store.set('fleet', S.fleet); } catch (e) { /* full */ } } })(); // this boat keeps the maintenance it already had
 const TEMPLATES = {
   outboard: [['Change gearcase (lower unit) oil', 'engine', 12, 100], ['Change engine oil and filter (4-stroke)', 'engine', 12, 100], ['Replace water pump impeller', 'engine', 24, 200], ['Replace spark plugs', 'engine', 24, 200], ['Replace fuel filter / water separator', 'engine', 12, 100], ['Inspect and replace anodes', 'engine', 12, null], ['Grease steering, tilt and swivel points', 'engine', 6, 50]],
   'inboard-diesel': [['Change engine oil and filter', 'engine', 12, 150], ['Replace primary and secondary fuel filters', 'engine', 12, 200], ['Replace raw water pump impeller', 'engine', 12, 300], ['Inspect belts and hoses', 'engine', 6, 100], ['Replace coolant', 'engine', 24, null], ['Inspect exhaust elbow and mixing elbow', 'engine', 24, null], ['Inspect and replace engine anodes / zincs', 'engine', 12, null]],
@@ -3544,6 +3546,47 @@ function maintHtml() {
   if (q) h += '<p class="hint" style="margin:10px 0 0">Owner\'s manual: <a href="https://www.google.com/search?q=' + q + '+owner%27s+manual+maintenance+schedule" target="_blank" rel="noopener" style="color:var(--accent)">find the ' + esc(decodeURIComponent(q)) + ' manual</a></p>';
   return h + '</div>';
 }
+// receipts and purchases for this boat: what, where, how much, with a photo of the receipt kept on this device
+const RC_CATS = [['parts', 'Parts'], ['service', 'Service / labor'], ['fuel', 'Fuel'], ['gear', 'Gear / safety'], ['slip', 'Slip, mooring, storage'], ['other', 'Other']];
+let rcOpen = false;
+function receiptsHtml() {
+  const R = S.maint.receipts || [], yr = new Date().getFullYear(), tot = R.filter((r) => new Date(r.date).getFullYear() === yr).reduce((a, r) => a + (+r.amount || 0), 0);
+  let h = '<div class="card" style="padding:4px 14px 12px"><h4>Receipts and purchases</h4>';
+  h += '<p class="hint" style="margin:-2px 0 8px">' + (R.length ? R.length + ' saved for ' + esc(S.settings.boatName || 'this boat') + ' · $' + tot.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' in ' + yr : 'Snap a photo of a receipt, or type it in. Each boat keeps its own.') + '</p>';
+  if (rcOpen) {
+    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    h += '<div class="rc-form"><div class="grid2"><div class="field"><label>What</label><input id="rcItem" placeholder="Impeller kit, bottom paint…"></div><div class="field"><label>Where</label><input id="rcVendor" placeholder="West Marine, yard…"></div></div>' +
+      '<div class="grid2"><div class="field"><label>Amount ($)</label><input id="rcAmt" inputmode="decimal" placeholder="0.00"></div><div class="field"><label>Date</label><input id="rcDate" type="date" value="' + today + '"></div></div>' +
+      '<div class="grid2"><div class="field"><label>Kind</label><select id="rcCat">' + RC_CATS.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('') + '</select></div><div class="field"><label>Receipt photo</label><input id="rcPhoto" type="file" accept="image/*" capture="environment"></div></div>' +
+      '<div class="field"><label>Note</label><input id="rcNote" placeholder="Part number, warranty, what it was for"></div>' +
+      '<div class="row-btns"><button class="btn primary" data-act="rcsave">Save receipt</button><button class="btn ghost" data-act="rccancel">Cancel</button></div></div>';
+  } else h += '<div class="row-btns"><button class="btn" data-act="rcadd">Add a receipt</button>' + (R.length ? '<button class="btn" data-act="rccsv">Export (CSV)</button>' : '') + '</div>';
+  h += R.slice().sort((a, b) => b.date - a.date).slice(0, 25).map((r) => '<div class="rc-row"><div class="rc-thumb" data-rcimg="' + r.id + '">' + (r.photo ? '' : '<span>' + (RC_CATS.find((c) => c[0] === r.cat) || ['', '·'])[1].slice(0, 1) + '</span>') + '</div><div class="rc-main"><b>' + esc(r.item || 'Purchase') + '</b><span>' + new Date(r.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + (r.vendor ? ' · ' + esc(r.vendor) : '') + (r.note ? ' · ' + esc(r.note) : '') + '</span></div><b class="tnum">$' + (+r.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</b><button type="button" class="rlog-x" data-act="rcdel" data-id="' + r.id + '" aria-label="Delete receipt">×</button></div>').join('');
+  setTimeout(rcThumbs, 0);
+  return h + '</div>';
+}
+async function rcThumbs() {
+  const els = [...document.querySelectorAll('[data-rcimg]')]; if (!els.length) return;
+  try { const all = await pAll('receipts'); els.forEach((el) => { const p = all.find((x) => x.id === 'rc' + el.dataset.rcimg); if (p) { el.style.backgroundImage = 'url(' + p.src + ')'; el.dataset.full = '1'; } }); } catch (e) { /* storage unavailable */ }
+}
+document.addEventListener('click', async (e) => {
+  const th = e.target.closest('[data-rcimg][data-full]'); if (th) { const all = await pAll('receipts'), p = all.find((x) => x.id === 'rc' + th.dataset.rcimg); if (p) openSheet('<h3>Receipt</h3><img src="' + p.src + '" alt="Receipt" style="width:100%;border-radius:12px"><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>'); return; }
+  const b = e.target.closest('[data-act]'); if (!b || !$('panelBoat').contains(b)) return; const act = b.dataset.act;
+  if (act === 'rcadd') { rcOpen = true; renderBoat(); setTimeout(() => { const i = $('rcItem'); if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); } }, 50); }
+  if (act === 'rccancel') { rcOpen = false; renderBoat(); }
+  if (act === 'rcsave') {
+    const r = { id: Date.now(), item: $('rcItem').value.trim(), vendor: $('rcVendor').value.trim(), amount: parseFloat(($('rcAmt').value || '').replace(/[$,]/g, '')) || 0, date: (() => { const v = $('rcDate').value; return v ? new Date(+v.slice(0, 4), +v.slice(5, 7) - 1, +v.slice(8, 10), 12).getTime() : Date.now(); })(), cat: $('rcCat').value, note: $('rcNote').value.trim(), photo: false };
+    if (!r.item && !r.amount) { toast('Add what it was, or the amount'); return; }
+    const f = $('rcPhoto').files && $('rcPhoto').files[0];
+    if (f) { try { const src = await resizePhoto(f, 1600, 0.72); await pPut({ id: 'rc' + r.id, track: 'receipts', t: r.date, src }); r.photo = true; } catch (err) { toast('Could not save the photo; the receipt is saved without it'); } }
+    S.maint.receipts.push(r); saveMaint(); rcOpen = false; renderBoat(); toast('Receipt saved for ' + (S.settings.boatName || 'this boat'));
+  }
+  if (act === 'rcdel') { if (!armed(b, 'Tap again')) return; S.maint.receipts = S.maint.receipts.filter((x) => String(x.id) !== b.dataset.id); saveMaint(); renderBoat(); }
+  if (act === 'rccsv') {
+    const rows = [['Date', 'Boat', 'What', 'Where', 'Kind', 'Amount', 'Note']].concat(S.maint.receipts.map((r) => [new Date(r.date).toLocaleDateString(), S.settings.boatName || '', r.item, r.vendor, (RC_CATS.find((c) => c[0] === r.cat) || ['', ''])[1], (+r.amount || 0).toFixed(2), r.note]));
+    download('receipts-' + (S.settings.boatName || 'boat').replace(/\W+/g, '-').toLowerCase() + '.csv', rows.map((x) => x.map((v) => '"' + String(v || '').replace(/"/g, '""') + '"').join(',')).join('\n'));
+  }
+});
 // battery bank: any number of batteries, each with its type, purchase date and its own dated voltage log
 const BATT_KINDS = [['lead', 'Flooded lead-acid'], ['agm', 'AGM'], ['gel', 'Gel'], ['lifepo4', 'Lithium (LiFePO4)']];
 function batteries() {
@@ -3561,9 +3604,10 @@ function batteryHtml() {
   list.forEach((bt) => {
     const bd = bt.bought ? new Date(+bt.bought.slice(0, 4), +bt.bought.slice(5, 7) - 1, 1) : null, age = bd ? (Date.now() - bd) / (365.25 * 86400000) : null, [l0, l1] = battLife(bt.kind), last = (bt.log || [])[bt.log.length - 1];
     const ageTxt = age != null && isFinite(age) ? 'Bought ' + bd.toLocaleDateString([], { month: 'short', year: 'numeric' }) + ' · ' + age.toFixed(1) + ' years old · ' + (age >= l1 ? '<b class="warn-t">past the usual ' + l0 + '–' + l1 + ' years: plan to replace</b>' : age >= l0 ? '<b class="warn-t">in its last years (' + l0 + '–' + l1 + ' typical)</b>' : 'typically lasts ' + l0 + '–' + l1 + ' years') : 'Add the purchase month to track its age';
-    h += '<div class="batt">' +
+    const bad = last && last.replace;
+    h += '<div class="batt' + (bad ? ' bad' : '') + '">' + (bad ? '<div class="batt-flag">Needs replacing · tested ' + last.v.toFixed(1) + ' V ' + (last.cond === 'charged' ? 'after charging' : last.cond === 'load' ? 'under load' : 'at rest') + ' on ' + new Date(last.t).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '</div>' : '') +
       '<div class="batt-top"><input class="batt-name" data-bname="' + bt.id + '" value="' + esc(bt.name) + '" aria-label="Battery name"><select data-bkind="' + bt.id + '" aria-label="Battery type">' + BATT_KINDS.map(([v, l]) => '<option value="' + v + '"' + (bt.kind === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' +
-      '<div class="batt-row"><label>Purchased <input type="month" data-bbought="' + bt.id + '" value="' + esc(bt.bought || '') + '"></label><div class="batt-in"><input type="text" inputmode="decimal" data-bv="' + bt.id + '" placeholder="' + (bt.kind === 'lifepo4' ? '13.3' : '12.6') + '" aria-label="Voltage for ' + esc(bt.name) + '"><span class="u">V</span><button type="button" class="btn small" data-act="battsave" data-id="' + bt.id + '">Save</button></div></div>' +
+      '<div class="batt-row"><label>Purchased <input type="month" data-bbought="' + bt.id + '" value="' + esc(bt.bought || '') + '"></label><div class="batt-in"><select data-bcond="' + bt.id + '" aria-label="When it was tested"><option value="rest">At rest</option><option value="charged">After charging</option><option value="load">Under load</option></select><input type="text" inputmode="decimal" data-bv="' + bt.id + '" placeholder="' + (bt.kind === 'lifepo4' ? '13.3' : '12.6') + '" aria-label="Voltage for ' + esc(bt.name) + '"><span class="u">V</span><button type="button" class="btn small" data-act="battsave" data-id="' + bt.id + '">Save</button></div></div>' +
       '<div class="hint batt-out" data-bout="' + bt.id + '">' + ageTxt + (last ? '<br>Last: ' + last.v.toFixed(2) + ' V on ' + new Date(last.t).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + esc(last.note || '') : '') + '</div>' +
       logList(bt.log, (r) => r.v.toFixed(2) + ' V', (r) => r.note, 'battdel" data-id="' + bt.id) +
       (list.length > 1 ? '<button type="button" class="link-btn" data-act="battrm" data-id="' + bt.id + '">Remove this battery</button>' : '') + '</div>';
@@ -3581,7 +3625,8 @@ document.addEventListener('click', (e) => {
   if (b.dataset.act === 'battsave' && bt) {
     const inp = document.querySelector('[data-bv="' + bt.id + '"]'), v = parseFloat(((inp && inp.value) || '').replace(',', '.'));
     if (!(v > 5 && v < 20)) { toast('Enter the voltage you measured, such as 12.6'); return; }
-    bt.log = (bt.log || []).concat([{ t: Date.now(), v, note: (batteryVerdict(v, bt.kind) || '').split('.')[0] }]); saveBoat(); renderBoat(); toast(bt.name + ': ' + v.toFixed(2) + ' V saved');
+    const cnd = (document.querySelector('[data-bcond="' + bt.id + '"]') || {}).value || 'rest', vd = batteryVerdict(v, bt.kind, cnd) || '';
+    bt.log = (bt.log || []).concat([{ t: Date.now(), v, cond: cnd, note: ({ rest: 'At rest', charged: 'After charging', load: 'Under load' }[cnd]) + ': ' + vd.split('.')[0], replace: /replace/i.test(vd) }]); saveBoat(); renderBoat(); toast(bt.name + ': ' + v.toFixed(2) + ' V saved');
   }
   if (b.dataset.act === 'battdel' && bt) { if (!armed(b, 'Tap again')) return; bt.log = (bt.log || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
   if (b.dataset.act === 'battadd') { const L3 = batteries(), n = L3.length + 1; L3.push({ id: 'b' + Date.now(), name: n === 2 ? 'Starting' : 'Battery ' + n, kind: L3[0] ? L3[0].kind : 'lead', bought: '', log: [] }); saveBoat(); renderBoat(); }
@@ -3592,9 +3637,16 @@ function logHours(v) { // one entry per day: the latest reading that day
   const L2 = S.boat.hoursLog = S.boat.hoursLog || [], last = L2[L2.length - 1];
   if (last && new Date(last.t).toDateString() === new Date().toDateString()) { last.v = v; last.t = Date.now(); } else L2.push({ t: Date.now(), v });
 }
-function batteryVerdict(v, kind) {
+function batteryVerdict(v, kind, cond) {
   const k = kind || S.boat.batteryKind;
   if (!(v > 5 && v < 20)) return '';
+  if (cond === 'charged') { // after a full charge and an hour or two of rest, a healthy battery should read near full
+    const full = k === 'lifepo4' ? 13.3 : k === 'gel' ? 12.85 : k === 'agm' ? 12.8 : 12.65;
+    if (v >= full - 0.1) return 'Holding a full charge. Healthy.';
+    if (v >= full - 0.4) return 'Not reaching full after charging. Check the charger and connections, and watch it.';
+    return 'Not holding a charge after charging: replace it soon. A battery this low after charging can fail without warning.';
+  }
+  if (cond === 'load') return v >= 12.0 ? 'Under load: holding up.' : v >= 10.5 ? 'Under load: sagging. Re-test at rest.' : 'Under load: collapsing below 10.5 V. Replace it.';
   if (k === 'lifepo4') {
     if (v >= 13.3) return 'About full.'; if (v >= 13.1) return 'Roughly 50 to 90 percent.'; if (v >= 12.9) return 'Low, roughly 20 percent. Charge soon.';
     return 'Very low for lithium. Charge now and check the battery management system for a cut-off.';
@@ -3623,7 +3675,7 @@ function renderBoat() {
   p.innerHTML = '<div class="p-head"><div><div class="eyebrow">Boat</div><h2>' + esc(S.settings.boatName || 'Your boat') + '</h2></div><button class="btn small" data-act="appsettings">App settings</button></div>' + setupChecklist() +
     fleetHtml() + profileHtml() + lightsCoachHtml() +
     '<div class="card" style="padding:12px 14px"><div class="li" style="border:0;padding:0"><div class="li-main"><b>What am I looking at?</b><span>Identify a vessel from its lights or shapes, cross-checked with AIS</span></div><button class="btn small primary" data-act="identify">Identify</button></div></div>' +
-    maintHtml() + batteryHtml() +
+    maintHtml() + receiptsHtml() + batteryHtml() +
     '<p class="hint">Coming in the app-store version: photo recognition of lights, engine fault-code lookup, and live battery and engine data from onboard monitors.</p>';
 }
 $('panelBoat').addEventListener('click', async (e) => {
@@ -3710,7 +3762,7 @@ $('panelBoat').addEventListener('click', (e) => {
 });
 $('panelBoat').addEventListener('input', (e) => {
   const bvi = e.target.closest && e.target.closest('[data-bv]');
-  if (bvi) { const bt = batteries().find((x) => x.id === bvi.dataset.bv), o = document.querySelector('[data-bout="' + bvi.dataset.bv + '"]'), v = parseFloat(bvi.value.replace(',', '.')); if (o && bt && v > 5) o.textContent = batteryVerdict(v, bt.kind) || ''; }
+  if (bvi) { const bt = batteries().find((x) => x.id === bvi.dataset.bv), o = document.querySelector('[data-bout="' + bvi.dataset.bv + '"]'), v = parseFloat(bvi.value.replace(',', '.')); if (o && bt && v > 5) o.textContent = batteryVerdict(v, bt.kind, (document.querySelector('[data-bcond="' + bt.id + '"]') || {}).value) || ''; }
   const bn = e.target.closest && e.target.closest('[data-bname]');
   if (bn) { const bt = batteries().find((x) => x.id === bn.dataset.bname); if (bt) { bt.name = bn.value.slice(0, 30) || 'Battery'; saveBoat(); } }
 });
