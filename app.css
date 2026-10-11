@@ -405,7 +405,7 @@ body { font-variant-numeric: tabular-nums; }
 .ck-val.long { font-size: clamp(48px, 6.5vw, 104px); }
 /* phone: keep chart buttons clear of the cards, and show only the most urgent card */
 @media (max-width: 899px) {
-  #btnZoomIn, #btnZoomOut { display: none; }
+  /* zoom buttons stay on phones too */
   .fab-col { z-index: 650; }
   .bottom-stack:has(#coachCard:not([hidden])) #bridgeCard { display: none; }
 }
@@ -1307,3 +1307,11 @@ html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px))
 @media (hover: hover) and (pointer: fine) { .wx-pop [data-tip]:hover::after { left: 50% !important; right: auto !important; top: calc(100% + 8px) !important; transform: translateX(-50%) !important; } }
 .fm-card { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 6px 0; font-size: 13.5px; } .fm-card p { margin: 6px 0; } .fm-card a { color: var(--accent); }
 .fw-lic { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+/* phones: the page itself never zooms or scrolls; pinch and double-tap go to the chart */
+html, body { touch-action: manipulation; overscroll-behavior: none; overflow: hidden; position: fixed; inset: 0; width: 100%; height: 100%; }
+#map { touch-action: none; }
+@media (max-width: 899px) {
+  .fab { width: 40px !important; height: 40px !important; }
+  .fab-col { gap: 6px !important; }
+  .mini-inst { width: 58px !important; margin: 0 -9px 4px -9px !important; } .mini-inst > svg { width: 58px; height: 58px; }
+}
