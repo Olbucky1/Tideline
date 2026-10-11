@@ -267,8 +267,8 @@ function openPointSheet(latlng, wp) {
   html += '<div class="pt-acts"><button class="btn primary" data-act="goto">Navigate to</button>' +
     '<button class="btn" data-act="ptwx">Weather here</button><button class="btn" data-act="ptmeasure">Measure from here</button>' +
     (wp ? '<button class="btn" data-act="delwp">Delete</button>' : '<button class="btn" data-act="savewp">Save</button>') +
-    '</div><div id="ptWx"></div><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
-  openSheet(html);
+    '</div><div id="ptWx"></div><div class="pm" id="pmBox"></div><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
+  openSheet(html); setTimeout(() => placeMedia(p.lat, p.lon, wp ? wp.name : '', $('pmBox')), 30);
 }
 async function pointTide(p) {
   const box = $('ptWx'); if (!box) return;
@@ -808,12 +808,39 @@ async function drawNavaids() {
     m.on('click', () => openNavaid(p, n)); NV.layer.addLayer(m);
   }));
 }
+// a name and a photo for anything you tap: Wikipedia for named places (lighthouses), Wikimedia Commons photos taken near the spot
+async function placeMedia(lat, lon, name, box) {
+  if (!box) return;
+  const W = 'https://en.wikipedia.org/w/api.php?origin=*&format=json&', C = 'https://commons.wikimedia.org/w/api.php?origin=*&format=json&';
+  try {
+    let title = null, img = null, extract = '';
+    const g = await fetchT(W + 'action=query&list=geosearch&gscoord=' + lat.toFixed(5) + '|' + lon.toFixed(5) + '&gsradius=600&gslimit=8', 9000).then((r) => r.json());
+    const hits = ((g.query || {}).geosearch || []), want = (name || '').toLowerCase().replace(/\b(light|buoy|beacon|daybeacon)\b/g, '').trim();
+    const pick = hits.find((h) => /lighthouse|light station|light\b|shoal|point|bridge|tower|yacht|club|marina|harbor/i.test(h.title) && (!want || h.title.toLowerCase().includes(want.split(' ')[0]))) || hits.find((h) => /lighthouse|light\b/i.test(h.title)) || (name ? null : hits[0]);
+    if (pick) {
+      title = pick.title;
+      const d = await fetchT(W + 'action=query&prop=pageimages|extracts&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=640&pageids=' + pick.pageid, 9000).then((r) => r.json());
+      const pg = Object.values((d.query || {}).pages || {})[0] || {}; if (pg.thumbnail) img = pg.thumbnail.source; extract = pg.extract || '';
+    }
+    let credit = title ? 'Wikipedia' : '';
+    if (!img) {
+      const c = await fetchT(C + 'action=query&generator=geosearch&ggscoord=' + lat.toFixed(5) + '|' + lon.toFixed(5) + '&ggsradius=300&ggslimit=6&ggsnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640', 9000).then((r) => r.json());
+      const f = Object.values((c.query || {}).pages || {}).find((x) => x.imageinfo && /\.(jpe?g|png)$/i.test(x.title));
+      if (f) { img = f.imageinfo[0].thumburl; const m = f.imageinfo[0].extmetadata || {}; credit = 'Photo: ' + ((m.Artist && m.Artist.value || '').replace(/<[^>]+>/g, '').trim() || 'Wikimedia Commons') + (m.LicenseShortName ? ' · ' + m.LicenseShortName.value : '') + ' · Wikimedia Commons'; }
+    }
+    if (!document.body.contains(box)) return;
+    box.innerHTML = (title ? '<div class="pm-title">' + esc(title) + '</div>' : '') + (img ? '<img class="pm-img" src="' + esc(img) + '" alt="" loading="lazy">' : '') + (extract ? '<p class="pm-x">' + esc(extract) + '</p>' : '') + (credit && (img || extract) ? '<p class="hint pm-c">' + esc(credit) + (title ? ' · <a href="https://en.wikipedia.org/wiki/' + encodeURIComponent(title) + '" target="_blank" rel="noopener">more</a>' : '') + '</p>' : '');
+  } catch (e) { if (document.body.contains(box)) box.innerHTML = ''; }
+}
 function openNavaid(p, n) {
+  if (!n.name) { let best = null, bd = 0.06; NV.tiles.forEach((v) => (v || []).forEach((q) => { const nm = q.a && q.a.OBJNAM; if (nm && q !== p) { const d = distNm(p, q); if (d < bd) { bd = d; best = nm; } } })); if (best) n.name = best; }
+  setTimeout(() => placeMedia(p.lat, p.lon, n.name, $('pmBox')), 30);
   const what = (n.cols.length > 1 ? n.cols.join(' and ') : n.col) + ' ' + n.shape;
   const side = n.col === 'red' ? 'Red, right, returning: keep it on your starboard side heading in from sea.' : n.col === 'green' ? 'Keep it on your port side heading in from sea.' : '';
-  openSheet('<h3>' + esc(what.charAt(0).toUpperCase() + what.slice(1)) + (n.num ? ' "' + esc(n.num) + '"' : '') + '</h3><div class="sub">' + esc(n.name || 'Aid to navigation') + '</div>' +
+  const named = n.name && p.kind === 'light' && !/buoy/i.test(n.name);
+  openSheet('<h3>' + (named ? esc(n.name) : esc(what.charAt(0).toUpperCase() + what.slice(1)) + (n.num ? ' "' + esc(n.num) + '"' : '')) + '</h3><div class="sub">' + (named ? esc(n.rhythm ? 'Light · ' + n.rhythm : 'Light') : esc(n.name || 'Aid to navigation')) + '</div>' +
     (n.rhythm ? '<p><b>Light:</b> ' + esc(n.rhythm) + (p.a.VALNMR ? ', visible ' + esc(p.a.VALNMR) + ' nm' : '') + (p.a.HEIGHT ? ', ' + Math.round(p.a.HEIGHT / 0.3048) + ' ft high' : '') + '</p>' : '') +
-    (side ? '<p class="hint">' + side + '</p>' : '') + '<p class="hint">From NOAA chart data (ENC). Positions of buoys can shift: always check against what you see.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+    '<div class="pm" id="pmBox"><p class="sub">Looking for a photo…</p></div>' + (side ? '<p class="hint">' + side + '</p>' : '') + '<p class="hint">From NOAA chart data (ENC). Positions of buoys can shift: always check against what you see.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
 }
 map.on('moveend', () => { clearTimeout(NV.t); NV.t = setTimeout(drawNavaids, 500); });
 setTimeout(drawNavaids, 3500);
@@ -4048,7 +4075,7 @@ function openPlaceSheet(p) {
   if (facts.length) html += '<div class="facts">' + facts.join('') + '</div>';
   html += '<div class="row-btns"><button class="btn primary" data-act="goto">Go to</button><button class="btn" data-act="savewp">Save</button><button class="btn ghost" data-act="close">Close</button></div>';
   html += '<p class="hint" style="margin:12px 0 0;font-size:12px">Place details from OpenStreetMap contributors. Call ahead to confirm fuel and hours.</p>';
-  openSheet(html);
+  openSheet(html + '<div class="pm" id="pmBox"></div>'); setTimeout(() => placeMedia(p.lat, p.lon, p.name, $('pmBox')), 30);
 }
 function showPlace(p) {
   setTab('chart'); setFollow(false);

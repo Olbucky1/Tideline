@@ -1198,3 +1198,6 @@ html.no-status .topbar { display: none !important; }
 html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
 #fabs .alert-bar.mini { position: static; transform: none; width: 38px; height: 38px; border-radius: 11px; margin-top: 2px; }
 .mini-inst { width: 54px !important; height: 54px !important; margin: 0 -8px 4px -8px !important; align-self: center !important; }
+.pm-title { font-weight: 600; font-size: 15px; margin: 8px 0 4px; }
+.pm-img { width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; display: block; margin: 4px 0; background: var(--line); }
+.pm-x { font-size: 13px; margin: 6px 0 2px; } .pm-c { font-size: 11.5px; } .pm-c a { color: var(--accent); }

@@ -1,5 +1,5 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v72';
+const APP = 'tl-app-v73';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
@@ -8,7 +8,7 @@ const SHELL = [
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 const TILE_HOSTS = ['gis.charttools.noaa.gov', 'server.arcgisonline.com', 'basemap.nationalmap.gov', 'tile.openstreetmap.org', 'tiles.openseamap.org'];
-const DATA_HOSTS = ['api.open-meteo.com', 'marine-api.open-meteo.com', 'api.tidesandcurrents.noaa.gov', 'overpass-api.de', 'nominatim.openstreetmap.org', 'encdirect.noaa.gov', 'api.inaturalist.org', 'api.weather.gov'];
+const DATA_HOSTS = ['api.open-meteo.com', 'marine-api.open-meteo.com', 'api.tidesandcurrents.noaa.gov', 'overpass-api.de', 'nominatim.openstreetmap.org', 'encdirect.noaa.gov', 'api.inaturalist.org', 'api.weather.gov', 'en.wikipedia.org', 'commons.wikimedia.org'];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => {
