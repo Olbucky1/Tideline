@@ -4727,9 +4727,10 @@ async function checkAlerts() {
 function renderAlertBar() {
   let el = $('alertBar'); if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; el.className = 'alert-bar'; $('app').appendChild(el); el.addEventListener('click', (e) => { const x = e.target.closest('[data-abx]'); if (x) { e.stopPropagation(); ALR.hide.add(x.dataset.abx); renderAlertBar(); return; } openAlerts(); }); }
   const live = ALR.list.filter((x) => !ALR.hide.has(x.id)), a = live[0];
-  if (!a) { el.hidden = !ALR.list.length; el.className = 'alert-bar mini'; el.innerHTML = '⚠'; el.dataset.tip = ALR.list.length ? ALR.list.length + ' weather alert' + (ALR.list.length > 1 ? 's' : '') + ': tap to read' : ''; return; }
+  const home = (mini) => { const want = mini ? $('fabs') : $('app'); if (el.parentNode !== want) want.appendChild(el); }; // small ⚠ sits at the foot of the left buttons; big warnings span the top
+  if (!a) { home(true); el.hidden = !ALR.list.length; el.className = 'alert-bar mini'; el.innerHTML = '⚠'; el.dataset.tip = ALR.list.length ? ALR.list.length + ' weather alert' + (ALR.list.length > 1 ? 's' : '') + ': tap to read' : ''; return; }
   const big = /warning/i.test(a.event) && ALR_LOUD.test(a.event); // only serious warnings take the full bar; the rest stay a small ⚠
-  el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini');
+  home(!big); el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini');
   el.dataset.tip = esc(a.event) + ': tap to read';
   el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(a.id) + '" title="Hide this alert">×</i>' : '⚠';
 }

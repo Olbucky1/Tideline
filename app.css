@@ -1193,3 +1193,8 @@ html.no-status .topbar { display: none !important; }
 #app.wide .alert-bar.mini { right: 476px; }
 .alert-bar .ab-x { font-style: normal; margin-left: 6px; padding: 0 4px; font-size: 16px; opacity: .8; }
 .alert-bar:not(.mini) { top: calc(10px + env(safe-area-inset-top, 0px)); }
+/* symmetry: the speed dial's top lines up with the first left button; zoom, Find me and Instruments stack under it */
+#app #fabsR.fab-col, #app.wide #fabsR.fab-col, html.calm #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+#fabs .alert-bar.mini { position: static; transform: none; width: 38px; height: 38px; border-radius: 11px; margin-top: 2px; }
+.mini-inst { width: 54px !important; height: 54px !important; margin: 0 -8px 4px -8px !important; align-self: center !important; }
