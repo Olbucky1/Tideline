@@ -2524,7 +2524,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 110. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 111. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6561,9 +6561,9 @@ function openSpot(latlng) {
   SPOT.pin = L.marker([p.lat, p.lon], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: '', iconSize: [22, 30], iconAnchor: [11, 29], html: '<div class="sp-pin"></div>' }) }).addTo(map);
   const from = S.fix || homePort(), d = from ? distNm(from, p) : null;
   const el = document.createElement('div'); el.className = 'spot-card'; el.innerHTML =
-    '<div class="sp-head"><div><b>' + (d != null ? fmtDist(d) + ' · ' + fmtBrg(bearing(from, p)) + '°' : 'This spot') + '</b><span>' + (d != null ? (S.fix ? 'from you' : 'from ' + esc(from.name)) + (S.fix && (S.sog || 0) > 1 ? ' · ' + fmtDur(d / S.sog) : '') : ddm(p.lat, true) + ' ' + ddm(p.lon, false)) + '</span></div><button type="button" class="sp-x" data-spx aria-label="Close">×</button></div>' +
+    '<div class="sp-head"><div><b>' + (d != null ? fmtDist(d) + ' · ' + fmtBrg(bearing(from, p)) + '°' + (S.fix && (S.sog || 0) > 1 ? ' · ' + fmtDur(d / S.sog) : '') : 'This spot') + '</b><span>' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + (d != null && !S.fix ? ' · from ' + esc(from.name) : '') + '</span></div><button type="button" class="sp-x" data-spx aria-label="Close">×</button></div>' +
     '<div class="sp-grid" id="spGrid"><div class="sp-load">Reading this spot…</div></div>' +
-    '<div class="sp-acts"><button type="button" class="sp-btn pri" data-spact="goto">' + spIc('cur').replace('viewBox', 'class="sp-bi" viewBox') + 'Navigate</button>' + (S.settings.boatType === 'sail' ? '<button type="button" class="sp-btn" data-spact="ptsail">Sail here</button>' : '') + '<button type="button" class="sp-btn" data-spact="more" aria-label="More">More</button></div>';
+    '<div class="sp-acts"><button type="button" class="sp-btn pri" data-spact="goto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 18-7-4-7 4z"/></svg>Navigate</button>' + (S.settings.boatType === 'sail' ? '<button type="button" class="sp-btn" data-spact="ptsail"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v15M12 4c3.5 3 5.5 7 6 12h-6M11 6c-2.5 3-4 6-4.5 10H11M4 19h16l-2 2H6z"/></svg>Sail</button>' : '') + '<button type="button" class="sp-btn ic" data-spact="more" aria-label="More details" title="More details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></div>';
   document.body.appendChild(el); SPOT.el = el; placeSpot();
   spotFill(p, seq);
 }
@@ -6580,7 +6580,7 @@ async function spotFill(p, seq) {
   }).catch(() => {});
   fetchT('https://marine-api.open-meteo.com/v1/marine' + ll + '&current=wave_height,wave_period,sea_surface_temperature&length_unit=imperial', 12000).then((r) => r.json()).then((m) => {
     const c = m.current; if (!c) return;
-    if (c.wave_height != null) cells.wave = cell(spIc('wave'), c.wave_height.toFixed(1), ' ft', (c.wave_period ? Math.round(c.wave_period) + ' s apart' : 'waves'), 'wave');
+    if (c.wave_height != null) cells.wave = cell(spIc('wave'), c.wave_height.toFixed(1), ' ft', (c.wave_period ? 'every ' + Math.round(c.wave_period) + ' s' : 'waves'), 'wave');
     if (c.sea_surface_temperature != null) cells.water = cell(spIc('temp'), Math.round(c.sea_surface_temperature * 9 / 5 + 32) + '°', '', 'water', 'water'); draw();
   }).catch(() => {});
   (async () => { try { const st = await nearestCurrent(p); if (!st || st.dNm > 5) return; const n = curAt(await curPred(st), curTime()); if (!n) return;
