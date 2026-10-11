@@ -2257,8 +2257,15 @@ function renderMenu() {
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<button type="button" class="btn" data-mact="update" style="margin-top:12px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 78. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 79. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
+document.addEventListener('change', async (e) => {
+  if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
+  try { const o = JSON.parse(await f.text()); if (o.app !== 'Tideline' || !o.data) throw new Error('not a backup');
+    if (!confirm('Replace the boats, routes and settings in this browser with the backup from ' + new Date(o.at).toLocaleString() + '?')) return;
+    Object.entries(o.data).forEach(([k, v]) => localStorage.setItem(k, v)); toast('Restored. Reloading…'); setTimeout(() => location.reload(), 800);
+  } catch (err) { toast('That file is not a Tideline backup'); }
+});
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
   const a = b.dataset.mact;
@@ -2268,6 +2275,11 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'help') { openHelp(); return; }
   if (a === 'pro') { openResources(); return; }
   if (a === 'mapopts') { setTab('chart'); openLayersSheet(); return; }
+  if (a === 'backup') { // everything the app keeps in this browser (boats, routes, tracks, spots, settings, logs, receipts); photos stay on the device
+    const o = { app: 'Tideline', v: 1, at: new Date().toISOString(), data: {} };
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('tl.') && !/^tl\.(stations|bridges|mplaces|plTiles|weather|tide|encIds)/.test(k)) o.data[k] = localStorage.getItem(k); }
+    download('tideline-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(o)); toast('Backup saved to your Downloads. Open it in another browser with Restore.', 5000); return; }
+  if (a === 'restore') { $('restoreIn').click(); return; }
   if (a === 'update') { toast('Getting the latest version…'); (async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith('tl-app-')).map((k) => caches.delete(k))); } catch (e) { /* nothing cached */ } location.reload(); })(); return; }
   if (a === 'fish') { setTab('chart'); openFishWild(); return; }
   setTab(a);
