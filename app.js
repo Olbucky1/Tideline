@@ -2257,7 +2257,7 @@ function renderMenu() {
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 76. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 77. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
