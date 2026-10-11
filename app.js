@@ -265,7 +265,7 @@ function openPointSheet(latlng, wp) {
   let html = '<h3>' + (wp ? esc(wp.name) : 'Dropped pin') + '</h3><div class="sub tnum">' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + '</div>';
   html += S.fix ? trio(legInfo(S.fix, p)) : '<p class="sub">Distance from you appears once GPS has a fix.</p>';
   html += '<div class="pt-acts"><button class="btn primary" data-act="goto">Navigate to</button>' +
-    '<button class="btn" data-act="ptwx">Weather here</button><button class="btn" data-act="ptmeasure">Measure from here</button>' +
+    '<button class="btn" data-act="ptwx">Weather here</button><a class="btn" href="' + nwsGraphUrl(p) + '" target="_blank" rel="noopener">NOAA point forecast ↗</a><button class="btn" data-act="ptmeasure">Measure from here</button>' +
     (wp ? '<button class="btn" data-act="delwp">Delete</button>' : '<button class="btn" data-act="savewp">Save</button>') +
     '</div><div id="ptWx"></div><div class="pm" id="pmBox"></div><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
   openSheet(html); setTimeout(() => placeMedia(p.lat, p.lon, wp ? wp.name : '', $('pmBox')), 30);
@@ -1679,6 +1679,9 @@ function tideCurve(sel) {
   return '<svg class="tl-tide" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-label="Tide curve"><path d="' + path + ' L' + W + ' ' + H + ' L0 ' + H + 'Z" class="fill"/><path d="' + path + '" class="line"/>' +
     '<line x1="' + X(Date.now()) + '" x2="' + X(Date.now()) + '" y1="0" y2="' + H + '" class="now"/>' + (sv != null ? '<circle cx="' + X(st) + '" cy="' + Y(sv) + '" r="6" class="sel"/>' : '') + lab + '</svg>';
 }
+// NWS point forecast: the hourly weather graph (wind, gusts, sky, rain chance, temperature) for an exact spot
+function nwsGraphUrl(p) { return 'https://forecast.weather.gov/MapClick.php?lat=' + p.lat.toFixed(4) + '&lon=' + p.lon.toFixed(4) + '&unit=0&lg=english&FcstType=graph'; }
+function nwsPointUrl(p) { return 'https://forecast.weather.gov/MapClick.php?lat=' + p.lat.toFixed(4) + '&lon=' + p.lon.toFixed(4); }
 function renderTimeline(el) {
   const v = WX.view || 'wind', w = S.weather, wide = isWide(), open = wide || WX.open;
   const tabs = [['wind', 'Wind'], ['waves', 'Waves'], ['rain', 'Rain'], ['tide', 'Tide']];
@@ -1695,7 +1698,8 @@ function renderTimeline(el) {
   { const wv = seriesAt(w && w.waveHours, t, 'h'); if (wv != null) parts.push(waveLen(wv)); }
   { const tv = tideAtT(t); if (tv != null) parts.push('tide ' + tideLen(tv)); }
   if (w) { const air = WX.hour ? seriesAt(w.hours, t, 'temp') : w.cur && w.cur.temp, water = S.waterObs ? S.waterObs.f : w.sst; if (air != null) parts.push('air ' + tempTxt(air)); if (water != null) parts.push('water ' + tempTxt(water)); }
-  let h = '<button type="button" class="tl-x" data-tlx aria-label="Close weather">&times;</button>' + (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
+  const np = S.fix || refPos();
+  let h = '<button type="button" class="tl-x" data-tlx aria-label="Close weather">&times;</button>' + (np ? '<a class="nws-btn" href="' + nwsGraphUrl(np) + '" target="_blank" rel="noopener" data-tip="National Weather Service hourly graph for exactly where you are">NOAA point forecast ↗</a>' : '') + (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
     '<div class="tl-chips">' + chips + '</div>' +
     '<div class="tl-sum"><b>' + (WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now') + '</b> ' + esc(parts.join(' · ') || 'Waiting for forecast') + '</div>' +
     '<div class="tl-sky">' + skyNotes(new Date(Date.now() + WX.hour * 3600000)).map((x) => '<span>' + esc(x) + '</span>').join('') + '</div>';
@@ -2253,7 +2257,7 @@ function renderMenu() {
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 75. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 76. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
