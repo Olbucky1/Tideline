@@ -7,9 +7,10 @@ export default {
   async fetch(req, env) {
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('Tideline AIS relay is running.', { status: 200 });
     const origin = req.headers.get('Origin') || '', allowed = env.ALLOWED_ORIGIN || 'https://olbucky1.github.io';
-    if (origin && !allowed.split(',').some((o) => origin.startsWith(o.trim()))) return new Response('Not allowed', { status: 403 });
+    if (!allowed.split(',').some((o) => origin === o.trim())) return new Response('Not allowed', { status: 403 });
+    if (!env.AISSTREAM_KEY) return new Response('AIS key not configured', { status: 503 });
     const bb = (new URL(req.url).searchParams.get('bbox') || '').split(',').map(Number);
-    if (bb.length !== 4 || bb.some((v) => !isFinite(v)) || Math.abs(bb[2] - bb[0]) > 3 || Math.abs(bb[3] - bb[1]) > 3) return new Response('Bad area', { status: 400 });
+    if (bb.length !== 4 || bb.some((v) => !Number.isFinite(v)) || bb[0] < -90 || bb[2] > 90 || bb[1] < -180 || bb[3] > 180 || bb[2] <= bb[0] || bb[3] <= bb[1] || Math.abs(bb[2] - bb[0]) > 3 || Math.abs(bb[3] - bb[1]) > 3) return new Response('Bad area', { status: 400 });
     const [client, server] = Object.values(new WebSocketPair());
     server.accept();
     const up = await fetch('https://stream.aisstream.io/v0/stream', { headers: { Upgrade: 'websocket' } });

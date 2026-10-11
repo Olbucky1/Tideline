@@ -1,0 +1,8 @@
+name = "tideline-first-mate"
+main = "worker.js"
+compatibility_date = "2026-10-11"
+# Assign a unique namespace ID in your Cloudflare account before deployment.
+[[ratelimits]]
+name = "ASSISTANT_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
