@@ -1374,7 +1374,7 @@ function wxTitle() { return [wxOn('wind') && 'Wind', wxOn('waves') && 'Waves', w
 function applyWx() {
   if (typeof drawObs === 'function') drawObs();
   if (wxOn('rain')) { if (!map.hasLayer(radarLayer)) radarLayer.addTo(map); if (radarLayer.redraw) radarLayer.redraw(); } else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer);
-  if (wxOn('wind') || wxOn('waves')) { if (!map.hasLayer(wxGrid)) wxGrid.addTo(map); loadGrids(); } else { wxGrid.clearLayers(); if (map.hasLayer(wxGrid)) map.removeLayer(wxGrid); }
+  if (wxOn('wind') || wxOn('waves') || wxOn('rain')) { if (!map.hasLayer(wxGrid)) wxGrid.addTo(map); loadGrids(); } else { wxGrid.clearLayers(); if (map.hasLayer(wxGrid)) map.removeLayer(wxGrid); }
   if (!wxOn('wind')) { wsStop(); document.documentElement.classList.remove('wlines'); }
   try { renderChips(); } catch (e) { /* early */ }
   renderWxBar();
@@ -1390,13 +1390,14 @@ function gridPoints() {
   return pts;
 }
 WX.grids = {};
-function loadGrids(force) { ['wind', 'waves'].forEach((k) => { if (wxOn(k)) loadGrid(k, force); }); drawGrid(); }
+function loadGrids(force) { ['wind', 'waves', 'rain'].forEach((k) => { if (wxOn(k)) loadGrid(k, force); }); drawGrid(); }
 async function loadGrid(kind, force) {
   const pts = gridPoints(), key = pts.map((p) => p.lat + ',' + p.lon).join('|'), g = WX.grids[kind];
   if (!force && g && g.key === key && Date.now() - g.at < 30 * 60000) return;
   const seq = (WX.seqs = WX.seqs || {})[kind] = ((WX.seqs || {})[kind] || 0) + 1;
   const ll = '?latitude=' + pts.map((p) => p.lat).join(',') + '&longitude=' + pts.map((p) => p.lon).join(',');
-  const url = kind === 'wind'
+  const url = kind === 'rain' ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=precipitation&timezone=GMT&forecast_days=3'
+    : kind === 'wind'
     ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=3'
     : 'https://marine-api.open-meteo.com/v1/marine' + ll + '&hourly=wave_height,wave_direction,wave_period&length_unit=imperial&timezone=GMT&forecast_days=3';
   WX.busy = true; renderWxBar();
@@ -1406,6 +1407,7 @@ async function loadGrid(kind, force) {
     const arr = Array.isArray(j) ? j : [j];
     WX.grids[kind] = { kind, key, at: Date.now(), pts: arr.map((d, i) => {
       const h = d.hourly || {}, times = (h.time || []).map((t) => Date.parse(t + 'Z'));
+      if (kind === 'rain') return { lat: pts[i].lat, lon: pts[i].lon, t: times, a: h.precipitation };
       return kind === 'wind'
         ? { lat: pts[i].lat, lon: pts[i].lon, t: times, a: h.wind_speed_10m, b: h.wind_direction_10m, c: h.wind_gusts_10m }
         : { lat: pts[i].lat, lon: pts[i].lon, t: times, a: h.wave_height, b: h.wave_direction, c: h.wave_period };
@@ -1471,7 +1473,19 @@ function wsFrame() {
 }
 function wsStart() { wsSetup(); WS.cv.hidden = false; wsField(); if (reduceMotion || WS.run) return; WS.run = true; wsFrame(); }
 function wsStop() { WS.run = false; cancelAnimationFrame(WS.raf); if (WS.cv) { WS.ctx.clearRect(0, 0, WS.cv.width, WS.cv.height); WS.cv.hidden = true; } }
+const rainGrid = L.layerGroup().addTo(map);
+function drawRainForecast() { // future hours: model rain as soft blue patches; hour 0 is the live radar
+  rainGrid.clearLayers();
+  const g = wxOn('rain') && WX.grids.rain, live = WX.hour === 0;
+  if (map.hasLayer(radarLayer) !== (wxOn('rain') && live)) { if (wxOn('rain') && live) radarLayer.addTo(map); else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer); }
+  if (!g || live) return;
+  const sz = map.getSize(), r = Math.max(sz.x, sz.y) / 7, ren = WX.rren || (WX.rren = L.canvas({ padding: 0.3 }));
+  g.pts.forEach((p) => { if (!p.t.length || !p.a) return; const v = p.a[gridIndex(p.t)]; if (!(v >= 0.1)) return;
+    const col = colFor(RAIN_COL, v), ll = map.containerPointToLatLng(map.latLngToContainerPoint([p.lat, p.lon]).add([r, 0]));
+    rainGrid.addLayer(L.circle([p.lat, p.lon], { renderer: ren, radius: map.distance([p.lat, p.lon], ll), stroke: false, fillColor: col, fillOpacity: Math.min(0.45, 0.18 + v / 20), interactive: false })); });
+}
 function drawGrid() {
+  drawRainForecast();
   if (wxOn('wind') && WX.grids.wind && S.settings.windLines !== false) { wsStart(); document.documentElement.classList.add('wlines'); } else { wsStop(); document.documentElement.classList.remove('wlines'); }
   wxGrid.clearLayers();
   const gw = wxOn('wind') && WX.grids.wind, gv = wxOn('waves') && WX.grids.waves; if (!gw && !gv) return;
@@ -1630,7 +1644,7 @@ function forecastScrubber() {
   return '<div class="scrub"><button type="button" class="sc-b" data-wxstep="-24" aria-label="Back a day">«</button><button type="button" class="sc-b" data-wxstep="-1" aria-label="Back an hour">‹</button>' +
     '<div class="sc-mid"><div class="sc-bub" id="wxBub" style="left:' + (k / max * 100).toFixed(1) + '%">' + scrubLabel(k) + '</div><div class="sc-strip" aria-hidden="true">' + strip.join('') + '</div>' + marks.join('') +
     '<input type="range" id="wxHour" min="0" max="' + max + '" step="1" value="' + k + '" aria-label="Forecast time"></div>' +
-    '<button type="button" class="sc-b" data-wxstep="1" aria-label="Forward an hour">›</button><button type="button" class="sc-b" data-wxstep="24" aria-label="Forward a day">»</button></div>';
+    '<button type="button" class="sc-b" data-wxstep="1" aria-label="Forward an hour">›</button><button type="button" class="sc-b" data-wxstep="24" aria-label="Forward a day">»</button><button type="button" class="sc-b sc-play' + (WX.play ? ' on' : '') + '" data-wxplay aria-label="' + (WX.play ? 'Pause' : 'Play the forecast') + '" data-tip="' + (WX.play ? 'Pause' : 'Play: watch wind, waves and rain change hour by hour') + '">' + (WX.play ? '❚❚' : '▶') + '</button></div>';
 }
 function scrubLabel(k) { if (!k) return 'Now'; const d = new Date(Date.now() + k * 3600000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric' }); }
 function setWxHour(k) {
@@ -1638,7 +1652,18 @@ function setWxHour(k) {
   const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / 47 * 100).toFixed(1) + '%'; }
   $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid();
 }
-document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) setWxHour(WX.hour + +st.dataset.wxstep); });
+document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) { wxStop(); setWxHour(WX.hour + +st.dataset.wxstep); } });
+// play the forecast: steps an hour about every 0.9 s through all the layers you have on, then stops at the end
+function wxStop() { if (!WX.play) return; clearInterval(WX.play); WX.play = null; renderWxBar(); }
+function wxPlay() {
+  if (WX.play) { wxStop(); return; }
+  if (!wxAny()) { setWxL('wind', true); }
+  if (WX.hour >= 47) setWxHour(0);
+  WX.play = setInterval(() => { if (WX.hour >= 47) { wxStop(); return; } setWxHour(WX.hour + 1); }, 900);
+  renderWxBar();
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]')) wxPlay(); });
+document.addEventListener('input', (e) => { if (e.target.id === 'wxHour') wxStop(); }, true);
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
   if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); return; }

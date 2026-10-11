@@ -1049,3 +1049,5 @@ html.nogps #app.wide .bottom-stack { left: 10px; }
 #cockpit .ck-map #fabsR { right: 10px !important; left: auto !important; top: 10px !important; }
 #cockpit .ck-map #fabs { left: 10px !important; right: auto !important; top: 10px !important; }
 #cockpit .ck-map #btnMOB { left: 10px !important; bottom: 10px !important; top: auto !important; }
+.sc-play { margin-left: 6px; background: var(--accent) !important; color: #fff !important; border-color: transparent !important; font-size: 13px; }
+.sc-play.on { background: var(--ink) !important; }
