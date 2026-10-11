@@ -1021,3 +1021,18 @@ html.nogps #app.wide .bottom-stack { left: 10px; }
 .card.setup .su-row.ok em { opacity: .6; color: inherit; font-weight: 500; }
 @media (hover: hover) { .card.setup .su-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); } }
 .pulse { outline: 3px solid var(--accent) !important; outline-offset: 2px; transition: outline-color .3s; }
+.batt { border-top: 1px solid var(--tile-line, var(--line)); padding: 10px 0 8px; }
+.batt-top { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.batt-name { flex: 1; min-width: 0; font: 600 15px inherit; font-family: inherit; border: 1px solid transparent; border-radius: 8px; padding: 6px 8px; background: transparent; color: inherit; }
+.batt-name:hover, .batt-name:focus { border-color: var(--tile-line, var(--line)); }
+.batt-top select { max-width: 48%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--tile-line, var(--line)); background: transparent; color: inherit; font: inherit; font-size: 13px; }
+.batt-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.batt-row label { font-size: 12.5px; display: flex; align-items: center; gap: 6px; opacity: .85; }
+.batt-row input[type=month] { padding: 6px; border-radius: 8px; border: 1px solid var(--tile-line, var(--line)); background: transparent; color: inherit; font: inherit; font-size: 13px; }
+.batt-in .u { font-size: 13px; opacity: .7; }
+.batt-out { margin: 6px 0 2px; }
+.warn-t { color: var(--amber, #C77A12); font-weight: 600; }
+.link-btn { border: 0; background: none; color: var(--red, #C0392B); font-size: 12.5px; padding: 4px 0; cursor: pointer; }
+.rlog-r { color: inherit !important; }
+.rlog-r span, .rlog-r em, .rlog-h, .rlog-x { color: inherit !important; opacity: .62; }
+.stepper button, .stepper input, .batt-in input { color: inherit !important; }

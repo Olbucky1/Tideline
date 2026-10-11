@@ -3286,7 +3286,7 @@ function profileHtml() {
     '<div class="grid2">' + f('bChain', 'Chain (' + lenUnit() + ')', L2(b.chainFt), 'number') + f('bRode', 'Total rode incl. chain (' + lenUnit() + ')', L2(b.rodeTotalFt), 'number') + '</div>' +
     '<div class="grid2">' + f('bSafe', 'Safety buffer under keel (' + lenUnit() + ')', L2(b.safetyFt == null ? 2 : b.safetyFt), 'number') + f('bGph', 'Fuel burn at cruise (gal/h)', b.gph, 'number') + '</div>' +
     '<div class="grid2">' + f('bTank', 'Fuel tank (gal)', b.tankGal, 'number') + f('bMmsi', 'MMSI (from your VHF or AIS)', b.mmsi, 'text', 'inputmode="numeric" maxlength="9"') + '</div>' +
-    '<div class="grid2">' + sel('bBatt', 'House battery', b.batteryKind, [['lead', 'Flooded lead-acid'], ['agm', 'AGM'], ['gel', 'Gel'], ['lifepo4', 'Lithium (LiFePO4)']]) + f('bBattDate', 'Installed', b.batteryInstalled, 'month') + '</div>' +
+    '<p class="hint">Batteries: add each one, its type and purchase date, in the Batteries card on the Boat page.</p>' +
     '<div class="row-btns"><button class="btn primary" data-act="saveboat">Save</button><button class="btn ghost" data-act="cancelboat">Cancel</button></div></div></div>';
 }
 function saveBoatForm() {
@@ -3297,7 +3297,7 @@ function saveBoatForm() {
   b.year = v('bYear'); b.make = v('bMake'); b.model = v('bModel');
   b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null; b.airVerified = !!($('bAirOk') && $('bAirOk').checked);
   b.engineKind = v('bEngKind'); b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineHours = n('bHours') || 0;
-  b.batteryKind = v('bBatt'); b.batteryInstalled = v('bBattDate');
+
   b.lwlFt = n('bLwl') != null ? lenToFt(n('bLwl')) : null; b.dispLb = n('bDisp');
   { const hs = hullSpeed(); if (hs && st.boatType === 'sail' && (!st.sailSpeed || st.sailSpeed === 5)) st.sailSpeed = Math.round(hs.kn * 0.8 * 10) / 10; }
   b.safetyFt = n('bSafe') != null ? lenToFt(n('bSafe')) : 2; b.gph = n('bGph'); b.tankGal = n('bTank'); b.mmsi = /^\d{9}$/.test(v('bMmsi')) ? v('bMmsi') : '';
@@ -3511,11 +3511,31 @@ function maintHtml() {
   if (q) h += '<p class="hint" style="margin:10px 0 0">Owner\'s manual: <a href="https://www.google.com/search?q=' + q + '+owner%27s+manual+maintenance+schedule" target="_blank" rel="noopener" style="color:var(--accent)">find the ' + esc(decodeURIComponent(q)) + ' manual</a></p>';
   return h + '</div>';
 }
+// battery bank: any number of batteries, each with its type, purchase date and its own dated voltage log
+const BATT_KINDS = [['lead', 'Flooded lead-acid'], ['agm', 'AGM'], ['gel', 'Gel'], ['lifepo4', 'Lithium (LiFePO4)']];
+function batteries() {
+  const b = S.boat;
+  if (!Array.isArray(b.batteries)) { // move the old single house battery into the bank
+    b.batteries = [{ id: 'b1', name: 'House', kind: b.batteryKind || 'lead', bought: b.batteryInstalled || '', log: b.battLog || [] }];
+    saveBoat();
+  }
+  return b.batteries;
+}
+function battLife(kind) { return kind === 'lifepo4' ? [8, 12] : kind === 'agm' ? [4, 7] : kind === 'gel' ? [4, 7] : [3, 6]; }
 function batteryHtml() {
-  const b = S.boat, age = b.batteryInstalled ? (Date.now() - Date.parse(b.batteryInstalled + '-01')) / (365.25 * 86400000) : null;
-  return '<div class="card" style="padding:4px 14px 12px"><h4>Battery check</h4>' +
-    '<div class="set-row"><div class="sr-text"><b>Resting voltage</b><span>Measured after 2+ hours with nothing charging or running</span></div><div class="batt-in"><input type="text" inputmode="decimal" id="battV" placeholder="12.6" aria-label="Battery voltage"><button type="button" class="btn small" data-act="battsave">Save</button></div></div>' +
-    '<div id="battOut" class="hint" style="margin:6px 0 4px">' + (age != null ? 'Installed ' + age.toFixed(1) + ' years ago. ' + (b.batteryKind === 'lifepo4' ? 'Lithium batteries often last 8 years or more.' : 'Lead-acid, AGM and gel batteries typically last 3 to 6 years.') : 'Add the install date in your boat profile to track its age.') + '</div>' + logList(b.battLog, (r) => r.v.toFixed(2) + ' V', (r) => r.note, 'battdel') + '</div>';
+  const list = batteries();
+  let h = '<div class="card" style="padding:4px 14px 12px"><h4>Batteries · ' + list.length + '</h4><p class="hint" style="margin:-2px 0 6px">Test resting voltage after 2+ hours with nothing charging or running. Each reading is saved with the date.</p>';
+  list.forEach((bt) => {
+    const bd = bt.bought ? new Date(+bt.bought.slice(0, 4), +bt.bought.slice(5, 7) - 1, 1) : null, age = bd ? (Date.now() - bd) / (365.25 * 86400000) : null, [l0, l1] = battLife(bt.kind), last = (bt.log || [])[bt.log.length - 1];
+    const ageTxt = age != null && isFinite(age) ? 'Bought ' + bd.toLocaleDateString([], { month: 'short', year: 'numeric' }) + ' · ' + age.toFixed(1) + ' years old · ' + (age >= l1 ? '<b class="warn-t">past the usual ' + l0 + '–' + l1 + ' years: plan to replace</b>' : age >= l0 ? '<b class="warn-t">in its last years (' + l0 + '–' + l1 + ' typical)</b>' : 'typically lasts ' + l0 + '–' + l1 + ' years') : 'Add the purchase month to track its age';
+    h += '<div class="batt">' +
+      '<div class="batt-top"><input class="batt-name" data-bname="' + bt.id + '" value="' + esc(bt.name) + '" aria-label="Battery name"><select data-bkind="' + bt.id + '" aria-label="Battery type">' + BATT_KINDS.map(([v, l]) => '<option value="' + v + '"' + (bt.kind === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' +
+      '<div class="batt-row"><label>Purchased <input type="month" data-bbought="' + bt.id + '" value="' + esc(bt.bought || '') + '"></label><div class="batt-in"><input type="text" inputmode="decimal" data-bv="' + bt.id + '" placeholder="' + (bt.kind === 'lifepo4' ? '13.3' : '12.6') + '" aria-label="Voltage for ' + esc(bt.name) + '"><span class="u">V</span><button type="button" class="btn small" data-act="battsave" data-id="' + bt.id + '">Save</button></div></div>' +
+      '<div class="hint batt-out" data-bout="' + bt.id + '">' + ageTxt + (last ? '<br>Last: ' + last.v.toFixed(2) + ' V on ' + new Date(last.t).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + esc(last.note || '') : '') + '</div>' +
+      logList(bt.log, (r) => r.v.toFixed(2) + ' V', (r) => r.note, 'battdel" data-id="' + bt.id) +
+      (list.length > 1 ? '<button type="button" class="link-btn" data-act="battrm" data-id="' + bt.id + '">Remove this battery</button>' : '') + '</div>';
+  });
+  return h + '<button type="button" class="btn" style="width:100%;margin-top:8px" data-act="battadd">Add a battery</button></div>';
 }
 // a dated record of readings, newest first, so you can see a battery or engine trend over the season
 function logList(arr, val, sub, delAct) {
@@ -3524,20 +3544,23 @@ function logList(arr, val, sub, delAct) {
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b || !$('panelBoat').contains(b)) return;
-  if (b.dataset.act === 'battsave') {
-    const v = parseFloat(($('battV').value || '').replace(',', '.'));
+  const bt = b.dataset.id && batteries().find((x) => x.id === b.dataset.id);
+  if (b.dataset.act === 'battsave' && bt) {
+    const inp = document.querySelector('[data-bv="' + bt.id + '"]'), v = parseFloat(((inp && inp.value) || '').replace(',', '.'));
     if (!(v > 5 && v < 20)) { toast('Enter the voltage you measured, such as 12.6'); return; }
-    S.boat.battLog = (S.boat.battLog || []).concat([{ t: Date.now(), v, note: (batteryVerdict(v) || '').split('.')[0] }]); saveBoat(); renderBoat(); toast('Saved: ' + v.toFixed(2) + ' V today');
+    bt.log = (bt.log || []).concat([{ t: Date.now(), v, note: (batteryVerdict(v, bt.kind) || '').split('.')[0] }]); saveBoat(); renderBoat(); toast(bt.name + ': ' + v.toFixed(2) + ' V saved');
   }
-  if (b.dataset.act === 'battdel') { if (!armed(b, 'Tap again')) return; S.boat.battLog = (S.boat.battLog || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
+  if (b.dataset.act === 'battdel' && bt) { if (!armed(b, 'Tap again')) return; bt.log = (bt.log || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
+  if (b.dataset.act === 'battadd') { const L3 = batteries(), n = L3.length + 1; L3.push({ id: 'b' + Date.now(), name: n === 2 ? 'Starting' : 'Battery ' + n, kind: L3[0] ? L3[0].kind : 'lead', bought: '', log: [] }); saveBoat(); renderBoat(); }
+  if (b.dataset.act === 'battrm' && bt) { if (!armed(b, 'Tap again to remove ' + bt.name + ' and its readings')) return; S.boat.batteries = batteries().filter((x) => x !== bt); saveBoat(); renderBoat(); }
   if (b.dataset.act === 'hoursdel') { if (!armed(b, 'Tap again')) return; S.boat.hoursLog = (S.boat.hoursLog || []).filter((r) => String(r.t) !== b.dataset.t); saveBoat(); renderBoat(); }
 });
 function logHours(v) { // one entry per day: the latest reading that day
   const L2 = S.boat.hoursLog = S.boat.hoursLog || [], last = L2[L2.length - 1];
   if (last && new Date(last.t).toDateString() === new Date().toDateString()) { last.v = v; last.t = Date.now(); } else L2.push({ t: Date.now(), v });
 }
-function batteryVerdict(v) {
-  const k = S.boat.batteryKind;
+function batteryVerdict(v, kind) {
+  const k = kind || S.boat.batteryKind;
   if (!(v > 5 && v < 20)) return '';
   if (k === 'lifepo4') {
     if (v >= 13.3) return 'About full.'; if (v >= 13.1) return 'Roughly 50 to 90 percent.'; if (v >= 12.9) return 'Low, roughly 20 percent. Charge soon.';
@@ -3591,6 +3614,8 @@ $('panelBoat').addEventListener('click', async (e) => {
   if (act === 'msave') { const t = $('mText').value.trim(); if (!t) return; S.maint.log.push({ id: Date.now(), date: Date.parse($('mDate').value) || Date.now(), hours: S.boat.engineHours || 0, text: t, cost: $('mCost').value }); saveMaint(); renderBoat(); toast('Saved to the maintenance log'); }
 });
 $('panelBoat').addEventListener('change', async (e) => {
+  const bk = e.target.closest('[data-bkind]'), bb = e.target.closest('[data-bbought]');
+  if (bk || bb) { const bt = batteries().find((x) => x.id === (bk ? bk.dataset.bkind : bb.dataset.bbought)); if (bt) { if (bk) bt.kind = bk.value; else bt.bought = bb.value; saveBoat(); renderBoat(); } return; }
   if (e.target.id === 'capPhoto' && e.target.files[0]) { try { S.captain.photo = await resizePhoto(e.target.files[0]); store.set('captain', S.captain); renderBoat(); } catch (err) { toast('Could not read that photo'); } }
   if (e.target.id === 'capName' || e.target.id === 'capLic') { S.captain.name = $('capName').value.trim(); S.captain.license = $('capLic').value.trim(); S.settings.skipper = S.captain.name.split(' ')[0] || S.settings.skipper; saveSettings(); store.set('captain', S.captain); }
   if (e.target.id === 'boatPhoto' && e.target.files[0]) {
@@ -3616,7 +3641,10 @@ $('panelBoat').addEventListener('change', (e) => {
   if ($('bDbNote')) $('bDbNote').textContent = 'Filled in from the published ' + d.make + ' ' + d.model + ' specs (hull speed about ' + fmtSpeed(hs) + ' ' + SPEED_LBL[S.settings.speedUnit] + ').' + (d.air ? ' Air draft ' + fmtLen(d.air) + ' is an estimate (' + d.airNote + '): measure yours and tick Verified.' : ' Air draft is not in the database for this boat: measure it or check the manual, then tick Verified.') + ' Keels and rigs vary.';
 });
 $('panelBoat').addEventListener('input', (e) => {
-  if (e.target.id === 'battV') $('battOut').textContent = batteryVerdict(parseFloat(e.target.value)) || 'Enter a reading such as 12.4';
+  const bvi = e.target.closest && e.target.closest('[data-bv]');
+  if (bvi) { const bt = batteries().find((x) => x.id === bvi.dataset.bv), o = document.querySelector('[data-bout="' + bvi.dataset.bv + '"]'), v = parseFloat(bvi.value.replace(',', '.')); if (o && bt && v > 5) o.textContent = batteryVerdict(v, bt.kind) || ''; }
+  const bn = e.target.closest && e.target.closest('[data-bname]');
+  if (bn) { const bt = batteries().find((x) => x.id === bn.dataset.bname); if (bt) { bt.name = bn.value.slice(0, 30) || 'Battery'; saveBoat(); } }
 });
 
 /* ---------- search: marinas, fuel, pump-outs, markers, places ---------- */
