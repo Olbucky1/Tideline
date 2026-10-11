@@ -1658,3 +1658,8 @@ html.arrange #fabs, html.arrange #fabsR { outline: 2px dashed color-mix(in srgb,
 :root[data-gstyle="analog"] :is(.cockpit, #panelSide) .g-big { font-size: 26px !important; opacity: .9; }
 /* water current arrows look different from wind: teal, with a wave mark on the label */
 .cur-a b::before { content: '≈ '; font-weight: 800; }
+.fab-free { position: absolute !important; z-index: 520; margin: 0 !important; }
+#app > #miniInst.fab-free { width: var(--mi, 82px); }
+html.arrange #app > .fab-free { animation: arr-wiggle .28s ease-in-out infinite alternate; touch-action: none; outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 4px; border-radius: 50%; }
+.ck-ghost { position: fixed; z-index: 4000; pointer-events: none; opacity: .9; transform: scale(1.04); box-shadow: 0 12px 30px rgba(0,0,0,.45); border-radius: 16px; overflow: hidden; }
+#cockpit .ck-slot.dragging { opacity: .35; } #cockpit .ck-slot.drop { outline: 3px solid var(--g-acc, #2CD3C5); outline-offset: -3px; }

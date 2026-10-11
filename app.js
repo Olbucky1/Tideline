@@ -2552,7 +2552,7 @@ function renderMenu() {
       menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 118. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 119. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -4649,7 +4649,7 @@ function renderQuick() {
     (S.settings.rings ? '<div class="q-h">Range rings <button type="button" class="q-link" data-qrings>more…</button></div><div class="q-rings">' + ringControlsHtml() + '</div>' : '') +
     '<div class="q-h">Symbol and label size</div><div class="seg">' + [['S', 'Small'], ['M', 'Medium'], ['L', 'Large'], ['XL', 'Extra large']].map(([v, l]) => '<button type="button" data-qsz="' + v + '" class="' + (sz === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
     (RT.line.getLatLngs().length ? '<button type="button" class="btn small q-more" data-qclear>Clear the route line</button>' : '') +
-    '<button type="button" class="btn small q-more" data-qmore>More map options</button>';
+    '<button type="button" class="btn small q-more" data-qarr>Arrange buttons</button><button type="button" class="btn small q-more" data-qmore>More map options</button>';
 }
 function toggleQuick(show) { const q = $('quick'); const on = show == null ? q.hidden : show; if (on) { closeSheet(); renderQuick(); } q.hidden = !on; $('btnLayers').classList.toggle('on', on); }
 $('quick').addEventListener('click', (e) => {
@@ -4657,6 +4657,7 @@ $('quick').addEventListener('click', (e) => {
   if (e.target.closest('[data-qclear]')) { toggleQuick(false); clearRouteEverywhere(); return; }
   if (e.target.closest('[data-qmore]')) { toggleQuick(false); openLayersSheet(); return; }
   if (e.target.closest('[data-qrings]')) { toggleQuick(false); openRingSheet(); return; }
+  if (e.target.closest('[data-qarr]')) { toggleQuick(false); arrangeMode(true); return; }
   const z = e.target.closest('[data-qsz]'); if (z) { S.settings.pinSize = z.dataset.qsz; saveSettings(); applyPinSize(); renderQuick(); return; }
   const t = e.target.closest('[data-q]'); if (!t) return; const it = QUICK.find((x) => x[0] === t.dataset.q); if (!it) return;
   it[3](!it[2]()); saveSettings(); renderQuick();
@@ -6477,7 +6478,7 @@ setTimeout(() => applyOrient(true), 800);
     const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse' || ARR.on) return;
     holdBtn = b; shown = false; clearTimeout(t);
     if (b.id === 'btnMOB' || b.id === 'curChip' || b.id === 'btnOrient') return; // these use press and hold for their own job
-    t = setTimeout(() => show(b), 450);
+    t = setTimeout(() => { show(b); t = setTimeout(() => { if (holdBtn === b && b.closest('#fabs, #fabsR, .fab-free')) { hide(); shown = true; arrangeMode(true); toast('Arrange mode: drag buttons anywhere. Tap Done when finished.', 3500); } }, 800); }, 450);
   }, true);
   document.addEventListener('pointerup', () => { clearTimeout(t); if (shown) setTimeout(hide, 1600); }, true);
   document.addEventListener('pointercancel', () => { clearTimeout(t); hide(); }, true);
@@ -6719,22 +6720,23 @@ const ARR_SKIP = new Set(['alertBar']);
 function fabItems(col) { return [...col.children].filter((x) => x.id && !ARR_SKIP.has(x.id)); }
 function applyFabLayout() {
   const lay = S.settings.fabLayout; if (!lay) return; const L0 = $('fabs'), R0 = $('fabsR'); if (!L0 || !R0) return;
-  [['left', L0], ['right', R0]].forEach(([k, col]) => (lay[k] || []).forEach((id) => { const el = $(id); if (el) col.appendChild(el); }));
+  [['left', L0], ['right', R0]].forEach(([k, col]) => (lay[k] || []).forEach((id) => { const el = $(id); if (el) { el.classList.remove('fab-free'); el.style.left = el.style.top = ''; col.appendChild(el); } }));
+  Object.entries(lay.free || {}).forEach(([id, q]) => { const el = $(id); if (!el) return; $('app').appendChild(el); el.classList.add('fab-free'); el.style.left = (q.x * 100).toFixed(2) + '%'; el.style.top = (q.y * 100).toFixed(2) + '%'; });
   const al = $('alertBar'); if (al && al.parentNode === L0) L0.appendChild(al);
 }
-function saveFabLayout() { S.settings.fabLayout = { left: fabItems($('fabs')).map((x) => x.id), right: fabItems($('fabsR')).map((x) => x.id) }; saveSettings(); }
+function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .fab-free[id]').forEach((el) => { const r = el.getBoundingClientRect(); free[el.id] = { x: +(r.left / innerWidth).toFixed(4), y: +(r.top / innerHeight).toFixed(4) }; }); S.settings.fabLayout = { left: fabItems($('fabs')).map((x) => x.id), right: fabItems($('fabsR')).map((x) => x.id), free }; saveSettings(); }
 function arrangeMode(on) {
   ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
   let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
-  bar.innerHTML = '<b>Drag the buttons where you like</b><span>They snap into the left or right column.</span><div><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button></div>';
+  bar.innerHTML = '<b>Drag the buttons where you like</b><span>Drop near a side to line it up in that column, or anywhere on the chart to leave it there.</span><div><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button></div>';
   bar.hidden = !on; if (!on) { saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
 }
 document.addEventListener('click', (e) => {
   const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
-  if (ARR.on && e.target.closest('#fabs, #fabsR')) { e.stopPropagation(); e.preventDefault(); } // buttons do not act while arranging
+  if (ARR.on && e.target.closest('#fabs, #fabsR, .fab-free')) { e.stopPropagation(); e.preventDefault(); } // buttons do not act while arranging
 }, true);
 document.addEventListener('pointerdown', (e) => {
-  if (!ARR.on) return; const el = e.target.closest('#fabs > [id], #fabsR > [id]'); if (!el || ARR_SKIP.has(el.id)) return;
+  if (!ARR.on) return; const el = e.target.closest('#fabs > [id], #fabsR > [id], #app > .fab-free[id]'); if (!el || ARR_SKIP.has(el.id)) return;
   e.preventDefault(); e.stopPropagation(); const r = el.getBoundingClientRect();
   const ph = document.createElement('div'); ph.className = 'arr-ph'; ph.style.height = r.height + 'px'; ph.style.width = r.width + 'px'; el.parentNode.insertBefore(ph, el);
   el.classList.add('arr-drag'); Object.assign(el.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', zIndex: 3000, pointerEvents: 'none' });
@@ -6743,13 +6745,42 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('pointermove', (e) => {
   const d = ARR.drag; if (!d) return; e.preventDefault();
   d.el.style.left = (e.clientX - d.dx) + 'px'; d.el.style.top = (e.clientY - d.dy) + 'px';
-  const col = e.clientX < innerWidth / 2 ? $('fabs') : $('fabsR'), items = [...col.children].filter((x) => x !== d.el && x !== d.ph && !ARR_SKIP.has(x.id));
+  const L0 = $('fabs').getBoundingClientRect(), R0 = $('fabsR').getBoundingClientRect(), nearL = e.clientX < L0.right + 40, nearR = e.clientX > R0.left - 40;
+  d.free = !nearL && !nearR; if (d.free) { d.ph.remove(); return; } // out on the chart: it will stay where you let go
+  const col = nearL ? $('fabs') : $('fabsR'), items = [...col.children].filter((x) => x !== d.el && x !== d.ph && !ARR_SKIP.has(x.id));
   let before = null; for (const it of items) { const rr = it.getBoundingClientRect(); if (e.clientY < rr.top + rr.height / 2) { before = it; break; } }
   if (before) col.insertBefore(d.ph, before); else { const al = $('alertBar'); if (al && al.parentNode === col) col.insertBefore(d.ph, al); else col.appendChild(d.ph); }
 }, { capture: true, passive: false });
-const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); d.el.classList.remove('arr-drag'); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); saveFabLayout(); };
+const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; d.el.classList.remove('arr-drag');
+  if (d.free || !d.ph.parentNode) { const r = d.el.getBoundingClientRect(), g = 8, x = Math.round(Math.max(4, Math.min(innerWidth - r.width - 4, r.left)) / g) * g, y = Math.round(Math.max(40, Math.min(innerHeight - r.height - 80, r.top)) / g) * g; // snap to an 8-pixel grid
+    $('app').appendChild(d.el); d.el.classList.add('fab-free'); ['position', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); d.el.style.left = x + 'px'; d.el.style.top = y + 'px'; d.ph.remove(); }
+  else { d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); d.el.classList.remove('fab-free'); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); }
+  saveFabLayout(); };
 document.addEventListener('pointerup', arrDrop, true); document.addEventListener('pointercancel', arrDrop, true);
 setTimeout(applyFabLayout, 300);
+/* ---------- instruments: press and hold a gauge, drag it onto another, and they swap (works with a finger, no Customize needed) ---------- */
+(() => {
+  let hold = null, drag = null;
+  const tileAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest('#cockpit .ck-slot[data-slot], #panelSide .sg'); };
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target.closest('#cockpit .ck-slot[data-slot]'); if (!t || e.target.closest('select, button, input, .leaflet-container')) return;
+    const x0 = e.clientX, y0 = e.clientY; clearTimeout(hold);
+    hold = setTimeout(() => {
+      const r = t.getBoundingClientRect(), ghost = t.cloneNode(true); ghost.className = 'ck-ghost'; Object.assign(ghost.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+      document.body.appendChild(ghost); t.classList.add('dragging'); drag = { t, ghost, dx: x0 - r.left, dy: y0 - r.top, over: null }; if (navigator.vibrate) navigator.vibrate(15);
+    }, 380);
+    const cancel = (ev) => { if (!drag && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) clearTimeout(hold); };
+    document.addEventListener('pointermove', cancel, { once: false }); setTimeout(() => document.removeEventListener('pointermove', cancel), 400);
+  }, true);
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return; e.preventDefault(); drag.ghost.style.left = (e.clientX - drag.dx) + 'px'; drag.ghost.style.top = (e.clientY - drag.dy) + 'px';
+    drag.ghost.style.visibility = 'hidden'; const o = tileAt(e.clientX, e.clientY); drag.ghost.style.visibility = '';
+    document.querySelectorAll('#cockpit .drop').forEach((x) => x.classList.remove('drop')); if (o && o !== drag.t && o.dataset.slot != null) { o.classList.add('drop'); drag.over = o; } else drag.over = null;
+  }, { capture: true, passive: false });
+  const end = () => { clearTimeout(hold); if (!drag) return; const d = drag; drag = null; d.ghost.remove(); document.querySelectorAll('#cockpit .dragging, #cockpit .drop').forEach((x) => x.classList.remove('dragging', 'drop'));
+    if (d.over) { ckSwap(+d.t.dataset.slot, +d.over.dataset.slot); toast('Swapped', 1200); } };
+  document.addEventListener('pointerup', end, true); document.addEventListener('pointercancel', end, true);
+})();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
