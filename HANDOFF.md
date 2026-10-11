@@ -41,3 +41,16 @@ NOAA ENC Direct (depths, land, restricted areas, bridges, buoys) · NOAA MCS cha
 
 ## Testing notes
 Serve the folder (`python3 -m http.server 8765`) and use Playwright with the iPhone 14 Pro profile, `service_workers='block'` so request stubs work, and set `tl.welcomed`/`tl.toured` in localStorage to skip the welcome screen. Viewport is 393×660 CSS px.
+
+## Andy's idea list (so nothing gets lost) — 11 Oct 2026
+Market and business
+- Broad market, not sailing-only: fishing (Florida Keys, Bahamas), cruising, Great Loop, liveaboards, kayakers, pros (bay pilots, tugs, commercial watermen, crabbers, lobstermen). Worldwide, priced by country.
+- Name: likes Tideline (tideline.com is taken; check tideline.ai / .app / getTideline / Tideline Marine with a trademark search). Rhumb Line felt too sailing-only.
+- Monetize without a stripped-down free tier: full trial, then a still-complete free app; paid tier for things that cost money or that pros want. Affiliates (marinas, insurance, surveys, parts), club/school/fleet licenses, a pro tier. No ads for now.
+- A "cause" theme (reefs, manatees, clean water) with a share of revenue to a non-political ocean charity (e.g. via 1% for the Planet).
+- Owner-reported issues by make/model (the Vessel Book idea).
+Product
+- Hardware by partnering, not manufacturing: read the boat's instruments (depth, wind, heading, AIS) through Signal K or a NMEA 2000 Wi-Fi gateway; later radar/sounder partners.
+- Coaches: sailing (done, keep it suggestions not orders; savvy navvy's rigid leg-by-leg instructions did not hold up), racing (respect Rule 41 / sailing instructions), fishing (respect tournament rules, e.g. NPFL forward-facing sonar ban), kayak pacing, pros.
+- Racing: AIS-based "ahead/behind" vs. other boats, night races.
+- Weather: side-by-side model comparison, weather routing, CBOFS model currents.
