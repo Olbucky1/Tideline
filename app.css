@@ -672,3 +672,43 @@ html.calm #app.wide .topbar { left: calc((100% - 400px) / 2); right: auto; }
 .ph-pin img { width: 40px; height: 40px; object-fit: cover; border-radius: 10px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
 .ph-pop .leaflet-popup-content { margin: 4px; } .ph-pop img { display: block; width: 180px; border-radius: 8px; }
 .ph-big { width: 100%; border-radius: 12px; display: block; margin-bottom: 8px; }
+/* every pop-up has a close X */
+.sheet { position: relative; }
+.sheet-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 18px; border: 0; background: var(--surface2); color: var(--ink); font-size: 24px; line-height: 1; display: grid; place-items: center; z-index: 3; }
+.sheet h3 { padding-right: 44px; }
+.tl-x { position: absolute; top: 6px; right: 8px; width: 30px; height: 30px; border-radius: 15px; border: 0; background: var(--surface2); color: var(--ink); font-size: 20px; line-height: 1; z-index: 2; }
+.wxbar.tl .tl-chips { padding-right: 36px; }
+.sd-small .tl-tide { height: 60px; margin: 6px 0 2px; pointer-events: none; }
+button.sd { cursor: pointer; }
+.dot.desk { background: #8a9aa6; }
+html.nogps .mob { display: none; }
+.alarm-stop { margin-top: 10px; color: #fff !important; border: 2px solid rgba(255,255,255,.7) !important; background: transparent !important; }
+.sheet-x { position: sticky !important; float: right; top: 0; margin: -6px -6px 0 8px; }
+.hp { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.hp b { font-size: 15.5px; } .hp p { margin: 4px 0 6px; font-size: 14px; color: var(--ink2); line-height: 1.4; }
+#helpQ { width: 100%; }
+/* customizable instruments */
+.ck-edit { border: 1px solid var(--g-line); background: var(--g-face); color: var(--g-ink); border-radius: 18px; min-height: 36px; padding: 0 14px; font: inherit; font-size: 14px; font-weight: 600; }
+.ck-slot { min-height: 0; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.ck-slot > .gauge { flex: 1; }
+.ck-pick { position: absolute; top: 6px; left: 6px; right: 6px; z-index: 5; font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--g-acc); background: var(--g-bg); color: var(--g-ink); }
+.ck-grid.editing .gauge { opacity: .55; }
+.ck-add { flex: 1; border: 2px dashed var(--g-line); background: transparent; color: var(--g-muted); border-radius: 22px; font: inherit; font-size: 16px; font-weight: 600; min-height: 120px; }
+.ck-map { flex: 1; width: 100%; min-height: 140px; border-radius: 14px; overflow: hidden; margin-top: 6px; }
+.g-big.pos { font-size: 24px; }
+.ck-grid[data-n="1"] { grid-template-columns: 1fr !important; }
+.ck-grid[data-n="5"], .ck-grid[data-n="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+@media (min-width: 900px) { .ck-grid[data-n="5"], .ck-grid[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+
+/* ---------- night, softer: deep navy-black, dim warm text, amber accents (red kept only for alarms) ---------- */
+:root[data-night] {
+  --chart: #070B10; --surface: #0E141B; --surface2: #121A22; --line: #23303B;
+  --ink: #C9BBA8; --ink2: #8E8273; --accent: #D08A3C;
+  --panel: #070B10; --tile: #0E141B; --tile-line: #23303B; --p-ink: #C9BBA8; --p-muted: #8E8273;
+  --teal: #4F8F86; --teal-ink: #9CC7BE; --teal-bg: #10201E; --teal-hi: #9CC7BE;
+  --amber: #D08A3C; --amber-bg: #22180C; --amber-ink: #E0A35E; --red: #B4483E;
+}
+:root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) hue-rotate(180deg) brightness(0.42) contrast(1.1) saturate(0.55) !important; }
+:root[data-night] .cockpit { --g-bg: #070B10 !important; --g-face: #0E141B !important; --g-line: #23303B !important; --g-ink: #C9BBA8 !important; --g-muted: #8E8273 !important; --g-acc: #D08A3C !important; --g-acc2: #C79A5C !important; --g-amber: #D08A3C !important; --g-port: #8C3A33 !important; --g-stbd: #3F7A55 !important; --g-red: #B4483E !important; background: #070B10 !important; }
+:root[data-night] .ring-lbl { color: #C9BBA8; }
+:root[data-night] .tl-chips button.on, :root[data-night] .tl-tabs button.on { color: #070B10; }
