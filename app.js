@@ -4309,13 +4309,30 @@ function ckGauge(id) {
   return '';
 }
 let ckMap = null, ckMark = null, ckEdit = false;
+// the cockpit's chart is the real chart: the map and its buttons move into the chart tile, and back when the cockpit closes
+const CKH = { on: false, moved: [] };
+function ckHost(box) {
+  ckUnhost();
+  const ids = ['map', 'fabs', 'fabsR', 'btnMOB'];
+  CKH.moved = ids.map((id) => { const el = $(id); return el ? { el, parent: el.parentNode, next: el.nextSibling } : null; }).filter(Boolean);
+  CKH.moved.forEach((m) => box.appendChild(m.el));
+  CKH.on = true; $('app').classList.add('ck-host');
+  setTimeout(() => map.invalidateSize(), 50); setTimeout(() => map.invalidateSize(), 400);
+}
+function ckUnhost() {
+  if (!CKH.on) return;
+  CKH.moved.slice().reverse().forEach((m) => m.parent.insertBefore(m.el, m.next && m.next.parentNode === m.parent ? m.next : null));
+  CKH.moved = []; CKH.on = false; $('app').classList.remove('ck-host');
+  setTimeout(() => map.invalidateSize(), 50);
+}
 function buildCockpit() {
   const grid = $('cockpit').querySelector('.ck-grid'), sl = ckSlots().filter((x) => x !== 'off');
-  if (ckMap) { ckMap.remove(); ckMap = null; }
+  ckUnhost(); if (ckMap) { ckMap.remove(); ckMap = null; }
   grid.dataset.n = sl.length + (ckEdit && sl.length < 6 ? 1 : 0);
   grid.innerHTML = sl.map((id, i) => '<div class="ck-slot' + (id === 'chart' ? ' chart' : '') + '" data-slot="' + i + '">' + (id === 'chart' ? '<div class="gauge"><div class="g-lbl">CHART</div><div class="ck-map" id="ckMap"></div></div>' : '') + '</div>').join('') +
     (ckEdit && sl.length < 6 ? '<div class="ck-slot add"><button type="button" class="ck-add" data-ckadd>+ Add a gauge</button></div>' : '');
-  if (sl.includes('chart')) {
+  if (sl.includes('chart')) ckHost($('ckMap')); else ckUnhost();
+  if (false) {
     ckMap = L.map('ckMap', { zoomControl: false, attributionControl: false, dragging: true, zoomSnap: 0 });
     const base = LAYERS[S.settings.chart === 'street' ? 'street' : S.settings.chart === 'satellite' ? 'satellite' : 'noaa'];
     if (window.TL_DEMO) L.imageOverlay(window.TL_DEMO.chart, window.TL_DEMO.bounds).addTo(ckMap); else L.tileLayer(base._url || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', base.options).addTo(ckMap);
@@ -4338,7 +4355,7 @@ function renderCockpit() {
   el.querySelectorAll('.ck-slot[data-slot]').forEach((box) => {
     const i = +box.dataset.slot, id = sl[i];
     const pick = ckEdit ? '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
-    if (id === 'chart') { const old = box.querySelector('.ck-pick'); if (old) old.remove(); if (pick) box.insertAdjacentHTML('afterbegin', pick); if (ckMap && S.fix) { ckMark.setLatLng([S.fix.lat, S.fix.lon]); ckMap.panTo([S.fix.lat, S.fix.lon], { animate: false }); } return; }
+    if (id === 'chart') { const old = box.querySelector('.ck-pick'); if (old) old.remove(); if (pick) box.insertAdjacentHTML('afterbegin', pick); return; }
     if (box.querySelector('select:focus')) return;
     box.innerHTML = pick + ckGauge(id);
   });
@@ -4364,7 +4381,7 @@ function setCockpit(on) {
   S.settings.cockpit = on; saveSettings();
   const el = $('cockpit'); el.hidden = !on; $('app').classList.toggle('ck-on', on);
   clearInterval(cockTimer);
-  if (on) { closeSheet(); ckEdit = false; buildCockpit(); cockTimer = setInterval(renderCockpit, 1000); wake(); } else if (ckMap) { ckMap.remove(); ckMap = null; }
+  if (on) { closeSheet(); ckEdit = false; buildCockpit(); cockTimer = setInterval(renderCockpit, 1000); wake(); } else ckUnhost();
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="ckclose"]')) setCockpit(false); });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="cockpit"]')) setCockpit(true); });

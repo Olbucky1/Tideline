@@ -1036,3 +1036,16 @@ html.nogps #app.wide .bottom-stack { left: 10px; }
 .rlog-r { color: inherit !important; }
 .rlog-r span, .rlog-r em, .rlog-h, .rlog-x { color: inherit !important; opacity: .62; }
 .stepper button, .stepper input, .batt-in input { color: inherit !important; }
+
+/* the real chart inside the instruments view */
+.ck-map { position: relative; flex: 1; min-height: 0; border-radius: 14px; overflow: hidden; }
+.ck-host .ck-map #map { position: absolute !important; inset: 0 !important; right: 0 !important; bottom: 0 !important; }
+.ck-host .ck-map .fab-col { top: 10px !important; left: 10px !important; right: auto !important; }
+.ck-host .ck-map .fab-col.fab-right { left: auto !important; right: 10px !important; }
+.ck-host .ck-map #btnMOB { bottom: 10px !important; left: 10px !important; top: auto !important; }
+.ck-host .sheet, .ck-host .quick { z-index: 900 !important; }
+.ck-host .toast { z-index: 1500; }
+.ck-slot.chart .gauge { display: flex; flex-direction: column; height: 100%; }
+#cockpit .ck-map #fabsR { right: 10px !important; left: auto !important; top: 10px !important; }
+#cockpit .ck-map #fabs { left: 10px !important; right: auto !important; top: 10px !important; }
+#cockpit .ck-map #btnMOB { left: 10px !important; bottom: 10px !important; top: auto !important; }
