@@ -1800,7 +1800,7 @@ function wsStop() { WS.run = false; cancelAnimationFrame(WS.raf); if (WS.cv) { W
 const rainGrid = L.layerGroup().addTo(map);
 function drawRainForecast() { // future hours: model rain as soft blue patches; hour 0 is the live radar
   rainGrid.clearLayers();
-  const g = wxOn('rain') && WX.grids.rain, live = WX.hour === 0;
+  const g = wxOn('rain') && WX.grids.rain, live = WX.hour < 0.08;
   if (map.hasLayer(radarLayer) !== (wxOn('rain') && live)) { if (wxOn('rain') && live) radarLayer.addTo(map); else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer); }
   if (!g || live) return;
   const sz = map.getSize(), r = Math.max(sz.x, sz.y) / 7, ren = WX.rren || (WX.rren = L.canvas({ padding: 0.3 }));
@@ -1959,7 +1959,7 @@ function renderTimeline(el) {
         const tt = Date.now() + k * 3600000, val = v === 'wind' ? seriesAt(w && w.hours, tt, 'spd') : seriesAt(w && w.waveHours, tt, 'h');
         const dir = v === 'wind' ? seriesAt(w && w.hours, tt, 'dir') : null, d = new Date(tt);
         const day = d.getHours() === 0 ? '<em>' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>' : '';
-        cells.push('<button type="button" class="tl-h' + (k === WX.hour ? ' on' : '') + '" data-tlh="' + k + '">' + day + '<small>' + (k ? d.toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?(AM|PM)/i, (m) => m.trim()[0].toLowerCase()) : 'Now') + '</small>' +
+        cells.push('<button type="button" class="tl-h' + (k === Math.round(WX.hour) ? ' on' : '') + '" data-tlh="' + k + '">' + day + '<small>' + (k ? d.toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?(AM|PM)/i, (m) => m.trim()[0].toLowerCase()) : 'Now') + '</small>' +
           '<i style="--c:' + (val == null ? 'var(--line)' : colFor(v === 'wind' ? WIND_COL : WAVE_COL, val)) + '">' + (dir != null ? windArrow(dir) : '') + '</i><b class="tnum">' + (val == null ? '–' : v === 'wind' ? Math.round(speedOut(val)) : (lenUnit() === 'm' ? (val * 0.3048).toFixed(1) : val.toFixed(1))) + '</b></button>');
       }
       h += '<div class="tl-hours" id="tlHours">' + cells.join('') + '</div>';
@@ -1969,12 +1969,12 @@ function renderTimeline(el) {
         const cells = [];
         for (let k = 0; k <= WXH; k++) {
           const tt = Date.now() + k * 3600000, n = curAt(CI.pr, tt), d = new Date(tt), day = d.getHours() === 0 ? '<em>' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>' : '';
-          cells.push('<button type="button" class="tl-h' + (k === WX.hour ? ' on' : '') + '" data-tlh="' + k + '">' + day + '<small>' + (k ? d.toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?(AM|PM)/i, (m) => m.trim()[0].toLowerCase()) : 'Now') + '</small><i style="--c:' + (n ? curColor(n.kn) : 'var(--line)') + '">' + (n && n.kn >= 0.4 ? windArrow(((n.dir || 0) + 180) % 360) : '·') + '</i><b class="tnum">' + (n ? (n.kn < 0.4 ? 'slack' : n.kn.toFixed(1)) : '–') + '</b><span>' + (n && n.kn >= 0.4 ? (n.flood ? 'flood' : 'ebb') : '') + '</span></button>');
+          cells.push('<button type="button" class="tl-h' + (k === Math.round(WX.hour) ? ' on' : '') + '" data-tlh="' + k + '">' + day + '<small>' + (k ? d.toLocaleTimeString([], { hour: 'numeric' }).replace(/\s?(AM|PM)/i, (m) => m.trim()[0].toLowerCase()) : 'Now') + '</small><i style="--c:' + (n ? curColor(n.kn) : 'var(--line)') + '">' + (n && n.kn >= 0.4 ? windArrow(((n.dir || 0) + 180) % 360) : '·') + '</i><b class="tnum">' + (n ? (n.kn < 0.4 ? 'slack' : n.kn.toFixed(1)) : '–') + '</b><span>' + (n && n.kn >= 0.4 ? (n.flood ? 'flood' : 'ebb') : '') + '</span></button>');
         }
         h += '<div class="tl-hours" id="tlHours">' + cells.join('') + '</div><p class="hint" style="margin:2px 0 0">NOAA current predictions at ' + esc(CI.st.n) + '. Arrows point the way the water runs. <a href="#" data-cur-near>This station in detail</a> · the chart shows every nearby station.</p>';
       } else h += '<div class="tl-sum" style="opacity:.8">Loading NOAA current predictions for the nearest station…</div>';
     } else if (v === 'tide') {
-      h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="' + WXH + '" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">' + tideEmptyTxt() + '</p>';
+      h += S.tide && !S.tide.none ? tideCurve(WX.hour) + '<input type="range" id="tlTide" min="0" max="' + WXH + '" step="any" value="' + WX.hour + '" aria-label="Time"><p class="hint" style="margin:2px 0 0">NOAA predictions' + (S.tide.station ? ' for ' + esc(S.tide.station.name) + ', ' + fmtDist(S.tide.station.dist) + ' away' : '') + '. Wind can push water above or below these.</p>' + tideTable() : '<p class="sub">' + tideEmptyTxt() + '</p>';
     } else {
       h += '<div class="tl-sum" style="opacity:.8">Live radar on the chart, updated every 5 minutes.</div>';
     }
@@ -2032,14 +2032,18 @@ function forecastScrubber() {
   const marks = []; for (let i = 0; i <= max; i++) { const d = new Date(Date.now() + i * 3600000); if (d.getHours() === 0) marks.push('<em style="left:' + (i / max * 100).toFixed(1) + '%">' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>'); }
   return '<div class="scrub"><button type="button" class="sc-b" data-wxstep="-24" aria-label="Back a day">«</button><button type="button" class="sc-b" data-wxstep="-1" aria-label="Back an hour">‹</button>' +
     '<div class="sc-mid"><div class="sc-bub" id="wxBub" style="left:' + (k / max * 100).toFixed(1) + '%">' + scrubLabel(k) + '</div><div class="sc-strip" aria-hidden="true">' + strip.join('') + '</div>' + marks.join('') +
-    '<input type="range" id="wxHour" min="0" max="' + max + '" step="1" value="' + k + '" aria-label="Forecast time"></div>' +
+    '<input type="range" id="wxHour" min="0" max="' + max + '" step="any" value="' + k + '" aria-label="Forecast time"></div>' +
     '<button type="button" class="sc-b" data-wxstep="1" aria-label="Forward an hour">›</button><button type="button" class="sc-b" data-wxstep="24" aria-label="Forward a day">»</button><button type="button" class="sc-b sc-play' + (WX.play ? ' on' : '') + '" data-wxplay aria-label="' + (WX.play ? 'Pause' : 'Play the forecast') + '" data-tip="' + (WX.play ? 'Pause' : 'Play: watch wind, waves and rain change hour by hour') + '">' + (WX.play ? '❚❚' : '▶') + '</button></div>';
 }
-function scrubLabel(k) { if (!k) return 'Now'; const d = new Date(Date.now() + k * 3600000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric' }); }
+function scrubLabel(k) { if (k < 0.08) return 'Now'; const d = new Date(Math.round((Date.now() + k * 3600000) / 600000) * 600000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+// the time slider moves smoothly; the map layers redraw at most a few times a second, and whenever the hour changes
 function setWxHour(k) {
-  WX.hour = Math.max(0, Math.min(WXH, k)); const r = $('wxHour'); if (r) r.value = WX.hour;
-  const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / WXH * 100).toFixed(1) + '%'; }
-  $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid(); try { if (curOn()) { drawCurrents(); } } catch (e) { /* currents not ready */ }
+  WX.hour = Math.max(0, Math.min(WXH, k)); const r = $('wxHour'); if (r && document.activeElement !== r) r.value = WX.hour;
+  const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / WXH * 100).toFixed(2) + '%'; }
+  $('wxBar').classList.toggle('future', WX.hour > 0.08);
+  const hr = Math.round(WX.hour), now = performance.now();
+  if (hr !== WX.drawnHr || now - (WX.drawnAt || 0) > 300) { WX.drawnHr = hr; WX.drawnAt = now; drawGrid(); try { if (curOn()) { drawCurrents(); } } catch (e) { /* currents not ready */ } }
+  clearTimeout(WX.settle); WX.settle = setTimeout(() => { drawGrid(); try { if (curOn()) drawCurrents(); } catch (e) { /* later */ } }, 160);
 }
 document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) { wxStop(); setWxHour(WX.hour + +st.dataset.wxstep); } });
 // play the forecast: steps an hour about every 0.9 s through all the layers you have on, then stops at the end
@@ -2048,7 +2052,8 @@ function wxPlay() {
   if (WX.play) { wxStop(); return; }
   if (!wxAny()) { setWxL('wind', true); }
   if (WX.hour >= WXH) setWxHour(0);
-  WX.play = setInterval(() => { if (WX.hour >= WXH) { wxStop(); return; } setWxHour(WX.hour + 1); }, 650);
+  let last = performance.now(); // smooth: about an hour and a half of forecast per second
+  WX.play = setInterval(() => { const t = performance.now(), dt = (t - last) / 1000; last = t; if (WX.hour >= WXH) { wxStop(); return; } setWxHour(WX.hour + dt * 1.5); }, 40);
   renderWxBar();
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]')) wxPlay(); });
@@ -2537,7 +2542,7 @@ function renderMenu() {
       menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 116. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 117. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
