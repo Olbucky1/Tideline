@@ -316,7 +316,7 @@ async function pointWeather(p) {
   try {
     const ll = '?latitude=' + p.lat.toFixed(3) + '&longitude=' + p.lon.toFixed(3);
     const [w, m] = await Promise.all([
-      fetch('https://api.open-meteo.com/v1/forecast' + ll + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=2').then((r) => r.json()),
+      fetch('https://api.open-meteo.com/v1/forecast' + ll + wxM() + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=2').then((r) => r.json()),
       fetch('https://marine-api.open-meteo.com/v1/marine' + ll + '&hourly=wave_height&length_unit=imperial&timezone=GMT&forecast_days=2').then((r) => r.json()).catch(() => null),
     ]);
     const h = w.hourly, now = Date.now(), rows = [];
@@ -1533,16 +1533,21 @@ document.addEventListener('visibilitychange', () => {
 /* ---------- weather (Open-Meteo) ---------- */
 let wxBusy = false;
 function refPos() { if (S.fix) return S.fix; const c = map.getCenter(); return { lat: c.lat, lon: c.lng }; }
+// weather model choice (Open-Meteo runs them all): Best for here, or pick one, like PredictWind
+const WX_MODELS = [['best_match', 'Best for here', 'Open-Meteo picks the sharpest model for each place'], ['ncep_hrrr_conus', 'HRRR 3 km', 'US only, next 18–48 h, catches sea breezes and storms'], ['ecmwf_ifs025', 'ECMWF 25 km', 'European model, often best beyond 2 days'], ['ncep_gfs_seamless', 'GFS', 'US global model'], ['icon_seamless', 'ICON', 'German DWD model'], ['gem_seamless', 'GEM', 'Canadian model'], ['ncep_nbm_conus', 'NBM', 'NWS blend of models, US only']];
+const wxM = () => { const m = S.settings.wxModel || 'best_match'; return m === 'best_match' ? '' : '&models=' + m; };
 async function maybeWeather(force) {
   const f = refPos(); if (!f || wxBusy) return;
   const w = S.weather;
   if (!force && w && w.press && w.press.length && Date.now() - w.at < 30 * 60000 && distNm(w.pos, f) < 5) return;
   wxBusy = true;
   try {
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) +
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) + wxM() +
       '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,pressure_msl,weather_code,cloud_cover&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,precipitation,pressure_msl,weather_code' +
       '&daily=sunrise,sunset&wind_speed_unit=kn&temperature_unit=fahrenheit&timezone=auto&forecast_days=7&past_days=1';
-    const r = await fetch(url); if (!r.ok) throw new Error('weather ' + r.status);
+    const r = await fetch(url);
+    if (!r.ok && wxM()) { S.settings.wxModel = 'best_match'; saveSettings(); toast('That weather model is not available here, so Tideline switched back to Best for here.', 5000); wxBusy = false; return maybeWeather(true); }
+    if (!r.ok) throw new Error('weather ' + r.status);
     const j = await r.json();
     const off = (j.utc_offset_seconds || 0) * 1000;
     const tt = (s) => Date.parse(s + 'Z') - off;
@@ -1709,7 +1714,7 @@ async function loadGrid(kind, force) {
   const ll = '?latitude=' + pts.map((p) => p.lat).join(',') + '&longitude=' + pts.map((p) => p.lon).join(',');
   const url = kind === 'rain' ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=precipitation&timezone=GMT&forecast_days=7'
     : kind === 'wind'
-    ? 'https://api.open-meteo.com/v1/forecast' + ll + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=7'
+    ? 'https://api.open-meteo.com/v1/forecast' + ll + wxM() + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=GMT&forecast_days=7'
     : 'https://marine-api.open-meteo.com/v1/marine' + ll + '&hourly=wave_height,wave_direction,wave_period&length_unit=imperial&timezone=GMT&forecast_days=7';
   WX.busy = true; renderWxBar();
   try {
@@ -1940,6 +1945,7 @@ function renderTimeline(el) {
   let h = (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
     '<div class="tl-heading">' + (np ? '<a class="nws-btn" href="' + nwsGraphUrl(np) + '" target="_blank" rel="noopener" data-tip="NOAA graphical forecast for this location"><span>NOAA point forecast</span><span aria-hidden="true">↗</span></a>' : '') + '<button type="button" class="tl-x" data-tlx aria-label="Close weather">&times;</button></div>' +
     '<div class="tl-chips">' + chips + '</div>' +
+    '<button type="button" class="tl-model" data-wxmodel>' + esc((WX_MODELS.find((m) => m[0] === (S.settings.wxModel || 'best_match')) || WX_MODELS[0])[1]) + ' ▾</button>' +
     '<div class="tl-sum"><b>' + (WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now') + '</b> ' + esc(parts.join(' · ') || 'Waiting for forecast') + '</div>' +
     '<div class="tl-sky">' + skyNotes(new Date(Date.now() + WX.hour * 3600000)).map((x) => '<span>' + esc(x) + '</span>').join('') + '</div>';
   if (open) {
@@ -2525,7 +2531,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 112. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 113. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6588,7 +6594,7 @@ async function spotFill(p, seq) {
     const html = order.filter((k) => cells[k]).map((k) => cells[k]).join(''); $('spGrid').innerHTML = html || '<div class="sp-load">Reading this spot…</div>'; placeSpot();
   };
   const cell = (ic, v, u, sub, cls) => '<div class="sp-c' + (cls ? ' ' + cls : '') + '">' + ic + '<b>' + v + '<small>' + u + '</small></b><span>' + sub + '</span></div>';
-  fetchT('https://api.open-meteo.com/v1/forecast' + ll + '&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&wind_speed_unit=kn&temperature_unit=fahrenheit', 12000).then((r) => r.json()).then((w) => {
+  fetchT('https://api.open-meteo.com/v1/forecast' + ll + wxM() + '&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&wind_speed_unit=kn&temperature_unit=fahrenheit', 12000).then((r) => r.json()).then((w) => {
     const c = w.current; if (!c) return;
     cells.wind = cell(spArrow((c.wind_direction_10m + 180) % 360 + mapRot()), Math.round(speedOut(c.wind_speed_10m)), ' ' + SPEED_LBL[S.settings.speedUnit], compass16(c.wind_direction_10m) + ' · g' + Math.round(speedOut(c.wind_gusts_10m)), 'wind');
     cells.air = cell(spIc('sky'), Math.round(c.temperature_2m) + '°', '', (wmo(c.weather_code)[0] || 'air').toLowerCase(), 'air'); draw();
@@ -6613,6 +6619,18 @@ document.addEventListener('click', (e) => {
 });
 map.on('movestart zoomstart', () => { if (SPOT.el && !SPOT.keep) closeSpot(); });
 map.on('rotate', placeSpot);
+function openWxModels() {
+  const cur = S.settings.wxModel || 'best_match';
+  openSheet('<h3>Weather model</h3><div class="sub">Which forecast drives the wind lines, the hourly forecast and the sailing coach. Waves always come from the marine model.</div>' +
+    WX_MODELS.map(([v, l, d]) => '<button type="button" class="li wx-mod' + (cur === v ? ' on' : '') + '" data-wxm="' + v + '"><div class="li-main"><b>' + esc(l) + (cur === v ? ' ✓' : '') + '</b><span>' + esc(d) + '</span></div></button>').join('') +
+    '<p class="hint">Models disagree most on timing of fronts and sea breezes. If two models agree, trust it more. (Side-by-side comparison is on the to-do list.)</p><div class="row-btns"><button class="btn ghost" data-act="close">Done</button></div>');
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-wxmodel]')) { openWxModels(); return; }
+  const b = e.target.closest('[data-wxm]'); if (!b) return;
+  S.settings.wxModel = b.dataset.wxm; saveSettings(); WX.grids = {}; maybeWeather(true); loadGrids(true); openWxModels(); renderWxBar();
+  toast('Forecast now from ' + (WX_MODELS.find((m) => m[0] === S.settings.wxModel) || WX_MODELS[0])[1], 2500);
+});
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

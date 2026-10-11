@@ -1577,3 +1577,5 @@ html[data-mi="m"] { --mi: 72px; } html[data-mi="l"] { --mi: 92px; } html[data-mi
 .sp-btn.ic { flex: 0 0 38px !important; } .sp-btn.ic svg { fill: currentColor; stroke: none; }
 :root[data-night] .spot-card, :root[data-night] .spot-card::after { background: rgba(18, 6, 6, .9) !important; }
 :root[data-night] .sp-c svg { stroke: var(--ink) !important; } :root[data-night] .sp-c svg.sp-arr { fill: var(--ink) !important; } :root[data-night] .sp-btn.pri { background: #7A2A22 !important; }
+.tl-model { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 14px; padding: 4px 10px; font: 600 12px var(--f-ui); margin: 6px 0 0; }
+.wx-mod.on { border-color: var(--accent); } .wx-mod { width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 6px 0; padding: 8px 12px; color: var(--ink); }
