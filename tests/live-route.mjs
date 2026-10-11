@@ -1,4 +1,5 @@
 // Live routing check against real NOAA ENC data. Writes diag/report.md, diag/report.json and screenshots.
+// build 123 check
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 fs.mkdirSync('diag', { recursive: true });
