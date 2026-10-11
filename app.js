@@ -314,6 +314,7 @@ sheet.addEventListener('click', (e) => {
 sheet.addEventListener('input', (e) => {
   if (e.target.id === 'satMix') { S.settings.chartOnSat = +e.target.value / 100; $('satMixVal').textContent = e.target.value + '%'; applyChart(); saveSoon('settings', () => S.settings, 800); }
 });
+(() => { const ch = document.querySelector('.topbar .chips'); if (ch) { ch.classList.add('chips-free'); $('app').appendChild(ch); } })(); // chips get their own spot top-right
 function applyCalm() { document.documentElement.classList.toggle('calm', !S.settings.chips); placeFabs(); }
 function applyEasy() { document.documentElement.classList.toggle('easy', !!S.settings.easy); }
 /* range rings around the boat, scaled to the zoom */
@@ -963,7 +964,7 @@ async function maybeWeather(force) {
   wxBusy = true;
   try {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) +
-      '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m' +
+      '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,precipitation' +
       '&daily=sunrise,sunset&wind_speed_unit=kn&temperature_unit=fahrenheit&timezone=auto&forecast_days=2';
     const r = await fetch(url); if (!r.ok) throw new Error('weather ' + r.status);
     const j = await r.json();
@@ -972,7 +973,7 @@ async function maybeWeather(force) {
     S.weather = {
       at: Date.now(), pos: { lat: f.lat, lon: f.lon },
       cur: { spd: j.current.wind_speed_10m, dir: j.current.wind_direction_10m, gust: j.current.wind_gusts_10m, temp: j.current.temperature_2m },
-      hours: j.hourly.time.map((t, i) => ({ t: tt(t), spd: j.hourly.wind_speed_10m[i], dir: j.hourly.wind_direction_10m[i], gust: j.hourly.wind_gusts_10m[i], temp: j.hourly.temperature_2m ? j.hourly.temperature_2m[i] : null })),
+      hours: j.hourly.time.map((t, i) => ({ t: tt(t), spd: j.hourly.wind_speed_10m[i], dir: j.hourly.wind_direction_10m[i], gust: j.hourly.wind_gusts_10m[i], temp: j.hourly.temperature_2m ? j.hourly.temperature_2m[i] : null, rain: j.hourly.precipitation ? j.hourly.precipitation[i] : null })),
       sunrise: j.daily.sunrise.map(tt), sunset: j.daily.sunset.map(tt),
     };
     try {
@@ -1240,6 +1241,34 @@ document.addEventListener('pointerdown', (e) => {
   document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
 });
 document.addEventListener('input', (e) => { if (e.target.id === 'tlTide') tideSet(+e.target.value); });
+
+/* forecast scrubber: time bubble above the thumb, hour and day steps, and a colour strip of what is coming */
+const RAIN_COL = [[0.1, 'transparent'], [1, '#9CCBF0'], [4, '#3F8FD8'], [10, '#1F4FB0'], [Infinity, '#7B2FBF']];
+function hourSeverity(k) {
+  const w = S.weather, t = Date.now() + k * 3600000, cols = [];
+  const lvl = (tbl, v) => tbl.findIndex((c) => v < c[0]);
+  if (wxOn('wind')) { const g = seriesAt(w && w.hours, t, 'gust'), sp = seriesAt(w && w.hours, t, 'spd'); const v = Math.max(sp || 0, (g || 0) * 0.8); if (sp != null) cols.push([lvl(WIND_COL, v), colFor(WIND_COL, v)]); }
+  if (wxOn('waves')) { const v = seriesAt(w && w.waveHours, t, 'h'); if (v != null) cols.push([lvl(WAVE_COL, v) + 0.5, colFor(WAVE_COL, v)]); }
+  if (wxOn('rain')) { const v = seriesAt(w && w.hours, t, 'rain'); if (v != null && v >= 0.1) cols.push([lvl(RAIN_COL, v) + 1.5, colFor(RAIN_COL, v)]); }
+  if (!cols.length) return 'var(--line)';
+  return cols.sort((a, b) => b[0] - a[0])[0][1];
+}
+function forecastScrubber() {
+  const max = 47, k = Math.min(max, WX.hour), strip = [];
+  for (let i = 0; i <= max; i++) strip.push('<i style="background:' + hourSeverity(i) + '"></i>');
+  const marks = []; for (let i = 0; i <= max; i++) { const d = new Date(Date.now() + i * 3600000); if (d.getHours() === 0) marks.push('<em style="left:' + (i / max * 100).toFixed(1) + '%">' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>'); }
+  return '<div class="scrub"><button type="button" class="sc-b" data-wxstep="-24" aria-label="Back a day">«</button><button type="button" class="sc-b" data-wxstep="-1" aria-label="Back an hour">‹</button>' +
+    '<div class="sc-mid"><div class="sc-bub" id="wxBub" style="left:' + (k / max * 100).toFixed(1) + '%">' + scrubLabel(k) + '</div><div class="sc-strip" aria-hidden="true">' + strip.join('') + '</div>' + marks.join('') +
+    '<input type="range" id="wxHour" min="0" max="' + max + '" step="1" value="' + k + '" aria-label="Forecast time"></div>' +
+    '<button type="button" class="sc-b" data-wxstep="1" aria-label="Forward an hour">›</button><button type="button" class="sc-b" data-wxstep="24" aria-label="Forward a day">»</button></div>';
+}
+function scrubLabel(k) { if (!k) return 'Now'; const d = new Date(Date.now() + k * 3600000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric' }); }
+function setWxHour(k) {
+  WX.hour = Math.max(0, Math.min(47, k)); const r = $('wxHour'); if (r) r.value = WX.hour;
+  const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / 47 * 100).toFixed(1) + '%'; }
+  $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid();
+}
+document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) setWxHour(WX.hour + +st.dataset.wxstep); });
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
   if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); return; }
@@ -1248,14 +1277,15 @@ function renderWxBar() {
   el.hidden = false;
   const grids = ['wind', 'waves'].filter(wxOn).map((k) => WX.grids[k]).filter(Boolean), age = grids.length ? Math.round((Date.now() - Math.min(...grids.map((g) => g.at))) / 60000) : null;
   const status = WX.busy ? 'Loading…' : grids.length ? 'Model forecast · ' + (age < 1 ? 'just now' : age + ' min ago') : wxOn('rain') && !wxOn('wind') && !wxOn('waves') ? 'Live radar · every 5 min' : WX.err ? 'No forecast: check signal' : '';
-  const timed = wxOn('wind') || wxOn('waves');
-  let h = '<div class="wx-mini" title="' + esc(status) + '"><b>' + wxTitle() + '</b>' + (timed ? '<input type="range" id="wxHour" min="0" max="48" step="1" value="' + WX.hour + '" aria-label="Forecast time"><output id="wxHourOut">' + (WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now') + '</output>' : '<span class="wx-st">' + esc(status) + '</span>') + '<button type="button" class="x" data-wx="none" aria-label="Hide weather on the chart">&times;</button></div>';
+  const timed = wxOn('wind') || wxOn('waves') || wxOn('rain');
+  let h = '<div class="wx-mini" title="' + esc(status) + '"><b>' + wxTitle() + '</b><span class="wx-st">' + esc(status) + '</span><button type="button" class="x" data-wx="none" aria-label="Hide weather on the chart">&times;</button></div>';
+  if (timed) h += forecastScrubber();
   el.classList.toggle('future', WX.hour > 0);
   el.innerHTML = h;
 }
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'wxHour') return;
-  WX.hour = +e.target.value; $('wxHourOut').textContent = WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now'; $('wxBar').classList.toggle('future', WX.hour > 0); drawGrid();
+  setWxHour(+e.target.value);
 });
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-wx]'); if (!b) return;
@@ -1384,8 +1414,23 @@ function renderLive() {
 
 /* iPad side column: the four things a skipper glances at, each with its source and age */
 function ageS(t) { if (!t) return ''; const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + 's ago' : agoTxt(t); }
+function openSideCustom() {
+  const cur = S.settings.sideSlots || ['speed', 'course', 'wind', 'auto'];
+  const opts = CK_OPTS.filter(([v]) => v !== 'chart' && v !== 'off').concat([['auto', 'Tide, or destination when navigating']]);
+  openSheet('<h3>Gauges beside the chart</h3><div class="sub">Pick up to four. They show in this order.</div>' + [0, 1, 2, 3].map((i) => '<div class="field"><label>Gauge ' + (i + 1) + '</label><select data-sidepick="' + i + '"><option value="off">None</option>' + opts.map(([v, l]) => '<option value="' + v + '"' + (cur[i] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>').join('') + '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
+}
+sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sidepick]'); if (!sp) return; const cur = (S.settings.sideSlots || ['speed', 'course', 'wind', 'auto']).slice(); while (cur.length < 4) cur.push('off'); cur[+sp.dataset.sidepick] = sp.value; S.settings.sideSlots = cur.filter((x) => x !== 'off'); if (!S.settings.sideSlots.length) S.settings.sideSlots = ['speed']; saveSettings(); renderSide(); });
 function renderSide() {
   const p = $('panelSide'); if (!p) return;
+  if (S.settings.sideStyle !== 'text') {
+    const ids = (S.settings.sideSlots || ['speed', 'course', 'wind', 'auto']).filter((x) => x !== 'chart' && x !== 'off');
+    let h = '';
+    if (S.goto && S.fix) { const d = distNm(S.fix, S.goto), mv = (S.sog || 0) > 0.6, hrs = mv ? d / S.sog : NaN; h += '<button type="button" class="sd sd-dest" data-sact="nav"><small>Next destination</small><b>' + esc(S.goto.name) + '</b><span class="tnum">' + fmtDist(d) + (isFinite(hrs) ? ' · ETA ' + fmtClock(Date.now() + hrs * 3600000) : '') + '</span></button>'; }
+    h += '<div class="side-g" data-n="' + ids.length + '">' + ids.map((id) => '<div class="sg">' + ckGauge(id) + '</div>').join('') + '</div>';
+    h += '<div class="side-btns"><button type="button" class="btn small" data-sact="dash">Full screen</button><button type="button" class="btn small" data-sact="sidecust">Choose gauges</button><button type="button" class="btn small" data-sact="sidetext">Plain numbers</button></div>';
+    p.innerHTML = h; p.classList.add('gmode'); return;
+  }
+  p.classList.remove('gmode');
   const f = S.fix, g = S.goto, w = S.weather, ob = nearestObs(), src = S.settings.sim ? 'Demo GPS' : 'GPS';
   const moving = (S.sog || 0) > 0.6;
   let h = '';
@@ -1396,10 +1441,10 @@ function renderSide() {
   h += '<div class="sd"><small>Wind</small><div class="sd-v tnum">' + (wd ? compass16(wd.dir) + ' ' + Math.round(speedOut(wd.spd)) : '–') + '<i>' + SPEED_LBL[S.settings.speedUnit] + '</i></div><em>' + (wd ? (wd.gust != null ? 'Gust ' + Math.round(speedOut(wd.gust)) + ' · ' : '') + wd.cap : 'No wind data yet') + '</em></div>';
   const tn = tideNow();
   if (tn) h += '<button type="button" class="sd sd-small" data-sact="tide"><small>Tide</small><b class="tnum">' + tideLen(tn.v) + ' ' + (tn.rising == null ? '' : tn.rising ? 'rising' : 'falling') + '</b>' + tideCurve(0) + '<em>' + (tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · ' : '') + 'NOAA · tap to slide through the day</em></button>';
-  h += '<button type="button" class="btn sd-more" data-sact="dash">More instruments</button>';
+  h += '<button type="button" class="btn sd-more" data-sact="dash">More instruments</button><button type="button" class="btn sd-more" data-sact="sidegauge">Show as gauges</button>';
   p.innerHTML = h;
 }
-document.addEventListener('click', (e) => { const b = e.target.closest('[data-sact]'); if (!b) return; if (b.dataset.sact === 'dash') setCockpit(true); if (b.dataset.sact === 'nav') setTab('nav'); if (b.dataset.sact === 'tide') { WX.view = 'tide'; WX.open = true; setTab('weather'); } });
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-sact]'); if (!b) return; if (b.dataset.sact === 'dash') setCockpit(true); if (b.dataset.sact === 'nav') setTab('nav'); if (b.dataset.sact === 'sidetext') { S.settings.sideStyle = 'text'; saveSettings(); renderSide(); } if (b.dataset.sact === 'sidegauge') { S.settings.sideStyle = 'gauge'; saveSettings(); renderSide(); } if (b.dataset.sact === 'sidecust') openSideCustom(); if (b.dataset.sact === 'tide') { WX.view = 'tide'; WX.open = true; setTab('weather'); } });
 
 
 /* Captain's resources: official sources, linked rather than copied (Argo-style), so they are always current */
@@ -3497,15 +3542,17 @@ async function refreshBridges(force) {
 map.on('moveend', () => { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 900); });
 /* ---------- marine places on the chart: marinas, yacht and sailing clubs, fuel docks, ramps ---------- */
 const MP = { list: new Map(store.get('mplaces', [])), tiles: store.get('mpTiles', {}), layer: L.layerGroup().addTo(map), busy: false, timer: null };
+function hasFuel(t) { t = t || {}; return t.waterway === 'fuel' || t.amenity === 'fuel' || /fuel_station/.test(t['seamark:small_craft_facility:category'] || '') || Object.keys(t).some((k) => /^fuel:/.test(k) && t[k] === 'yes'); }
 function drawMarinePlaces() {
   MP.layer.clearLayers();
   if (S.settings.mplaces === false || map.getZoom() < 12.5) return;
   const b = map.getBounds().pad(0.1), z = map.getZoom(), taken = [];
-  const rank = { club: 0, marina: 1, fuel: 2, pumpout: 3, ramp: 4 };
+  const rank = { fuel: 0, club: 1, marina: 2, pumpout: 3, ramp: 4 };
   [...MP.list.values()].filter((p) => b.contains([p.lat, p.lon])).sort((a, c) => (rank[a.type] ?? 9) - (rank[c.type] ?? 9)).forEach((p) => {
     const pt = map.latLngToContainerPoint([p.lat, p.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 70 && Math.abs(q.y - pt.y) < 26)) return; taken.push(pt);
     const t = PLACE_TYPES[p.type] || PLACE_TYPES.place, sz = S.settings.pinSize || 'M', named = sz !== 'S' && z >= (sz === 'M' ? 13.5 : 12.8) && p.name && p.name !== t.label;
-    const html = '<div class="mp-pin"><i style="background:' + t.color + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + t.icon + '</svg></i>' + (named ? '<span>' + esc(p.name) + '</span>' : '') + '</div>';
+    const fuel = p.type !== 'fuel' && hasFuel(p.tags);
+    const html = '<div class="mp-pin" title="' + esc(p.name) + (fuel ? ' · fuel dock' : '') + '"><i style="background:' + t.color + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + t.icon + '</svg>' + (fuel ? '<u class="fuel-dot" aria-label="fuel"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 5 7 5 10a5 5 0 01-10 0c0-3 2-6 5-10z"/></svg></u>' : '') + '</i>' + (named ? '<span>' + esc(p.name) + (fuel ? ' <b class="fuel-tag">FUEL</b>' : '') + '</span>' : '') + '</div>';
     const m = L.marker([p.lat, p.lon], { zIndexOffset: 500, keyboard: false, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html }) });
     m.on('click', () => openPlaceSheet(Object.assign({ badges: [], light: '' }, p)));
     MP.layer.addLayer(m);
