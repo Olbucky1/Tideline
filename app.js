@@ -18,6 +18,7 @@ function saveSoon(key, getter, ms = 3000) {
 
 /* ---------- state ---------- */
 const DEFAULTS = {
+  aisRelay: 'wss://tideline-ais.andy-brickman.workers.dev',
   speedUnit: 'kn', distUnit: 'nm', boatLen: 27, gpsToBow: 20, cruise: 5,
   chart: 'noaa', seamarks: true, night: false, keepAwake: true, sim: false, simRate: 5,
   boatType: 'sail', underSail: true, boatName: '', aisCoach: false, aisShow: true, voice: true, skipper: '', iconStyle: 'boat',
@@ -2277,7 +2278,7 @@ function renderMenu() {
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 90. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 91. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -3186,8 +3187,8 @@ function renderCoach() {
     '<div class="coach-btns"><button class="btn small primary" data-act="coachmore">What to do</button><button class="btn small" data-act="coachmute">Mute 5 min</button></div>';
 }
 function openAisList() {
-  const targets = [...ais.values()].sort((a, b) => S.fix ? distNm(S.fix, a) - distNm(S.fix, b) : (b.seen || 0) - (a.seen || 0));
-  let h = '<h3>AIS targets</h3><p class="sub">' + (S.settings.sim ? 'SIMULATED TRAFFIC · demo GPS, not real boats.' : S.settings.aisRelay ? 'Internet AIS relay configured. Reports can be delayed or missing.' : 'No AIS feed configured. Turning on AIS visibility does not supply live traffic.') + '</p>';
+  const targets = [...ais.values()].filter((t) => Number.isFinite(t.lat) && Number.isFinite(t.lon)).sort((a, b) => S.fix ? distNm(S.fix, a) - distNm(S.fix, b) : (b.seen || 0) - (a.seen || 0));
+  let h = '<h3>AIS targets</h3><p class="sub">' + (S.settings.sim ? 'SIMULATED TRAFFIC · demo GPS, not real boats.' : S.settings.aisRelay ? (AISS.err ? esc(AISS.err) : AISS.n ? 'Receiving AIS reports. Reports can be delayed or missing.' : 'Waiting for AIS reports. Availability depends on feed coverage and connection limits.') : 'No AIS feed configured. Turning on AIS visibility does not supply live traffic.') + '</p>';
   if (!targets.length) h += '<p class="sub">No targets received. Try the demo, or configure your relay in Map options.</p>';
   h += targets.map((t) => '<div class="li"><div class="li-main"><b>' + esc(t.name || 'Unnamed vessel') + '</b><span>' + (t.demo ? 'Demo · ' : '') + (S.fix ? fmtDist(distNm(S.fix, t)) + ' · ' : '') + fmtSpeed(t.sog) + ' · report ' + Math.max(0, Math.round((Date.now() - (t.seen || Date.now())) / 1000)) + ' s ago</span></div><button class="btn small" data-aisid="' + esc(t.id) + '">Details</button></div>').join('');
   h += '<div class="row-btns"><button class="btn" data-act="aislist">Refresh</button><button class="btn" data-act="aispreview">Try AIS demo</button>' + (S.settings.sim ? '<button class="btn" data-act="aisdemostop">Return to real GPS</button>' : '') + '<button class="btn ghost" data-act="close">Close</button></div>';
@@ -3267,18 +3268,30 @@ function aissConnect(force) {
     const md = m.MetaData || {}, id = 'ais-' + md.MMSI; if (!md.MMSI) return;
     const msg = (m.Message || {})[m.MessageType] || {}, prev = ais.get(id) || { id, mmsi: md.MMSI };
     const t = Object.assign({}, prev, { name: (md.ShipName || prev.name || '').trim() || 'MMSI ' + md.MMSI });
-    if (/Position/.test(m.MessageType)) { t.lat = md.latitude; t.lon = md.longitude; t.sog = msg.Sog != null && msg.Sog < 102.3 ? msg.Sog : 0; t.cog = msg.Cog != null && msg.Cog < 360 ? msg.Cog : (msg.TrueHeading < 360 ? msg.TrueHeading : 0); if (msg.NavigationalStatus != null) t.status = msg.NavigationalStatus; t.live = true; }
+    const position = /Position/.test(m.MessageType);
+    if (position) {
+      const lat = msg.Latitude ?? md.Latitude ?? md.latitude;
+      const lon = msg.Longitude ?? md.Longitude ?? md.longitude;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
+      t.lat = lat; t.lon = lon;
+      t.sog = msg.Sog != null && msg.Sog >= 0 && msg.Sog < 102.3 ? msg.Sog : 0;
+      t.cog = msg.Cog != null && msg.Cog >= 0 && msg.Cog < 360 ? msg.Cog : (msg.TrueHeading >= 0 && msg.TrueHeading < 360 ? msg.TrueHeading : 0);
+      if (msg.TrueHeading >= 0 && msg.TrueHeading < 360) t.hdg = msg.TrueHeading;
+      if (msg.NavigationalStatus != null) t.status = msg.NavigationalStatus;
+      t.live = true;
+    }
     if (m.MessageType === 'ShipStaticData') { const d = msg.Dimension || {}; t.type = aisShipType(msg.Type) || t.type; if (d.A != null) { t.len = (d.A || 0) + (d.B || 0); t.beam = (d.C || 0) + (d.D || 0); } if (msg.MaximumStaticDraught) t.draft = msg.MaximumStaticDraught; if (msg.CallSign) t.callsign = msg.CallSign.trim(); if (msg.Destination) t.dest = msg.Destination.trim(); }
     if (m.MessageType === 'StaticDataReport') { const rb = msg.ReportB || {}; if (rb.ShipType) t.type = aisShipType(rb.ShipType) || t.type; if (rb.CallSign) t.callsign = rb.CallSign.trim(); }
     if (t.lat == null) { ais.set(id, Object.assign(t, { seen: prev.seen || 0, hist: prev.hist || [] })); return; }
     if (!t.type) t.type = 'other';
-    aisUpsert(t); AISS.n++;
-    clearTimeout(AISS.timer); AISS.timer = setTimeout(updateAis, 700);
+    if (position) { aisUpsert(t); AISS.n++; }
+    else ais.set(id, t); // Static details must not refresh an old vessel position.
+    if (!AISS.timer) AISS.timer = setTimeout(() => { AISS.timer = null; updateAis(); }, 700);
   };
-  ws.onerror = () => { AISS.err = 'Could not reach aisstream.io'; };
+  ws.onerror = () => { AISS.err = 'Could not connect to the AIS relay. Check the network or feed connection limit.'; };
   ws.onclose = () => { if (AISS.ws !== ws) return; AISS.ws = null; if ((S.settings.aisRelay || '') && AISS.retry < 6) setTimeout(() => aissConnect(true), Math.min(60000, 3000 * 2 ** AISS.retry++)); };
 }
-function aissClose() { const w = AISS.ws; AISS.ws = null; if (w) try { w.close(); } catch (e) { /* closed */ } }
+function aissClose() { clearTimeout(AISS.timer); AISS.timer = null; const w = AISS.ws; AISS.ws = null; if (w) try { w.close(); } catch (e) { /* closed */ } }
 setInterval(() => { const now = Date.now(); let ch = false; ais.forEach((t, id) => { if (t.live && now - (t.seen || 0) > 12 * 60000) { ais.delete(id); ch = true; } }); if (ch) updateAis(); }, 60000);
 map.on('moveend', () => { if (!S.fix && S.settings.aisRelay) { clearTimeout(AISS.mt); AISS.mt = setTimeout(() => aissConnect(false), 2000); } });
 setTimeout(() => aissConnect(true), 2500);
