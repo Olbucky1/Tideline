@@ -4859,7 +4859,11 @@ function renderCockpit() {
     const i = +box.dataset.slot, id = sl[i];
     const mv = ckEdit ? '<div class="ck-mv"><button type="button" data-ckmove="' + i + ':-1" aria-label="Move earlier">◀</button><span>drag to move</span><button type="button" data-ckmove="' + i + ':1" aria-label="Move later">▶</button></div>' : '';
     const pick = ckEdit ? mv + '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
-    if (id === 'chart') { const old = box.querySelector('.ck-pick'); if (old) old.remove(); if (pick) box.insertAdjacentHTML('afterbegin', pick); return; }
+    if (id === 'chart') { // add or remove the picker only when Customize changes, so an open menu or a drag is never cut off
+      const has = !!box.querySelector('.ck-pick');
+      if (ckEdit && !has) box.insertAdjacentHTML('afterbegin', pick);
+      if (!ckEdit && has) box.querySelectorAll('.ck-pick, .ck-mv').forEach((x) => x.remove());
+      return; }
     if (box.querySelector('select:focus') || (ckEdit && box.dataset.drawn)) return; // while customizing, keep tiles still so taps land
     box.dataset.drawn = ckEdit ? '1' : '';
     box.innerHTML = pick + ckGauge(id);
