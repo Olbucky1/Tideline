@@ -154,8 +154,10 @@ const NoaaLayer = L.TileLayer.extend({
   getTileUrl(c) { return noaaUrl(c.x, c.y, c.z, this.options.transparentChart); },
 });
 const LAYERS = {
-  noaa: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Chart: NOAA Office of Coast Survey' }),
-  noaaOver: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, attribution: 'Chart: NOAA' }),
+  noaa: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA Office of Coast Survey' }),
+  // a fast, cached ocean basemap under the NOAA chart, so the screen is never blank while NOAA draws its tiles
+  ocean: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 13, attribution: 'Base: Esri, GEBCO, NOAA' }),
+  noaaOver: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA' }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics' }),
   satHD: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery: USGS The National Map' }),
   places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, opacity: 0.75, zIndex: 3, attribution: 'Places: Esri' }),
@@ -173,7 +175,7 @@ function chartLayerKeys() {
   const ch = CHARTS[S.settings.chart] ? S.settings.chart : 'noaa';
   let keys;
   if (ch !== 'satellite' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
-  else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : CHARTS[ch].layers.slice();
+  else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : ch === 'noaa' ? ['ocean', 'noaa'] : CHARTS[ch].layers.slice();
   if (S.settings.seamarks && ch !== 'noaa') keys.push('seamarks');
   if (ch !== 'street' && S.settings.landPlaces !== false) keys.push('places');
   if (ch !== 'street' && S.settings.landRoads) keys.push('roads');
