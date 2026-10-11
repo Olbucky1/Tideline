@@ -3314,6 +3314,8 @@ function profileHtml() {
     '<div class="grid2">' + sel('bEngKind', 'Engine', b.engineKind, [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive'], ['pod', 'Pod drive (IPS etc.)'], ['none', 'No engine']]) + f('bHp', 'Horsepower', b.engineHp, 'number') + '</div>' +
     (b.engineKind === 'outboard' || !b.engineKind ? '<div class="grid2">' + sel('bShaft', 'Outboard shaft length', b.shaft || '', [['', 'Not sure'], ['short', 'Short (15 in)'], ['long', 'Long (20 in)'], ['xl', 'Extra long (25 in)'], ['ul', 'Ultra long (30 in)']]) + '<p class="hint" style="align-self:end">Measured from the top of the mounting bracket to the anti-ventilation plate. It decides which replacement or spare fits your transom.</p></div>' : '') +
     '<div class="grid2">' + f('bEngMake', 'Engine make', b.engineMake) + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
+    '<div class="grid2">' + f('bEngYear', 'Engine year', b.engineYear, 'number') + f('bEngSerial', 'Engine serial number', b.engineSerial) + '</div>' +
+    '<div class="grid2">' + f('bHull', 'Hull ID (HIN)', b.hin) + f('bReg', 'Registration or documentation no.', b.reg) + '</div>' +
     '<div class="grid2">' + f('bHours', 'Engine hours now', b.engineHours, 'number') + sel('bIcon', 'Chart icon', st.iconStyle, [['boat', 'Boat outline'], ['arrow', 'Arrow']]) + '</div>' +
     '<div class="grid2">' + sel('bAnchor', 'Main anchor', b.anchorType, [['', 'Choose…'], ['newgen', 'New-generation (Rocna, Mantus, Spade, Vulcan…)'], ['plow', 'Plow (CQR, Delta)'], ['claw', 'Claw (Bruce)'], ['fluke', 'Fluke (Danforth, Fortress)'], ['grapnel', 'Grapnel'], ['other', 'Other']]) + f('bAnchorLb', 'Anchor weight (lb)', b.anchorLb, 'number') + '</div>' +
     '<div class="grid2">' + f('bChain', 'Chain (' + lenUnit() + ')', L2(b.chainFt), 'number') + f('bRode', 'Total rode incl. chain (' + lenUnit() + ')', L2(b.rodeTotalFt), 'number') + '</div>' +
@@ -3329,7 +3331,7 @@ function saveBoatForm() {
   if (n('bLen')) st.boatLen = lenToFt(n('bLen'));
   b.year = v('bYear'); b.make = v('bMake'); b.model = v('bModel');
   b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null; b.airVerified = !!($('bAirOk') && $('bAirOk').checked);
-  b.engineKind = v('bEngKind'); b.shaft = $('bShaft') ? v('bShaft') : b.shaft; b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineHours = n('bHours') || 0;
+  b.engineKind = v('bEngKind'); b.shaft = $('bShaft') ? v('bShaft') : b.shaft; b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineYear = v('bEngYear'); b.engineSerial = v('bEngSerial'); b.hin = v('bHull'); b.reg = v('bReg'); b.engineHours = n('bHours') || 0;
 
   b.lwlFt = n('bLwl') != null ? lenToFt(n('bLwl')) : null; b.dispLb = n('bDisp');
   { const hs = hullSpeed(); if (hs && st.boatType === 'sail' && (!st.sailSpeed || st.sailSpeed === 5)) st.sailSpeed = Math.round(hs.kn * 0.8 * 10) / 10; }
@@ -4107,10 +4109,36 @@ function toBridge(el) {
 const CP_BRIDGES = [
   { name: 'Naval Academy Bridge (MD 450)', re: /naval academy|450|severn/i, near: { lat: 38.992, lon: -76.494 }, r: 0.7, closed: 75, movable: false, cp: '2.4 miles above the mouth of the Severn: fixed span, 75 ft' },
   { name: 'US 50/301 Severn River Bridge', re: /50|301|severn|hanson/i, near: { lat: 39.011, lon: -76.508 }, r: 0.8, closed: 80, movable: false, cp: '3.5 miles above the mouth: 80 ft at the center span' },
-  { name: 'Weems Creek drawbridge', re: /weems|ridgely/i, near: { lat: 38.9931, lon: -76.5075 }, r: 0.4, closed: 8, width: 28, movable: true, cp: 'Weems Creek, 0.5 mile above the entrance: swing span, 28 ft wide, 8 ft closed' },
+  { name: 'Weems Creek drawbridge (Ridgely Ave)', re: /weems|ridgely/i, near: { lat: 38.9931, lon: -76.5075 }, r: 0.4, closed: 8, width: 28, movable: true, sched: 'weems', phone: '410-263-3953', cp: 'Weems Creek, 0.5 mile above the entrance: swing span, 28 ft wide, 8 ft closed' },
   { name: 'Weems Creek fixed bridge (Rowe Blvd)', re: /weems|rowe|\b70\b/i, near: { lat: 38.9935, lon: -76.5090 }, r: 0.4, closed: 28, movable: false, cp: 'Weems Creek, about 500 ft above the drawbridge: fixed, 28 ft' },
-  { name: 'Spa Creek Bridge', re: /spa creek|compromise|eastport/i, near: { lat: 38.9752, lon: -76.4855 }, r: 0.35, closed: 15, width: 40, movable: true, cp: 'Spa Creek, 0.4 mile above the entrance: bascule, 40 ft wide, 15 ft closed' },
+  { name: 'Spa Creek (Eastport) Bridge', re: /spa creek|compromise|eastport/i, near: { lat: 38.9752, lon: -76.4855 }, r: 0.35, closed: 15, width: 40, movable: true, sched: 'spa', phone: '410-974-3840', cp: 'Spa Creek, 0.4 mile above the entrance: bascule, 40 ft wide, 15 ft closed' },
 ];
+// drawbridge schedules from 33 CFR 117 (checked Oct 2026). Federal and state holidays follow the weekend rules; this does not know holidays.
+function bridgeSchedule(br, now) {
+  now = now || new Date();
+  const hm = (d) => d.getHours() * 60 + d.getMinutes(), at = (d, m) => { const x = new Date(d); x.setHours(Math.floor(m / 60), m % 60, 0, 0); return x; };
+  const clock = (d) => fmtClock(d.getTime()), wkend = (d) => d.getDay() === 0 || d.getDay() === 6, mo = now.getMonth() + 1;
+  if (br.sched === 'spa') {
+    const summer = mo >= 5 && mo <= 10;
+    if (!wkend(now) && !summer) { // Nov–Apr weekdays: on signal except the rush hours
+      const m = hm(now); if (m > 450 && m < 540) return { txt: 'Closed for the morning rush until ' + clock(at(now, 540)) + ', then opens on signal', rule: '33 CFR 117.571' };
+      if (m > 990 && m < 1080) return { txt: 'Closed for the evening rush until ' + clock(at(now, 1080)) + ', then opens on signal', rule: '33 CFR 117.571' };
+      return { txt: 'Opens on signal now (call or sound one long, one short)', rule: '33 CFR 117.571' };
+    }
+    // on the hour and half hour; summer weekdays skip the rush hours except 6:00 and 7:00 PM
+    const ok = (d) => { if (wkend(d) || !(d.getMonth() + 1 >= 5 && d.getMonth() + 1 <= 10)) return true; const m = hm(d); if (m > 450 && m < 540) return false; if (m > 990 && m < 1170) return m === 1080 || m === 1140; return true; };
+    let t = new Date(now); t.setSeconds(0, 0); t.setMinutes(t.getMinutes() < 30 ? 30 : 60); if (now.getMinutes() === 0 || now.getMinutes() === 30) t = new Date(now.getTime()); t.setSeconds(0, 0);
+    for (let i = 0; i < 50 && !ok(t); i++) t = new Date(t.getTime() + 30 * 60000);
+    const mins = Math.round((t - now) / 60000);
+    return { next: t.getTime(), txt: 'Next opening ' + clock(t) + (mins > 0 ? ' (in ' + mins + ' min)' : ' (now)') + ' · opens on the hour and half hour' + (wkend(now) ? '' : summer ? ', not 7:30–9 AM or 4:30–7:30 PM except 6 and 7 PM' : ''), rule: '33 CFR 117.571' };
+  }
+  if (br.sched === 'weems') {
+    const summer = mo >= 5 && mo <= 9, sr = S.weather && (S.weather.sunrise || []).find((x) => new Date(x).toDateString() === now.toDateString()), ss = S.weather && (S.weather.sunset || []).find((x) => new Date(x).toDateString() === now.toDateString());
+    const day = sr && ss ? now >= sr && now <= ss : now.getHours() >= 7 && now.getHours() < 19;
+    return { txt: summer && day ? 'Opens on signal now (sunrise to sunset, May–Sept)' : 'Needs at least 5 hours\' notice: call the tender ahead', rule: 'MDOT SHA movable bridge schedule (Aug 2025)' };
+  }
+  return null;
+}
 function applyCoastPilot() {
   CP_BRIDGES.forEach((c) => {
     let best = null, bd = c.r;
@@ -4120,7 +4148,7 @@ function applyCoastPilot() {
       const score = d - (c.re.test(o.name || '') ? 0.3 : 0);
       if (score < bd) { bd = score; best = o; }
     });
-    if (best) Object.assign(best, { name: c.name, closed: c.closed, open: c.movable ? best.open : null, width: c.width ?? (best.src === 'noaa' ? best.width : null), movable: c.movable, src: 'coastpilot', cp: c.cp });
+    if (best) Object.assign(best, { sched: c.sched, phone: c.phone || best.phone, name: c.name, closed: c.closed, open: c.movable ? best.open : null, width: c.width ?? (best.src === 'noaa' ? best.width : null), movable: c.movable, src: 'coastpilot', cp: c.cp });
   });
 }
 // NOAA ENC bridges: official vertical (VERCLR / VERCCL / VERCOP) and horizontal (HORCLR) clearances, in metres. These replace volunteer values.
@@ -4191,11 +4219,12 @@ function drawBridges() {
   BR.list.forEach((br) => {
     if (!b.contains([br.lat, br.lon])) return;
     if (br.closed == null && map.getZoom() < 15.5) return; // no charted height: only show when zoomed right in
-    const pt = map.latLngToContainerPoint([br.lat, br.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 96 && Math.abs(q.y - pt.y) < 30)) return; taken.push(pt);
+    const z = map.getZoom(), lbl = z >= 15 || (S.goto && distNm(S.fix || refPos(), br) < 1.5); // the height shows when you are zoomed in close, or nearing it on a route
+    const pt = map.latLngToContainerPoint([br.lat, br.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < (lbl ? 70 : 22) && Math.abs(q.y - pt.y) < 22)) return; taken.push(pt);
     const j = judgeBridge(br), col = BR_COL[j.level];
     const h = br.closed == null ? '?' : Math.round(ftToLen(j.eff != null ? j.eff : br.closed));
-    const html = '<div class="br-pin" style="--c:' + col + '" title="Height under the bridge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg><b>' + h + (br.src === 'noaa' || br.src === 'coastpilot' ? '' : '?') + '</b>' + lenUnit() + '<span>' + (br.movable ? 'high · opens' : 'high') + (br.src === 'noaa' || br.src === 'coastpilot' ? '' : ' · unverified') + '</span></div>';
-    const m = L.marker([br.lat, br.lon], { zIndexOffset: 600, keyboard: false, icon: L.divIcon({ className: '', iconSize: [92, 28], iconAnchor: [46, 14], html }) });
+    const html = '<div class="br-ic' + (lbl ? ' lbl' : '') + '" style="--c:' + col + '" title="' + esc(br.name) + ': tap for height, VHF and tender"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg></i>' + (lbl ? '<b>' + h + (br.src === 'noaa' || br.src === 'coastpilot' ? '' : '?') + ' ' + lenUnit() + (br.movable ? (() => { const sc = bridgeSchedule(br); return sc && sc.next ? ' · opens ' + fmtClock(sc.next) : ' · opens'; })() : '') + '</b>' : '') + '</div>';
+    const m = L.marker([br.lat, br.lon], { zIndexOffset: 600, keyboard: false, icon: L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10], html }) });
     m.on('click', () => openBridgeSheet(br));
     BR.layer.addLayer(m);
   });
@@ -4210,9 +4239,10 @@ function openBridgeSheet(br) {
   if (j.eff != null && j.tide) add('Clearance now', fmtLen(j.eff));
   add('Your air draft', S.boat.airDraftFt ? fmtLen(S.boat.airDraftFt) : '<a href="#" data-act="editboatair">Add it</a>');
   if (S.boat.beamFt) add('Your beam', fmtLen(S.boat.beamFt));
-  add('VHF', br.vhf && esc(br.vhf));
+  const sch = bridgeSchedule(br); if (sch) add('Openings', '<b>' + esc(sch.txt) + '</b><br><small>' + esc(sch.rule) + '. Holidays follow weekend rules.</small>');
+  add('VHF', br.vhf ? esc(br.vhf) : br.movable ? 'Not listed. Maryland drawbridge tenders usually answer on channel 13; confirm in the Coast Pilot.' : '');
   if (br.phone) add('Bridge tender', '<span class="tnum">' + esc(br.phone) + '</span> <a href="tel:' + esc(br.phone.replace(/[^+\d]/g, '')) + '">Call</a>');
-  add('Openings', br.hours ? esc(br.hours) : br.movable ? 'Schedules and restrictions: Coast Guard drawbridge rules (33 CFR 117)' : '');
+  if (!sch) add('Openings', br.hours ? esc(br.hours) : br.movable ? 'Schedules and restrictions: Coast Guard drawbridge rules (33 CFR 117)' : '');
   S.sheetPoint = { p: { lat: br.lat, lon: br.lon }, place: { name: br.name } };
   openSheet('<h3>' + esc(br.name) + '</h3><div class="verdict v-' + j.level + '">' + esc(j.text) + (j.notes.length ? '<br>' + j.notes.map(esc).join('<br>') : '') + '</div><div class="facts">' + rows.join('') + '</div>' +
     '<p class="hint"><b>' + (br.src === 'coastpilot' ? 'Source: NOAA U.S. Coast Pilot 3, Ch. 13 (Aug 2026): ' + esc(br.cp) + '.' : br.src === 'noaa' ? 'Source: NOAA chart data (ENC), official clearances.' : 'Source: OpenSeaMap volunteers, not checked against NOAA. Treat as unverified.') + '</b> Clearance is measured at mean high water at the center of the channel span; toward the edges of an arched span it is lower, and high tides, wind tides and storm surge take more off it.<b>' + '</b> The NOAA chart prints the official clearance beside each bridge (zoom in). If they differ, trust the chart. Clearance is measured at average high water. Predicted tide is applied where the station publishes its datums; wind and surge can raise the water further. Verify by eye and with the bridge tender.</p>' +
@@ -4538,5 +4568,5 @@ $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();
 wake();
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
