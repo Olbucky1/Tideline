@@ -400,7 +400,7 @@ sheet.addEventListener('input', (e) => {
   rb.addEventListener('click', () => { setTab('chart'); setWxL('rain', !wxOn('rain')); });
   const ab = document.createElement('button'); ab.id = 'btnAis'; ab.type = 'button'; ab.className = 'fab aisbtn'; ab.setAttribute('aria-label', 'AIS ships on or off');
   ab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 16-5-3-5 3z"/></svg><span class="ais-n"></span>';
-  const wrap = document.createElement('div'); wrap.className = 'wx-wrap'; wrap.appendChild(wb); wrap.appendChild(grp);
+  const wrap = document.createElement('div'); wrap.className = 'wx-wrap'; wrap.id = 'wxWrap'; wrap.appendChild(wb); wrap.appendChild(grp);
   const rt = $('btnRoute'); fc.insertBefore(wrap, rt ? rt.nextSibling : null); fc.insertBefore(ab, wrap.nextSibling); ch.remove();
   wb.addEventListener('click', (e) => { e.stopPropagation(); grp.hidden = !grp.hidden; wb.classList.toggle('open', !grp.hidden); });
   document.addEventListener('click', (e) => { if (!grp.hidden && !e.composedPath().some((n) => n.classList && n.classList.contains('wx-wrap'))) { grp.hidden = true; wb.classList.remove('open'); } });
@@ -2530,9 +2530,10 @@ function renderMenu() {
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
+      menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 114. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 115. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2563,6 +2564,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'sailcoach') { openSailCoach(); return; }
   if (a === 'loop') { openLoop(); return; }
   if (a === 'tour') { startTour(0); return; }
+  if (a === 'arrange') { setTab('chart'); setTimeout(() => arrangeMode(true), 150); return; }
   if (a === 'month') { openThisMonth(); return; }
   setTab(a);
 });
@@ -5761,6 +5763,7 @@ async function fmLocal(text) {
     if (/\bgreat loop|\blooper|\bthe loop\b/.test(c)) { closeSheet(); openLoop(/limit|fit|air draft|bridge|my boat/.test(c) ? 'boat' : /lock|notice|closed|status/.test(c) ? 'live' : /report/.test(c) ? 'reports' : 'plan'); return true; }
     { const rm = c.match(/\brange rings?\b(?:.*?\b(\d+(?:\.\d+)?|half|quarter)\s*(?:nm|nautical|mile|miles)?)?/); if (rm) { const off = /\b(off|hide|remove)\b/.test(c); if (off) { S.settings.rings = false; } else { S.settings.rings = true; if (rm[1]) S.settings.ringStep = rm[1] === 'half' ? '0.5' : rm[1] === 'quarter' ? '0.25' : rm[1]; } saveSettings(); drawRings(); firstMateMessage(off ? 'Range rings off.' : 'Range rings on' + (rm[1] ? ', every ' + fmtDist(+S.settings.ringStep) : '') + '. Tap a ring label to change them.'); return true; } }
     if (/\blightning\b/.test(c)) { closeSheet(); openLightning(); return true; }
+    if (/\b(arrange|move|rearrange) (the )?(buttons|icons)\b/.test(c)) { closeSheet(); setTab('chart'); setTimeout(() => arrangeMode(true), 150); return true; }
     if (/\b(what'?s (happening|going on|coming up)|this month|events?|tournaments?|regattas?|boat show)\b/.test(c)) { closeSheet(); openThisMonth(); return true; }
     if (/\b(stop listening|quit listening)\b/.test(c)) { wakeStop(); firstMateMessage('Stopped listening.'); return true; }
     // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
@@ -5816,7 +5819,7 @@ sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' 
 document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) openFirstMate(); if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
 // the AI sparkle, with a small anchor at its heart
 const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path class="ai-star" d="M11.6 2.2c.7 5.3 3.9 8.5 9.2 9.2-5.3.7-8.5 3.9-9.2 9.2-.7-5.3-3.9-8.5-9.2-9.2 5.3-.7 8.5-3.9 9.2-9.2z"/><path class="ai-star" d="M19.6 1.6c.25 1.6 1.1 2.45 2.7 2.7-1.6.25-2.45 1.1-2.7 2.7-.25-1.6-1.1-2.45-2.7-2.7 1.6-.25 2.45-1.1 2.7-2.7z"/><g class="ai-anc"><circle cx="11.6" cy="8.7" r=".95"/><path d="M11.6 9.65v5.6M10.1 10.9h3M9.1 13.3a2.5 2.5 0 0 0 5 0"/></g></svg>';
-(() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
+(() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.id = 'btnFM'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
@@ -6442,7 +6445,7 @@ setTimeout(() => applyOrient(true), 800);
   const learning = () => S.settings.learnTips !== false && Date.now() - (store.get('firstRun', 0) || Date.now()) < 14 * 86400000;
   if (!store.get('firstRun', 0)) store.set('firstRun', Date.now());
   document.addEventListener('pointerdown', (e) => {
-    const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse') return;
+    const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse' || ARR.on) return;
     holdBtn = b; shown = false; clearTimeout(t);
     if (b.id === 'btnMOB' || b.id === 'curChip' || b.id === 'btnOrient') return; // these use press and hold for their own job
     t = setTimeout(() => show(b), 450);
@@ -6681,6 +6684,43 @@ document.addEventListener('click', (e) => {
 });
 // a gentle get-ready nudge, at most once per event, a week out
 setTimeout(() => { const seen = store.get('evSeen', {}); const e = upcoming(8).find((x) => !seen[x.n + x.a] && x.a > Date.now()); if (!e) return; seen[e.n + e.a] = 1; store.set('evSeen', seen); toast('Coming up: ' + e.n + ' (' + new Date(e.a).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '). Menu → This month for details.', 7000); }, 9000);
+/* ---------- arrange the buttons: drag them up and down a column or across to the other side; they snap into line ---------- */
+const ARR = { on: false, drag: null };
+const ARR_SKIP = new Set(['alertBar']);
+function fabItems(col) { return [...col.children].filter((x) => x.id && !ARR_SKIP.has(x.id)); }
+function applyFabLayout() {
+  const lay = S.settings.fabLayout; if (!lay) return; const L0 = $('fabs'), R0 = $('fabsR'); if (!L0 || !R0) return;
+  [['left', L0], ['right', R0]].forEach(([k, col]) => (lay[k] || []).forEach((id) => { const el = $(id); if (el) col.appendChild(el); }));
+  const al = $('alertBar'); if (al && al.parentNode === L0) L0.appendChild(al);
+}
+function saveFabLayout() { S.settings.fabLayout = { left: fabItems($('fabs')).map((x) => x.id), right: fabItems($('fabsR')).map((x) => x.id) }; saveSettings(); }
+function arrangeMode(on) {
+  ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
+  let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
+  bar.innerHTML = '<b>Drag the buttons where you like</b><span>They snap into the left or right column.</span><div><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button></div>';
+  bar.hidden = !on; if (!on) { saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
+  if (ARR.on && e.target.closest('#fabs, #fabsR')) { e.stopPropagation(); e.preventDefault(); } // buttons do not act while arranging
+}, true);
+document.addEventListener('pointerdown', (e) => {
+  if (!ARR.on) return; const el = e.target.closest('#fabs > [id], #fabsR > [id]'); if (!el || ARR_SKIP.has(el.id)) return;
+  e.preventDefault(); e.stopPropagation(); const r = el.getBoundingClientRect();
+  const ph = document.createElement('div'); ph.className = 'arr-ph'; ph.style.height = r.height + 'px'; ph.style.width = r.width + 'px'; el.parentNode.insertBefore(ph, el);
+  el.classList.add('arr-drag'); Object.assign(el.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', zIndex: 3000, pointerEvents: 'none' });
+  ARR.drag = { el, ph, dx: e.clientX - r.left, dy: e.clientY - r.top };
+}, true);
+document.addEventListener('pointermove', (e) => {
+  const d = ARR.drag; if (!d) return; e.preventDefault();
+  d.el.style.left = (e.clientX - d.dx) + 'px'; d.el.style.top = (e.clientY - d.dy) + 'px';
+  const col = e.clientX < innerWidth / 2 ? $('fabs') : $('fabsR'), items = [...col.children].filter((x) => x !== d.el && x !== d.ph && !ARR_SKIP.has(x.id));
+  let before = null; for (const it of items) { const rr = it.getBoundingClientRect(); if (e.clientY < rr.top + rr.height / 2) { before = it; break; } }
+  if (before) col.insertBefore(d.ph, before); else { const al = $('alertBar'); if (al && al.parentNode === col) col.insertBefore(d.ph, al); else col.appendChild(d.ph); }
+}, { capture: true, passive: false });
+const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); d.el.classList.remove('arr-drag'); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); saveFabLayout(); };
+document.addEventListener('pointerup', arrDrop, true); document.addEventListener('pointercancel', arrDrop, true);
+setTimeout(applyFabLayout, 300);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

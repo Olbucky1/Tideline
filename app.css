@@ -1587,3 +1587,13 @@ html[data-mi="m"] { --mi: 72px; } html[data-mi="l"] { --mi: 92px; } html[data-mi
 .ev-d b { display: block; font: 700 11px var(--f-ui); text-transform: uppercase; color: var(--accent); } .ev-d span { font: 700 15px var(--f-num); }
 .ev-m b { display: block; font-size: 15px; } .ev-m > span { font-size: 12.5px; color: var(--ink2); }
 .ev-a { display: flex; gap: 14px; margin-top: 4px; } .ev-a a { font: 600 13px var(--f-ui); color: var(--accent); }
+/* arranging buttons */
+html.arrange #fabs > [id]:not(#alertBar), html.arrange #fabsR > [id] { animation: arr-wiggle .28s ease-in-out infinite alternate; cursor: grab; touch-action: none; }
+html.arrange #fabs > [id]:nth-child(2n), html.arrange #fabsR > [id]:nth-child(2n) { animation-delay: -.14s; }
+@keyframes arr-wiggle { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
+html.arrange #fabs, html.arrange #fabsR { outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 6px; border-radius: 26px; min-height: 60px; }
+.arr-drag { animation: none !important; transform: scale(1.15) !important; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.arr-ph { border-radius: 50%; border: 2px dashed var(--accent); opacity: .7; align-self: center; }
+.arr-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 14px); z-index: 3100; width: min(360px, calc(100vw - 24px)); background: rgba(14, 32, 52, .92); color: #fff; border-radius: 16px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.arr-bar b { display: block; font-size: 15px; } .arr-bar span { font-size: 12px; opacity: .8; } .arr-bar div { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.arr-bar .btn:not(.primary) { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
