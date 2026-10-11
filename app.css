@@ -1466,3 +1466,15 @@ html[data-mi] #fabsR .mini-inst { width: var(--mi) !important; height: auto !imp
 html[data-mi] #fabsR .mini-inst > svg { width: var(--mi) !important; height: var(--mi) !important; }
 html[data-mi="xl"] #fabsR .mini-inst { margin-left: calc(40px - var(--mi)) !important; margin-right: 0 !important; }
 .fab.wxbtn b .wx-u { font-size: 6.5px; font-weight: 700; margin-left: 1px; letter-spacing: .02em; }
+/* life-threatening weather: the whole screen turns red and flashes */
+.severe { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 18px; background: #B71C1C; color: #fff; animation: sv-flash 1s steps(2, jump-none) infinite; }
+@keyframes sv-flash { 0% { background: #B71C1C; } 100% { background: #E53935; } }
+@media (prefers-reduced-motion: reduce) { .severe { animation: none; } }
+.sv-in { max-width: 460px; text-align: center; } .sv-ic { font-size: 64px; line-height: 1; }
+.sv-ev { font: 800 26px/1.15 var(--f-ui); letter-spacing: .02em; margin: 8px 0 4px; } .sv-do { font: 900 32px/1.1 var(--f-ui); margin-bottom: 12px; background: #fff; color: #B71C1C; border-radius: 12px; padding: 8px 12px; }
+.sv-in p { font-size: 17px; line-height: 1.4; margin: 8px 0; } .sv-in .sv-h { font-size: 14px; opacity: .92; }
+.sv-btns { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; } .sv-btns .btn { font-size: 16px; padding: 12px 18px; } .sv-btns .btn:not(.primary) { background: transparent; color: #fff; border: 2px solid #fff; }
+.sv-btns .btn.primary { background: #fff; color: #B71C1C; }
+.cur-flow { position: absolute; inset: 0; z-index: 402; pointer-events: none; }
+.cur-lev-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); }
+#curLev { width: 100%; }

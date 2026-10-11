@@ -2489,7 +2489,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 103. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 104. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5167,7 +5167,7 @@ function alrClass(a) {
   if (/advisory/i.test(e) || /minor/i.test(sv)) return 'adv';
   return 'info';
 }
-const ALR_RANK = { warn: 0, watch: 1, adv: 2, info: 3 }, ALR_WORD = { warn: 'Severe', watch: 'Watch', adv: 'Advisory', info: 'Statement' };
+const ALR_RANK = { warn: 0, watch: 1, adv: 2, info: 3 }, ALR_WORD = { warn: 'Severe', watch: 'Watch', adv: 'Advisory', info: 'Statement' }, ALR_SHORT = { warn: 'WARNING', watch: 'WATCH', adv: 'NOTICE', info: 'INFO' };
 // A changed bulletin is new even when NWS retains the same alert identifier.
 function alertKey(a) {
   const text = JSON.stringify([a.id, a.sent, a.event, a.severity, a.urgency, a.certainty, a.headline, a.description, a.instruction, a.ends, a.expires]);
@@ -5185,11 +5185,25 @@ async function checkAlerts() {
     const j = await fetchT('https://api.weather.gov/alerts/active?point=' + c.lat.toFixed(4) + ',' + c.lon.toFixed(4), 15000).then((r) => r.json());
     ALR.list = (j.features || []).map((f) => f.properties).filter((p) => p && p.status === 'Actual' && p.event).sort((a, b) => ALR_RANK[alrClass(a)] - ALR_RANK[alrClass(b)]);
     ALR.at = Date.now();
-    ALR.list.forEach((a) => { if (!ALR.seen.has(alertKey(a))) { ALR.seen.add(alertKey(a)); if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the alert for details', 8000); } } });
+    ALR.list.forEach((a) => { if (!ALR.seen.has(alertKey(a))) { ALR.seen.add(alertKey(a)); if (ALR_TAKEOVER.test(a.event) || (/warning/i.test(a.event) && /extreme/i.test(a.severity || ''))) severeTakeover(a); else if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the alert for details', 8000); } } });
     store.set('alrSeen', [...ALR.seen].slice(-80));
   } catch (e) { /* offline or outside NWS coverage */ }
   ALR.busy = false; renderAlertBar();
 }
+// life-threatening warnings take over the screen: red, flashing, with what to do now
+const ALR_TAKEOVER = /tornado warning|hurricane warning|extreme wind warning|tsunami warning|storm surge warning|special marine warning|severe thunderstorm warning|flash flood emergency|tropical storm warning/i;
+function severeTakeover(a) {
+  let el = $('severe'); if (!el) { el = document.createElement('div'); el.id = 'severe'; el.className = 'severe'; document.body.appendChild(el); }
+  const moving = (S.sog || 0) > 1.5, tornado = /tornado|waterspout|extreme wind/i.test(a.event), marine = /special marine|thunderstorm/i.test(a.event), tropical = /hurricane|tropical|surge/i.test(a.event);
+  const act = tornado ? (moving ? 'Get off the water now if you can reach a harbor in minutes. Otherwise: everyone in life jackets, below decks, away from the mast and windows. Drop the sails.' : 'Seek shelter now in a sturdy building, lowest floor, interior room. A boat is not a safe shelter.')
+    : marine ? (moving ? 'Head for the nearest safe harbor now. Reduce sail or drop it, everyone in life jackets, clip on, secure loose gear. Expect sudden violent gusts, lightning and hail.' : 'Stay in port. Double your dock lines and fenders. Stay off the boat if lightning is close.')
+    : tropical ? 'Follow local evacuation orders. Secure or haul the boat; do not stay aboard. Get to safe shelter inland.' : 'Take action now. Get to a safe harbor or shelter.';
+  el.innerHTML = '<div class="sv-in"><div class="sv-ic">⚠</div><div class="sv-ev">' + esc(a.event.toUpperCase()) + '</div><div class="sv-do">' + (tornado ? 'SEEK SHELTER NOW' : marine ? 'GET TO SAFE HARBOR' : 'TAKE ACTION NOW') + '</div><p>' + esc(act) + '</p>' + (a.headline ? '<p class="sv-h">' + esc(a.headline) + '</p>' : '') + (a.ends || a.expires ? '<p class="sv-h">Until ' + fmtClock(Date.parse(a.ends || a.expires)) + '</p>' : '') +
+    '<p class="sv-h">Monitor VHF 16 and NOAA Weather Radio. Mayday on VHF 16 if anyone is in danger.</p><div class="sv-btns"><button class="btn" data-sv="read">Read the full warning</button><button class="btn primary" data-sv="ok">I understand</button></div></div>';
+  el.hidden = false; try { beep(5); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 800]); } catch (e) { /* no sound */ }
+  headsUp(a.event + '. ' + (tornado ? 'Seek shelter now.' : marine ? 'Get to a safe harbor.' : 'Take action now.'));
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-sv]'); if (!b) return; $('severe').hidden = true; if (b.dataset.sv === 'read') openAlerts(); });
 function dismissWeatherAlert(key) {
   ALR.hide.add(key); ALR.read.add(key); saveAlertState(); renderAlertBar();
 }
@@ -5207,7 +5221,7 @@ function renderAlertBar() {
   el.hidden = false; el.className = 'alert-bar ' + alrClass(a) + (big ? '' : ' mini') + (fresh ? ' is-new' : '');
   const label = (fresh ? 'New weather alert: ' : 'Weather alert: ') + a.event + '. Tap to read.';
   el.title = label; el.dataset.tip = label; el.setAttribute('aria-label', label);
-  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + (alrClass(a) === 'info' ? 'i' : '⚠') + '</b><small>' + (fresh ? 'NEW' : ALR_WORD[alrClass(a)].toUpperCase().slice(0, 7)) + '</small>';
+  el.innerHTML = big ? '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + '</span><i class="ab-x" data-abx="' + esc(alertKey(a)) + '" title="Dismiss this bulletin">×</i>' : '<b aria-hidden="true">' + (alrClass(a) === 'info' ? 'i' : '⚠') + '</b><small>' + (fresh ? 'NEW' : ALR_SHORT[alrClass(a)]) + '</small>';
 }
 function openAlerts() {
   ALR.list.forEach((a) => ALR.read.add(alertKey(a))); saveAlertState(); renderAlertBar();
@@ -5657,8 +5671,8 @@ async function fmLocal(text) {
     }
     if (/\b(trim|reef|reefing|sail plan|sailing coach|coach|tack|tacking|gybe|jibe|point of sail|telltales?|upwind|downwind|beat|which sails?)\b/.test(c)) { firstMateMessage(''); $('firstMateResults').innerHTML = '<div class="fm-card">' + await sailCoachHtml() + '</div>'; return true; }
     // sailing coach: trim, reefing, when to leave
-    if (/\b(more|all|every|detailed|racing) currents?\b|currents? (detail|everywhere)/.test(c)) { S.settings.curDensity = 'all'; setCurrents(true); firstMateMessage('Showing every current station. Zoom in on a channel to see how it runs.'); return true; }
-    if (/\b(fewer|less|simpler) currents?\b/.test(c)) { S.settings.curDensity = 'few'; setCurrents(true); firstMateMessage('Showing just a few current arrows.'); return true; }
+    if (/\b(more|all|every|detailed|racing) currents?\b|currents? (detail|everywhere)/.test(c)) { S.settings.curLevel = 10; setCurrents(true); firstMateMessage('Showing every current station. Zoom in on a channel to see how it runs.'); return true; }
+    if (/\b(fewer|less|simpler) currents?\b/.test(c)) { S.settings.curLevel = 2; setCurrents(true); firstMateMessage('Showing just a few current arrows.'); return true; }
     if (/\b(best time|when should (i|we)|what time should (i|we))\b.*\b(leave|go|sail|depart|head out)\b/.test(c)) {
       const dm = c.match(/\b(?:for|to)\s+(.+?)[?.!]*$/), dq = dm ? dm[1].replace(/^(the)\s+/, '').trim() : '';
       if (dq && !/^(go|sail|leave)$/.test(dq)) {
@@ -5802,7 +5816,7 @@ async function drawCurrents() {
   const list = await curStations(); if (!curOn()) return;
   const b = map.getBounds().pad(0.15), c = map.getCenter();
   // how much to show: Few (cruising under power), Normal, or Every station (racing: see exactly how the current runs)
-  const dens = S.settings.curDensity || 'normal', cap = dens === 'few' ? (z >= 12 ? 10 : 6) : dens === 'all' ? 200 : (z >= 12 ? 40 : 25), gap = dens === 'few' ? 90 : dens === 'all' ? 18 : 48;
+  const lev = curLevel(), dens = lev <= 3 ? 'few' : lev >= 9 ? 'all' : 'normal', cap = Math.round(4 + lev * lev * 4), gap = Math.round(132 - lev * 12);
   const placed = [], vis = list.filter((x) => b.contains([x.lat, x.lon])).sort((p, q) => map.distance(c, [p.lat, p.lon]) - map.distance(c, [q.lat, q.lon])).filter((x) => {
     if (placed.length >= cap) return false; const pt = map.latLngToContainerPoint([x.lat, x.lon]);
     if (placed.some((q) => q.distanceTo(pt) < gap)) return false; placed.push(pt); return true;
@@ -5820,7 +5834,7 @@ async function drawCurrents() {
       m.on('click', (e) => { L.DomEvent.stop(e); openCurrent(st); });
       m.bindTooltip(esc(st.n) + ': ' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn ' + (now.flood ? 'flood' : 'ebb') + ' toward ' + compass16(now.dir || 0)), { direction: 'top' });
     });
-    renderCurChip();
+    renderCurChip(); CUR.vis = vis; cfField();
   };
   paint();
   const need = vis.filter((st) => !CUR.pred.has(st.id + ':' + ymdUTC(Date.now() - 86400000)));
@@ -5861,18 +5875,78 @@ async function openCurrent(st) {
 }
 function curSettingsHtml() {
   const d = S.settings.curDensity || 'normal', l = S.settings.curLbl || 'all', seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-cur' + k + '="' + v + '" class="' + (cur === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
-  return '<div class="mo-h">How much current to show</div><div class="field"><label>Arrows on the chart</label>' + seg('dens', d, [['few', 'Few'], ['normal', 'Normal'], ['all', 'Every station']]) + '<small class="hint">Few suits cruising under power. Every station shows exactly how the current runs through a channel: for racing.</small></div>' +
+  return '<div class="mo-h">How much current to show</div><div class="field"><label for="curLev">Arrows: <b id="curLevV">' + curLevelWord(curLevel()) + '</b></label><input type="range" id="curLev" min="1" max="10" step="1" value="' + curLevel() + '"><div class="cur-lev-ends"><span>A few</span><span>Every station</span></div><small class="hint">Slide left for a calm chart when cruising under power; slide right to see how the current runs through each channel, for racing.</small></div>' +
+    '<div class="field"><label>Moving current lines</label>' + seg('anim', S.settings.curAnim === false ? 'off' : 'on', [['on', 'On: water flows like the wind lines'], ['off', 'Off']]) + '<small class="hint">Lines drift the way the water runs, faster where the current is strong. They are drawn only near NOAA stations, and between stations they are an estimate.</small></div>' +
     '<div class="field"><label>Speed numbers</label>' + seg('lbl', l, [['all', 'On every arrow'], ['strong', 'Only 1 kn and up'], ['none', 'Off']]) + '</div>';
 }
 sheet.addEventListener('click', (e) => {
-  const d = e.target.closest('[data-curdens]'), l = e.target.closest('[data-curlbl]'); if (!d && !l) return;
-  if (d) S.settings.curDensity = d.dataset.curdens; if (l) S.settings.curLbl = l.dataset.curlbl; saveSettings();
-  (d || l).parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === (d || l))); drawCurrents();
+  const d = e.target.closest('[data-curanim]'), l = e.target.closest('[data-curlbl]'); if (!d && !l) return;
+  if (d) S.settings.curAnim = d.dataset.curanim === 'on'; if (l) S.settings.curLbl = l.dataset.curlbl; saveSettings();
+  (d || l).parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === (d || l))); drawCurrents(); cfField();
 });
 function openCurSettings() { openSheet('<h3>Tidal currents</h3><div class="sub">Arrows show where the water is running and how fast, from NOAA predictions. Tap an arrow for that spot.</div>' + curSettingsHtml() + '<div class="row-btns"><button class="btn" data-curtoggle>' + (curOn() ? 'Hide currents' : 'Show currents') + '</button><button class="btn ghost" data-act="close">Close</button></div>'); }
 document.addEventListener('click', async (e) => { if (!e.target.closest('[data-cur-near]')) return; const st = await nearestCurrent(S.fix || homePort() || refPos()); if (st) openCurrent(st); else openCurSettings(); });
 sheet.addEventListener('click', (e) => { if (e.target.closest('[data-curtoggle]')) { setCurrents(!curOn()); openCurSettings(); } });
-function setCurrents(on) { S.settings.curOn = on; saveSettings(); drawCurrents(); renderCurChip(); try { renderWxBtn(); } catch (e) { /* early */ } }
+sheet.addEventListener('input', (e) => { if (e.target.id !== 'curLev') return; S.settings.curLevel = +e.target.value; delete S.settings.curDensity; const v = $('curLevV'); if (v) v.textContent = curLevelWord(S.settings.curLevel); clearTimeout(CUR.lt); CUR.lt = setTimeout(() => { saveSettings(); drawCurrents(); }, 150); });
+function curLevel() { if (S.settings.curLevel) return S.settings.curLevel; const d = S.settings.curDensity; return d === 'few' ? 2 : d === 'all' ? 10 : 5; }
+function curLevelWord(l) { return l <= 2 ? 'a few' : l <= 4 ? 'some' : l <= 6 ? 'normal' : l <= 8 ? 'lots' : 'every station'; }
+/* moving current lines: particles drift with the current, estimated between nearby NOAA stations and drawn only close to them */
+const CF = { cv: null, ctx: null, parts: [], grid: null, raf: 0, moving: false };
+function cfOn() { return curOn() && S.settings.curAnim !== false && map.getZoom() >= 10; }
+function cfCanvas() {
+  if (CF.cv) return; CF.cv = document.createElement('canvas'); CF.cv.className = 'cur-flow'; map.getContainer().appendChild(CF.cv); CF.ctx = CF.cv.getContext('2d');
+  const size = () => { const s2 = map.getSize(), dpr = Math.min(2, window.devicePixelRatio || 1); CF.cv.width = s2.x * dpr; CF.cv.height = s2.y * dpr; CF.cv.style.width = s2.x + 'px'; CF.cv.style.height = s2.y + 'px'; CF.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+  size(); map.on('resize', () => { size(); cfField(); });
+  map.on('movestart zoomstart', () => { CF.moving = true; CF.land = null; CF.landKey = ''; CF.ctx.clearRect(0, 0, CF.cv.width, CF.cv.height); });
+  map.on('moveend zoomend', () => { CF.moving = false; cfField(); });
+}
+function cfField() {
+  cfCanvas(); if (!cfOn() || !CUR.vis || !CUR.vis.length) { CF.grid = null; CF.ctx.clearRect(0, 0, CF.cv.width, CF.cv.height); return; }
+  const t = curTime(), key = ymdUTC(Date.now() - 86400000), mr = mapRot() * Math.PI / 180;
+  const st = CUR.vis.map((x) => { const n = curAt(CUR.pred.get(x.id + ':' + key), t); if (!n) return null; const pt = map.latLngToContainerPoint([x.lat, x.lon]), a = (n.dir || 0) * Math.PI / 180 + mr; return { x: pt.x, y: pt.y, u: Math.sin(a) * n.kn, v: -Math.cos(a) * n.kn, kn: n.kn }; }).filter(Boolean);
+  if (!st.length) { CF.grid = null; return; }
+  const sz = map.getSize(), G = 22, W = Math.ceil(sz.x / G) + 1, H = Math.ceil(sz.y / G) + 1, u = new Float32Array(W * H), v = new Float32Array(W * H), ok = new Uint8Array(W * H);
+  const nmPx = (() => { const c = map.getCenter(), a = map.latLngToContainerPoint(c), b = map.latLngToContainerPoint([c.lat + 1 / 60, c.lng]); return Math.hypot(a.x - b.x, a.y - b.y); })();
+  const R = Math.max(40, nmPx * 1.2); // draw only within about 1.2 nm of a station
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const x = i * G, y = j * G; let wu = 0, wv = 0, ws = 0, near = Infinity;
+    st.forEach((q) => { const d = Math.hypot(q.x - x, q.y - y); near = Math.min(near, d); if (d < R * 2.5) { const w = 1 / Math.max(64, d * d); wu += q.u * w; wv += q.v * w; ws += w; } });
+    const k = j * W + i; if (near < R && ws) { u[k] = wu / ws; v[k] = wv / ws; ok[k] = 1; }
+  }
+  CF.grid = { W, H, G, u, v, ok };
+  cfLand(); // keep the lines off land, using the NOAA chart's land areas for this view
+  if (!CF.parts.length || CF.parts.length !== cfCount()) CF.parts = Array.from({ length: cfCount() }, () => cfSpawn());
+  if (!CF.raf) CF.raf = requestAnimationFrame(cfStep);
+}
+async function cfLand() {
+  const b = map.getBounds().pad(0.05), key = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].map((x) => x.toFixed(3)).join(','); if (CF.landKey === key) return; CF.landKey = key;
+  const z = map.getZoom(), svc = z >= 13 ? 'enc_harbour' : 'enc_approach', bb = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  let land = []; try { land = await encQuery(svc, 'land', bb, (0.00002 * Math.pow(2, 16 - z)).toFixed(6)); if (!land.length && svc === 'enc_harbour') land = await encQuery('enc_approach', 'land', bb, 0.0001); } catch (e) { return; }
+  if (CF.landKey !== key) return;
+  const sz = map.getSize(), m = document.createElement('canvas'); m.width = sz.x; m.height = sz.y; const c = m.getContext('2d'); c.fillStyle = '#000';
+  land.forEach((f) => { if (!f.rings) return; c.beginPath(); f.rings.forEach((r) => r.forEach(([lon, lat], i) => { const p = map.latLngToContainerPoint([lat, lon]); if (i) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y); })); c.fill('evenodd'); });
+  CF.land = { d: c.getImageData(0, 0, sz.x, sz.y).data, w: sz.x, h: sz.y };
+}
+function cfCount() { return Math.round(150 + curLevel() * 90); }
+function cfSpawn() { const sz = map.getSize(); return { x: Math.random() * sz.x, y: Math.random() * sz.y, age: Math.random() * 60 | 0 }; }
+function cfAt(x, y) { const g = CF.grid; if (!g) return null; const Ld = CF.land; if (Ld && x >= 0 && y >= 0 && x < Ld.w && y < Ld.h && Ld.d[((y | 0) * Ld.w + (x | 0)) * 4 + 3] > 100) return null; const i = Math.round(x / g.G), j = Math.round(y / g.G); if (i < 0 || j < 0 || i >= g.W || j >= g.H) return null; const k = j * g.W + i; return g.ok[k] ? [g.u[k], g.v[k]] : null; }
+function cfStep() {
+  CF.raf = 0; if (!cfOn() || !CF.grid || document.hidden) { if (CF.ctx) CF.ctx.clearRect(0, 0, CF.cv.width, CF.cv.height); return; }
+  CF.raf = requestAnimationFrame(cfStep); if (CF.moving) return;
+  const c = CF.ctx, sz = map.getSize(), night = document.documentElement.hasAttribute('data-night');
+  c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.10)'; c.fillRect(0, 0, sz.x, sz.y); c.globalCompositeOperation = 'source-over';
+  c.lineWidth = 1.6; c.lineCap = 'round';
+  CF.parts.forEach((p) => {
+    const f = cfAt(p.x, p.y); if (!f || ++p.age > 90) { Object.assign(p, cfSpawn(), { age: 0 }); return; }
+    const kn = Math.hypot(f[0], f[1]); if (kn < 0.15) { p.age += 3; return; }
+    const sp = 0.45 + kn * 0.9, nx = p.x + f[0] / kn * sp, ny = p.y + f[1] / kn * sp;
+    c.strokeStyle = night ? 'rgba(220,120,100,.75)' : kn < 0.6 ? 'rgba(40,110,200,.55)' : kn < 1.2 ? 'rgba(10,140,150,.7)' : kn < 2 ? 'rgba(220,130,0,.8)' : 'rgba(210,40,40,.85)';
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(nx, ny); c.stroke(); p.x = nx; p.y = ny;
+  });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && cfOn()) cfField(); });
+map.on('rotate', () => { clearTimeout(CF.rt); CF.rt = setTimeout(cfField, 150); });
+function setCurrents(on) { S.settings.curOn = on; saveSettings(); drawCurrents(); renderCurChip(); cfField(); try { renderWxBtn(); } catch (e) { /* early */ } }
 (() => { // the current button sits with wind, waves, rain and tide in the weather pop-out
   const grp = document.querySelector('.wx-pop'); if (!grp) return;
   const b = document.createElement('button'); b.id = 'curChip'; b.type = 'button'; b.className = 'fab info'; b.setAttribute('aria-label', 'Tidal currents on the chart');
@@ -6154,11 +6228,11 @@ sheet.addEventListener('change', (e) => { const c = e.target.closest('[data-loop
 setTimeout(drawLoopReps, 3000);
 /* ---------- activity themes: one tap sets colors and the layers that matter for what you are doing today ---------- */
 const ACTIVITY = [
-  ['sail', 'Sailing', 'navy', 'Wind lines, current arrows, the sailing coach and reef tips', () => { S.settings.underSail = true; setWxL('wind', true); S.settings.curDensity = 'normal'; S.settings.curOn = true; S.settings.sailTips = true; }],
-  ['race', 'Racing', 'july4', 'Every current station with speeds, wind lines, sailing coach', () => { S.settings.underSail = true; setWxL('wind', true); S.settings.curDensity = 'all'; S.settings.curLbl = 'all'; S.settings.curOn = true; S.settings.sailTips = true; }],
-  ['cruise', 'Cruising', 'blue', 'A clean chart: a few current arrows, motoring speeds', () => { S.settings.underSail = false; setWxL('wind', false); S.settings.curDensity = 'few'; S.settings.curLbl = 'strong'; }],
-  ['fish', 'Fishing', 'green', 'Fish structure, fishing tips, current arrows (fish feed on moving water)', () => { S.settings.structOn = true; S.settings.fishTips = true; S.settings.curOn = true; S.settings.curDensity = 'normal'; }],
-  ['loop', 'Great Loop', 'gold', 'Looper reports on the chart, the Loop advisor, a clean chart', () => { S.settings.loopRepsOn = true; S.settings.curDensity = 'few'; }]
+  ['sail', 'Sailing', 'navy', 'Wind lines, current arrows, the sailing coach and reef tips', () => { S.settings.underSail = true; setWxL('wind', true); S.settings.curLevel = 6; S.settings.curOn = true; S.settings.sailTips = true; }],
+  ['race', 'Racing', 'july4', 'Every current station with speeds, wind lines, sailing coach', () => { S.settings.underSail = true; setWxL('wind', true); S.settings.curLevel = 10; S.settings.curLbl = 'all'; S.settings.curAnim = true; S.settings.curOn = true; S.settings.sailTips = true; }],
+  ['cruise', 'Cruising', 'blue', 'A clean chart: a few current arrows, motoring speeds', () => { S.settings.underSail = false; setWxL('wind', false); S.settings.curLevel = 2; S.settings.curLbl = 'strong'; }],
+  ['fish', 'Fishing', 'green', 'Fish structure, fishing tips, current arrows (fish feed on moving water)', () => { S.settings.structOn = true; S.settings.fishTips = true; S.settings.curOn = true; S.settings.curLevel = 5; }],
+  ['loop', 'Great Loop', 'gold', 'Looper reports on the chart, the Loop advisor, a clean chart', () => { S.settings.loopRepsOn = true; S.settings.curLevel = 2; }]
 ];
 function setActivity(id) {
   const a = ACTIVITY.find((x) => x[0] === id); if (!a) return; S.settings.activity = id; S.settings.btheme = a[2]; a[4](); saveSettings();
