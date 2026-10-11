@@ -2648,6 +2648,21 @@ function resizePhoto(file) {
   });
 }
 const lenM = () => S.settings.boatLen * 0.3048;
+/* a few well-known boats, from the builders' published specs; anything filled in is shown so the owner can check it */
+const BOAT_DB = [
+  { make: 'Catalina', model: '22', loa: 21.5, lwl: 19.33, beam: 7.67, disp: 2490, type: 'sail' },
+  { make: 'Catalina', model: '27', loa: 27.0, lwl: 21.75, beam: 8.83, draft: 4.0, disp: 6850, type: 'sail' },
+  { make: 'Catalina', model: '30', loa: 29.92, lwl: 25.0, beam: 10.83, draft: 5.25, disp: 10200, type: 'sail' },
+  { make: 'J/Boats', alias: /^j\/?\s*24$/i, model: 'J/24', loa: 24.0, lwl: 20.0, beam: 8.9, draft: 4.0, disp: 3100, type: 'sail' },
+];
+function boatLookup(make, model) {
+  const mk = String(make || '').toLowerCase().trim(), md = String(model || '').toLowerCase().replace(/\s+/g, '').trim();
+  return BOAT_DB.find((x) => (x.alias && (x.alias.test(model) || x.alias.test(make + ' ' + model))) || (x.make.toLowerCase() === mk && x.model.toLowerCase().replace(/\s+/g, '') === md)) || null;
+}
+function hullSpeed() { // displacement hulls: 1.34 × √(waterline length in feet)
+  const lwl = S.boat.lwlFt || (S.settings.boatType === 'sail' && S.settings.boatLen ? S.settings.boatLen * 0.83 : null);
+  return lwl ? { kn: 1.34 * Math.sqrt(lwl), est: !S.boat.lwlFt } : null;
+}
 function boatSummary() {
   const b = S.boat, bits = [];
   if (b.make || b.model) bits.push([b.year, b.make, b.model].filter(Boolean).join(' '));
@@ -2655,6 +2670,7 @@ function boatSummary() {
   if (b.beamFt) bits.push(fmtLen(b.beamFt) + ' beam');
   if (b.draftFt) bits.push(fmtLen(b.draftFt) + ' draft');
   if (b.airDraftFt) bits.push(fmtLen(b.airDraftFt) + ' air draft');
+  const hs = hullSpeed(); if (hs && S.settings.boatType === 'sail') bits.push('hull speed ' + fmtSpeed(hs.kn) + ' ' + SPEED_LBL[S.settings.speedUnit] + (hs.est ? ' (estimated)' : ''));
   if (b.anchorType) bits.push((ANCHORS[b.anchorType] || {}).name + (b.anchorLb ? ' ' + b.anchorLb + ' lb' : '') + ' anchor' + (b.rodeTotalFt ? ', ' + fmtLen(b.rodeTotalFt) + ' rode' : ''));
   return bits.join(' · ');
 }
@@ -2678,6 +2694,8 @@ function profileHtml() {
     sel('bUse', 'Mainly used for (sets up the tools you see)', st.useMode || 'cruise', [['cruise', 'Cruising and day trips'], ['fish', 'Fishing (marks your spots)'], ['race', 'Racing (more coming)'], ['pro', 'Delivery or professional captain']]) +
     '<div class="grid2">' + f('bMake', 'Make', b.make) + f('bModel', 'Model', b.model) + '</div>' +
     '<div class="grid2">' + f('bLen', 'Length (' + lenUnit() + ')', L2(st.boatLen), 'number') + f('bBeam', 'Beam (' + lenUnit() + ')', L2(b.beamFt), 'number') + '</div>' +
+    '<div class="grid2">' + f('bLwl', 'Waterline length (' + lenUnit() + ')', L2(b.lwlFt), 'number') + f('bDisp', 'Displacement (lb)', b.dispLb, 'number') + '</div>' +
+    '<p class="hint" id="bDbNote" style="margin:-2px 0 4px">Enter make and model: known boats fill in their specs for you to check.</p>' +
     '<div class="grid2">' + f('bDraft', 'Draft (' + lenUnit() + ')', L2(b.draftFt), 'number') + f('bAir', 'Air draft (' + lenUnit() + ')' + (st.boatType === 'sail' ? ', masthead and antennas' : ', highest point'), L2(b.airDraftFt), 'number') + '</div>' +
     '<div class="grid2">' + sel('bEngKind', 'Engine', b.engineKind, [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive'], ['pod', 'Pod drive (IPS etc.)'], ['none', 'No engine']]) + f('bHp', 'Horsepower', b.engineHp, 'number') + '</div>' +
     '<div class="grid2">' + f('bEngMake', 'Engine make', b.engineMake) + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
@@ -2698,6 +2716,8 @@ function saveBoatForm() {
   b.beamFt = n('bBeam') != null ? lenToFt(n('bBeam')) : null; b.draftFt = n('bDraft') != null ? lenToFt(n('bDraft')) : null; b.airDraftFt = n('bAir') != null ? lenToFt(n('bAir')) : null;
   b.engineKind = v('bEngKind'); b.engineHp = n('bHp'); b.engineMake = v('bEngMake'); b.engineModel = v('bEngModel'); b.engineHours = n('bHours') || 0;
   b.batteryKind = v('bBatt'); b.batteryInstalled = v('bBattDate');
+  b.lwlFt = n('bLwl') != null ? lenToFt(n('bLwl')) : null; b.dispLb = n('bDisp');
+  { const hs = hullSpeed(); if (hs && st.boatType === 'sail' && (!st.sailSpeed || st.sailSpeed === 5)) st.sailSpeed = Math.round(hs.kn * 0.8 * 10) / 10; }
   b.safetyFt = n('bSafe') != null ? lenToFt(n('bSafe')) : 2; b.gph = n('bGph'); b.tankGal = n('bTank'); b.mmsi = /^\d{9}$/.test(v('bMmsi')) ? v('bMmsi') : '';
   if (v('bMmsi') && !b.mmsi) toast('MMSI should be 9 digits. Left blank.');
   b.anchorType = v('bAnchor'); b.anchorLb = n('bAnchorLb'); b.chainFt = n('bChain') != null ? lenToFt(n('bChain')) : null; b.rodeTotalFt = n('bRode') != null ? lenToFt(n('bRode')) : null;
@@ -2966,6 +2986,14 @@ $('panelBoat').addEventListener('change', async (e) => {
   }
   if (e.target.id === 'fogBox') { fogMode = e.target.checked; renderBoat(); }
   if (e.target.id === 'mHours') { S.boat.engineHours = parseFloat(e.target.value) || 0; saveBoat(); renderBoat(); }
+});
+$('panelBoat').addEventListener('change', (e) => {
+  if (e.target.id !== 'bMake' && e.target.id !== 'bModel') return;
+  const d = boatLookup($('bMake') && $('bMake').value, $('bModel') && $('bModel').value); if (!d) return;
+  const L3 = (ft) => String(Math.round(ftToLen(ft) * 10) / 10), put = (id, v) => { const el = $(id); if (el && v != null && !el.value) el.value = v; };
+  put('bLen', L3(d.loa)); put('bLwl', L3(d.lwl)); put('bBeam', L3(d.beam)); if (d.draft) put('bDraft', L3(d.draft)); put('bDisp', d.disp);
+  const hs = 1.34 * Math.sqrt(lenToFt(parseFloat($('bLwl').value) || ftToLen(d.lwl)));
+  if ($('bDbNote')) $('bDbNote').textContent = 'Filled in from the published ' + d.make + ' ' + d.model + ' specs (hull speed about ' + fmtSpeed(hs) + ' ' + SPEED_LBL[S.settings.speedUnit] + '). Check them against your boat; keels and rigs vary.';
 });
 $('panelBoat').addEventListener('input', (e) => {
   if (e.target.id === 'battV') $('battOut').textContent = batteryVerdict(parseFloat(e.target.value)) || 'Enter a reading such as 12.4';
@@ -3436,7 +3464,7 @@ function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && 
 function ckGauge(id) {
   const w = S.weather, tn = tideNow(), ob = nearestObs(), moving = (S.sog || 0) > 0.6;
   if (id === 'auto') id = S.goto && S.fix ? 'dest' : 'tide';
-  if (id === 'speed') { const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
+  if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'course') return gWrap('COURSE', compassGauge(moving ? S.cog : null), 'Course over ground');
   if (id === 'wind') { const wd = ob ? { dir: ob.dir, spd: ob.spd, gust: ob.gust, cap: 'Measured · ' + agoTxt(ob.t) } : w && w.cur ? { dir: w.cur.dir, spd: w.cur.spd, gust: w.cur.gust, cap: 'Forecast · ' + agoTxt(w.at) } : null; return gWrap('WIND ' + (wd ? compass16(wd.dir) : ''), windGauge(wd && wd.dir, wd && wd.spd, wd && wd.gust, moving ? S.cog : 0), wd ? wd.cap + (moving ? ' · arrow relative to bow' : ' · arrow: north up') : 'No wind data yet'); }
   if (id === 'tide') return tn ? gWrap('TIDE', tideGauge(tn), tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · NOAA' : 'NOAA prediction') : gWrap('TIDE', '<text x="100" y="108" class="g-unit">No tide station yet</text>', '');
