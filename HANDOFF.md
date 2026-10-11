@@ -1,6 +1,6 @@
 # Tideline handoff notes
 
-Last updated: build 121 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
+Last updated: build 123 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
 
 ## What it is
 A phone-first marine chart app (PWA) for the Chesapeake, built to work anywhere NOAA has data. Owner: Andy Brickman. Design rules from Andy: clean, calm first screen; symmetry; everything toggleable; an X on every popup; press-and-hold names on phone (hover on desktop); nothing cluttered.
@@ -76,3 +76,19 @@ Give concrete fixes. Keep the design rules: calm chart first, symmetry, everythi
 - Fixed: tapping a saved fishing spot crashed (two functions named openSpot).
 - UX: drag buttons anywhere with magnets; slim arrange bar that fades while dragging; small light button-name labels (tap-flash off by default); "WX" alert button with a pulsing ring; Gauge look picker with face artwork (swirl, topo, rose, horizon, swells); white classic buttons.
 Still open from the review: service-worker caching of data (stale offline data shown as fresh; ENC host cached forever), WR.cache growth, ENC bridge matching, tide gauge FLOOD/EBB wording, lightning re-warn by distance band.
+
+## Build 123 — routing fixed against REAL NOAA data
+- The workspace can't reach NOAA, so `.github/workflows/route-check.yml` runs on GitHub: `tests/enc-snapshot.mjs` downloads the Annapolis-area ENC layers and `tests/live-route.mjs` runs real routes; results go to the `diag` branch (`report.md`, `enc/`). To replay offline: put `diag:enc` in the scratchpad and stub `encdirect` requests from it (see encstub.py pattern: filter features by envelope, honour resultOffset).
+- Root causes found on real data: (1) pins at clubs/marinas sit on land or in water shallower than draft, so start/end snapping (160 m) failed → straight line; (2) seams between adjacent depth polygons were anti-aliased and read as land; (3) coastal-scale charts only give depth ranges (0–18 ft) for most of the Bay, which were blocked; (4) ~30 parallel requests per grid → NOAA 429/504; (5) Start dropped the "unchecked" flag.
+- Fixes: tiled + cached ENC fetching (4 at a time, retry/backoff, OBJECTID dedupe); per-scale canvases merged coarse→fine, areas outlined in their own colour; depth-range areas allowed at higher cost with a plain "watch the depth" note; snap 500 m, then nearest connected water within 3 km for inland pins; finer grid (≤1400 cells, ≥30 m); corner-cut pieces re-solved on a 30 m grid and spliced; unchecked routes drawn dashed orange, Start needs a second tap, navigation banner warns.
+- Replay results: SSA→St. Michaels (via Eastern Bay and Miles River), Rock Hall, Thomas Point, Back Creek, Oxford, Baltimore all route in water.
+- Also in 123: water-only destination search (+ "include places on land"), planner departure time with a trip weather verdict and a better-window suggestion, contrast/overlap fixes across themes, ship-shaped AIS markers with a ship sheet (names off by default), Clean/Standard/Full chart detail (NOAA display_params; needs a live check), first mate name + wake word + forgiving commands, arrange snap grid + Tidy up.
+
+## More of Andy's ideas (11 Oct, later)
+- Destination guide: things to do at St. Michaels (bike rental, maritime museum, restaurants with reviews), best marinas for showers; marinas/fuel near me with ETA, hours, phone, VHF. (Google reviews need the paid Google Places API through a relay; OSM is free but thin.) Big monetization lever (affiliate bookings).
+- Real AI voice for the first mate (OpenAI or ElevenLabs TTS via relay; ElevenLabs can clone the owner's voice). Browser voices sound robotic.
+- Grounding warnings: the first mate warns when your course leads into water shallower than your draft.
+- Icons that can take the gauge themes (e.g. Navy and brass everywhere), optional.
+- Zoom +/− and locate buttons default to bottom right.
+- A simple vector "clean chart" (savvy navvy style) drawn from ENC data instead of the printed chart.
+- Fun boat icons (Titanic, carrier, dolphin, Pride of Baltimore) and boat photo as the boat icon.

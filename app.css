@@ -423,6 +423,14 @@ body { font-variant-numeric: tabular-nums; }
 .mo .mo-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); margin: 16px 0 8px; }
 .mo .seg { background: var(--surface2); border: 1px solid var(--line); }
 .mo .seg button { color: var(--ink); }
+/* NOAA chart detail: presets and the Customize disclosure */
+.mo .cd-more { margin: 4px 0 10px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; }
+.mo .cd-more > summary { cursor: pointer; padding: 11px 0; font-weight: 600; font-size: 14.5px; color: var(--ink); }
+.mo .cd-more[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.mo .cd-more .cd-l { font-size: 13px; font-weight: 600; color: var(--ink); margin: 12px 0 6px; }
+.mo .cd-more .seg button { font-size: 12.5px; padding-left: 6px; padding-right: 6px; }
+.mo .cd-more .hint { display: block; margin: 4px 0 2px; }
+.mo .cd-more .opt:last-of-type { border-bottom: 0; }
 /* easy view: bigger icons and text */
 :root.easy .chip b { font-size: 23px; }
 :root.easy .chip { font-size: 15px; }
@@ -768,6 +776,7 @@ html.nogps .quick { top: calc(56px + env(safe-area-inset-top, 0px)); }
 .q-t.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .q-t.on i { border-color: #fff; background: #fff; box-shadow: inset 0 0 0 3px var(--accent); }
 .q-h { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); margin: 12px 2px 6px; }
+.q-cd { margin-bottom: 10px; }
 .q-more { width: 100%; margin-top: 10px; }
 /* symbol and label sizes */
 html[data-pins="S"] .mp-pin, html[data-pins="S"] .br-pin { transform: scale(.85); transform-origin: left center; }
@@ -1781,3 +1790,161 @@ html.arr-dragging .arr-bar { opacity: .12; pointer-events: none; transition: opa
 .g-baro-hand { stroke: var(--gi-ink, var(--g-ink)); stroke-width: 3.2; stroke-linecap: round; } .g-baro-hand.bad { stroke: #FF5A4F; }
 .g-baro-set { stroke: #C9A04E; stroke-width: 2; stroke-linecap: round; opacity: .9; }
 .g-num { text-anchor: middle; font: 600 10px var(--f-num); fill: var(--g-muted); }
+
+/* ---- contrast and overlap audit fixes (build 122) ---- */
+/* ===== contrast fixes (audit 2026-10-11) — append to the end of app.css ===== */
+
+/* 1. Light-faced gauge looks (Arctic white, Classic white, Heritage brass, Brass and ivory):
+   the panel around the gauges stays dark navy, so its header, buttons, tile labels and footers
+   keep light ink. The dark theme ink is used only inside the gauge faces (the SVG). */
+:root:is([data-gtheme="arctic"], [data-gtheme="whiteface"], [data-gtheme="heritage"], [data-gtheme="brass"]):not([data-night]) :is(.cockpit, #panelSide) {
+  --g-ink: #EAF4F8 !important; --g-muted: #A9BCCD !important; --g-acc: #2CD3C5 !important; --g-acc2: #5AE3FF !important; --g-line: #3A5670 !important;
+}
+:root:is([data-gtheme="arctic"], [data-gtheme="whiteface"], [data-gtheme="heritage"], [data-gtheme="brass"]):not([data-night]) :is(.cockpit, #panelSide) .gauge svg {
+  --g-ink: var(--gi-ink) !important; --g-muted: var(--gi-muted) !important; --g-acc: var(--gi-acc) !important; --g-acc2: var(--gi-acc) !important;
+  /* tracks, inner rings and the compass hub were painted navy (--g-face/--g-bg) on top of the white face: tint them from the ink instead */
+  --g-face: color-mix(in srgb, var(--gi-ink) 9%, transparent) !important; --g-bg: transparent !important; --g-line: color-mix(in srgb, var(--gi-ink) 35%, transparent) !important;
+  --g-amber: #B86E00 !important; --g-red: #C62828 !important;
+}
+
+/* 2. Instruments header overflows a phone (393 px): "Customize" is cut and the × close button sits off-screen.
+   On a phone the GPS status drops to a small second line under the title; the buttons stay whole. */
+.ck-head > b, .ck-head > button { flex: none; }
+.ck-head .ck-gps { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 600px) {
+  .ck-head { display: grid !important; grid-template-columns: auto 1fr auto auto auto; column-gap: 8px; row-gap: 0; align-items: center; }
+  .ck-head > b { grid-row: 1; grid-column: 1; line-height: 1.1; }
+  .ck-head .ck-gps { grid-row: 2; grid-column: 1 / 3; text-align: left !important; font-size: 12px; line-height: 1.2; }
+  .ck-head .ck-look { grid-row: 1 / 3; grid-column: 3; margin-right: 0; }
+  .ck-head .ck-edit { grid-row: 1 / 3; grid-column: 4; padding: 0 12px; }
+  .ck-head .ck-close { grid-row: 1 / 3; grid-column: 5; width: 40px; height: 40px; }
+}
+
+/* 3. The chart's Leaflet attribution strip (z-index 1000) floats above every sheet, panel and the Instruments
+   panel, covering their bottom line ("Artwork in the face", anchor notes, menu rows, lower gauge tiles).
+   Give the map its own stacking context so its controls stay on the map. */
+#map { z-index: 0; }
+
+/* 4. Wind dial: the boat outline is drawn straight through the wind speed and "gust" numbers */
+.gauge .g-hull { opacity: .45; }
+
+/* 5. Analog barometer: the reading sat on top of the scale numbers (28.3, 30.7) and "VERY DRY".
+   Needs the aneroidGauge() JS change (reading moved to y=158, trend word on its own line at y=172). */
+.g-baro-v { font-size: 12px; letter-spacing: .02em; } .g-baro-v.sm { font-size: 10px; font-weight: 700; }
+
+/* 6. Gauge look sheet: with Classic white, Arctic white or Brass active, the active theme's face colours beat the
+   preview rules (same specificity, later in the file), so most previews showed the same white face and the
+   choices could not be told apart. Pin every preview to its own colours. */
+.gl-row .gl-prev[data-gt="midnight"] .ch1 { stop-color: #F7FAFC; } .gl-row .gl-prev[data-gt="midnight"] .ch2 { stop-color: #A7B2BC; } .gl-row .gl-prev[data-gt="midnight"] .ch3 { stop-color: #4E5963; } .gl-row .gl-prev[data-gt="midnight"] .ch4 { stop-color: #E2E8ED; } .gl-row .gl-prev[data-gt="midnight"] .ch5 { stop-color: #6D7882; } .gl-row .gl-prev[data-gt="midnight"] .fc1 { stop-color: #1C3A52; } .gl-row .gl-prev[data-gt="midnight"] .fc2 { stop-color: #07111A; }
+.gl-row .gl-prev[data-gt="arctic"] .ch1 { stop-color: #F7FAFC; } .gl-row .gl-prev[data-gt="arctic"] .ch2 { stop-color: #A7B2BC; } .gl-row .gl-prev[data-gt="arctic"] .ch3 { stop-color: #4E5963; } .gl-row .gl-prev[data-gt="arctic"] .ch4 { stop-color: #E2E8ED; } .gl-row .gl-prev[data-gt="arctic"] .ch5 { stop-color: #6D7882; } .gl-row .gl-prev[data-gt="arctic"] .fc1 { stop-color: #FFFFFF; } .gl-row .gl-prev[data-gt="arctic"] .fc2 { stop-color: #D9E2EA; }
+.gl-row .gl-prev[data-gt="bronze"] .ch1 { stop-color: #FCE7BE; } .gl-row .gl-prev[data-gt="bronze"] .ch2 { stop-color: #C08A45; } .gl-row .gl-prev[data-gt="bronze"] .ch3 { stop-color: #6B4518; } .gl-row .gl-prev[data-gt="bronze"] .ch4 { stop-color: #F0C987; } .gl-row .gl-prev[data-gt="bronze"] .ch5 { stop-color: #8A5A22; } .gl-row .gl-prev[data-gt="bronze"] .fc1 { stop-color: #2E251B; } .gl-row .gl-prev[data-gt="bronze"] .fc2 { stop-color: #0E0A06; }
+.gl-row .gl-prev[data-gt="glass"] .ch1 { stop-color: #F2FBFF; } .gl-row .gl-prev[data-gt="glass"] .ch2 { stop-color: #8FD3F5; } .gl-row .gl-prev[data-gt="glass"] .ch3 { stop-color: #2C6E99; } .gl-row .gl-prev[data-gt="glass"] .ch4 { stop-color: #CDEFFF; } .gl-row .gl-prev[data-gt="glass"] .ch5 { stop-color: #4C93BF; } .gl-row .gl-prev[data-gt="glass"] .fc1 { stop-color: #11507E; } .gl-row .gl-prev[data-gt="glass"] .fc2 { stop-color: #041628; }
+.gl-row .gl-prev[data-gt="expedition"] .ch1 { stop-color: #A8AEB4; } .gl-row .gl-prev[data-gt="expedition"] .ch2 { stop-color: #4A4F55; } .gl-row .gl-prev[data-gt="expedition"] .ch3 { stop-color: #16191C; } .gl-row .gl-prev[data-gt="expedition"] .ch4 { stop-color: #7A8087; } .gl-row .gl-prev[data-gt="expedition"] .ch5 { stop-color: #2B2F34; } .gl-row .gl-prev[data-gt="expedition"] .fc1 { stop-color: #23272B; } .gl-row .gl-prev[data-gt="expedition"] .fc2 { stop-color: #0A0B0D; }
+.gl-row .gl-prev[data-gt="heritage"] .ch1 { stop-color: #FFF1C9; } .gl-row .gl-prev[data-gt="heritage"] .ch2 { stop-color: #C9A04E; } .gl-row .gl-prev[data-gt="heritage"] .ch3 { stop-color: #6E4F12; } .gl-row .gl-prev[data-gt="heritage"] .ch4 { stop-color: #EBCF86; } .gl-row .gl-prev[data-gt="heritage"] .ch5 { stop-color: #8E6A1F; } .gl-row .gl-prev[data-gt="heritage"] .fc1 { stop-color: #FBF5E6; } .gl-row .gl-prev[data-gt="heritage"] .fc2 { stop-color: #E6D8BA; }
+.gl-row .gl-prev[data-gt="classic"] .ch1 { stop-color: #F7FAFC; } .gl-row .gl-prev[data-gt="classic"] .ch2 { stop-color: #A7B2BC; } .gl-row .gl-prev[data-gt="classic"] .ch3 { stop-color: #4E5963; } .gl-row .gl-prev[data-gt="classic"] .ch4 { stop-color: #E2E8ED; } .gl-row .gl-prev[data-gt="classic"] .ch5 { stop-color: #6D7882; } .gl-row .gl-prev[data-gt="classic"] .fc1 { stop-color: #1C1F23; } .gl-row .gl-prev[data-gt="classic"] .fc2 { stop-color: #050607; }
+.gl-row .gl-prev[data-gt="whiteface"] .ch1 { stop-color: #F7FAFC; } .gl-row .gl-prev[data-gt="whiteface"] .ch2 { stop-color: #A7B2BC; } .gl-row .gl-prev[data-gt="whiteface"] .ch3 { stop-color: #4E5963; } .gl-row .gl-prev[data-gt="whiteface"] .ch4 { stop-color: #E2E8ED; } .gl-row .gl-prev[data-gt="whiteface"] .ch5 { stop-color: #6D7882; } .gl-row .gl-prev[data-gt="whiteface"] .fc1 { stop-color: #FFFFFF; } .gl-row .gl-prev[data-gt="whiteface"] .fc2 { stop-color: #E9EDF0; }
+.gl-row .gl-prev[data-gt="brass"] .ch1 { stop-color: #FFF0C2; } .gl-row .gl-prev[data-gt="brass"] .ch2 { stop-color: #C9A04E; } .gl-row .gl-prev[data-gt="brass"] .ch3 { stop-color: #6E4F12; } .gl-row .gl-prev[data-gt="brass"] .ch4 { stop-color: #EBCF86; } .gl-row .gl-prev[data-gt="brass"] .ch5 { stop-color: #8E6A1F; } .gl-row .gl-prev[data-gt="brass"] .fc1 { stop-color: #FFFDF6; } .gl-row .gl-prev[data-gt="brass"] .fc2 { stop-color: #EFE6D2; }
+.gl-row .gl-prev[data-gt="navybrass"] .ch1 { stop-color: #FFF0C2; } .gl-row .gl-prev[data-gt="navybrass"] .ch2 { stop-color: #C9A04E; } .gl-row .gl-prev[data-gt="navybrass"] .ch3 { stop-color: #6E4F12; } .gl-row .gl-prev[data-gt="navybrass"] .ch4 { stop-color: #EBCF86; } .gl-row .gl-prev[data-gt="navybrass"] .ch5 { stop-color: #8E6A1F; } .gl-row .gl-prev[data-gt="navybrass"] .fc1 { stop-color: #1B2E52; } .gl-row .gl-prev[data-gt="navybrass"] .fc2 { stop-color: #0A1428; }
+.gl-row .gl-prev[data-gt="simple"] .ch1 { stop-color: #2A3A4A; } .gl-row .gl-prev[data-gt="simple"] .ch2 { stop-color: #2A3A4A; } .gl-row .gl-prev[data-gt="simple"] .ch3 { stop-color: #2A3A4A; } .gl-row .gl-prev[data-gt="simple"] .ch4 { stop-color: #2A3A4A; } .gl-row .gl-prev[data-gt="simple"] .ch5 { stop-color: #2A3A4A; } .gl-row .gl-prev[data-gt="simple"] .fc1 { stop-color: #15212D; } .gl-row .gl-prev[data-gt="simple"] .fc2 { stop-color: #15212D; }
+.gl-row .gl-prev[data-gt="carbon"] .ch1 { stop-color: #5A5A5A; } .gl-row .gl-prev[data-gt="carbon"] .ch2 { stop-color: #2A2A2A; } .gl-row .gl-prev[data-gt="carbon"] .ch3 { stop-color: #111111; } .gl-row .gl-prev[data-gt="carbon"] .ch4 { stop-color: #444444; } .gl-row .gl-prev[data-gt="carbon"] .ch5 { stop-color: #1E1E1E; } .gl-row .gl-prev[data-gt="carbon"] .fc1 { stop-color: #1A1A1A; } .gl-row .gl-prev[data-gt="carbon"] .fc2 { stop-color: #0B0B0B; }
+
+/* 7. Anchor tab (and the Dash panel) in day mode: an older rule gives them a light palette (navy muted text,
+   dark teal) but the newer "navy menus" rule paints them navy, so the eyebrows, notes and the
+   "Looks like a good spot" pill came out dark-on-navy (1.35–2.5:1). Give them the navy palette's inks. */
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#panelAnchor, #panelDash) {
+  --panel: #16283A; --tile: #1B3046; --tile-line: #2E4A66; --p-ink: #EEF4FA; --p-muted: #A9BCCD; --teal-hi: #7FD3C9;
+}
+
+/* 8. Navy menus: white text on the light-blue accent (#7CC0FF) — Fishing "Peak" badges and the moon calendar (1.9:1),
+   and the white tick on the light teal "done" circle in boat setup (2.2:1). */
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) :is(.fw-peak, .fw-cal i.pk) { background: #2E86DE !important; color: #fff !important; }
+:root:not([data-night]) .card.setup .su-row.ok i { background: #13897F; } /* white tick 4.3:1 (was 2.2–2.6:1 on #4FC1B1 / #2BB3A3) */
+
+/* 9. "Drag buttons anywhere" bar never goes away: .arr-bar has display:flex !important, which beats the
+   [hidden] attribute arrangeMode(false) sets, so after Done it stays over the top of the chart for good. */
+.arr-bar[hidden] { display: none !important; }
+
+/* 10. The spot card (z-index 1400) stays on top of sheets, the layer panel, menus and Instruments opened after it,
+   covering their titles and buttons. Hide it while one of those is up (it comes back when they close). */
+body:has(#sheet:not([hidden]), #quick:not([hidden]), .panel:not([hidden]), #cockpit:not([hidden])) .spot-card { display: none; }
+
+/* 11. Night mode loses its red ink for Classic black, Classic white, Brass and ivory, Navy and brass, Simple digital
+   and Carbon: their :root[data-gtheme] rules come later in the file than :root[data-night] with the same specificity.
+   The faces turn red-black at night (stop-colors are !important) but the speed circle keeps dark ink: "5.2" and
+   "095° E" at 1.08:1. */
+:root[data-night][data-gtheme] { --gi-ink: #E5544A; --gi-muted: #B4483E; --gi-acc: #E5544A; --gi-n: #E5544A; }
+
+/* 12. Dusk: selected chips and toggles put white or cream text on the pale dusk accent #8CC8FF (1.45–1.8:1):
+   Weather layer chips, map layer tiles, anchor Rode/Bottom, Fishing tabs, "Peak" badges. Use dark ink on it. */
+:root[data-dusk] :is(.q-t.on, .seg button.on, .tl-chips button.on, .fw-peak, .fw-cal i.pk) { color: #0B1A26 !important; }
+:root[data-dusk] :is(.q-t.on, .seg button.on) svg { stroke: #0B1A26 !important; }
+
+/* 13. Night: anchor Rode/Bottom selected segment is pink on red (#E2998A on #D9614C, 1.6:1). */
+:root[data-night] .seg button.on { color: #1A0606 !important; }
+
+/* 14. Day with Menu color: Light — the anchor tab's selected segment is navy text on blue (2.4:1). */
+:root:not([data-night]):not([data-dusk]) #panelAnchor .seg button.on { color: #fff !important; }
+
+/* 15. Dusk and night: the attribution strip keeps its translucent white background (an !important rule) under
+   light dusk/night ink, 1.3:1. */
+:root:is([data-night], [data-dusk]) .leaflet-control-attribution { background: rgba(8, 14, 20, .72) !important; }
+:root:is([data-night], [data-dusk]) .leaflet-control-attribution a { color: inherit; }
+
+/* 6b. "Simple digital" preview is a dark slate disc on the navy sheet and almost disappears: give its rim a light edge. */
+.gl-row .gl-prev[data-gt="simple"] .g-bezel { stroke: #6F8799; stroke-width: 1.5; }
+
+/* ---------- AIS ship markers and ship sheet ---------- */
+.ais-ship { background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ais-ship svg { display: block; overflow: visible; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+.ais-hull { stroke: rgba(8,18,28,.78); stroke-width: 1.1; stroke-linejoin: round; fill-opacity: .93; }
+.ais-vec { stroke: rgba(8,18,28,.55); stroke-width: 1.3; stroke-linecap: round; }
+:root[data-night] .ais-hull, :root[data-dusk] .ais-hull { stroke: rgba(255,255,255,.55); fill-opacity: .8; }
+.ship-hd { display: flex; align-items: flex-start; gap: 10px; padding-right: 34px; }
+.ship-hd h3 { word-break: break-word; }
+.ship-sw { flex: none; width: 10px; height: 26px; margin-top: 2px; border-radius: 5px 5px 2px 2px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+.ship-wiki { display: flex; gap: 12px; margin: 0 0 12px; padding: 10px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--line); font-size: 13px; line-height: 1.4; }
+.ship-wiki img { width: 112px; height: 84px; object-fit: cover; border-radius: 8px; flex: none; }
+.ship-wiki b { display: block; font-size: 14px; }
+.ship-wiki small { color: var(--ink2); }
+.ship-wiki p { margin: 4px 0; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.ship-wiki a { color: var(--accent); font-weight: 600; }
+.ship-dest { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 0 12px; padding: 9px 12px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--line); }
+.ship-dest b { font-size: 16px; letter-spacing: .02em; }
+.ship-dest span:not(.lbl) { font-size: 13px; color: var(--ink2); }
+.ship-facts { font-size: 13.5px; gap: 5px 14px; }
+.ship-btns { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; }
+.ship-btns .btn { min-width: 0; padding: 0 8px; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ship-note { margin: 2px 0 12px; }
+
+
+/* ---------- first mate: name, hands-free settings ---------- */
+.fm-title { display: flex; align-items: center; gap: 10px; }
+.fm-badge { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; flex: none; background: linear-gradient(135deg, var(--accent, #1C62B4), color-mix(in srgb, var(--accent, #1C62B4) 55%, #2CD3C5)); }
+.fm-badge svg.ai-ic { width: 22px; height: 22px; }
+.fm-badge .ai-star { fill: #fff; stroke: none; }
+.fm-badge .ai-anc, .fm-badge .ai-anc * { fill: none; stroke: var(--accent, #1C62B4); stroke-width: 1.15; stroke-linecap: round; }
+.wl-logo.fm-badge { width: 56px; height: 56px; margin: 0 auto 8px; } .wl-logo.fm-badge svg.ai-ic { width: 34px; height: 34px; }
+.fm-set { margin: 8px 0; } .fm-set > summary, #sheet details > summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
+.fm-namerow { display: flex; gap: 8px; } .fm-namerow input { flex: 1; min-width: 0; }
+.fm-honest { margin-top: 6px; }
+.m-row[data-mact="firstmate"] i svg path { fill: currentColor; stroke: none; }
+
+/* ---------- arrange buttons: Done always hides the bar; snap target and grid while dragging ---------- */
+#arrBar[hidden], .arr-bar[hidden] { display: none !important; }
+.arr-bar { max-width: calc(100vw - 16px); }
+.arr-bar span { overflow: hidden; text-overflow: ellipsis; }
+.arr-bar .btn { white-space: nowrap; }
+.arr-snap { position: fixed; z-index: 2990; pointer-events: none; border-radius: 50%; border: 2px dashed var(--accent, #2E86DE); background: color-mix(in srgb, var(--accent, #2E86DE) 18%, transparent); transition: left .08s, top .08s; }
+.arr-snap[hidden], .arr-grid[hidden] { display: none !important; }
+.arr-grid { position: fixed; inset: 0; z-index: 515; pointer-events: none; opacity: .55;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--accent, #2E86DE) 80%, #fff) 0 2px, transparent 2.5px); background-size: var(--p, 46px) var(--p, 46px); }
+#gotoRow .g-warn { flex-basis: 100%; background: #7A3B00; color: #FFE2B8; font: 600 12.5px/1.3 var(--font, system-ui); padding: 6px 10px; border-radius: 10px; margin-bottom: 6px; }
+/* planner: when to leave + trip outlook */
+.pl-when { margin: 10px 0 4px; } .pl-when small { display: block; font-size: 12px; opacity: .75; margin-bottom: 4px; }
+.pl-whenseg { display: flex; } .pl-whenseg button { flex: 1; }
+.pl-dt { width: 100%; margin-top: 6px; font: inherit; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: inherit; color-scheme: dark; }
+.pl-dt[hidden] { display: none; }
+.pl-wx { margin: 8px 0 4px; padding: 10px 12px; border-radius: 12px; border-left: 4px solid #3DBE7A; background: rgba(61,190,122,.12); }
+.pl-wx b { display: block; font-size: 15px; } .pl-wx span { display: block; font-size: 13px; line-height: 1.35; opacity: .92; margin-top: 2px; }
+.pl-wx.care { border-left-color: #E8B12B; background: rgba(232,177,43,.13); } .pl-wx.no { border-left-color: #E5534B; background: rgba(229,83,75,.15); }
+.pl-best { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 9px 12px; border-radius: 10px; border: 1px dashed rgba(255,255,255,.3); background: transparent; color: #9FD3FF; font: 600 13.5px/1.3 inherit; }

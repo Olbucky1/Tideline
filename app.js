@@ -151,17 +151,47 @@ function noaaUrl(x, y, z, transparent) {
   const bbox = [xmin, ymax - size, xmin + size, ymax].map((v) => v.toFixed(2)).join(',');
   return NOAA + '?bbox=' + bbox + '&bboxSR=3857&imageSR=3857&size=' + TILE_PX + ',' + TILE_PX +
     '&dpi=' + (TILE_PX === 512 ? 192 : 96) + '&format=png&transparent=' + (transparent ? 'true' : 'false') +
-    '&layers=show:' + (depthFocus() ? '0,1,2,3,6,7,11' : '0,1,2,3,4,5,6,7') + noaaDisplay(z) + '&f=image';
+    '&layers=show:' + chartLayerIds() + noaaDisplay(z) + '&f=image';
 }
-// NOAA chart display: show every depth sounding (S-52 "other" category) and shade water by this boat's safety depth
-let noaaDP = true;
-const depthFocus = () => S.settings.soundings !== false; // depth first: hide traffic lanes, cable areas and other special areas; add NOAA's shallow-water pattern
+/* NOAA chart detail: Clean (default), Standard or Full, plus individual choices under Customize.
+   Sent to NOAA's Maritime Chart Service as display_params (S-52 ECDIS settings). Codes from the ADMIRALTY/Esri MCS docs:
+   DisplayCategory 1 base, 2 standard, 4 other (soundings, cables, pipelines and seabed live in "other");
+   on/off parameters use 1 = off, 2 = on; TwoDepthShades 2 = two shades, 1 = four; TextGroups is a ParameterGroup of S-52 text group numbers. */
+const CHART_DETAIL = {
+  clean: { soundings: 'off', cables: false, lights: false, text: 'few', buoys: 'auto', shades: 2 },
+  standard: { soundings: 'shallow', cables: false, lights: true, text: 'names', buoys: 'auto', shades: 2 },
+  full: { soundings: 'all', cables: true, lights: true, text: 'all', buoys: 'paper', shades: 4 },
+};
+// S-52 text groups: 11 important text, 21 names for position reporting (buoy and light names), 23 light descriptions, 24 notes on chart data,
+// 25 nature of seabed ("Co,S,Sh"), 26 geographic names, 27 magnetic variation and swept depth, 28 heights of islets, 29 berth numbers, 30 current velocity
+const TEXT_GROUPS = { few: [11, 21], names: [11, 21, 26], all: [11, 21, 24, 25, 26, 27, 28, 29, 30] };
+if (!S.settings.chartDetail) S.settings.chartDetail = 'clean'; // cleaner chart is the default, for new and existing installs
+function chartCfg() {
+  const d = S.settings.chartDetail;
+  return Object.assign({}, CHART_DETAIL[d] || CHART_DETAIL.clean, d === 'custom' ? S.settings.chartCustom || {} : {});
+}
+// 2 = every display setting, 1 = only the settings ADMIRALTY documents for this service, 0 = NOAA's plain chart (if NOAA refuses the others)
+let noaaDP = 2;
+function chartLayerIds() { // MCS layers: 0 info, 1 natural and man-made, 2 depths, 3 seabed and obstructions, 4 traffic routes, 5 special areas, 6 buoys and lights, 7 services, 11 shallow water pattern
+  const d = S.settings.chartDetail;
+  return d === 'full' ? '0,1,2,3,4,5,6,7' : chartCfg().soundings !== 'off' ? '0,1,2,3,6,7,11' : '0,1,2,3,6,7';
+}
 function noaaDisplay(z) {
-  if (!noaaDP || !depthFocus()) return '';
-  const need = S.boat && S.boat.draftFt ? (S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt)) * 0.3048 : 2;
-  const P = [['DisplayCategory', '1,2,4'], ['SafetyContour', +need.toFixed(1)], ['SafetyDepth', +need.toFixed(1)], ['ShallowContour', +Math.max(1, need * 0.6).toFixed(1)], ['DeepContour', +Math.max(10, need * 3).toFixed(1)], ['TwoDepthShades', 2]].concat(z >= 15 ? [['HonorScamin', 1]] : []).concat([ ['TextGroups', '10,11,21,23,28']]);
-  return '&display_params=' + encodeURIComponent(JSON.stringify({ ECDISParameters: { version: '10.9', DynamicParameters: { Parameter: P.map(([name, value]) => ({ name, value })) } } }));
+  if (!noaaDP) return '';
+  const c = chartCfg(), full = S.settings.chartDetail === 'full', need = S.boat ? wrNeedM() : 1.2, m = (v) => +v.toFixed(1);
+  const other = c.soundings !== 'off' || c.cables, groups = TEXT_GROUPS[c.text] || TEXT_GROUPS.few, tg = groups.concat(c.lights ? [23] : []);
+  const P = [['DisplayCategory', other ? '1,2,4' : '1,2'], ['SafetyContour', m(need)], ['SafetyDepth', m(need)], ['ShallowContour', m(Math.max(1, need * 0.6))], ['DeepContour', m(Math.max(10, need * 3))],
+    ['TwoDepthShades', c.shades === 4 ? 1 : 2], ['DisplaySafeSoundings', c.soundings === 'all' ? 2 : 1]];
+  const G = [{ name: 'TextGroups', Parameter: [11, 21, 23, 24, 25, 26, 27, 28, 29, 30].map((g) => ({ name: String(g), value: tg.includes(g) ? 2 : 1 })) }];
+  if (noaaDP > 1) { // Esri MCS settings not in the ADMIRALTY list: simplified or paper-chart buoys, smaller symbols when zoomed out, SCAMIN
+    const simple = c.buoys === 'simple' || (c.buoys === 'auto' && z < 13);
+    P.push(['PointSymbolizationType', simple ? 1 : 2], ['HonorScamin', full && z >= 15 ? 1 : 2]);
+    if (c.buoys === 'auto' && z < 13) G.push({ name: 'PointSymbolSize', Parameter: [{ name: 'scaleFactor', value: z < 11 ? 0.6 : 0.75 }] });
+  }
+  const dp = { ECDISParameters: { version: '10.9', DynamicParameters: { Parameter: P.map(([name, value]) => ({ name, value })), ParameterGroup: G } } };
+  return '&display_params=' + encodeURIComponent(JSON.stringify(dp));
 }
+function redrawNoaa() { ['noaa', 'noaaOver'].forEach((k) => LAYERS[k].redraw()); }
 const NoaaLayer = L.TileLayer.extend({
   getTileUrl(c) { return noaaUrl(c.x, c.y, c.z, this.options.transparentChart); },
 });
@@ -177,8 +207,13 @@ const LAYERS = {
   street: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
   seamarks: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Seamarks: OpenSeaMap' }),
 };
-(() => { let ok = 0, bad = 0; // if NOAA ever refuses the depth display settings, fall back to its plain chart
-  ['noaa', 'noaaOver'].forEach((k) => { LAYERS[k].on('tileload', () => { if (noaaDP) ok++; }); LAYERS[k].on('tileerror', () => { if (!noaaDP || ok) return; if (++bad >= 4) { noaaDP = false; LAYERS.noaa.redraw(); LAYERS.noaaOver.redraw(); } }); });
+(() => { let ok = 0, probing = 0; // if NOAA refuses the display settings, step down: fewer settings, then its plain chart
+  // a failed tile is checked once: a reply that is not an image means NOAA refused the settings; no reply at all just means no signal
+  const onErr = (e) => {
+    if (!noaaDP || ok || Date.now() - probing < 20000 || !e.tile || !e.tile.src) return; probing = Date.now();
+    fetch(e.tile.src, { cache: 'no-store' }).then((r) => { if (!r.ok || !/^image\//.test(r.headers.get('content-type') || '')) { noaaDP--; probing = 0; redrawNoaa(); } }).catch(() => { /* offline: keep the settings */ });
+  };
+  ['noaa', 'noaaOver'].forEach((k) => { LAYERS[k].on('tileload', () => { ok++; }); LAYERS[k].on('tileerror', onErr); });
 })();
 
 const CHARTS = {
@@ -337,16 +372,40 @@ function optSeg(name, opts, cur) {
 function tog(id, label, note, on) {
   return '<label class="opt"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '><span>' + label + (note ? '<small>' + note + '</small>' : '') + '</span></label>';
 }
+function chartDetailHtml() { // NOAA chart detail: three presets, and each choice on its own under Customize
+  const d = S.settings.chartDetail, c = chartCfg(), seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-cd="' + k + '" data-val="' + v + '" class="' + (String(cur) === String(v) ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  const ck = (k, label, note, on) => '<label class="opt"><input type="checkbox" data-cdk="' + k + '"' + (on ? ' checked' : '') + '><span>' + label + '<small>' + note + '</small></span></label>';
+  let h = '<div class="mo-h">NOAA chart detail</div>' + seg('preset', d === 'custom' ? '' : d, [['clean', 'Clean'], ['standard', 'Standard'], ['full', 'Full chart']]);
+  h += '<p class="hint" style="margin:2px 0 6px">' + ({ clean: 'Calm chart: no soundings, cables or bottom notes; water shaded deep or shallow for your draft (' + fmtLen(wrNeedM() / 0.3048) + '), small simple buoys until you zoom in.', standard: 'Adds depth numbers where it is shallow for your boat, and light descriptions.', full: 'Everything on the paper chart: every sounding, cables, pipelines, bottom notes, traffic routes.', custom: 'Your own mix, set below.' }[d] || '') + '</p>';
+  h += '<details class="cd-more"' + (d === 'custom' ? ' open' : '') + '><summary>Customize</summary>';
+  h += '<div class="cd-l">Depth numbers (soundings)</div>' + seg('soundings', c.soundings, [['off', 'Off'], ['shallow', 'Only shallow'], ['all', 'All']]);
+  h += '<small class="hint">Only shallow hides soundings deeper than your safety depth.</small>';
+  h += ck('cables', 'Submarine cables and pipelines', 'NOAA draws these in one group with soundings, so they also show whenever soundings are on', c.cables || c.soundings !== 'off');
+  h += ck('lights', 'Light descriptions', 'Text such as "Fl G 4s 15ft 5M" next to lights', c.lights);
+  h += '<div class="cd-l">Chart text</div>' + seg('text', c.text, [['few', 'Buoy names'], ['names', '+ place names'], ['all', 'All notes']]);
+  h += '<small class="hint">All notes adds bottom types (Co, S, Sh), chart notes, heights and berth numbers.</small>';
+  h += '<div class="cd-l">Buoy and beacon symbols</div>' + seg('buoys', c.buoys, [['auto', 'Small, detailed up close'], ['simple', 'Simple'], ['paper', 'Paper chart']]);
+  h += '<div class="cd-l">Depth shading</div>' + seg('shades', c.shades, [['2', 'Two shades (safe / shallow)'], ['4', 'Four shades']]);
+  return h + '</details>';
+}
+function setChartDetail(k, v, inQuick) {
+  const st = S.settings;
+  if (k === 'preset') { st.chartDetail = v; st.chartCustom = null; }
+  else { const c = chartCfg(); c[k] = k === 'shades' ? +v : v; st.chartCustom = c; st.chartDetail = 'custom'; }
+  saveSettings(); noaaDP = 2; redrawNoaa(); if (inQuick) renderQuick(); else openLayersSheet();
+}
 function openLayersSheet() {
   const st = S.settings;
   let html = '<div class="mo"><div class="mo-top"><h3>Map options</h3><span><button type="button" class="btn small" data-act="mohelp">Help</button> <button type="button" class="btn small" data-act="mosettings">All settings</button></span></div>' + '<div class="mo-h">Color mode</div>' + optSeg('theme', [['auto', 'Auto'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']], st.theme || 'auto') + '' + (window.TL_DEMO ? '<p class="hint" style="margin:6px 0 0">This demo uses a sample chart, because hosted demo pages can\'t load live chart or satellite images. NOAA charts and satellite work in the full app.</p>' : '');
   html += '<div class="mo-h">Chart</div>' + optSeg('chart', Object.entries(CHARTS).map(([k, c]) => [k, c.name.replace(' only', '')]), st.chart);
+  if (st.chart !== 'street') html += chartDetailHtml();
   html += '<div class="mo-h">Overlays</div>';
   html += tog('satBox', 'Satellite imagery', 'Aerial photo under the chart', st.satOver && st.chart !== 'satellite');
   if (st.satOver && st.chart !== 'satellite') html += '<div class="field" style="margin:4px 0 8px"><label for="satMix">Chart on top: <b id="satMixVal">' + Math.round(st.chartOnSat * 100) + '%</b></label><input id="satMix" type="range" min="20" max="100" step="5" value="' + Math.round(st.chartOnSat * 100) + '"></div>';
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
   html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats' : S.settings.aisRelay ? 'Live from aisstream.io through your relay: ships and AIS-equipped boats within about 20 nm' + (AISS.n ? ' · ' + [...ais.values()].filter((t) => t.live).length + ' in view' : '') : 'Live ships over the internet need a small relay (below)', S.settings.aisShow !== false);
   if (!S.settings.sim) html += '<div class="ais-key"><input id="aisKeyIn" type="url" autocomplete="off" placeholder="AIS relay address (wss://…)" value="' + esc(S.settings.aisRelay || '') + '"><button type="button" class="btn small" data-act="aiskeysave">' + (S.settings.aisRelay ? 'Update' : 'Save') + '</button></div><p class="hint" style="margin:2px 0 10px">aisstream.io (free) does not let browsers connect directly, so live AIS goes through a small free relay that holds your key. Setup steps: tools/ais-relay in the Tideline repo. ' + (AISS.err ? '<b>' + esc(AISS.err) + '</b>' : '') + '</p>';
+  html += tog('aisNamesBox', 'Ship names', 'Off shows icons only; tap a ship for its details', S.settings.aisNames === true);
   html += '<div class="row-btns"><button class="btn small" data-act="aislist">AIS target list</button><button class="btn small" data-act="aispreview">Try AIS demo</button></div>';
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
   html += tog('mpBox', 'Marinas, clubs, fuel and ramps', 'Named on the chart when you zoom in', S.settings.mplaces !== false);
@@ -358,13 +417,12 @@ function openLayersSheet() {
   html += '<div class="mo-h">Menu color in daytime</div>' + optSeg('menuTone', [['dark', 'Deep navy (more contrast)'], ['light', 'Light']], st.menuTone || 'dark');
   html += '<div class="mo-h">Gauge style</div><div class="btheme-row">' + GTHEMES.map(([v, l, c]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div>' + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
   html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.miSize || 'l');
-  html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['false', 'Only when I press and hold'], ['true', 'Also flash it on each tap']], String(st.learnTips === true || st.learnTips === 'true'));
+  html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['false', 'Only when I press and hold'], ['true', 'Also display it on each tap']], String(st.learnTips === true || st.learnTips === 'true'));
   html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['true', 'Shows that spot\'s conditions'], ['false', 'Does nothing (press and hold instead)']], String(st.spotTap !== false));
   html += '<div class="mo-h">What are you doing today?</div><div class="btheme-row">' + ACTIVITY.map(([v, l, th]) => '<button type="button" data-activity="' + v + '" class="' + (st.activity === v ? 'on' : '') + '"><i style="background:' + (BTHEMES.find((x) => x[0] === th) || BTHEMES[0])[2] + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Sets the colors and the layers that matter for it. Change anything afterwards.</small>';
   html += '<div class="mo-h">Button theme</div><div class="btheme-row">' + BTHEMES.map(([v, l, c]) => '<button type="button" data-btheme="' + v + '" class="' + ((st.btheme || 'blue') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Day colors for the round buttons. Dusk and Night keep their dim look.</small>';
   html += tog('shallowBox', 'Shallow water warning', 'Tints water shallower than your draft plus buffer, and a lighter tint where it is getting close', st.shallowTint !== false);
   if (st.shallowTint !== false) html += optSeg('shallowStyle', [['coral', 'Soft coral'], ['amber', 'Amber'], ['pale', 'Pale'], ['edge', 'Outline only']], st.shallowStyle || 'coral') + optSeg('shallowLevel', [['1', 'Faint'], ['2', 'Medium'], ['3', 'Strong']], String(st.shallowLevel || 2));
-  html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides traffic routes and special areas; individual cable lines may remain. Turn off for the full NOAA chart', st.soundings !== false);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
   html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wLinesBox', 'Moving wind lines', 'Light streaks that drift with the forecast wind', S.settings.windLines !== false) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
 
@@ -374,6 +432,7 @@ function openLayersSheet() {
 }
 sheet.addEventListener('click', (e) => {
   if (e.target.closest('[data-act="aiskeysave"]')) { S.settings.aisRelay = ($('aisKeyIn').value || '').trim(); S.settings.aisShow = true; saveSettings(); AISS.retry = 0; aissConnect(true); toast(S.settings.aisRelay ? 'Relay saved. Ships appear as their next broadcast comes in, usually within a minute or two.' : 'Relay removed.', 4500); return; }
+  const cd = e.target.closest('[data-cd]'); if (cd) { setChartDetail(cd.dataset.cd, cd.dataset.val); return; }
   const o = e.target.closest('[data-opt]'); if (!o) return;
   const k = o.dataset.opt, v = o.dataset.val;
   S.settings[k] = v; saveSettings();
@@ -478,7 +537,7 @@ map.on('zoomend', () => { clearTimeout(window.__aisZ); window.__aisZ = setTimeou
 sheet.addEventListener('change', (e) => {
   if (e.target.name === 'chart') { S.settings.chart = e.target.value; saveSettings(); applyChart(); }
   if (e.target.id === 'shallowBox') { S.settings.shallowTint = e.target.checked; saveSettings(); SH.drawnKey = ''; drawShallow(); }
-  if (e.target.id === 'soundBox') { S.settings.soundings = e.target.checked; saveSettings(); noaaDP = true; LAYERS.noaa.redraw(); LAYERS.noaaOver.redraw(); }
+  if (e.target.dataset.cdk) { const k = e.target.dataset.cdk, c = chartCfg(); setChartDetail(k, e.target.checked); if (k === 'cables' && !e.target.checked && c.soundings !== 'off') toast('Cables show with soundings on NOAA charts. Set depth numbers to Off to hide them.', 4500); }
   if (e.target.id === 'seamarksBox') { S.settings.seamarks = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'wLinesBox') { S.settings.windLines = e.target.checked; saveSettings(); drawGrid(); }
   if (e.target.id === 'wxWind' || e.target.id === 'wxWaves' || e.target.id === 'wxRain') setWxL({ wxWind: 'wind', wxWaves: 'waves', wxRain: 'rain' }[e.target.id], e.target.checked);
@@ -488,6 +547,7 @@ sheet.addEventListener('change', (e) => {
   if (e.target.id === 'placesBox') { S.settings.landPlaces = e.target.checked; saveSettings(); applyChart(); drawPlaceNames(); loadPlaceNames(); }
   if (e.target.id === 'roadsBox') { S.settings.landRoads = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'aisBox') { S.settings.aisShow = e.target.checked; saveSettings(); updateAis(); }
+  if (e.target.id === 'aisNamesBox') { S.settings.aisNames = e.target.checked; saveSettings(); updateAis(); }
   if (e.target.id === 'chipsBox') { S.settings.chips = e.target.checked; saveSettings(); applyCalm(); }
   if (e.target.id === 'ringsBox') { S.settings.rings = e.target.checked; saveSettings(); drawRings(); }
   if (e.target.id === 'easyBox') { S.settings.easy = e.target.checked; saveSettings(); applyEasy(); }
@@ -679,6 +739,7 @@ function drawRoute() {
   RT.marks.clearLayers();
   const show = RT.edit || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
+  const anyBad = show && RT.pts.some((p) => p.unchecked); RT.line.setStyle({ dashArray: anyBad ? '10 8' : null, color: anyBad ? '#E8952B' : '#C2185B' }); // a route that is not fully checked never looks like a normal one
   if (!RT.bad) RT.bad = L.layerGroup().addTo(map); RT.bad.clearLayers();
   if (show) RT.pts.forEach((p, i) => { if (!i || !p.unchecked) return; let k = i - 1; while (k > 0 && RT.pts[k].turn) k--; L.polyline(RT.pts.slice(k, i + 1).map((q) => [q.lat, q.lon]), { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
   drawAvoid();
@@ -726,7 +787,7 @@ async function rtFillLeg(a, b) { // replace whatever lies between stops a and b 
   let ia = RT.pts.indexOf(a), ib = RT.pts.indexOf(b); if (ia < 0 || ib < 0 || ib <= ia) return;
   let r; try { r = await waterLeg(a, b); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
   ia = RT.pts.indexOf(a); ib = RT.pts.indexOf(b); if (ia < 0 || ib < 0 || ib <= ia) return;
-  const mid = (r.ok || r.why === 'partial') && r.pts ? r.pts.filter((q, k) => !(k === 0 && distNm(q, a) < 0.12) && !(k === r.pts.length - 1 && distNm(q, b) < 0.12)).map((q) => ({ lat: q.lat, lon: q.lon, turn: true })) : [];
+  const mid = (r.ok || r.why === 'partial' || r.why === 'fine') && r.pts ? r.pts.filter((q, k) => !(k === 0 && distNm(q, a) < 0.12) && !(k === r.pts.length - 1 && distNm(q, b) < 0.12)).map((q) => ({ lat: q.lat, lon: q.lon, turn: true })) : [];
   RT.pts.splice(ia + 1, ib - ia - 1, ...mid);
   if (r.ok) delete b.unchecked; else b.unchecked = r.why || 'net';
   return r;
@@ -798,7 +859,7 @@ function renderRouteSheet() {
   h += '<div class="rt-legs">' + st.legs.map((l) => '<div class="rt-leg"><span class="rt-n">' + l.i + '→' + (l.i + 1) + '</span><span class="tnum">' + fmtDist(l.d) + ' · ' + fmtBrg(l.brg) + '°T · ' + fmtDur(l.hrs).replace(' min', 'm') + '</span><span class="rt-w">' + (l.wind ? compass16(l.wind.dir) + ' ' + Math.round(speedOut(l.wind.spd)) + ' g' + Math.round(speedOut(l.wind.gust)) : '') + '</span></div>' +
     l.bridges.map((x) => '<div class="rt-warn v-' + x.j.level + '">' + esc(x.br.name) + ': ' + esc(x.j.text) + '</div>').join('')).join('') + '</div>';
   const bad = RT.pts.filter((p) => p.unchecked).length, zones = avoidZonesFor(RT.depart || Date.now());
-  h += RT.busy ? '<p class="rt-status">Finding a route through the water…</p>' : bad ? '<p class="rt-status bad">' + bad + ' leg' + (bad > 1 ? 's are' : ' is') + ' NOT checked (dashed). ' + esc(wrWhy(RT.pts.find((p) => p.unchecked).unchecked)) + '</p>' : S.settings.autoWater !== false && RT.pts.some((p) => p.turn) ? '<p class="rt-status ok">Follows water at least ' + fmtLen(wrNeedM() / 0.3048) + ' deep (your draft plus buffer)' + (S.boat.airDraftFt ? ', under bridges taller than your ' + fmtLen(S.boat.airDraftFt) + ' air draft' : '') + ', around closed areas' + (zones.length ? ' and ' + zones.length + ' avoid area' + (zones.length > 1 ? 's' : '') : '') + '.</p>' : '';
+  h += RT.busy ? '<p class="rt-status">Finding a route through the water…</p>' : bad ? '<p class="rt-status bad">' + bad + ' leg' + (bad > 1 ? 's are' : ' is') + ' NOT checked (dashed). ' + esc(wrWhy(RT.pts.find((p) => p.unchecked).unchecked)) + '</p>' : S.settings.autoWater !== false && RT.pts.some((p) => p.turn) ? (RT.pts.some((p) => p.caution) ? '<p class="rt-status">Follows charted water (some stretches are only charted as a depth range that may be under ' + fmtLen(wrNeedM() / 0.3048) + ', so watch the depth there)' : '<p class="rt-status ok">Follows water at least ' + fmtLen(wrNeedM() / 0.3048) + ' deep (your draft plus buffer)') + (S.boat.airDraftFt ? ', under bridges taller than your ' + fmtLen(S.boat.airDraftFt) + ' air draft' : '') + ', around closed areas' + (zones.length ? ' and ' + zones.length + ' avoid area' + (zones.length > 1 ? 's' : '') : '') + '.</p>' : '';
   h += '<p class="hint" style="margin:6px 0">Each leg follows NOAA chart depths for your boat' + (S.boat.draftFt ? '' : ' (set your draft in Boat for a better route)') + '. Drag any point to reshape it. Always keep a lookout and watch the depth; the wind shown is the forecast where you are now.</p>';
   h += '<div class="row-btns"><button class="btn primary" data-act="rtstart"' + (RT.busy ? ' disabled' : '') + '>Start</button><button class="btn" data-act="rtwater">Re-route by water</button><button class="btn" data-act="rtavoid">Avoid an area</button><button class="btn" data-scact="plan2">Best time to leave</button><button class="btn" data-act="rtautow">Auto-follow water: ' + (S.settings.autoWater === false ? 'off' : 'on') + '</button><button class="btn" data-act="rtsave">Save</button><button class="btn" data-act="rtundo">Undo</button><button class="btn" data-act="rtrev">Reverse</button><button class="btn ghost" data-act="rtclear">Clear</button><button class="btn ghost" data-act="rtclose">Close</button></div></div>';
   openSheet(h);
@@ -821,7 +882,10 @@ sheet.addEventListener('click', (e) => {
   if (act === 'rtdel') { S.routes = S.routes.filter((x) => String(x.id) !== b.dataset.id); store.set('routes', S.routes); renderRouteSheet(); }
   if (act === 'rtstart') {
     let i = 0; if (S.fix && distNm(S.fix, RT.pts[0]) < 0.15) i = 1;
-    const pts = RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn, stop: p.stop }));
+    const nBad = RT.pts.filter((p) => p.unchecked).length;
+    if (nBad && !RT.badOk) { RT.badOk = true; toast('⚠ ' + nBad + ' leg' + (nBad > 1 ? 's are' : ' is') + ' NOT checked against the chart and may cross land or shoals (dashed orange). Tap Start again to go anyway, or Re-route by water.', 9000); return; }
+    RT.badOk = false;
+    const pts = RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn, stop: p.stop, unchecked: p.unchecked }));
     RT.edit = false; $('btnRoute').classList.remove('on'); closeSheet(); drawRoute();
     routeLeg(pts, i);
   }
@@ -836,37 +900,81 @@ function routeLeg(pts, i) {
 
 
 /* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
-const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds6', {}), cache: new Map() };
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: (() => { const o = store.get('encIds7', null); return o && Date.now() - (o.ts || 0) < 7 * 864e5 ? o.ids : {}; })(), cache: new Map(), tiles: new Map(), busy: 0, wait: [], log: [] };
+// NOAA rate-limits bursts (HTTP 429) and times out on big boxes (504), so: at most 4 requests at a time, retry with backoff,
+// and fetch fixed tiles that are cached and reused by every grid (wide search, fine re-check, the next route).
+async function encSlot(fn) { while (WR.busy >= 4) await new Promise((r) => WR.wait.push(r)); WR.busy++; try { return await fn(); } finally { WR.busy--; const n = WR.wait.shift(); if (n) n(); } }
+async function encJson(u, ms) {
+  let last = '';
+  for (let i = 0; i < 4; i++) {
+    const t0 = Date.now();
+    try {
+      const r = await encSlot(() => fetchT(u, ms || 30000));
+      if (r.status === 429 || r.status >= 500) { last = 'NOAA ' + r.status; WR.log.push({ u: u.slice(0, 90), st: r.status, ms: Date.now() - t0 }); await new Promise((z) => setTimeout(z, 1200 * (i + 1) + Math.random() * 600)); continue; }
+      if (!r.ok) throw new Error('NOAA ' + r.status);
+      const j = await r.json(); if (j.error) throw new Error('NOAA: ' + (j.error.message || 'query failed'));
+      WR.log.push({ u: u.slice(0, 90), st: 200, ms: Date.now() - t0, n: (j.features || []).length }); if (WR.log.length > 200) WR.log.splice(0, 50);
+      return j;
+    } catch (e) { last = e.name === 'AbortError' ? 'NOAA timed out' : (e.message || String(e)); if (/^NOAA: /.test(last)) throw e; await new Promise((z) => setTimeout(z, 800 * (i + 1))); }
+  }
+  throw new Error(last || 'NOAA unreachable');
+}
 async function encLayerIds(svc) {
   if (WR.ids[svc]) return WR.ids[svc];
-  for (const h of WR.hosts) {
-    try {
-      const j = await fetchT(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 12000).then((r) => r.json());
-      const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
-      const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area$/i), slconsA: find(/\.Shoreline_Construction_area$/i), slconsL: find(/\.Shoreline_Construction_line$/i) };
-      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds6', WR.ids); return ids; }
-    } catch (e) { /* try the other NOAA host */ }
-  }
-  return null;
+  if (WR.idsP && WR.idsP[svc]) return WR.idsP[svc];
+  WR.idsP = WR.idsP || {};
+  return (WR.idsP[svc] = (async () => {
+    for (const h of WR.hosts) {
+      try {
+        const j = await encJson(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 15000);
+        const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
+        const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area(_area)?$/i), slconsA: find(/\.Shoreline_Construction_area$/i), slconsL: find(/\.Shoreline_Construction_line$/i) };
+        if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds7', { ts: Date.now(), ids: WR.ids }); return ids; }
+      } catch (e) { WR.lastErr = e.message || String(e); }
+    }
+    delete WR.idsP[svc]; return null;
+  })());
 }
-async function encQuery(svc, layer, bb, off) {
-  const ids = await encLayerIds(svc); if (!ids || ids[layer] == null) return [];
-  const key = svc + layer + bb.join(',') + off; if (WR.cache.has(key)) return WR.cache.get(key);
-  const out = [];
-  for (let page = 0; page < 8; page++) {
-    const u = ids.host + '/arcgis/rest/services/encdirect/' + svc + '/MapServer/' + ids[layer] + '/query?where=1%3D1&geometry=' + bb.map((v) => v.toFixed(5)).join('%2C') +
-      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=' + off + '&geometryPrecision=5&resultOffset=' + (page * 1000) + '&resultRecordCount=1000&f=json';
-    const j = await fetchT(u, 25000).then((r) => r.json());
-    if (j.error) throw new Error(j.error.message || 'ENC query failed');
-    (j.features || []).forEach((f) => {
-      const a = f.attributes || {}, k1 = Object.keys(a).find((k) => /^drval1$/i.test(k)), k2 = Object.keys(a).find((k) => /^drval2$/i.test(k));
-      const A = {}; Object.keys(a).forEach((k) => { const K = k.toUpperCase(); if (/^(RESTRN|VERCLR|VERCCL|VERCOP|CATBRG|OBJNAM|CATREA)$/.test(K)) A[K] = a[k]; });
-      if (f.geometry && (f.geometry.rings || f.geometry.paths)) out.push({ d1: k1 != null && a[k1] != null ? +a[k1] : null, d2: k2 != null && a[k2] != null ? +a[k2] : null, rings: f.geometry.rings || null, paths: f.geometry.paths || null, a: A });
-    });
-    if (!j.exceededTransferLimit) break;
-    if (page === 7) out.trunc = true; // more features than we fetched: treat the area as not fully known
-  }
-  WR.cache.set(key, out); return out;
+const ENC_TILE = { enc_general: 1, enc_coastal: 0.5, enc_approach: 0.25, enc_harbour: 0.2 };
+const ENC_OFF = { enc_general: 0.0006, enc_coastal: 0.0002, enc_approach: 0.0001, enc_harbour: 0.00004 };
+function encParse(f) {
+  const a = f.attributes || {}, k1 = Object.keys(a).find((k) => /^drval1$/i.test(k)), k2 = Object.keys(a).find((k) => /^drval2$/i.test(k)), ko = Object.keys(a).find((k) => /^objectid$/i.test(k));
+  const A = {}; Object.keys(a).forEach((k) => { const K = k.toUpperCase(); if (/^(RESTRN|VERCLR|VERCCL|VERCOP|CATBRG|OBJNAM|CATREA)$/.test(K)) A[K] = a[k]; });
+  return { id: ko != null ? a[ko] : null, d1: k1 != null && a[k1] != null ? +a[k1] : null, d2: k2 != null && a[k2] != null ? +a[k2] : null, rings: f.geometry.rings || null, paths: f.geometry.paths || null, a: A };
+}
+async function encTile(svc, layer, tx, ty) {
+  const key = svc + '|' + layer + '|' + tx + '|' + ty;
+  if (WR.tiles.has(key)) { const v = WR.tiles.get(key); WR.tiles.delete(key); WR.tiles.set(key, v); return v; } // keep recently used tiles
+  const p = (async () => {
+    const ids = await encLayerIds(svc); if (!ids) throw new Error(WR.lastErr || 'NOAA chart list unavailable'); if (ids[layer] == null) return [];
+    const ts = ENC_TILE[svc] || 0.25, bb = [tx * ts, ty * ts, (tx + 1) * ts, (ty + 1) * ts], out = [], seen = new Set();
+    for (let page = 0; page < 12; page++) {
+      const u = ids.host + '/arcgis/rest/services/encdirect/' + svc + '/MapServer/' + ids[layer] + '/query?where=1%3D1&geometry=' + bb.map((v) => v.toFixed(4)).join('%2C') +
+        '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&maxAllowableOffset=' + (ENC_OFF[svc] || 0.0001) + '&geometryPrecision=5&resultOffset=' + (page * 1000) + '&resultRecordCount=1000&f=json';
+      const j = await encJson(u, 30000); let added = 0;
+      (j.features || []).forEach((f) => { if (!f.geometry || !(f.geometry.rings || f.geometry.paths)) return; const o = encParse(f); if (o.id != null) { if (seen.has(o.id)) return; seen.add(o.id); } out.push(o); added++; });
+      if (!j.exceededTransferLimit || !added) break;
+      if (page === 11) out.trunc = true;
+    }
+    return out;
+  })();
+  WR.tiles.set(key, p); p.catch(() => WR.tiles.delete(key));
+  while (WR.tiles.size > 600) WR.tiles.delete(WR.tiles.keys().next().value);
+  return p;
+}
+function encBBox(f) { let a = 180, b = 90, c = -180, d = -90, n = 0; (f.rings || f.paths || []).forEach((r) => r.forEach(([x, y]) => { n++; if (x < a) a = x; if (x > c) c = x; if (y < b) b = y; if (y > d) d = y; })); return n ? [a, b, c, d] : null; }
+function encInside(rings, x, y) { let c = false; rings.forEach((r) => { for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } }); return c; }
+async function encQuery(svc, layer, bb) {
+  const ts = ENC_TILE[svc] || 0.25, out = [], seen = new Set(); let trunc = false;
+  const x0 = Math.floor(bb[0] / ts), x1 = Math.floor(bb[2] / ts), y0 = Math.floor(bb[1] / ts), y1 = Math.floor(bb[3] / ts);
+  const jobs = []; for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) jobs.push(encTile(svc, layer, x, y));
+  const small = bb[2] - bb[0] < 0.002 && bb[3] - bb[1] < 0.002, cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
+  (await Promise.all(jobs)).forEach((arr) => { if (arr.trunc) trunc = true; arr.forEach((f) => {
+    if (f.id != null) { if (seen.has(f.id)) return; seen.add(f.id); }
+    const fb = f.bb || (f.bb = encBBox(f)); if (!fb || fb[2] < bb[0] || fb[0] > bb[2] || fb[3] < bb[1] || fb[1] > bb[3]) return;
+    if (small && f.rings && !encInside(f.rings, cx, cy)) return; // a point lookup: only the areas the point is actually in
+    out.push(f); }); });
+  if (trunc) out.trunc = true; return out;
 }
 function wrNeedM() { const d = S.boat.draftFt, sb = S.boat.safetyFt == null ? 2 : S.boat.safetyFt; return d ? (d + sb) * 0.3048 : 1.2; }
 async function waterGrid(a, b, padK) {
@@ -874,7 +982,7 @@ async function waterGrid(a, b, padK) {
   const padNm = Math.max(1.5 * (padK || 1) / 0.25, span * (padK || 0.25)), dLat = padNm / 60, dLon = padNm / 60 / cosL;
   const bb = [Math.min(a.lon, b.lon) - dLon, Math.min(a.lat, b.lat) - dLat, Math.max(a.lon, b.lon) + dLon, Math.max(a.lat, b.lat) + dLat];
   const wM = (bb[2] - bb[0]) * 111320 * cosL, hM = (bb[3] - bb[1]) * 111320;
-  const cell = Math.max(35, Math.max(wM, hM) / 520), W = Math.ceil(wM / cell), H = Math.ceil(hM / cell);
+  const cell = Math.max(30, Math.max(wM, hM) / 1400), W = Math.ceil(wM / cell), H = Math.ceil(hM / cell);
   const cLat = cell / 111320, cLon = cell / (111320 * cosL), off = (cLat / 2).toFixed(6);
   const svcs = span > 45 ? ['enc_general', 'enc_coastal', 'enc_approach'] : span > 6 ? ['enc_coastal', 'enc_approach', 'enc_harbour'] : ['enc_coastal', 'enc_approach', 'enc_harbour'];
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -884,39 +992,51 @@ async function waterGrid(a, b, padK) {
   // fetch every chart scale at once, then paint coarse to fine so the most detailed chart has the last word
   const got = await Promise.all(svcs.map(async (svc) => {
     try {
-      const [d, dr, land, restr, brL, brA, slA, slL, wk, ob] = await Promise.all([encQuery(svc, 'depth', bb, off), encQuery(svc, 'dredged', bb, off).catch(() => []), encQuery(svc, 'land', bb, off).catch(() => []), encQuery(svc, 'restr', bb, off).catch(() => []), encQuery(svc, 'bridgeL', bb, off).catch(() => []), encQuery(svc, 'bridgeA', bb, off).catch(() => []), encQuery(svc, 'slconsA', bb, off).catch(() => []), encQuery(svc, 'slconsL', bb, off).catch(() => []), span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'wreck', bb).catch(() => []) : [], span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'obstr', bb).catch(() => []) : []]);
+      const lim = { enc_harbour: 0.3, enc_approach: 0.9 }[svc]; // big boxes: the detailed charts only around the two ends (the middle is open water at coarse cells anyway)
+      const zones = lim && (bb[2] - bb[0] > lim || bb[3] - bb[1] > lim) ? [a, b].map((p) => [p.lon - 0.08, p.lat - 0.06, p.lon + 0.08, p.lat + 0.06]) : [bb];
+      const Q = (layer) => Promise.all(zones.map((z) => encQuery(svc, layer, z))).then((r) => { const seen = new Set(), o = []; r.forEach((arr) => arr.forEach((f) => { if (f.id != null) { if (seen.has(f.id)) return; seen.add(f.id); } o.push(f); })); o.trunc = r.some((x) => x.trunc); return o; });
+      const [d, dr, land, restr, brL, brA, slA, slL, wk, ob] = await Promise.all([Q('depth'), Q('dredged').catch(() => []), Q('land').catch(() => []), Q('restr').catch(() => []), Q('bridgeL').catch(() => []), Q('bridgeA').catch(() => []), Q('slconsA').catch(() => []), Q('slconsL').catch(() => []), span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'wreck', zones[0]).catch(() => []) : [], span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'obstr', zones[0]).catch(() => []) : []]);
       return { svc, d, dr, land: land.concat(slA), sl: slL, restr, br: brL.concat(brA), haz: wk.concat(ob), trunc: d.trunc || land.trunc };
     } catch (e) { WR.lastErr = e.message || String(e); return { svc, failed: true }; }
   }));
+  if (got.every((x) => x.failed)) return null; // NOAA could not be reached at all: report it as a network problem, not as "no water"
   const partial = got.some((x) => x.failed || x.trunc); // a chart scale that did not load (or came back cut short) means the leg is not fully checked
-  let feats = 0; const restrAll = [], brAll = [];
+  // Paint each chart scale on its own canvas, then merge coarse to fine: where a finer chart has coverage it has the last word.
+  // Inside a scale, every area is filled AND outlined in its own colour, so the seams between neighbouring depth areas don't read
+  // as land; land, piers and shoals are drawn last and a little wider, so thin land is never blended away.
+  const g = new Uint8Array(W * H); // 0 blocked, 1 good, 2 maybe; nothing charted = blocked
+  const allowMaybe = S.settings.routeMaybe !== false; // "maybe" = a charted depth RANGE that includes enough water (coastal 0–18 ft bands)
+  const restrAll = [], brAll = [];
+  const paint = (f, col, w) => { cx.fillStyle = col; cx.strokeStyle = col; cx.lineWidth = w; cx.lineJoin = 'round'; cx.beginPath(); (f.rings || []).forEach((r) => r.forEach(([lon, lat], i) => { if (i) cx.lineTo(toX(lon), toY(lat)); else cx.moveTo(toX(lon), toY(lat)); })); cx.fill('evenodd'); cx.stroke(); };
   got.forEach((x) => {
-    if (!x || x.failed) return; feats += x.d.length;
-    x.d.concat(x.dr).forEach((f) => {
-      if (f.d1 == null) return; // no depth given: leave what a coarser chart said
-      const good = f.d1 >= need, maybe = !good && f.d2 != null && f.d2 > need;
-      cx.fillStyle = good ? '#ff0000' : maybe ? '#00ff00' : '#000000'; ring(f);
-    });
-    cx.fillStyle = '#000000'; cx.strokeStyle = '#000000'; x.land.forEach((f) => { if (f.rings) ring(f); }); // land and piers/jetties from the same chart wipe out any water a coarser chart drew over it
-    (x.sl || []).forEach((f) => { if (f.paths) line(f, 2.5); });
-    (x.haz || []).forEach((h) => { const vs = h.a.VALSOU != null ? +h.a.VALSOU : null; if (vs == null || vs < need) { cx.beginPath(); cx.arc(toX(h.lon), toY(h.lat), 2.2, 0, Math.PI * 2); cx.fill(); } }); // wrecks and obstructions shallower than you need
+    if (!x || x.failed) return;
+    cx.clearRect(0, 0, W, H);
+    const areas = x.d.concat(x.dr).filter((f) => f.d1 != null && f.rings).map((f) => ({ f, k: f.d1 >= need ? 1 : f.d2 != null && f.d2 > need ? 2 : 0 }));
+    [1, 2, 0].forEach((k) => areas.forEach((o) => { if (o.k === k) paint(o.f, k === 1 ? '#ff0000' : k === 2 ? '#00ff00' : '#000000', 1); })); // shallower drawn last: a shared edge goes to the shallower side
+    x.land.forEach((f) => { if (f.rings) paint(f, '#000000', 1.1); }); // land and piers/jetties from the same chart wipe out any water under them
+    cx.strokeStyle = '#000000'; (x.sl || []).forEach((f) => { if (f.paths) line(f, 2.5); });
+    cx.fillStyle = '#000000'; (x.haz || []).forEach((h) => { const vs = h.a.VALSOU != null ? +h.a.VALSOU : null; if (vs == null || vs < need) { cx.beginPath(); cx.arc(toX(h.lon), toY(h.lat), 2.2, 0, Math.PI * 2); cx.fill(); } }); // wrecks and obstructions shallower than you need
+    const px = cx.getImageData(0, 0, W, H).data;
+    for (let i = 0; i < W * H; i++) {
+      const al = px[i * 4 + 3]; if (al < 30) continue; // this chart says nothing here: keep the coarser answer
+      const r0 = px[i * 4], g0 = px[i * 4 + 1], dark = r0 < 120 && g0 < 120;
+      if (al < 200) { if (dark) g[i] = 0; continue; } // edge of this chart's coverage: only let it block
+      g[i] = r0 > 170 && g0 < 90 ? 1 : g0 > 170 && r0 < 90 ? (allowMaybe ? 2 : 0) : 0;
+    }
     restrAll.push(...x.restr); brAll.push(...x.br);
   });
-  // areas you may not enter: charted "entry prohibited" and "area to be avoided", event safety zones on the trip day, and your own avoid areas
-  cx.fillStyle = '#000000'; cx.strokeStyle = '#000000';
-  restrAll.forEach((f) => { const r = String(f.a.RESTRN || '').split(',').map(Number); if (f.rings && (r.includes(7) || r.includes(14))) ring(f); });
+  // areas you may not enter: charted "entry prohibited" and "area to be avoided", low bridges, event safety zones on the trip day, your own avoid areas
+  cx.clearRect(0, 0, W, H); cx.fillStyle = '#000000'; cx.strokeStyle = '#000000';
+  restrAll.forEach((f) => { const r = String(f.a.RESTRN || '').split(',').map(Number); if (f.rings && (r.includes(7) || r.includes(14))) paint(f, '#000000', 1); });
   const air = S.boat.airDraftFt ? (S.boat.airDraftFt + 2) * 0.3048 : null, lowBr = [];
   brAll.forEach((f) => {
     const cat = String(f.a.CATBRG || '').split(',').map(Number), opens = cat.some((c) => [2, 3, 4, 5, 7, 8].includes(c));
     const clr = opens ? null : (f.a.VERCLR != null ? +f.a.VERCLR : f.a.VERCCL != null ? +f.a.VERCCL : null);
-    if (air && clr != null && clr > 0 && clr < air) { lowBr.push(f.a.OBJNAM || 'a bridge'); if (f.rings) ring(f); if (f.paths) line(f, 3); }
+    if (air && clr != null && clr > 0 && clr < air) { lowBr.push(f.a.OBJNAM || 'a bridge'); if (f.rings) paint(f, '#000000', 1); if (f.paths) line(f, 3); }
   });
-  avoidZonesFor(RT.depart || Date.now()).forEach((z) => { const [x, y] = [toX(z.lon), toY(z.lat)], r = z.r / cell + 1; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill(); });
+  cx.fillStyle = '#000000'; avoidZonesFor(RT.depart || Date.now()).forEach((z) => { const [x, y] = [toX(z.lon), toY(z.lat)], r = z.r / cell + 1; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill(); });
   WR.lowBridges = lowBr;
-  const px = cx.getImageData(0, 0, W, H).data, g = new Uint8Array(W * H); // 0 blocked, 1 good, 2 maybe
-  // conservative: a cell counts as water only if it is fully covered by water; any land or shoal at its edge blocks it
-  const allowMaybe = S.settings.routeMaybe === true;
-  for (let i = 0; i < W * H; i++) { const al = px[i * 4 + 3], r0 = px[i * 4], g0 = px[i * 4 + 1]; if (al > 240) g[i] = r0 > 215 && g0 < 40 ? 1 : (allowMaybe && g0 > 215 && r0 < 40) ? 2 : 0; }
+  { const px = cx.getImageData(0, 0, W, H).data; for (let i = 0; i < W * H; i++) if (px[i * 4 + 3] > 40) g[i] = 0; }
   // distance (in cells) to the nearest blocked cell, so the path keeps off the shore and the shoals
   const dist = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) dist[i] = g[i] ? 1e6 : 0;
@@ -925,7 +1045,7 @@ async function waterGrid(a, b, padK) {
   return { W, H, g, dist, bb, cLat, cLon, cell, partial, toXY: (p) => [Math.floor((p.lon - bb[0]) / cLon), Math.floor((bb[3] - p.lat) / cLat)], toLL: (x, y) => ({ lat: bb[3] - (y + 0.5) * cLat, lon: bb[0] + (x + 0.5) * cLon }) };
 }
 function wrSnap(G, x, y) {
-  const ok = (i) => G.g[i] === 1 || G.g[i] === 2, maxR = Math.max(2, Math.ceil(160 / G.cell)); // only nudge a point onto water if it is within about 160 m of it
+  const ok = (i) => G.g[i] === 1 || G.g[i] === 2, maxR = Math.max(2, Math.ceil((G.snapM || 500) / G.cell)); // nudge a dock or club pin onto navigable water nearby (500 m)
   for (let r = 0; r <= maxR; r++) {
     let best = -1, bd = Infinity;
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
@@ -936,6 +1056,13 @@ function wrSnap(G, x, y) {
     if (best >= 0) return best;
   }
   return -1;
+}
+function wrNearestReach(G, from, x, y, maxM) { // flood the water connected to 'from'; return the reached cell closest to (x, y) within maxM
+  const N = G.W * G.H, seen = new Uint8Array(N), q = new Int32Array(N); let h = 0, tl = 0, best = -1, bd = (maxM / G.cell) ** 2;
+  q[tl++] = from; seen[from] = 1;
+  while (h < tl) { const i = q[h++], cx0 = i % G.W, cy0 = (i / G.W) | 0, d = (cx0 - x) ** 2 + (cy0 - y) ** 2; if (d < bd) { bd = d; best = i; }
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = cx0 + dx, yy = cy0 + dy; if (xx < 0 || yy < 0 || xx >= G.W || yy >= G.H) continue; const j = yy * G.W + xx; if (seen[j] || !G.g[j]) continue; if (dx && dy && (!G.g[cy0 * G.W + xx] || !G.g[yy * G.W + cx0])) continue; seen[j] = 1; q[tl++] = j; } }
+  return best;
 }
 function wrAstar(G, s, t) {
   const N = G.W * G.H, gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
@@ -948,7 +1075,7 @@ function wrAstar(G, s, t) {
   let n = 0;
   while (heap.length) {
     const [, i] = pop(); if (closed[i]) continue; closed[i] = 1;
-    if (i === t) break; if (++n > 2.5e6) return null;
+    if (i === t) break; if (++n > 4e6) return null;
     const x = i % G.W, y = (i / G.W) | 0;
     for (const [dx, dy, c] of NB) {
       const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= G.W || yy >= G.H) continue;
@@ -973,29 +1100,45 @@ function wrClear(G, i, j) { // straight line between two cells stays in water, o
 async function waterLeg(a, b) {
   if (distNm(a, b) < 0.15) return { ok: true, pts: [] };
   // try a box just around the two points first; if land closes it off (a peninsula, an island), look wider for the way around
-  let G = null, path = null, s = -1, t = -1;
+  let G = null, path = null, s = -1, t = -1, far = 0;
   for (const k of [0.25, 0.9, 2]) {
     G = await waterGrid(a, b, k); if (!G) return { ok: false, why: 'net' };
     const [ax, ay] = G.toXY(a), [bx, by] = G.toXY(b); s = wrSnap(G, ax, ay); t = wrSnap(G, bx, by);
+    if (s < 0 || t < 0) { G.snapM = 3000; if (s < 0) s = wrSnap(G, ax, ay); if (t < 0) t = wrSnap(G, bx, by); G.snapM = 0; far = 1; } // a town or inland pin: go to the nearest navigable water
     if (s < 0 || t < 0) return { ok: false, why: 'nowater' };
     path = wrAstar(G, s, t); if (path) break;
+    // a pin can snap into a pocket of water that does not connect (the creek on the other side of town): try the nearest
+    // water to each end that IS connected to the other end, within 3 km
+    const tt = wrNearestReach(G, s, bx, by, 3000); if (tt >= 0) { path = wrAstar(G, s, tt); if (path) { t = tt; far = 1; break; } }
+    const ss = wrNearestReach(G, t, ax, ay, 3000); if (ss >= 0) { path = wrAstar(G, ss, t); if (path) { s = ss; far = 1; break; } }
   }
   if (!path) return { ok: false, why: 'nopath' };
   const keep = [path[0]]; let k = 0;
   while (k < path.length - 1) { let j = path.length - 1; while (j > k + 1 && !wrClear(G, path[k], path[j])) j = Math.max(k + 1, Math.floor(k + (j - k) * 0.85)); keep.push(path[j]); k = j; }
   const shallow = path.some((i) => G.g[i] === 2);
   let pts = keep.map((i) => G.toLL(i % G.W, (i / G.W) | 0)), partial = G.partial;
-  // the search grid gets coarser over long distances; re-check every straight piece on a fine grid so a thin spit or jetty can't slip through
-  const full = [a].concat(pts.slice(1, -1), [b]);
-  for (let i = 1; i < full.length; i++) {
-    const p0 = full[i - 1], p1 = full[i], d = distNm(p0, p1); if (d < 0.05) continue;
+  const sP = pts[0], tP = pts[pts.length - 1], dockA = distNm(a, sP), dockB = distNm(b, tP);
+  // the search grid gets coarser over long distances; re-check every straight piece (water to water) on a fine grid so a thin spit or jetty can't slip through
+  const allowMaybe = S.settings.routeMaybe !== false;
+  const fineBad = (F, p0, p1, d, skipA, skipB) => { let bad = 0; const n = Math.ceil(d * 1852 / (F.cell * 0.7));
+    for (let q = 1; q < n; q++) { const f = q / n, m = f * d * 1852; if (m < skipA || d * 1852 - m < skipB) continue; const ll = { lat: p0.lat + (p1.lat - p0.lat) * f, lon: p0.lon + (p1.lon - p0.lon) * f }, [x, y] = F.toXY(ll); const c = F.g[y * F.W + x]; if (!c || (c === 2 && !allowMaybe)) bad++; }
+    return bad; };
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1], p1 = pts[i], d = distNm(p0, p1); if (d < 0.05) continue;
+    const skipA = i === 1 ? 150 : 0, skipB = i === pts.length - 1 ? 150 : 0; // the first/last 150 m are the way out of the slip
     const F = await waterGrid(p0, p1, 0.02); if (!F) { partial = true; continue; } if (F.partial) partial = true;
-    let bad = false; const n = Math.ceil(d * 1852 / (F.cell * 0.7));
-    for (let q = 1; q < n; q++) { const f = q / n, ll = { lat: p0.lat + (p1.lat - p0.lat) * f, lon: p0.lon + (p1.lon - p0.lon) * f }, [x, y] = F.toXY(ll); const c = F.g[y * F.W + x]; if (!c || (c === 2 && S.settings.routeMaybe !== true)) { bad = true; break; } }
-    if (bad) return { ok: false, why: 'fine', at: full[i - 1] };
+    if (fineBad(F, p0, p1, d, skipA, skipB) <= 1) continue;
+    // the coarse search cut a corner (a shoal point, a spit): find this piece again on a fine grid and splice it in
+    const L2 = await waterGrid(p0, p1, 0.3); if (!L2) { partial = true; continue; }
+    const [x0, y0] = L2.toXY(p0), [x1, y1] = L2.toXY(p1), s2 = wrSnap(L2, x0, y0), t2 = wrSnap(L2, x1, y1), path2 = s2 >= 0 && t2 >= 0 ? wrAstar(L2, s2, t2) || ((r) => r >= 0 ? wrAstar(L2, s2, r) : null)(wrNearestReach(L2, s2, x1, y1, 400)) : null;
+    if (!path2) return { ok: false, why: 'fine', pts, at: p0 }; // keep the rough path; it is drawn dashed
+    const kp = [path2[0]]; let k2 = 0; while (k2 < path2.length - 1) { let j = path2.length - 1; while (j > k2 + 1 && !wrClear(L2, path2[k2], path2[j])) j = Math.max(k2 + 1, Math.floor(k2 + (j - k2) * 0.85)); kp.push(path2[j]); k2 = j; }
+    const mid = kp.slice(1, -1).map((c) => L2.toLL(c % L2.W, (c / L2.W) | 0));
+    pts.splice(i, 0, ...mid); i += mid.length; // the spliced pieces come from a 30 m grid: no further re-check needed
+    if (pts.length > 400) return { ok: false, why: 'fine', pts, at: p0 };
   }
-  if (partial) return { ok: false, why: 'partial', pts };
-  return { ok: true, shallow, pts };
+  if (partial) return { ok: false, why: 'partial', pts, shallow };
+  return { ok: true, shallow, pts, dockA, dockB, far };
 }
 // turn a list of stops into stops plus turning points that stay in the water
 async function routeByWater(stops) {
@@ -1006,14 +1149,15 @@ async function routeByWater(stops) {
     if (i) {
       const prev = stops[i - 1];
       let r; try { r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
-      p.__ok = r.ok; p.__why = r.why;
-      if (r.ok || (r.why === 'partial' && r.pts)) {
+      p.__ok = r.ok; p.__why = r.why; p.__sh = !!r.shallow;
+      if (r.ok || ((r.why === 'partial' || r.why === 'fine') && r.pts)) {
         r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push({ lat: q.lat, lon: q.lon, turn: true }); });
-        if (r.shallow) notes.push('Part of the way to ' + (p.name || 'stop ' + (i + 1)) + ' is in water the chart shows as close to your draft.');
+        if (r.dockB > 0.15) notes.push((p.name || 'Stop ' + (i + 1)) + ' is not on charted water; the route reaches the nearest navigable water about ' + fmtDist(r.dockB) + ' away. Find the marina or dock there.');
+        if (r.shallow) notes.push('Part of the way to ' + (p.name || 'stop ' + (i + 1)) + ' crosses areas the chart only gives as a depth range that may be shallower than you need. Watch the depth there.');
       }
       if (!r.ok) failed++;
     }
-    const o = Object.assign({}, p, { stop: true }); delete o.__ok; delete o.__why; delete o.unchecked; if (i && p.__ok === false) o.unchecked = p.__why || 'net'; out.push(o);
+    const o = Object.assign({}, p, { stop: true }); delete o.__ok; delete o.__why; delete o.unchecked; delete o.caution; if (p.__sh) o.caution = 1; delete o.__sh; if (i && p.__ok === false) o.unchecked = p.__why || 'net'; out.push(o);
   }
   if (failed) toast(wrWhy((out.find((q) => q.unchecked) || {}).unchecked), 8000);
   else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
@@ -1027,7 +1171,7 @@ async function encPoints(svc, layer, bb) {
   const key = 'p' + svc + layer + bb.join(','); if (WR.cache.has(key)) return WR.cache.get(key);
   const u = ids.host + '/arcgis/rest/services/encdirect/' + svc + '/MapServer/' + ids[layer] + '/query?where=1%3D1&geometry=' + bb.map((v) => v.toFixed(5)).join('%2C') +
     '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=1000&f=json';
-  const j = await fetchT(u, 20000).then((r) => r.json()); if (j.error) throw new Error('ENC');
+  const j = await encJson(u, 20000);
   const out = (j.features || []).filter((f) => f.geometry && f.geometry.x != null).map((f) => { const a = {}; Object.keys(f.attributes || {}).forEach((k) => { a[k.toUpperCase()] = f.attributes[k]; }); return { lat: f.geometry.y, lon: f.geometry.x, a, kind: layer }; });
   WR.cache.set(key, out); return out;
 }
@@ -1176,7 +1320,8 @@ function updateGoto() {
   }
   const eta = isFinite(info.hrs) ? fmtClock(Date.now() + info.hrs * 3600000) : '–';
   $('gotoRow').hidden = false;
-  $('gotoRow').innerHTML = '<div class="g-main"><span class="g-name">To ' + esc(g.name) + (g.arrived ? ' · arrived' : '') + '</span>' +
+  const legBad = g.route && g.route.pts.slice(0, g.route.i + 1).some((p, k, arr) => k === arr.length - 1 && p.unchecked) || (g.route && g.route.pts[g.route.i] && g.route.pts[g.route.i].unchecked);
+  $('gotoRow').innerHTML = (legBad ? '<div class="g-warn">⚠ This leg is NOT checked against the chart: it may cross land or shoals. Watch the chart and depth.</div>' : '') + '<div class="g-main"><span class="g-name">To ' + esc(g.name) + (g.arrived ? ' · arrived' : '') + '</span>' +
     '<span class="g-val tnum">' + fmtDist(info.d) + ' · ' + fmtBrg(info.b) + '°T · ' + fmtDur(info.hrs) + ' · ETA ' + eta + '</span>' + xteHtml +
     '</div><button class="btn small" data-act="endgoto">End</button>';
 }
@@ -2573,7 +2718,7 @@ function renderMenu() {
     grp('Your boat', menuTile('boat', 'boat', esc(S.settings.boatName || 'Your boat'), 'Profile, lights now, maintenance') +
       menuTile('dash', 'dash', 'Instruments', 'Gauges for speed, course, wind and tide') +
       menuTile('log', 'log', 'Tracks and waypoints', 'Record, photos and replay, export GPX')) +
-    grp('On the water', menuTile('firstmate', 'dash', 'First mate', 'Ask by voice or type: weather, destinations and AIS') + menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
+    grp('On the water', menuTile('firstmate', 'mate', 'First mate' + (S.settings.mateName ? ' · ' + esc(S.settings.mateName) : ''), 'Ask anything, by voice or typing: “take me home”, “show me the rain”') + menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
       menuTile('closures', 'rules', 'Closures and safety zones', 'Fireworks zones, Coast Guard notices, your avoid areas') +
       menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast') +
       menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
@@ -2589,7 +2734,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 122. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 123. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2646,6 +2791,41 @@ const boatLabel = () => S.settings.boatName || 'My boat';
 S.plan = store.get('plan2', { from: null, via: [], to: null }); S.planEdit = null;
 function savePlan() { store.set('plan2', S.plan); }
 function planFrom() { if (S.plan.from) return S.plan.from; if (S.fix && Date.now() - (S.lastFixAt || 0) < 120000) return { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon, live: true }; const hp = homePort(); return hp ? Object.assign({ home: true }, hp) : null; }
+/* the trip outlook: what the forecast says for the hours you'd be out, in plain words, and a better time if there is one */
+function tripWx(stops, t0, dNm) {
+  const w = S.weather; if (!w || !w.hours || !w.hours.length) return null;
+  const hrs = dNm / Math.max(1, navSpeed()), t1 = t0 + hrs * 3600000, last = w.hours[w.hours.length - 1].t;
+  if (t0 > last) return { beyond: true, last };
+  let maxW = 0, maxG = 0, thunder = false, rain = 0, n = 0;
+  for (let t = t0; t <= t1 + 1; t += 1800000) { const sp = seriesAt(w.hours, t, 'spd'), gu = seriesAt(w.hours, t, 'gust'), cd = seriesAt(w.hours, t, 'code'), rn = seriesAt(w.hours, t, 'rain'); if (sp == null) continue; n++;
+    maxW = Math.max(maxW, sp); maxG = Math.max(maxG, gu || sp); if (cd >= 95) thunder = true; if (rn) rain = Math.max(rain, rn); }
+  if (!n) return { beyond: true, last };
+  const al = (typeof ALR !== 'undefined' ? ALR.list : []).filter((a) => { const on = Date.parse(a.onset || a.effective || '') || 0, en = Date.parse(a.ends || a.expires || '') || Infinity; return on <= t1 && en >= t0; });
+  const sca = al.find((a) => /small craft/i.test(a.event)), bad = al.find((a) => /gale|storm|hurricane|tropical|special marine|tornado|severe thunderstorm|hazardous seas/i.test(a.event));
+  const end = stops[stops.length - 1], dark = typeof sunElev === 'function' && sunElev(end.lat, end.lon, t1) < -4, darkStart = typeof sunElev === 'function' && sunElev(stops[0].lat, stops[0].lon, t0) < -4;
+  const sail = S.settings.navMode === 'sail';
+  let level = 'go', words = [];
+  if (bad || thunder || maxG >= 30) { level = 'no'; words.push(bad ? bad.event + ' in effect then' : thunder ? 'thunderstorms in the forecast' : 'gusts to ' + Math.round(speedOut(maxG)) + ' ' + SPEED_LBL[S.settings.speedUnit]); }
+  else if (sca || maxG >= 22 || maxW >= 17 || (sail && maxW < 5)) { level = 'care'; if (sca) words.push('Small Craft Advisory' + (hrs < 1.6 ? ', but it is a short run (' + fmtDur(hrs) + ')' : '')); if (maxG >= 22) words.push('gusts to ' + Math.round(speedOut(maxG))); if (sail && maxW < 5) words.push('very light wind: expect to motor'); }
+  if (rain > 0.5 && level === 'go') words.push('some rain');
+  if (dark) words.push('arrives after dark (' + fmtClock(t1) + ')'); else if (darkStart) words.push('leaves before daylight');
+  return { level, words, maxW, maxG, t1, hrs, sca, bad, thunder, dark };
+}
+function planOutlookHtml(stops, t0, dNm) {
+  const r = tripWx(stops, t0, dNm);
+  if (!r) return '<p class="hint">The trip forecast appears once the weather has loaded.</p>';
+  if (r.beyond) return '<div class="pl-wx care"><b>Too far ahead for the forecast</b><span>The hourly forecast runs to ' + new Date(r.last).toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtClock(r.last) + '. Check back closer to the day.</span></div>';
+  const head = r.level === 'no' ? 'Don\'t go then' : r.level === 'care' ? 'Go with care' : 'Good weather window';
+  let h = '<div class="pl-wx ' + r.level + '"><b>' + head + '</b><span>Wind ' + Math.round(speedOut(r.maxW)) + ', gusts ' + Math.round(speedOut(r.maxG)) + ' ' + SPEED_LBL[S.settings.speedUnit] + ' while you\'re out · arrive about ' + fmtClock(r.t1) + (r.words.length ? ' · ' + esc(r.words.join(' · ')) : '') + '</span></div>';
+  // a better time in the next 48 h of daylight?
+  if (r.level !== 'go') {
+    const score = (x) => !x || x.beyond ? 999 : (x.level === 'no' ? 100 : x.level === 'care' ? 30 : 0) + x.maxG + (x.dark ? 15 : 0);
+    let best = null, bs = score(r) - 8;
+    for (let k = 1; k <= 48; k++) { const t = Math.ceil(Date.now() / 3600000) * 3600000 + k * 3600000; if (typeof sunElev === 'function' && sunElev(stops[0].lat, stops[0].lon, t) < 3) continue; const x = tripWx(stops, t, dNm); const sc = score(x); if (sc < bs) { bs = sc; best = { t, x }; } }
+    if (best) h += '<button type="button" class="pl-best" data-plbest="' + best.t + '">Better: leave ' + new Date(best.t).toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtClock(best.t) + ' · gusts ' + Math.round(speedOut(best.x.maxG)) + (best.x.level === 'go' ? ', good window' : '') + '</button>';
+  }
+  return h + '<p class="hint" style="margin:4px 0 0">From the hourly forecast and NWS marine alerts along the way. A guide, not a promise: check the sky before you go.</p>';
+}
 function planCard() {
   const f = planFrom(), t = S.plan.to, ed = S.planEdit, st = S.settings, need = fmtLen(wrNeedM() / 0.3048);
   const field = (k, ph) => '<input id="plQ" type="search" autocomplete="off" enterkeyhint="search" data-for="' + k + '" placeholder="' + ph + '">';
@@ -2660,7 +2840,10 @@ function planCard() {
   h += '</div><div id="plSugs" class="sugs" hidden></div>';
   if (ed !== 'via' && t) h += '<button type="button" class="pl-add" data-pl="via">+ Add a stop</button>';
   h += '<div class="set-row" style="margin-top:8px"><div class="sr-text"><b>Under</b></div></div>' + optSeg2('navMode', [['engine', 'Engine · ' + fmtSpeed(st.cruise) + ' ' + SPEED_LBL[st.speedUnit]], ['sail', 'Sail · ' + fmtSpeed(st.sailSpeed || 5) + ' ' + SPEED_LBL[st.speedUnit]]], st.navMode);
-  if (f && t) { const d = [f].concat(S.plan.via, [t]).reduce((a, p, i, arr) => i ? a + distNm(arr[i - 1], p) : 0, 0); h += '<div class="tp-sum tnum"><b>' + fmtDist(d) + '</b> straight-line · about ' + fmtDur(d / navSpeed()) + '</div>'; }
+  const dep = S.plan.depart && S.plan.depart > Date.now() - 3600000 ? S.plan.depart : null;
+  h += '<div class="pl-when"><small>Leave</small><div class="seg pl-whenseg"><button type="button" data-plwhen="now" class="' + (dep ? '' : 'on') + '">Now</button><button type="button" data-plwhen="pick" class="' + (dep ? 'on' : '') + '">' + (dep ? new Date(dep).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + fmtClock(dep) : 'Pick a day and time') + '</button></div>' +
+    '<input id="plDepart" type="datetime-local" class="pl-dt" value="' + toLocalInput(dep || Math.ceil(Date.now() / 1800000) * 1800000) + '" min="' + toLocalInput(Date.now() - 600000) + '"' + (S.plWhenOpen ? '' : ' hidden') + '></div>';
+  if (f && t) { const d = [f].concat(S.plan.via, [t]).reduce((a, p, i, arr) => i ? a + distNm(arr[i - 1], p) : 0, 0); h += '<div class="tp-sum tnum"><b>' + fmtDist(d) + '</b> straight-line · about ' + fmtDur(d / navSpeed()) + '</div><div id="plOutlook">' + planOutlookHtml([f].concat(S.plan.via, [t]), dep || Date.now(), d) + '</div>'; }
   h += '<div class="row-btns" style="margin-top:10px"><button class="btn primary" data-pl="route"' + (f && t ? '' : ' disabled') + '>Route by water</button><button class="btn" data-pl="direct"' + (t ? '' : ' disabled') + '>Go straight there</button>' + (f && t ? '<button class="btn" data-pl="save">Save</button>' : '') + '</div>';
   h += '<p class="hint" style="margin:8px 0 0">Route by water keeps to charted water at least ' + need + ' deep for your boat, under bridges you fit and around closed areas. You can drag the route on the chart afterwards.</p></div>';
   return h;
@@ -2674,8 +2857,11 @@ $('panelNav').addEventListener('input', (e) => {
     const kn = FM_KNOWN.filter(([re]) => re.test(q.toLowerCase())).map(([, n, la, lo]) => ({ name: n, lat: la, lon: lo, sub: 'Chesapeake', d: planFrom() ? distNm(planFrom(), { lat: la, lon: lo }) : null }));
     list = kn.concat(list.filter((x) => !kn.some((k) => k.name === x.name))); if (seq !== plSeq || !$('plSugs')) return; plList = list; $('plSugs').innerHTML = (list.length ? placeSugHtml(list, 'data-plsug') : '<div class="sug-empty">No water destinations found. Try a marina, creek, harbor or town, or pick on the chart.</div>') + (S.plAll ? '' : '<button type="button" class="sug all" data-plall="1"><b>Include places on land</b><span>Shops, streets, landmarks (you\'ll need a dock nearby)</span></button>'); }, 250);
 });
+$('panelNav').addEventListener('change', (e) => { if (e.target.id !== 'plDepart') return; const t = Date.parse(e.target.value); if (t) { S.plan.depart = t; S.plWhenOpen = false; RT.depart = t; savePlan(); renderNav(); } });
 $('panelNav').addEventListener('keydown', (e) => { if (e.target.id === 'plQ' && e.key === 'Enter' && plList[0]) { e.preventDefault(); planSet(e.target.dataset.for, { name: plList[0].name.replace(/\s*\(sample spot\)/, ''), lat: plList[0].lat, lon: plList[0].lon }); } });
 $('panelNav').addEventListener('click', async (e) => {
+  const wh = e.target.closest('button[data-plwhen]'); if (wh) { if (wh.dataset.plwhen === 'now') { S.plan.depart = null; S.plWhenOpen = false; savePlan(); renderNav(); } else { S.plWhenOpen = true; renderNav(); const i = $('plDepart'); if (i) { i.hidden = false; try { i.showPicker && i.showPicker(); } catch (err) { i.focus(); } } } return; }
+  const bw = e.target.closest('button[data-plbest]'); if (bw) { S.plan.depart = +bw.dataset.plbest; S.plWhenOpen = false; savePlan(); renderNav(); return; }
   if (e.target.closest('button[data-plall]')) { S.plAll = true; const q = $('plQ'); if (q) q.dispatchEvent(new Event('input', { bubbles: true })); return; }
   const g = e.target.closest('[data-plsug]'); if (g) { const o = plList[+g.dataset.plsug], k = $('plQ') ? $('plQ').dataset.for : 'to'; planSet(k, { name: o.name.replace(/\s*\(sample spot\)/, ''), lat: o.lat, lon: o.lon }); return; }
   const q = e.target.closest('[data-plq]'); if (q) { const [k, what] = q.dataset.plq.split(':');
@@ -2695,6 +2881,7 @@ $('panelNav').addEventListener('click', async (e) => {
   if (a === 'save' && f && t) { const stops = [f].concat(S.plan.via, [t]); S.routes.push({ id: Date.now(), name: f.name + ' to ' + t.name, pts: stops.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })) }); store.set('routes', S.routes); toast('Saved in My trips'); renderNav(); return; }
   if (a === 'route' && f && t) {
     b.disabled = true; b.textContent = 'Finding the water route…';
+    RT.depart = S.plan.depart && S.plan.depart > Date.now() ? S.plan.depart : Date.now();
     const pts = await routeByWater([f].concat(S.plan.via, [t]).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })));
     RT.pts = pts; store.set('routeDraft', RT.pts); setTab('chart'); routeMode(true); map.fitBounds(L.latLngBounds(pts.map((p) => [p.lat, p.lon])).pad(0.15));
   }
@@ -3513,6 +3700,7 @@ function evaluate(t) {
   return res;
 }
 function aisIcon(t, level) {
+  try { return aisShipIcon(t, level); } catch (e) { /* ship markers not set up yet: plain arrow below */ } // ship-shaped, sized by length, coloured by type
   const col = level === 'danger' ? '#D64545' : level === 'caution' ? '#E8952B' : t.type === 'ship' ? '#5B6B7A' : t.type === 'sail' ? '#6B4FBB' : '#3D7D9C';
   const big = t.type === 'ship';
   const path = big ? 'M12 1 L17 7 L17 25 L7 25 L7 7 Z' : 'M12 3 L18 23 L12 19 L6 23 Z', age = Date.now() - (t.seen || Date.now()), op = age > 30 * 60000 ? 0.45 : age > 10 * 60000 ? 0.7 : 1;
@@ -3527,10 +3715,10 @@ function updateAis() {
   ais.forEach((t) => {
     const r = S.fix ? evaluate(t) : null; t.eval = r;
     if (r && r.level !== 'none') { const score = (r.level === 'danger' ? 0 : 10) + r.tcpa * 10; if (!worst || score < worst.score) worst = { r, score }; }
-    const m = L.marker([t.lat, t.lon], { icon: aisIcon(t, r ? r.level : 'none'), zIndexOffset: 800 });
-    const z = map.getZoom(), named = t.name && !/^MMSI /.test(t.name), showName = z >= 14 || (z >= 12 && ((t.sog || 0) >= 1 || t.type === 'ship')) || (r && r.level !== 'none');
-    if (showName) m.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [10, 0], className: 'ais-label' + (named ? '' : ' unnamed') }); else m.bindTooltip(esc(t.name || 'AIS target'), { direction: 'top' });
-    m.on('click', () => openAisSheet(t));
+    const ic = aisIcon(t, r ? r.level : 'none'), m = L.marker([t.lat, t.lon], { icon: ic, zIndexOffset: 800 + (r && r.level !== 'none' ? 300 : 0) + (S.aisFollow === t.id ? 200 : 0), keyboard: false, bubblingMouseEvents: false });
+    const z = map.getZoom(), named = t.name && !/^MMSI /.test(t.name), showName = S.settings.aisNames === true && (z >= 14 || (z >= 12 && ((t.sog || 0) >= 1 || t.type === 'ship' || (t.len || 0) >= 60)) || (r && r.level !== 'none'));
+    if (showName) m.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [ic.options.labelDx != null ? ic.options.labelDx : 10, 0], className: 'ais-label' + (named ? '' : ' unnamed'), interactive: false });
+    m.on('click', (ev) => { S.aisTapAt = Date.now(); if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent); openAisSheet(t); }); // a tap on a ship opens the ship, never the spot card
     aisLayer.addLayer(m);
     if (r && r.level !== 'none' && r.tcpa > 0) {
       const ahead = (pos, cog, sog) => destination(pos, cog, sog * r.tcpa);
@@ -3541,6 +3729,7 @@ function updateAis() {
   });
   coachTarget = worst && S.settings.aisCoach ? worst.r : null;
   renderCoach();
+  if (S.aisFollow && typeof aisFollowTick === 'function') aisFollowTick();
 }
 const coachDismissed = new Set();
 function renderCoach() {
@@ -3584,12 +3773,7 @@ sheet.addEventListener('click', (e) => {
 });
 function openAisSheet(t) {
   const r = t.eval || evaluate(t);
-  let h = '<h3>' + esc(t.name || 'AIS target') + '</h3><div class="sub">' + esc((t.type === 'ship' ? 'Ship' : t.type === 'sail' ? 'Sailing vessel' : t.type === 'fishing' ? 'Fishing vessel' : 'Power vessel') + (t.len ? ' · ' + Math.round(t.len) + ' m' : '') + (NAV_STATUS[t.status] ? ' · ' + NAV_STATUS[t.status] : '') + (t.demo ? ' · demo target' : '')) + '</div>';
-  const facts = [['MMSI', t.mmsi], ['Call sign', t.callsign], ['Length', t.len ? Math.round(t.len) + ' m (' + Math.round(t.len * 3.28) + ' ft)' : ''], ['Beam', t.beam ? Math.round(t.beam) + ' m (' + Math.round(t.beam * 3.28) + ' ft)' : ''], ['Draft', t.draft ? t.draft + ' m (' + Math.round(t.draft * 3.28) + ' ft)' : ''], ['Heading', t.hdg != null ? fmtBrg(t.hdg) + '°T' : ''], ['Destination', t.dest], ['ETA', t.eta], ['Status', NAV_STATUS[t.status] || (t.status === 8 ? 'under way sailing' : t.status === 1 ? 'at anchor' : t.status === 0 ? 'under way using engine' : '')], ['Last report', t.seen ? Math.max(0, Math.round((Date.now() - t.seen) / 1000)) + ' s ago' + (t.demo ? ' (demo)' : '') : '']].filter((x) => x[1]);
-  const mmsi = t.mmsi && /^\d{9}$/.test(String(t.mmsi)) ? String(t.mmsi) : null;
-  h += '<div style="display:flex;gap:12px;margin-bottom:12px"><div style="width:96px;height:72px;border-radius:10px;background:var(--surface2);display:grid;place-items:center;flex:none;font-size:11.5px;color:var(--ink2);text-align:center;padding:4px">' + (t.photo ? '<img src="' + esc(t.photo) + '" alt="" style="width:96px;height:72px;object-fit:cover;border-radius:10px">' : 'No photo') + '</div>' +
-    '<div class="facts" style="margin:0;font-size:13px;flex:1">' + facts.map((f) => '<span>' + esc(f[0]) + '</span><span>' + esc(f[1]) + '</span>').join('') + '</div></div>';
-  if (mmsi) h += '<p class="sub" style="margin:-4px 0 12px">Photos and history: <a href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:' + mmsi + '" target="_blank" rel="noopener" style="color:var(--accent)">MarineTraffic</a> · <a href="https://www.vesselfinder.com/vessels/details/' + mmsi + '" target="_blank" rel="noopener" style="color:var(--accent)">VesselFinder</a></p>';
+  let h = shipSheetTop(t); // name, type, flag, photo, particulars and links (below)
   if (r) {
     h += '<div class="trio"><div><span class="lbl">CLOSEST</span><b class="tnum">' + distParts(r.cpa).join(' ') + '</b><span class="unit">' + (r.tcpa > 0 ? 'in ' + fmtDur(r.tcpa) : 'already past') + '</span></div>' +
       '<div><span class="lbl">RANGE</span><b class="tnum">' + distParts(r.range).join(' ') + '</b><span class="unit">' + fmtBrg(r.brg) + '°T' + (r.steady ? ' · steady' : '') + '</span></div>' +
@@ -3606,7 +3790,7 @@ function openAisSheet(t) {
     } else h += '<p class="sub">No close pass predicted from the current AIS reports. Keep a lookout; reports may be incomplete.</p>';
   }
   h += '<div class="row-btns" style="margin-top:6px"><button class="btn ghost" data-act="close">Close</button></div><p class="disclaim">' + DISCLAIMER + '</p>';
-  openSheet(h);
+  openSheet(h); S.aisSheetId = t.id; shipWiki(t);
 }
 sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-rule]'); if (b) openRuleSheet(b.dataset.rule); });
 $('coachCard').addEventListener('click', (e) => {
@@ -3652,8 +3836,8 @@ function aissConnect(force) {
       if (msg.NavigationalStatus != null) t.status = msg.NavigationalStatus;
       t.live = true;
     }
-    if (m.MessageType === 'ShipStaticData') { const d = msg.Dimension || {}; t.type = aisShipType(msg.Type) || t.type; if (d.A != null) { t.len = (d.A || 0) + (d.B || 0); t.beam = (d.C || 0) + (d.D || 0); } if (msg.MaximumStaticDraught) t.draft = msg.MaximumStaticDraught; if (msg.CallSign) t.callsign = msg.CallSign.trim(); if (msg.Destination) t.dest = msg.Destination.trim(); }
-    if (m.MessageType === 'StaticDataReport') { const rb = msg.ReportB || {}; if (rb.ShipType) t.type = aisShipType(rb.ShipType) || t.type; if (rb.CallSign) t.callsign = rb.CallSign.trim(); }
+    if (m.MessageType === 'ShipStaticData') { const d = msg.Dimension || {}; t.type = aisShipType(msg.Type) || t.type; if (msg.Type) t.typeCode = +msg.Type; if (msg.ImoNumber) t.imo = msg.ImoNumber; if (msg.Eta) t.eta = aisEtaText(msg.Eta) || t.eta; if (d.A != null) { t.len = (d.A || 0) + (d.B || 0); t.beam = (d.C || 0) + (d.D || 0); } if (msg.MaximumStaticDraught) t.draft = msg.MaximumStaticDraught; if (msg.CallSign) t.callsign = msg.CallSign.trim(); if (msg.Destination) t.dest = msg.Destination.trim(); }
+    if (m.MessageType === 'StaticDataReport') { const rb = msg.ReportB || {}; if (rb.ShipType) { t.type = aisShipType(rb.ShipType) || t.type; t.typeCode = +rb.ShipType; } if (rb.CallSign) t.callsign = rb.CallSign.trim(); }
     if (t.lat == null) { ais.set(id, Object.assign(t, { seen: prev.seen || 0, hist: prev.hist || [] })); return; }
     if (!t.type) t.type = 'other';
     if (position) { aisUpsert(t); AISS.n++; }
@@ -3668,7 +3852,7 @@ function aissClose() { clearTimeout(AISS.timer); AISS.timer = null; const w = AI
 // each one: moving boats for 15 minutes, boats sitting still for 3 hours. Kept on the phone so they show at once next time.
 const AIS_KEEP = (t) => ((t.sog || 0) >= 1 ? 15 : 180) * 60000;
 setInterval(() => { const now = Date.now(); let ch = false; ais.forEach((t, id) => { if (t.live && now - (t.seen || 0) > AIS_KEEP(t)) { ais.delete(id); ch = true; } }); if (ch) updateAis(); aisSave(); }, 60000);
-function aisSave() { const now = Date.now(), out = []; ais.forEach((t) => { if (t.live && t.lat != null && now - (t.seen || 0) < AIS_KEEP(t)) out.push({ id: t.id, mmsi: t.mmsi, name: t.name, lat: t.lat, lon: t.lon, sog: t.sog, cog: t.cog, hdg: t.hdg, type: t.type, len: t.len, beam: t.beam, status: t.status, seen: t.seen, callsign: t.callsign }); }); store.set('aisCache', out.slice(-1500)); }
+function aisSave() { const now = Date.now(), out = []; ais.forEach((t) => { if (t.live && t.lat != null && now - (t.seen || 0) < AIS_KEEP(t)) out.push({ id: t.id, mmsi: t.mmsi, name: t.name, lat: t.lat, lon: t.lon, sog: t.sog, cog: t.cog, hdg: t.hdg, type: t.type, len: t.len, beam: t.beam, status: t.status, seen: t.seen, callsign: t.callsign, typeCode: t.typeCode, imo: t.imo, dest: t.dest, eta: t.eta, draft: t.draft }); }); store.set('aisCache', out.slice(-1500)); }
 (() => { const now = Date.now(); (store.get('aisCache', []) || []).forEach((t) => { if (t && t.id && now - (t.seen || 0) < AIS_KEEP(t) && !ais.has(t.id)) ais.set(t.id, Object.assign(t, { live: true, cached: true, hist: [] })); }); setTimeout(() => { try { updateAis(); renderAisBtn(); } catch (e) { /* later */ } }, 1500); })();
 // follow the chart: when you look somewhere else, ask the relay for boats there too (up to about 3° across)
 function aisBox() { const b = map.getBounds().pad(0.3), f = S.fix; let s2 = b.getSouth(), w = b.getWest(), n = b.getNorth(), e = b.getEast(); if (f) { s2 = Math.min(s2, f.lat - 0.2); n = Math.max(n, f.lat + 0.2); w = Math.min(w, f.lon - 0.25); e = Math.max(e, f.lon + 0.25); } const c = [(s2 + n) / 2, (w + e) / 2], hl = Math.min(1.45, (n - s2) / 2), hw = Math.min(1.45, (e - w) / 2); return [c[0] - hl, c[1] - hw, c[0] + hl, c[1] + hw].map((v) => +v.toFixed(3)); }
@@ -3698,9 +3882,11 @@ function simAis() {
   const sStart = destination(meet, (sc + 180) % 360, 5 * 8.2 / 60);
   aisUpsert({ id: 'demo-sail', demo: true, name: 'BLUE HERON', type: 'sail', status: 8, len: 11, beam: 3.6, draft: 1.7, callsign: 'DEMO1', dest: 'ANNAPOLIS', lat: sStart.lat, lon: sStart.lon, sog: 5, cog: sc });
   const shipStart = destination(destination(f, cog, 3.2), (cog + 90) % 360, 0.12);
-  aisUpsert({ id: 'demo-ship', demo: true, name: 'DEMO CARRIER', type: 'ship', status: 0, len: 190, beam: 32, draft: 10.4, callsign: 'DEMO2', dest: 'BALTIMORE', eta: 'Today 16:30', lat: shipStart.lat, lon: shipStart.lon, sog: 11, cog: (cog + 180) % 360 });
+  aisUpsert({ id: 'demo-ship', demo: true, name: 'DEMO CARRIER', type: 'ship', typeCode: 70, status: 0, len: 190, beam: 32, draft: 10.4, callsign: 'DEMO2', dest: 'BALTIMORE', eta: 'Today 16:30', lat: shipStart.lat, lon: shipStart.lon, sog: 11, cog: (cog + 180) % 360 });
   const pStart = destination(destination(f, (cog + 180) % 360, 0.7), (cog + 90) % 360, 0.04);
   aisUpsert({ id: 'demo-power', demo: true, name: 'REEL TIME', type: 'power', status: 0, len: 9, beam: 3, draft: 0.8, lat: pStart.lat, lon: pStart.lon, sog: 17, cog });
+  const tStart = destination(destination(f, cog, 1.6), (cog + 270) % 360, 1.1);
+  aisUpsert({ id: 'demo-tug', demo: true, name: 'DEMO TUG', type: 'tug', typeCode: 52, status: 0, len: 30, beam: 10, draft: 4.2, callsign: 'DEMO4', dest: 'POPLAR IS', lat: tStart.lat, lon: tStart.lon, sog: 6, cog: (cog + 200) % 360, hdg: (cog + 200) % 360 });
 }
 function renderModeChip() {
   const c = $('modeChip');
@@ -4723,6 +4909,7 @@ const QUICK = [
   ['mp', 'Marinas & clubs', () => S.settings.mplaces !== false, (on) => { S.settings.mplaces = on; refreshMarinePlaces(); }],
   ['br', 'Bridges', () => S.settings.bridges !== false, (on) => { S.settings.bridges = on; refreshBridges(true); }],
   ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); renderAisBtn(); }],
+  ['aisn', 'Ship names', () => S.settings.aisNames === true, (on) => { S.settings.aisNames = on; updateAis(); }],
   ['sail', 'Under sail (off = motoring)', () => !!S.settings.underSail, (on) => { if (!!S.settings.underSail !== on) $('modeChip').click(); }],
   ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); drawPlaceNames(); loadPlaceNames(); }],
   ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
@@ -4733,7 +4920,9 @@ const QUICK = [
 ];
 function renderQuick() {
   const q = $('quick'), sz = S.settings.pinSize || 'M';
-  q.innerHTML = '<div class="q-head"><b>On the chart</b><button type="button" class="sheet-x" data-qx aria-label="Close">&times;</button></div><div class="q-grid">' +
+  q.innerHTML = '<div class="q-head"><b>On the chart</b><button type="button" class="sheet-x" data-qx aria-label="Close">&times;</button></div>' +
+    (S.settings.chart !== 'street' ? '<div class="q-h">NOAA chart detail <button type="button" class="q-link" data-qmore>customize…</button></div><div class="seg q-cd">' + [['clean', 'Clean'], ['standard', 'Standard'], ['full', 'Full chart']].map(([v, l]) => '<button type="button" data-qcd="' + v + '" class="' + (S.settings.chartDetail === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' : '') +
+    '<div class="q-grid">' +
     QUICK.map(([k, l, get]) => '<button type="button" class="q-t' + (get() ? ' on' : '') + '" data-q="' + k + '" aria-pressed="' + get() + '"><i></i>' + l + '</button>').join('') + '</div>' +
     (S.settings.rings ? '<div class="q-h">Range rings <button type="button" class="q-link" data-qrings>more…</button></div><div class="q-rings">' + ringControlsHtml() + '</div>' : '') +
     '<div class="q-h">Symbol and label size</div><div class="seg">' + [['S', 'Small'], ['M', 'Medium'], ['L', 'Large'], ['XL', 'Extra large']].map(([v, l]) => '<button type="button" data-qsz="' + v + '" class="' + (sz === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
@@ -4747,6 +4936,7 @@ $('quick').addEventListener('click', (e) => {
   if (e.target.closest('[data-qmore]')) { toggleQuick(false); openLayersSheet(); return; }
   if (e.target.closest('[data-qrings]')) { toggleQuick(false); openRingSheet(); return; }
   if (e.target.closest('[data-qarr]')) { toggleQuick(false); arrangeMode(true); return; }
+  const cd = e.target.closest('[data-qcd]'); if (cd) { setChartDetail('preset', cd.dataset.qcd, true); return; }
   const z = e.target.closest('[data-qsz]'); if (z) { S.settings.pinSize = z.dataset.qsz; saveSettings(); applyPinSize(); renderQuick(); return; }
   const t = e.target.closest('[data-q]'); if (!t) return; const it = QUICK.find((x) => x[0] === t.dataset.q); if (!it) return;
   it[3](!it[2]()); saveSettings(); renderQuick();
@@ -4795,6 +4985,7 @@ $('bottomStack').addEventListener('click', (e) => {
 map.on('dragstart', () => setFollow(false));
 map.on('contextmenu', (e) => openPointSheet(e.latlng));
 map.on('click', (e) => {
+  if (Date.now() - (S.aisTapAt || 0) < 600) return; // that tap was on a ship: its sheet is open, not the spot card
   if (S.measure.on) { measureTap(e.latlng); return; }
   if (RT.edit) { routeAdd(e.latlng); return; }
   if (!sheet.hidden) { closeSheet(); return; }
@@ -5465,11 +5656,11 @@ function aneroidGauge(b) {
   const lo = 960, hi = 1050, A0 = -135, A1 = 135, ang = (p) => A0 + (A1 - A0) * Math.max(0, Math.min(1, (p - lo) / (hi - lo)));
   let t = '';
   for (let p = lo; p <= hi; p += 2) { const big = p % 10 === 0, [x0, y0] = polar(big ? 74 : 79, ang(p)), [x1, y1] = polar(86, ang(p)); t += '<line x1="' + x0.toFixed(1) + '" y1="' + y0.toFixed(1) + '" x2="' + x1.toFixed(1) + '" y2="' + y1.toFixed(1) + '" class="g-tick' + (big ? ' big' : '') + '"/>'; if (big && p % 20 === 0) { const [tx, ty] = polar(63, ang(p)); t += '<text x="' + tx.toFixed(1) + '" y="' + (ty + 4).toFixed(1) + '" class="g-num">' + (inHg() ? (p * 0.02953).toFixed(1) : p) + '</text>'; } }
-  const words = [['STORMY', 970], ['RAIN', 990], ['CHANGE', 1006], ['FAIR', 1022], ['VERY DRY', 1040]].map(([w, p]) => { const [x, y] = polar(46, ang(p)); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3).toFixed(1) + '" class="g-baro-w" transform="rotate(' + (ang(p) * 0.55).toFixed(0) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + w + '</text>'; }).join('');
+  const words = [['STORMY', 976, 34, -10], ['RAIN', 990, 44], ['CHANGE', 1006, 46], ['FAIR', 1022, 44], ['VERY DRY', 1034, 34, 10]].map(([w, p, r, rot]) => { const [x, y] = polar(r, ang(p)); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3).toFixed(1) + '" class="g-baro-w" transform="rotate(' + (rot != null ? rot : ang(p) * 0.55).toFixed(0) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + w + '</text>'; }).join('');
   const hand = (p, cls, len) => { const [x, y] = polar(len, ang(p)), [bx, by] = polar(-14, ang(p)); return '<line x1="' + bx.toFixed(1) + '" y1="' + by.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" class="' + cls + '"/>'; };
   const before = b.d != null ? b.p - b.d : null, val = inHg() ? (b.p * 0.02953).toFixed(2) : Math.round(b.p);
   return t + words + (before != null ? hand(before, 'g-baro-set', 70) : '') + hand(b.p, 'g-baro-hand' + (b.warn ? ' bad' : ''), 78) + '<circle cx="100" cy="100" r="7" class="g-hub"/>' +
-    '<text x="100" y="140" class="g-unit">' + val + ' ' + (inHg() ? 'inHg' : 'hPa') + (b.word ? ' · ' + esc(b.word) : '') + '</text>';
+    '<text x="100" y="158" class="g-unit g-baro-v">' + val + ' ' + (inHg() ? 'inHg' : 'hPa') + '</text>' + (b.word ? '<text x="100" y="172" class="g-unit g-baro-v sm">' + esc(b.word) + '</text>' : '');
 }
 function baroGauge(b) {
   if ((S.settings.gStyle || 'hybrid') !== 'digital') return aneroidGauge(b);
@@ -6843,11 +7034,11 @@ function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .f
 function arrangeMode(on) {
   ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
   let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
-  bar.innerHTML = '<span>Drag buttons anywhere</span><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
-  bar.hidden = !on; if (!on) { saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
+  bar.innerHTML = '<span>Drag to arrange</span><button type="button" class="btn small" data-arr="tidy">Tidy up</button><button type="button" class="btn small" data-arr="reset">Reset</button><button type="button" class="btn small primary" data-arr="done">Done</button>';
+  bar.hidden = !on; if (on) bar.style.removeProperty('display'); else bar.style.setProperty('display', 'none', 'important'); if (!on) { arrPreview(null); saveFabLayout(); toast('Buttons arranged. Menu → Arrange buttons to change again.', 3000); }
 }
 document.addEventListener('click', (e) => {
-  const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
+  const a = e.target.closest('[data-arr]'); if (a) { if (a.dataset.arr === 'done') arrangeMode(false); else if (a.dataset.arr === 'tidy') arrTidy(); else { delete S.settings.fabLayout; saveSettings(); location.reload(); } return; }
   if (ARR.on && e.target.closest('#fabs, #fabsR, .fab-free')) { e.stopPropagation(); e.preventDefault(); } // buttons do not act while arranging
 }, true);
 document.addEventListener('pointerdown', (e) => {
@@ -6862,18 +7053,15 @@ document.addEventListener('pointermove', (e) => {
   d.el.style.left = (e.clientX - d.dx) + 'px'; d.el.style.top = (e.clientY - d.dy) + 'px';
   const L0 = $('fabs').getBoundingClientRect(), R0 = $('fabsR').getBoundingClientRect(), inCol = (R, x, y) => x > R.left - 24 && x < R.right + 24 && y > R.top - 30 && y < R.bottom + 30;
   const nearL = inCol(L0, e.clientX, e.clientY), nearR = inCol(R0, e.clientX, e.clientY);
-  d.free = !nearL && !nearR; if (d.free) { d.ph.remove(); return; } // out on the chart: it will stay where you let go
+  d.free = !nearL && !nearR; arrPreview(d.free ? d : null); if (d.free) { d.ph.remove(); return; } // out on the chart: it will stay where you let go
   const col = nearL ? $('fabs') : $('fabsR'), items = [...col.children].filter((x) => x !== d.el && x !== d.ph && !ARR_SKIP.has(x.id));
   let before = null; for (const it of items) { const rr = it.getBoundingClientRect(); if (e.clientY < rr.top + rr.height / 2) { before = it; break; } }
   if (before) col.insertBefore(d.ph, before); else { const al = $('alertBar'); if (al && al.parentNode === col) col.insertBefore(d.ph, al); else col.appendChild(d.ph); }
 }, { capture: true, passive: false });
-const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; d.el.classList.remove('arr-drag'); document.documentElement.classList.remove('arr-dragging');
+const arrDrop = () => { const d = ARR.drag; if (!d) return; ARR.drag = null; arrPreview(null); d.el.classList.remove('arr-drag'); document.documentElement.classList.remove('arr-dragging');
   if (d.free || !d.ph.parentNode) { const r = d.el.getBoundingClientRect(), tb = ($('tabbar') || document.querySelector('.tabbar')).getBoundingClientRect().top;
-    let x = Math.max(6, Math.min(innerWidth - r.width - 6, r.left)), y = Math.max(6, Math.min(tb - r.height - 6, r.top));
-    // magnets: the screen edges (12 px margin) and the line of any other button, so things sit in line
-    if (x < 26) x = 12; if (innerWidth - (x + r.width) < 26) x = innerWidth - r.width - 12; if (y < 30) y = 12; if (tb - (y + r.height) < 26) y = tb - r.height - 12;
-    document.querySelectorAll('#fabs > [id], #fabsR > [id], #app > .fab-free[id]').forEach((o) => { if (o === d.el) return; const q = o.getBoundingClientRect(); if (Math.abs((q.left + q.width / 2) - (x + r.width / 2)) < 14) x = q.left + q.width / 2 - r.width / 2; if (Math.abs((q.top + q.height / 2) - (y + r.height / 2)) < 14) y = q.top + q.height / 2 - r.height / 2; });
-    $('app').appendChild(d.el); d.el.classList.add('fab-free'); ['position', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); d.el.style.left = x + 'px'; d.el.style.top = y + 'px'; d.ph.remove(); }
+    const sn = arrSnap(parseFloat(d.el.style.left) || r.left, parseFloat(d.el.style.top) || r.top, d.el.offsetWidth || r.width, d.el.offsetHeight || r.height, d.el, tb), x = sn.x, y = sn.y; // grid, edges and neighbours (see arrSnap)
+    $('app').appendChild(d.el); d.el.classList.add('fab-free'); ['position', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); d.el.style.left = x + 'px'; d.el.style.top = y + 'px'; d.ph.remove(); arrEven(d.el); }
   else { d.ph.parentNode.insertBefore(d.el, d.ph); d.ph.remove(); d.el.classList.remove('fab-free'); ['position', 'left', 'top', 'width', 'zIndex', 'pointerEvents'].forEach((k) => { d.el.style[k] = ''; }); }
   saveFabLayout(); };
 document.addEventListener('pointerup', arrDrop, true); document.addEventListener('pointercancel', arrDrop, true);
@@ -6910,6 +7098,490 @@ function openGaugeLook() {
 document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
 function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
 applyGArt();
+/* ---------- first mate, one assistant: the sparkle button and Menu → First mate open the same thing. It has a name you choose
+   ("Gilligan"), listens for it hands-free, understands everyday wording (not a fixed list of commands), answers out loud
+   when you spoke to it, and hands anything it cannot place to the AI relay once one is set up.
+   The functions below with the same names as earlier ones replace them (the last function declaration wins). ---------- */
+ICON.mate = '<path d="M11.6 3c.6 4.4 3.2 7 7.6 7.6-4.4.6-7 3.2-7.6 7.6-.6-4.4-3.2-7-7.6-7.6 4.4-.6 7-3.2 7.6-7.6z"/>';
+if (!S.settings.mateName && S.settings.wakeWord && !/^first mate$/i.test(S.settings.wakeWord)) { S.settings.mateName = S.settings.wakeWord.replace(/\b\w/g, (c) => c.toUpperCase()); saveSettings(); }
+const mateName = () => String(S.settings.mateName || '').trim() || 'First mate';
+const mateCall = () => (S.settings.mateName ? String(S.settings.mateName).trim() : 'First mate');
+// Menu tiles open sheets, but on a phone or an upright iPad the Menu panel (z-index 850) sits over the sheet (800), so the
+// sheet opened unseen and the tile looked dead. If a tile leaves a sheet covered by a panel, go to the chart so it shows.
+function sheetCovered() {
+  if (sheet.hidden) return false; const r = sheet.getBoundingClientRect(); if (r.height < 4) return false;
+  const st = document.elementsFromPoint(r.left + r.width / 2, Math.min(innerHeight - 4, r.top + Math.min(60, r.height / 2)));
+  const ip = st.findIndex((x) => x.closest('.panel')), is = st.findIndex((x) => x.closest('#sheet'));
+  return ip >= 0 && (is < 0 || ip < is);
+}
+$('panelMenu').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-mact]')) return; const t0 = S.tab;
+  [0, 350, 1200].forEach((ms) => setTimeout(() => { if (S.tab === t0 && sheetCovered()) setTab('chart'); }, ms));
+});
+/* the words: small typo- and mishearing-tolerant matching */
+function fmLev(a, b) {
+  if (a === b) return 0; const m = a.length, n = b.length; if (!m || !n) return m || n; let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+const fmSim = (a, b) => 1 - fmLev(a, b) / Math.max(a.length, b.length, 1);
+const FM_VOCAB = ('show hide display radar rain raining showers storms weather forecast wind windy breeze gusts waves seas swell current currents tide tides tidal ' +
+  'zoom closer north course heading night dark daylight mode record recording tracking track waypoint overboard navigate navigation route home harbor ' +
+  'depth deep shallow ships vessels traffic satellite instruments gauges where leave depart start stop mark position location anchor').split(' ');
+function fmFix(c) { // "rader" → radar, "wether" → weather, "currant" → current, "overbored" → overboard
+  return c.split(' ').map((w) => { if (w.length < 5 || FM_VOCAB.includes(w)) return w; let best = null, bd = 9;
+    FM_VOCAB.forEach((v) => { if (Math.abs(v.length - w.length) > 2) return; const d = fmLev(w, v); if (d < bd) { bd = d; best = v; } });
+    return best && bd <= (w.length >= 7 ? 2 : 1) ? best : w; }).join(' ');
+}
+// "Gilligan, take me home" / "hey Gilligan show me the rain" / "first mate, where am I": returns what follows the name, or null
+function fmWakeSplit(said) {
+  const words = String(said).toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean);
+  const names = [...new Set([mateName().toLowerCase(), 'first mate'])].map((n) => n.replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean)).filter((n) => n.length);
+  for (let i = 0; i < words.length; i++) for (const nw of names) {
+    if (i + nw.length > words.length) continue; const seg = words.slice(i, i + nw.length).join(' ').replace(/'s$/, ''), target = nw.join(' ');
+    if (seg === target || (target.length >= 4 && fmSim(seg, target) >= 0.75)) return words.slice(i + nw.length).join(' ').replace(/^(please|can you|could you)\s+/, '');
+  }
+  return null;
+}
+/* the answers */
+function fmWindSay() {
+  const w = S.weather && S.weather.cur; if (!w || w.spd == null) return 'I do not have the wind yet. Check your signal; it updates every few minutes.';
+  const u = SPEED_LBL[S.settings.speedUnit] || 'knots', hrs = (S.weather.hours || []).filter((h) => h.t > Date.now() && h.t < Date.now() + 6 * 3600000), mx = hrs.length ? Math.max(...hrs.map((h) => h.gust || h.spd || 0)) : null;
+  return 'Wind ' + Math.round(speedOut(w.spd)) + ' ' + u + ' from the ' + compass16(w.dir) + (w.gust ? ', gusting ' + Math.round(speedOut(w.gust)) : '') + '.' + (mx != null && mx > (w.gust || w.spd) + 4 ? ' Gusts to ' + Math.round(speedOut(mx)) + ' in the next six hours.' : '');
+}
+function fmWeatherSay() {
+  const W = S.weather; if (!W || !W.cur) return 'Here is the forecast.';
+  const hrs = (W.hours || []).filter((h) => h.t > Date.now() && h.t < Date.now() + 12 * 3600000), wet = hrs.find((h) => (h.rain || 0) > 0.2);
+  return fmWindSay() + (W.cur.temp != null ? ' ' + Math.round(S.settings.tempUnit === 'C' ? W.cur.temp : W.cur.temp * 9 / 5 + 32) + ' degrees.' : '') + (hrs.length ? (wet ? ' Rain likely around ' + fmtClock(wet.t) + '.' : ' No rain in the next twelve hours.') : '');
+}
+function fmTideSay(c) {
+  const t = S.tide; if (!t || t.none || !t.hilo) return 'I do not have tide predictions yet. Open Weather, then Tide.';
+  const want = /\blow\b/.test(c) ? 'L' : /\bhigh\b/.test(c) ? 'H' : null, nx = t.hilo.find((p) => p.t > Date.now() && (!want || p.type === want)), tn = tideNow();
+  if (!nx) return 'No more tide turns in the predictions I have.';
+  const mins = Math.round((nx.t - Date.now()) / 60000), inT = mins < 90 ? mins + ' minutes' : (mins / 60).toFixed(mins < 600 ? 1 : 0) + ' hours';
+  return (nx.type === 'H' ? 'High' : 'Low') + ' tide at ' + fmtClock(nx.t) + ', in ' + inT + (nx.v != null ? ', ' + tideLen(nx.v) : '') + '.' + (tn && tn.rising != null ? ' The tide is ' + (tn.rising ? 'rising' : 'falling') + ' now.' : '') + (t.station ? ' ' + t.station.name.replace(/,.*$/, '') + '.' : '');
+}
+function fmDepthSay() {
+  const d = DEP.v; if (!d) return DEP.busy ? 'Reading the chart depth here. Ask again in a moment.' : 'No charted depth here. Tideline reads the NOAA chart; no depth sounder is connected.';
+  const tn = tideNow(), ft = d.d1 / 0.3048 + (tn ? tn.v : 0), need = S.boat && S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null;
+  return 'Charted depth about ' + Math.round(ftToLen(ft)) + ' ' + (lenUnit() === 'm' ? 'meters' : 'feet') + (tn ? ' with the tide' : '') + '.' + (need && ft < need ? ' That is shallow for your boat.' : '') + ' From the chart, not a sounder.';
+}
+function fmWhereSay() {
+  const p = S.fix; if (!p) return 'No GPS position yet.';
+  let best = null; FM_KNOWN.forEach(([, n, la, lo]) => { const d = distNm(p, { lat: la, lon: lo }); if (!best || d < best.d) best = { n, d, b: bearing({ lat: la, lon: lo }, p) }; });
+  const ll = Math.abs(p.lat).toFixed(3) + (p.lat >= 0 ? ' north, ' : ' south, ') + Math.abs(p.lon).toFixed(3) + (p.lon <= 0 ? ' west' : ' east');
+  return (best && best.d < 15 ? (best.d < 0.3 ? 'At ' + best.n + '. ' : fmtDist(best.d) + ' ' + compass16(best.b) + ' of ' + best.n + '. ') : '') + ll + '.';
+}
+function fmRouteGo() { // "start" / "let's go" after a course is plotted
+  if (!(RT.pts && RT.pts.length > 1)) return null;
+  if (!sheet.querySelector('[data-act="rtstart"]')) routeMode(true);
+  const b = sheet.querySelector('[data-act="rtstart"]'); if (!b) return null; b.click(); return 'Under way. I will call out the turns.';
+}
+// Everyday wording → action. Returns { say, close } when it handled the request, or null so the older parser and the AI can try.
+async function fmUnderstand(text) {
+  const raw = String(text || '').trim(); if (!raw) return null;
+  let c = raw.toLowerCase().replace(/[“”"!?.]+/g, ' ').replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const w = fmWakeSplit(c); if (w != null && w) c = w;
+  for (let k = 0; k < 3; k++) c = c.replace(/^(hey|hi|ok|okay|um|uh|so|please|can you|could you|would you|will you|i want to|i'd like to|i would like to|i wanna|let's|lets|go ahead and|just)\s+/, '');
+  c = c.replace(/\s+(please|now|for me|right now|thanks|thank you)$/g, '').trim();
+  const f = fmFix(c), has = (re) => re.test(f);
+  const off = has(/\b(hide|remove|turn off|switch off|clear|get rid of|no more|stop showing|take away|close|kill|lose)\b/);
+  if (has(/\b(man|person|crew|someone|somebody|child|kid|dog|guy|woman|girl|boy) (is |went |fell )?overboard\b|^mob$|\bman overboard\b/)) { closeSheet(); triggerMob(); return { say: S.mob ? 'Man overboard marked. Steering back to the spot. Keep pointing at them and call the Coast Guard on channel 16.' : 'No GPS position, so I could not mark the spot. Keep pointing at them.' }; }
+  if (has(/\b(stop|quit|pause) listening\b|\bgo to sleep\b/)) { wakeStop(); return { say: 'Stopped listening.' }; }
+  if (has(/^(start|go|let'?s go|start (the )?(route|navigation|navigating|guidance|course)|begin( navigation)?|start navigating|follow (the|this) (route|course))$/)) { const r = fmRouteGo(); if (r) return { say: r, close: true }; }
+  if (has(/^(stop|end|cancel)( the)? (navigation|navigating|route|course|guidance)$/)) { endGoto(); return { say: 'Navigation ended.' }; }
+  // questions with a spoken answer
+  if (has(/\b(when|what time)\b.*\b(high|low)\b|\b(next|high|low) tide\b|\btide (times?|tables?|turn)\b|\bis the tide (rising|falling|coming|going|in|out)\b|\bwhen.*\btide\b/)) return { say: fmTideSay(f) };
+  if (has(/\b(how deep|how much water|how shallow|what'?s the depth|what is the depth|depth here|water depth)\b|^depth$/)) return { say: fmDepthSay() };
+  if (has(/\bwhere (am i|are we|is the boat|is my boat|are we at)\b|\b(my|our) (position|location)\b|\bfind me\b|\bcenter (on )?(me|us|the boat)\b/)) { closeSheet(); setTab('chart'); if (S.fix) setFollow(true); return { say: fmWhereSay(), close: true }; }
+  if (has(/\b(best|good|right) time to (leave|go|sail|depart|head out|cast off)\b|\bwhen (should|do|can|could) (i|we) (leave|go|sail|depart|head out|cast off)\b|\bwhat time should (i|we)\b/)) {
+    const dm = f.match(/\b(?:for|to)\s+(?!leave|go|sail|depart)(.+)$/); return (await fmLocal('when should i leave' + (dm ? ' for ' + dm[1] : ''))) ? { say: 'Here is the best time to leave.', close: true } : null; }
+  if (has(/\b(what'?s|what is|whats|how'?s|how is|how much|how strong|how hard|is it) (the )?(wind|windy|breeze|blowing|gusting)\b|\bhow windy\b|\bwind (speed|now|report)\b|^(the )?wind$/)) { setTab('chart'); setWxL('wind', true); return { say: fmWindSay() }; }
+  if (!off && has(/\b(what'?s|what is|whats|how'?s|how is) (the )?(weather|forecast)\b|\bweather (report|today|like|forecast)\b|^(the )?(weather|forecast)$|\b(show|give|bring up|open|get|check)( me| us)?( the)? (weather|forecast)\b|\bis it going to rain\b|\bwill it rain\b/)) {
+    if (has(/\brain\b/)) { setTab('chart'); setWxL('rain', true); } else { WX.view = 'wind'; WX.open = true; closeSheet(); setTab('weather'); }
+    return { say: fmWeatherSay(), close: true };
+  }
+  // going places: take me home / go to / navigate to / route to / head for …
+  if (has(/^(go |head |sail |motor |get |bring us |take us |take me |let'?s go |return |navigate |steer )?(back )?home$|\b(take|bring|get|head|go|navigate|route|steer|sail|motor|return|guide|lead)( me| us)?( back)? (to )?(home|my (slip|dock|marina|home port|mooring)|home port|the (dock|slip|marina|mooring))$/)) {
+    if (!homePort()) return { say: 'Set your home port first: Navigate, then Home port.' };
+    await fmLocal('take me to home'); return { say: RT.pts && RT.pts.length > 1 ? 'Course home plotted. Say “start” or tap Start to go.' : null, close: true };
+  }
+  let m = c.match(/\bfrom (.+?) to (.+)$/);
+  if (m && has(/\b(course|route|trip|passage|navigate|take|go|plot|plan|get|sail)\b/)) { await fmLocal('set a course from ' + m[1] + ' to ' + m[2]); return { say: RT.pts && RT.pts.length > 1 ? 'Course plotted. Review it, then say “start”.' : null, close: true }; }
+  m = c.match(/\b(?:take|bring|get|lead|guide|drive|run) (?:me|us)(?: (?:over|out|down|up|back))? (?:to|towards?) (.+)$/) || c.match(/\b(?:navigate|route|go|head|sail|motor|steer|cruise|directions|heading|going|run|make for)(?: me| us)?(?: (?:over|out|down|up|back))? (?:to|towards?|for) (.+)$/) ||
+    c.match(/\bhow (?:do|can|would) (?:i|we) get to (.+)$/) || c.match(/\b(?:set|plot|plan|make|lay|chart)(?: me| us)? (?:a |the )?(?:course|route|trip|passage|heading) (?:to|for) (.+)$/);
+  if (m && !/^(sleep|bed)$/.test(m[1])) {
+    const q = m[1].replace(/\b(please|now|for me)$/g, '').trim(); await fmLocal('take me to ' + q);
+    return { say: RT.pts && RT.pts.length > 1 ? 'Course plotted. Review it, then say “start”.' : null, close: true };
+  }
+  if (has(/\bnorth up\b/)) { setOrient('north'); return { say: 'North up.' }; }
+  if (has(/\b(course|heading|track|bow|head) up\b/)) { setOrient('course'); return { say: 'Course up.' }; }
+  if (has(/\b(night|dark|red) (mode|colou?rs?|screen|theme)\b|\bit'?s (getting )?dark\b|^night$|\bdim the screen\b/)) { S.settings.theme = 'night'; saveSettings(); applyNight(); renderThemeBtn(); return { say: 'Night colors.' }; }
+  if (has(/\bdusk (mode|colou?rs?)\b|^dusk$/)) { S.settings.theme = 'dusk'; saveSettings(); applyNight(); renderThemeBtn(); return { say: 'Dusk colors.' }; }
+  if (has(/\b(day|light|bright|daylight|daytime) (mode|colou?rs?|screen|theme)\b|\bbrighter\b|^day$/)) { S.settings.theme = 'day'; saveSettings(); applyNight(); renderThemeBtn(); return { say: 'Day colors.' }; }
+  if (has(/\bzoom (way |all the way )?out\b|\b(further|farther|way) out\b|\bwider\b|\bpull back\b|\bshow more\b|\bsee more\b|\bzoom back\b/)) { closeSheet(); setTab('chart'); map.setZoom(map.getZoom() - (/\b(way|lot|more|all)\b/.test(f) ? 2 : 1)); return { say: 'Zoomed out.', close: true }; }
+  if (has(/\bzoom( way)?( in)?\b|\bcloser\b|\bmagnify\b|\benhance\b/)) { closeSheet(); setTab('chart'); map.setZoom(map.getZoom() + (/\b(way|lot|more|all)\b/.test(f) ? 2 : 1)); return { say: 'Zoomed in.', close: true }; }
+  if (has(/\b(start|begin|turn on|switch on)\b.*\b(record|recording|track|tracking|logging|log)\b|^record( (my|the|our) (track|trip|path))?$|^(track|log) (my|the|our) (trip|path)$/)) {
+    if (S.rec.on) return { say: 'Already recording your track.' };
+    S.rec = { on: true, pts: [], start: Date.now() }; trackLine.setLatLngs([]); if (S.fix) recordPoint(S.fix, true); store.set('rec', S.rec); $('recDot').hidden = false; return { say: 'Recording your track.' };
+  }
+  if (has(/\b(stop|end|finish|turn off|save)\b.*\b(record|recording|track|tracking|logging)\b/)) {
+    if (!S.rec.on) return { say: 'Not recording right now.' };
+    const pts = S.rec.pts, ok = pts.length > 1; if (ok) { S.tracks.push({ id: Date.now(), name: new Date(S.rec.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + fmtClock(S.rec.start), start: S.rec.start, end: Date.now(), dist: trackDist(pts), pts }); store.set('tracks', S.tracks); }
+    S.rec = { on: false, pts: [], start: null }; store.set('rec', S.rec); trackLine.setLatLngs([]); $('recDot').hidden = true; return { say: ok ? 'Track saved.' : 'Stopped. The track was too short to save.' };
+  }
+  if (has(/\b(mark|save|drop|remember|pin|flag|tag|add)\b.*\b(spot|place|location|position|here|this|waypoint|pin|it)\b|\bwaypoint\b|\bdrop a pin\b|^mark( it)?$/)) {
+    const p = refPos(), n = S.waypoints.length + 1, fish = /\b(fish|fishing|bite|biting|crab)\b/.test(f);
+    const wp = { id: Date.now(), name: (fish ? 'Fishing spot ' : 'Waypoint ') + n, lat: +p.lat.toFixed(6), lon: +p.lon.toFixed(6) }; S.waypoints.push(wp); store.set('waypoints', S.waypoints); renderWaypoints();
+    return { say: 'Saved ' + wp.name + (S.fix ? ' at the boat.' : ' at the middle of the chart; there is no GPS position yet.') };
+  }
+  // layers by name, in any wording: "show me the rain", "rain radar", "get rid of the wind", "where are the ships"
+  const LW = { rain: 'rain', raining: 'rain', radar: 'rain', showers: 'rain', storms: 'rain', storm: 'rain', thunderstorms: 'rain', precipitation: 'rain', precip: 'rain',
+    wind: 'wind', winds: 'wind', breeze: 'wind', gusts: 'wind', waves: 'waves', wave: 'waves', seas: 'waves', swell: 'waves', chop: 'waves',
+    current: 'cur', currents: 'cur', tide: 'tide', tides: 'tide', tidal: 'tide', ais: 'ais', ships: 'ais', ship: 'ais', boats: 'ais', traffic: 'ais', vessels: 'ais', freighters: 'ais', tankers: 'ais', barges: 'ais',
+    satellite: 'sat', aerial: 'sat', imagery: 'sat' };
+  const ls = [...new Set(f.split(/[\s,&]+/).map((x) => LW[x]).filter(Boolean))];
+  if (ls.length && !has(/\b(fish|fishing|crab|crabs|crabbing)\b/)) {
+    const on = !off, said = [];
+    ls.forEach((l) => {
+      if (l === 'tide') { S.tideCardOn = on; renderTideCard(); said.push('the tide'); }
+      else if (l === 'cur') { setCurrents(on); said.push('currents'); }
+      else if (l === 'ais') { S.settings.aisShow = on; saveSettings(); updateAis(); renderAisBtn(); said.push('AIS ships'); }
+      else if (l === 'sat') { S.settings.satOver = on; saveSettings(); applyChart(); said.push('satellite'); }
+      else { setWxL(l, on); said.push(l === 'rain' ? 'rain radar' : l); }
+    });
+    closeSheet(); setTab('chart');
+    return { say: (on ? 'Showing ' : 'Hiding ') + said.join(' and ') + '.', close: true };
+  }
+  return null;
+}
+/* the conversation */
+function firstMateMessage(text) { FM.last = String(text || ''); const el = $('firstMateReply'); if (el) el.textContent = text; else if (text) toast(text, 5000); }
+function fmSay(text) {
+  if (!text || S.settings.mateVoice === false || !('speechSynthesis' in window)) return;
+  const CW = { N: 'north', NNE: 'north-northeast', NE: 'northeast', ENE: 'east-northeast', E: 'east', ESE: 'east-southeast', SE: 'southeast', SSE: 'south-southeast', S: 'south', SSW: 'south-southwest', SW: 'southwest', WSW: 'west-southwest', W: 'west', WNW: 'west-northwest', NW: 'northwest', NNW: 'north-northwest' };
+  text = String(text).replace(/[“”]/g, '').replace(/\b(\d+(?:\.\d+)?) kn\b/g, '$1 knots').replace(/\b(\d+(?:\.\d+)?) nm\b/g, '$1 nautical miles').replace(/\b(\d+(?:\.\d+)?) ft\b/g, '$1 feet').replace(/\b(\d+(?:\.\d+)?) m\b/g, '$1 meters').replace(/°T\b/g, ' degrees true').replace(/\b([NSEW]{1,3})\b/g, (k) => CW[k] || k);
+  try { const u = new SpeechSynthesisUtterance(text.slice(0, 300)); u.rate = 0.97; u.lang = 'en-US'; const v = bestVoice(); if (v) { u.voice = v; u.lang = v.lang; } speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* no speech */ }
+}
+function fmReply(r) { if (!r || !r.say) return; firstMateMessage(r.say); if (!$('firstMateReply')) return; if (r.close) setTimeout(() => { if ($('firstMateReply')) closeSheet(); toast(r.say, 4500); }, 900); }
+async function fmRelay(request) {
+  const boat = S.fleet.active, view = FM.view; firstMateMessage('Thinking…');
+  const send = sheet.querySelector('[data-fm="send"]'); if (send) send.disabled = true;
+  try {
+    await sbInit(); if (!SB.client) throw new Error('Set up Account and sign in first, so I can use the AI for that.');
+    const { data } = await SB.client.auth.getSession(); if (!data.session) throw new Error('Sign in through Menu → Account so I can ask the AI about that.');
+    const response = await fetch(S.settings.assistantUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, signal: AbortSignal.timeout(35000), body: JSON.stringify({ request, context: { assistantName: mateName(), boatName: S.settings.boatName, boatType: S.settings.boatType, hasGps: !!S.fix, destination: S.goto && S.goto.name || null, previousRequests: FM.history.slice(-3) } }) });
+    const action = await response.json(); if (!response.ok) throw new Error(action.error || 'Assistant connection failed.');
+    if (boat !== S.fleet.active || view !== FM.view || !$('firstMateReply')) return;
+    FM.history.push(request); FM.history = FM.history.slice(-3);
+    await firstMateExecute(action);
+  } catch (e) { firstMateMessage(e.message || 'Assistant unavailable. No action taken.'); }
+  finally { if (send && send.isConnected) send.disabled = false; }
+}
+async function askFirstMate(voice) {
+  if (FM.busy) return; const inp = $('firstMateRequest'), request = ((inp && inp.value) || '').trim(); if (!request) return;
+  FM.voiceTurn = voice === true || (!!FM.heard && FM.heard === request); FM.heard = null; FM.last = '';
+  FM.busy = true; let handled = false;
+  try { const r = await fmUnderstand(request); if (r) { if (r.say) fmReply(r); handled = true; } else handled = await fmLocal(request); }
+  catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); handled = true; } finally { FM.busy = false; }
+  if (!handled && S.settings.assistantUrl) { FM.busy = true; try { await fmRelay(request); } finally { FM.busy = false; } handled = true; }
+  if (!handled) firstMateMessage('I did not understand “' + request + '” yet. Try “take me home”, “show me the rain”, “what’s the wind”, “when is high tide”, “mark this spot”. Once the AI is connected I can take anything.');
+  if (FM.voiceTurn && FM.last && !(window.speechSynthesis && speechSynthesis.speaking)) fmSay(FM.last);
+}
+function openFirstMate() {
+  FM.view++; if (FM.recognition) FM.recognition.stop();
+  if (!isWide() && S.tab !== 'chart') setTab('chart');
+  const nm = mateName(), call = mateCall(), live = WAKE.on, R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  openSheet('<h3 class="fm-title"><i class="fm-badge">' + AI_ICON + '</i>' + esc(nm) + '</h3><p class="sub">Ask anything, the way you would ask crew: “' + esc(call) + ', take me home”, “show me the rain”, “what’s the wind”, “when is high tide”, “mark this spot”, “zoom out”.</p>' +
+    '<div class="field"><label for="firstMateRequest">What do you need?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off" enterkeyhint="send"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div>' +
+    '<p id="firstMateReply" class="sub" role="status" aria-live="polite">' + (live ? 'Listening for “' + esc(call) + '”.' : 'Ready. Tap Talk and speak, or type and tap Send.') + '</p><div id="firstMateResults"></div>' +
+    '<details class="fm-set"' + (S.settings.mateName ? '' : ' open') + '><summary>Name and hands-free</summary>' +
+    '<div class="field"><label for="fmName">Your first mate’s name</label><div class="fm-namerow"><input id="fmName" type="text" maxlength="24" autocomplete="off" placeholder="First mate (for example Gilligan)" value="' + esc(S.settings.mateName || '') + '"><button class="btn small" data-mate="name">Save</button></div><small class="hint">This is the wake word. “Hey ' + esc(call) + '” and “First mate” work too.</small></div>' +
+    '<div class="row-btns">' + (R ? '<button class="btn' + (live ? '' : ' primary') + '" data-mate="wake">' + (live ? 'Stop listening' : 'Start listening for “' + esc(call) + '”') + '</button>' : '') + '</div>' +
+    '<label class="air-ok"><input type="checkbox" id="fmVoice"' + (S.settings.mateVoice !== false ? ' checked' : '') + '> Answer out loud when I talk to it</label>' +
+    '<p class="hint fm-honest">' + (R ? 'Hands-free listening works only while Tideline is open on the screen and the screen stays on (Tideline keeps it awake while navigating). It stops if you switch apps or lock the screen. On iPhone and iPad, Safari needs one tap to turn the microphone on each time the app opens: tap Start listening or the sparkle button. Your browser turns speech into text; Apple or Google may process it.' : 'This browser cannot listen hands-free. Use Talk, or the microphone on your keyboard. On iPhone and iPad, open Tideline in Safari for hands-free listening.') + '</p></details>' +
+    '<details><summary>AI connection</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">' + (S.settings.assistantUrl ? 'Connected: anything ' + esc(nm) + ' does not understand on its own goes to the AI. Sign in through Account.' : 'Not connected yet: ' + esc(nm) + ' understands everyday boating requests on the phone, with no signal needed. Once the AI backend is deployed, anything else goes to it. Never paste an AI API key here.') + '</p></details>' +
+    '<p class="hint">Sending to the AI shares your words and limited boat context. This assistant works the app, not the boat.</p><button class="btn ghost" data-act="close">Close</button>');
+}
+function firstMateListen() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { firstMateMessage('Use the microphone on your keyboard to dictate into the box, then tap Send.'); $('firstMateRequest').focus(); return; }
+  if (FM.recognition) { FM.recognition.stop(); return; }
+  if (WAKE.rec) { WAKE.pause = true; try { WAKE.rec.stop(); } catch (e) { /* stopped */ } }
+  const r = new Recognition(); FM.recognition = r; r.lang = navigator.language || 'en-US'; r.interimResults = false; r.continuous = false;
+  firstMateMessage('Listening… Tap Talk again to stop.');
+  r.onresult = (e) => { const said = e.results[0][0].transcript, cmd = fmWakeSplit(said) || said, input = $('firstMateRequest'); if (input) input.value = cmd; FM.heard = cmd; firstMateMessage('Heard: “' + said + '”'); setTimeout(() => askFirstMate(true), 250); };
+  r.onerror = () => firstMateMessage('Could not hear you. Try again, or type your request.');
+  r.onend = () => { FM.recognition = null; if (WAKE.pause) { WAKE.pause = false; WAKE.rec = null; if (S.settings.wakeOn) setTimeout(wakeStart, 300); } };
+  try { r.start(); } catch (e) { FM.recognition = null; firstMateMessage('Microphone unavailable. Type, or use keyboard dictation.'); }
+}
+function wakeStart() {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition; if (!R) { toast('This browser cannot listen hands-free. Tap the sparkle and use Talk or the keyboard microphone.', 6000); S.settings.wakeOn = false; saveSettings(); return; }
+  if (WAKE.rec || FM.recognition) return; const r = new R(); WAKE.rec = r; WAKE.on = true; r.lang = navigator.language || 'en-US'; r.continuous = true; r.interimResults = false;
+  r.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (!e.results[i].isFinal) continue; const said = e.results[i][0].transcript.trim(), after = fmWakeSplit(said);
+      let cmd = null; if (after != null) { if (!after) { WAKE.armedUntil = Date.now() + 8000; chime(); toast('Yes? Listening…', 2500); continue; } cmd = after; } else if (Date.now() < WAKE.armedUntil) cmd = said;
+      if (cmd) { WAKE.armedUntil = 0; wakeRun(cmd); }
+    }
+  };
+  r.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { WAKE.on = false; wakeIndicator(); toast('The microphone is off. Tap the sparkle, then Start listening (Safari asks once each time Tideline opens).', 6000); fmWakeOnTap(); } };
+  r.onend = () => { WAKE.rec = null; if (WAKE.pause) return; if (WAKE.on && S.settings.wakeOn) setTimeout(() => { if (S.settings.wakeOn && WAKE.on && !WAKE.rec && !FM.recognition) wakeStart(); }, 400); else wakeIndicator(); };
+  try { r.start(); } catch (e) { WAKE.rec = null; WAKE.on = false; fmWakeOnTap(); }
+  wakeIndicator();
+}
+// iOS Safari only starts the microphone from a tap: if hands-free is on but could not start, the next tap anywhere starts it
+function fmWakeOnTap() {
+  if (FM.tapArmed || !S.settings.wakeOn) return; FM.tapArmed = true;
+  document.addEventListener('pointerup', () => { FM.tapArmed = false; if (S.settings.wakeOn && !WAKE.rec) wakeStart(); }, { once: true, capture: true });
+}
+async function wakeRun(cmd) {
+  FM.heard = cmd; let r = null;
+  try { r = await fmUnderstand(cmd); } catch (e) { r = null; }
+  if (r) { FM.heard = null; if (r.say) { if ($('firstMateReply')) fmReply(r); else toast(r.say, 5000); if (!(window.speechSynthesis && speechSynthesis.speaking)) fmSay(r.say); } return; }
+  if (!$('firstMateRequest')) openFirstMate(); const inp = $('firstMateRequest'); if (inp) inp.value = cmd; await askFirstMate(true);
+}
+function closeWelcome(tour) {
+  if (tour && !(S.settings.uses && S.settings.uses.length)) { openUses(true); return; }
+  if (tour && !S.settings.mateAsked && fmAskName()) return;
+  const el = $('welcome'); if (el) el.hidden = true; store.set('welcomed', true); if (tour && !store.get('toured', false)) setTimeout(() => startTour(), 400);
+}
+function fmAskName() { // one simple, skippable onboarding question
+  const el = $('welcome'), card = el && el.querySelector('.wl-card'); if (!card) return false;
+  card.innerHTML = '<div class="wl-logo fm-badge">' + AI_ICON + '</div><h2>What’s your first mate’s name?</h2><p>Your first mate is the assistant behind the sparkle button. Give it a name, for example Gilligan, then just say “Gilligan, take me home” or “Gilligan, show me the rain”.</p>' +
+    '<div class="wl-step"><label for="wlMate">Name</label><input id="wlMate" type="text" maxlength="24" autocomplete="off" placeholder="Gilligan"><button class="btn primary wl-go" data-wlmate="save">Save</button></div><button class="btn ghost" data-wlmate="skip">Skip, call it First mate</button>';
+  el.hidden = false; setTimeout(() => { const i = $('wlMate'); if (i) i.focus(); }, 60); return true;
+}
+const fmCleanName = (v) => String(v || '').replace(/[^\p{L}\p{N}' .-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+document.addEventListener('click', (e) => {
+  const d = e.target.closest('[data-usesdone="1"]'); // after "What do you use Tideline for?", ask the name once
+  if (d && !S.settings.mateAsked && fmAskName()) { e.stopImmediatePropagation(); e.preventDefault(); }
+}, true);
+document.addEventListener('click', (e) => {
+  const w = e.target.closest('[data-wlmate]');
+  if (w) { const v = w.dataset.wlmate === 'save' ? fmCleanName($('wlMate') && $('wlMate').value) : ''; if (v && !/^first mate$/i.test(v)) S.settings.mateName = v; S.settings.mateAsked = 1; saveSettings(); const el = $('welcome'); if (el) el.hidden = true; store.set('welcomed', true); if (!store.get('toured', false)) setTimeout(() => startTour(), 400); if (v) toast('Say “' + v + ', show me the weather”. Tap the sparkle to start.', 5000); return; }
+  const b = e.target.closest('[data-mate]'); if (!b) return;
+  if (b.dataset.mate === 'name') { const v = fmCleanName($('fmName').value); S.settings.mateName = /^first mate$/i.test(v) ? '' : v; S.settings.mateAsked = 1; saveSettings(); toast(v ? 'Your first mate is ' + v + '.' : 'Your first mate is called First mate.'); openFirstMate(); }
+  if (b.dataset.mate === 'wake') { if (WAKE.on) { wakeStop(); toast('Stopped listening.'); } else { S.settings.wakeOn = true; saveSettings(); wakeStart(); if (WAKE.on) toast('Listening. Say “' + mateCall() + '” and then what you need.', 5000); } openFirstMate(); }
+});
+sheet.addEventListener('change', (e) => { if (e.target.id === 'fmVoice') { S.settings.mateVoice = e.target.checked; saveSettings(); } });
+sheet.addEventListener('keydown', (e) => { if (e.target.id === 'fmName' && e.key === 'Enter') { e.preventDefault(); const b = sheet.querySelector('[data-mate="name"]'); if (b) b.click(); } });
+(() => { const b = $('btnFM'); if (b) { b.title = 'First mate: ask anything'; b.dataset.tip = mateName() + ': ask anything, by voice or typing'; } })();
+
+/* ---------- arrange buttons, tidy: a grid the size of a button plus the column gap, magnets to the other buttons' lines,
+   and even spacing along a row or column, so nothing needs lining up by hand ---------- */
+// where a button really is, ignoring the arrange-mode wiggle (a rotation that makes getBoundingClientRect a pixel or two off)
+function arrBox(el) {
+  let x = 0, y = 0, o = el; while (o) { x += o.offsetLeft; y += o.offsetTop; o = o.offsetParent; }
+  const w = el.offsetWidth, h = el.offsetHeight; return { left: x, top: y, width: w, height: h, right: x + w, bottom: y + h };
+}
+function arrGrid() {
+  const col = $('fabs'), first = col && fabItems(col).find((x) => x.offsetWidth), cr = col && arrBox(col);
+  const sz = first ? first.offsetWidth : 40, gap = (col && parseFloat(getComputedStyle(col).rowGap)) || 6;
+  const tb = ($('tabbar') || document.querySelector('.tabbar')).getBoundingClientRect().top;
+  return { sz, gap, p: sz + gap, x0: cr && cr.width ? cr.left : 12, y0: cr && cr.height ? cr.top : 56, xr: innerWidth - 12, yb: tb - 12, tb };
+}
+const arrFree = () => [...document.querySelectorAll('#app > .fab-free[id]')].filter((x) => !ARR_SKIP.has(x.id) && x.offsetWidth);
+function arrSnap(x, y, w, h, self, tb) {
+  const G = arrGrid(); tb = tb || G.tb;
+  x = Math.max(6, Math.min(innerWidth - w - 6, x)); y = Math.max(6, Math.min(tb - h - 6, y));
+  // columns count in from the left button column; right by the right edge they count from the right column instead, so a
+  // button can sit in line with either; rows count down from the top of the columns
+  const gx = x + w < G.xr - G.p * 1.5 ? G.x0 + Math.round((x - G.x0) / G.p) * G.p : G.xr - w - Math.round((G.xr - w - x) / G.p) * G.p;
+  let nx = gx, ny = G.y0 + Math.round((y - G.y0) / G.p) * G.p, bx = 14, by = 14;
+  // a neighbour's centre or edge line nearby wins over the grid, so odd-sized things (the speed circle) still line up
+  document.querySelectorAll('#fabs > [id], #fabsR > [id], #app > .fab-free[id]').forEach((o) => {
+    if (o === self || ARR_SKIP.has(o.id) || !o.offsetWidth || o.classList.contains('arr-drag')) return; const q = arrBox(o);
+    [q.left + q.width / 2 - w / 2, q.left, q.right - w].forEach((v) => { const dd = Math.abs(v - x); if (dd < bx) { bx = dd; nx = v; } });
+    [q.top + q.height / 2 - h / 2, q.top, q.bottom - h].forEach((v) => { const dd = Math.abs(v - y); if (dd < by) { by = dd; ny = v; } });
+  });
+  nx = Math.max(6, Math.min(innerWidth - w - 6, nx)); ny = Math.max(6, Math.min(tb - h - 6, ny));
+  return { x: Math.round(nx), y: Math.round(ny) };
+}
+function arrPreview(d) {
+  let g = $('arrSnap'), grid = $('arrGrid');
+  if (!d) { if (g) g.hidden = true; if (grid) grid.hidden = true; return; }
+  if (!g) { g = document.createElement('div'); g.id = 'arrSnap'; g.className = 'arr-snap'; document.body.appendChild(g); }
+  if (!grid) { grid = document.createElement('div'); grid.id = 'arrGrid'; grid.className = 'arr-grid'; document.body.appendChild(grid); }
+  const r = { left: parseFloat(d.el.style.left) || 0, top: parseFloat(d.el.style.top) || 0, width: d.el.offsetWidth, height: d.el.offsetHeight }, s = arrSnap(r.left, r.top, r.width, r.height, d.el), G = arrGrid();
+  Object.assign(g.style, { left: s.x + 'px', top: s.y + 'px', width: r.width + 'px', height: r.height + 'px' }); g.hidden = false;
+  grid.style.setProperty('--p', G.p + 'px'); grid.style.bottom = Math.max(0, innerHeight - G.tb) + 'px'; grid.style.backgroundPosition = (G.x0 + (G.sz - G.p) / 2) + 'px ' + (G.y0 + (G.sz - G.p) / 2) + 'px'; grid.hidden = false;
+}
+// lay a line of buttons out with the same gap between each; the button nearest the screen edge (not the one just dropped) stays put
+function arrPack(items, axis, keep) {
+  if (items.length < 2) return; const G = arrGrid(), horiz = axis === 'x', lim = horiz ? innerWidth - 6 : G.tb - 6;
+  const R = items.map((el) => ({ el, r: arrBox(el) })).sort((a, b) => horiz ? a.r.left - b.r.left : a.r.top - b.r.top);
+  const size = (q) => horiz ? q.r.width : q.r.height, start = (q) => horiz ? q.r.left : q.r.top;
+  const idx = R.map((q, i) => i).filter((i) => R[i].el !== keep), f = idx[0], l = idx[idx.length - 1];
+  const a = start(R[f]) <= lim - (start(R[l]) + size(R[l])) ? f : l, pos = [];
+  pos[a] = start(R[a]); for (let i = a + 1; i < R.length; i++) pos[i] = pos[i - 1] + size(R[i - 1]) + G.gap; for (let i = a - 1; i >= 0; i--) pos[i] = pos[i + 1] - G.gap - size(R[i]);
+  const lo = Math.min(...pos), hi = Math.max(...pos.map((v, i) => v + size(R[i]))), shift = lo < 6 ? 6 - lo : hi > lim ? lim - hi : 0;
+  R.forEach((q, i) => { q.el.style[horiz ? 'left' : 'top'] = Math.round(pos[i] + shift) + 'px'; });
+}
+// the buttons that share a line with el (centres within 4 px) and sit close together (no more than one empty space between)
+function arrLine(el, axis, all) {
+  const horiz = axis === 'x', c = (q) => horiz ? q.top + q.height / 2 : q.left + q.width / 2, s = (q) => horiz ? q.left : q.top, e = (q) => horiz ? q.right : q.bottom;
+  const r0 = arrBox(el), G = arrGrid(), line = all.map((o) => ({ o, q: arrBox(o) })).filter((x) => Math.abs(c(x.q) - c(r0)) < 4).sort((a, b) => s(a.q) - s(b.q));
+  const i0 = line.findIndex((x) => x.o === el); if (i0 < 0) return [el]; let a = i0, b = i0;
+  while (a > 0 && s(line[a].q) - e(line[a - 1].q) <= G.p + G.gap + 2) a--;
+  while (b < line.length - 1 && s(line[b + 1].q) - e(line[b].q) <= G.p + G.gap + 2) b++;
+  return line.slice(a, b + 1).map((x) => x.o);
+}
+function arrEven(el) {
+  const all = arrFree(); if (!el || !all.includes(el)) return;
+  const row = arrLine(el, 'x', all), col = arrLine(el, 'y', all);
+  if (row.length > 1) arrPack(row, 'x', el); if (col.length > 1) arrPack(col, 'y', el);
+}
+function arrTidy() { // every free button onto the grid, nothing stacked, even gaps along each row and column
+  const G = arrGrid(), all = arrFree(), taken = [];
+  const hit = (x, y, w, h) => taken.some((t) => x < t.x + t.w - 2 && x + w > t.x + 2 && y < t.y + t.h - 2 && y + h > t.y + 2);
+  document.querySelectorAll('#fabs > [id], #fabsR > [id]').forEach((o) => { if (!o.offsetWidth || ARR_SKIP.has(o.id)) return; const q = arrBox(o); taken.push({ x: q.left, y: q.top, w: q.width, h: q.height }); });
+  all.sort((a, b) => arrBox(a).top - arrBox(b).top || arrBox(a).left - arrBox(b).left).forEach((el) => {
+    const q = arrBox(el); let { x, y } = arrSnap(q.left, q.top, q.width, q.height, el); let k = 0;
+    while (hit(x, y, q.width, q.height) && k++ < 40) { x += (x + q.width / 2 > innerWidth / 2 ? -1 : 1) * G.p; if (x < 6 || x + q.width > innerWidth - 6) { x = Math.max(6, Math.min(innerWidth - q.width - 6, q.left)); y += G.p; } }
+    el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(Math.min(y, G.tb - q.height - 6)) + 'px'; taken.push({ x, y, w: q.width, h: q.height });
+  });
+  const done = new Set(); all.forEach((el) => { if (done.has(el)) return; const row = arrLine(el, 'x', all); row.forEach((x) => done.add(x)); if (row.length > 1) arrPack(row, 'x'); });
+  done.clear(); all.forEach((el) => { if (done.has(el)) return; const col = arrLine(el, 'y', all); col.forEach((x) => done.add(x)); if (col.length > 1) arrPack(col, 'y'); });
+  saveFabLayout(); toast(all.length ? 'Tidied: on the grid, evenly spaced.' : 'Everything is already in its column.', 2200);
+}
+/* ---------- AIS ship markers and the ship detail sheet ---------- */
+// Category by AIS ship type code (or our coarse type), coloured roughly like MarineTraffic: cargo green, tanker red, passenger blue,
+// tug and special craft cyan, fishing salmon, pleasure and sail magenta, unknown grey.
+const SHIP_CAT = {
+  cargo: ['#3FA35A', 'Cargo ship'], tanker: ['#D2504A', 'Tanker'], passenger: ['#3F7FD9', 'Passenger vessel'], tug: ['#1FB5C4', 'Tug or special craft'],
+  fishing: ['#E8836B', 'Fishing vessel'], pleasure: ['#C04FC6', 'Pleasure craft'], unknown: ['#8A97A3', 'Vessel'],
+};
+function shipCat(t) {
+  const c = +t.typeCode || 0;
+  if (c >= 70 && c < 80) return 'cargo'; if (c >= 80 && c < 90) return 'tanker'; if ((c >= 60 && c < 70) || (c >= 40 && c < 50)) return 'passenger';
+  if (c === 30) return 'fishing'; if (c === 36 || c === 37) return 'pleasure'; if ((c >= 31 && c <= 35) || (c >= 50 && c < 60)) return 'tug';
+  return { ship: 'cargo', tug: 'tug', passenger: 'passenger', fishing: 'fishing', sail: 'pleasure', power: 'pleasure' }[t.type] || 'unknown';
+}
+function shipTypeText(t) {
+  const c = +t.typeCode || 0, d = c % 10, haz = d >= 1 && d <= 4 ? ' (hazardous cargo, category ' + 'ABCD'[d - 1] + ')' : '';
+  const fixed = { 30: 'Fishing vessel', 31: 'Towing vessel', 32: 'Towing vessel (long or wide tow)', 33: 'Dredging or underwater work', 34: 'Diving operations', 35: 'Military operations', 36: 'Sailing vessel', 37: 'Pleasure craft', 50: 'Pilot boat', 51: 'Search and rescue', 52: 'Tug', 53: 'Port tender', 54: 'Anti-pollution vessel', 55: 'Law enforcement', 58: 'Medical transport', 59: 'Non-combatant ship' };
+  if (fixed[c]) return fixed[c];
+  if (c >= 20 && c < 30) return 'Wing-in-ground craft'; if (c >= 40 && c < 50) return 'High-speed craft' + haz;
+  if (c >= 60 && c < 70) return 'Passenger vessel' + haz; if (c >= 70 && c < 80) return 'Cargo ship' + haz; if (c >= 80 && c < 90) return 'Tanker' + haz;
+  if (c >= 90 && c < 100) return 'Other type' + haz;
+  return { ship: 'Ship', tug: 'Tug', passenger: 'Passenger vessel', fishing: 'Fishing vessel', sail: 'Sailing vessel', power: 'Power vessel' }[t.type] || 'Vessel (type not broadcast)';
+}
+const SHIP_STATUS = { 0: 'Under way using engine', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted in ability to maneuver', 4: 'Constrained by its draft', 5: 'Moored', 6: 'Aground', 7: 'Engaged in fishing', 8: 'Under way sailing', 14: 'AIS-SART (emergency)' };
+// Flag from the MMSI's first three digits (MID, ITU list), compact: digits + ISO country code
+const MID = {};
+('201AL202AD203AT204PT205BE206BY207BG208VA209CY210CY211DE212CY213GE214MD215MT216AM218DE219DK220DK224ES225ES226FR227FR228FR229MT230FI231FO232GB233GB234GB235GB236GI237GR238HR239GR240GR241GR242MA243HU244NL245NL246NL247IT248MT249MT250IE251IS252LI253LU254MC255PT256MT257NO258NO259NO261PL262ME263PT264RO265SE266SE267SK268SM269CH270CZ271TR272UA273RU274MK275LV276EE277LT278SI279RS' +
+ '301AI303US304AG305AG306CW307AW308BS309BS310BM311BS312BZ314BB316CA319KY321CR323CU325DM327DO329GP330GD331GL332GT334HN336HT338US339JM341KN343LC345MX347MQ348MS350NI351PA352PA353PA354PA355PA356PA357PA358PR359SV361PM362TT364TC366US367US368US369US370PA371PA372PA373PA374PA375VC376VC377VC378VG379VI' +
+ '401AF403SA405BD408BH410BT412CN413CN414CN416TW417LK419IN422IR423AZ425IQ428IL431JP432JP434TM436KZ437UZ438JO440KR441KR443PS445KP447KW450LB451KG453MO455MV457MN459NP461OM463PK466QA468SY470AE471AE472TJ473YE475YE477HK478BA' +
+ '503AU506MM508BN510FM511PW512NZ514KH515KH516CX518CK520FJ523CC525ID529KI531LA533MY536MP538MH540NC542NU544NR546PF548PH553PG555PN557SB559AS561WS563SG564SG565SG566SG567TH570TO572TV574VN576VU577VU578WF' +
+ '601ZA603AO605DZ609BI610BJ611BW612CF613CM615CG616KM617CV619CI620KM621DJ622EG624ET625ER626GA627GH629GM630GW631GQ632GN633BF634KE636LR637LR638SS642LY644LS645MU647MG649ML650MZ654MR655MW656NE657NG659NA660RE661RW662SD663SN664SC665SH666SO667SL668ST669SZ670TD671TG672TN674TZ675UG676CD677TZ678ZM679ZW' +
+ '701AR710BR720BO725CL730CO735EC740FK745GF750GY755PY760PE765SR770UY775VE').replace(/(\d{3})([A-Z]{2})/g, (m, n, c) => { MID[n] = c; return ''; });
+let regionNames = null; try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { /* older browser: show the code */ }
+function shipFlag(mmsi) {
+  let m = String(mmsi || ''); if (!/^\d{9}$/.test(m)) return null;
+  if (/^00/.test(m)) return { note: 'Coast station' }; if (/^111/.test(m)) return { note: 'Search and rescue aircraft' }; if (/^97/.test(m)) return { note: 'Emergency beacon (SART, MOB or EPIRB)' };
+  if (/^9[89]/.test(m)) m = m.slice(2); else if (/^8/.test(m)) m = m.slice(1); else if (/^0/.test(m)) m = m.slice(1);
+  const cc = MID[m.slice(0, 3)]; if (!cc) return null;
+  let name = cc; try { name = regionNames ? regionNames.of(cc) : cc; } catch (e) { /* keep code */ }
+  return { cc, name, emoji: String.fromCodePoint(...[...cc].map((ch) => 127397 + ch.charCodeAt(0))) };
+}
+function aisEtaText(e) {
+  if (!e || !e.Month || !e.Day || e.Month > 12 || e.Day > 31) return '';
+  const mon = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')[e.Month - 1], hm = e.Hour != null && e.Hour < 24 ? ' ' + String(e.Hour).padStart(2, '0') + ':' + String(e.Minute != null && e.Minute < 60 ? e.Minute : 0).padStart(2, '0') + ' UTC' : '';
+  return mon + ' ' + e.Day + hm;
+}
+const shipHeading = (t) => (t.hdg != null && t.hdg >= 0 && t.hdg < 360 ? t.hdg : (t.sog || 0) >= 0.5 && t.cog != null ? t.cog : null);
+// Size by length (small craft small, 200 m freighters big), growing with zoom; once the true size on the chart is bigger, draw to scale.
+function aisShipIcon(t, level) {
+  const cat = shipCat(t), fill = SHIP_CAT[cat][0], z = map.getZoom(), hdg = shipHeading(t), alert = level === 'danger' || level === 'caution';
+  const age = Date.now() - (t.seen || Date.now()), op = age > 30 * 60000 ? 0.45 : age > 10 * 60000 ? 0.7 : 1;
+  const ring = level === 'danger' ? '#D64545' : level === 'caution' ? '#E8952B' : null, sel = S.aisFollow === t.id;
+  const still = t.status === 1 || t.status === 5 || hdg == null;
+  if (false) { // (old: anchored ships as circles; Andy wants every ship drawn as a ship, bow and stern visible)
+    const d = Math.round((t.len || 0) >= 100 ? 13 : (t.len || 0) >= 30 ? 11 : 9), box = 44;
+    return L.divIcon({ className: 'ais-icon ais-ship', iconSize: [box, box], iconAnchor: [box / 2, box / 2], labelDx: Math.round(d / 2 + 5), html: '<svg width="' + box + '" height="' + box + '" viewBox="0 0 ' + box + ' ' + box + '" style="opacity:' + op + '"><circle cx="22" cy="22" r="' + (d / 2) + '" fill="' + fill + '" class="ais-hull"' + (sel ? ' stroke="#fff" stroke-width="2.5"' : '') + '/></svg>' });
+  }
+  const len = t.len || (cat === 'cargo' || cat === 'tanker' ? 150 : cat === 'passenger' ? 60 : cat === 'tug' ? 30 : 12);
+  let px = len < 15 ? 15 : len < 40 ? 18 : len < 90 ? 22 : len < 180 ? 27 : len < 260 ? 32 : 36;
+  px *= z <= 9 ? 0.7 : z <= 11 ? 0.82 : z <= 13 ? 1 : 1.12;
+  const mpp = 156543.03 * Math.cos((t.lat || 0) * Math.PI / 180) / Math.pow(2, z), real = len / mpp;
+  px = Math.min(180, Math.max(px, real));
+  const ratio = t.beam && t.len ? Math.min(0.45, Math.max(0.24, t.beam / t.len)) : cat === 'pleasure' ? 0.4 : 0.3;
+  const w = Math.max(7, px * ratio * (px < 30 ? 1.25 : 1)), h = px / 2, hw = w / 2, box = Math.ceil(Math.max(44, px + 10));
+  // pointed bow up, square stern: rotated to the heading (true), plus how far the chart is turned in course-up
+  const path = 'M0 ' + (-h).toFixed(1) + ' C' + (hw * 0.7).toFixed(1) + ' ' + (-h * 0.62).toFixed(1) + ' ' + hw.toFixed(1) + ' ' + (-h * 0.3).toFixed(1) + ' ' + hw.toFixed(1) + ' ' + (-h * 0.05).toFixed(1) +
+    ' L' + hw.toFixed(1) + ' ' + h.toFixed(1) + ' L' + (-hw).toFixed(1) + ' ' + h.toFixed(1) + ' L' + (-hw).toFixed(1) + ' ' + (-h * 0.05).toFixed(1) + ' C' + (-hw).toFixed(1) + ' ' + (-h * 0.3).toFixed(1) + ' ' + (-hw * 0.7).toFixed(1) + ' ' + (-h * 0.62).toFixed(1) + ' 0 ' + (-h).toFixed(1) + 'Z';
+  const rot = ((hdg == null ? (t.cog != null && t.cog < 360 ? t.cog : 0) : hdg) + mapRot()) % 360, c = box / 2;
+  const vec = (t.sog || 0) >= 2 && z >= 13 ? '<line x1="0" y1="' + (-h - 2).toFixed(1) + '" x2="0" y2="' + (-h - 2 - Math.min(10, 2 + t.sog * 0.5)).toFixed(1) + '" class="ais-vec"/>' : ''; // short speed leader off the bow
+  const rr = rot * Math.PI / 180, dx = Math.abs(h * Math.sin(rr)) + Math.abs(hw * Math.cos(rr)); // how far the hull reaches to the right, so the name sits beside it
+  return L.divIcon({ className: 'ais-icon ais-ship', iconSize: [box, box], iconAnchor: [c, c], labelDx: Math.round(dx + 5), html: '<svg width="' + box + '" height="' + box + '" viewBox="0 0 ' + box + ' ' + box + '" style="opacity:' + op + '"><g transform="translate(' + c + ' ' + c + ') rotate(' + rot.toFixed(1) + ')">' + vec +
+    (ring || sel ? '<path d="' + path + '" fill="none" stroke="' + (ring || '#fff') + '" stroke-width="5" stroke-linejoin="round" opacity=".9"/>' : '') + '<path d="' + path + '" fill="' + fill + '" class="ais-hull"/></g></svg>' });
+}
+function shipAgo(ms) { const s = Math.max(0, Math.round(ms / 1000)); return s < 90 ? s + ' s ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; }
+function shipSheetTop(t) {
+  const cat = shipCat(t), fl = shipFlag(t.mmsi), mmsi = t.mmsi && /^\d{9}$/.test(String(t.mmsi)) ? String(t.mmsi) : null, hdg = shipHeading(t);
+  const ft = (m) => Math.round(m * 3.281);
+  const status = SHIP_STATUS[t.status] || '';
+  let h = '<div class="ship-hd"><span class="ship-sw" style="--c:' + SHIP_CAT[cat][0] + '"></span><div><h3>' + esc(t.name || 'AIS target') + '</h3><div class="sub">' + esc(shipTypeText(t)) +
+    (fl ? ' · ' + (fl.emoji ? fl.emoji + ' ' : '') + esc(fl.name || fl.note) : '') + (t.demo ? ' · demo target' : '') + '</div></div></div>';
+  h += '<div class="ship-wiki" id="shipWiki" data-id="' + esc(t.id) + '" hidden></div>';
+  const go = t.dest ? '<div class="ship-dest"><span class="lbl">BOUND FOR</span><b>' + esc(t.dest) + '</b>' + (t.eta ? '<span>ETA ' + esc(t.eta) + '</span>' : '') + '</div>' : '';
+  h += go;
+  const facts = [
+    ['Speed', t.sog != null ? fmtSpeed(t.sog) + ' ' + (SPEED_LBL[S.settings.speedUnit] || 'kn') : ''],
+    ['Course', t.cog != null && (t.sog || 0) >= 0.5 ? fmtBrg(t.cog) + '°T' : ''], ['Heading', hdg != null && t.hdg != null ? fmtBrg(t.hdg) + '°T' : ''],
+    ['Status', status], ['Size', t.len ? Math.round(t.len) + ' × ' + (t.beam ? Math.round(t.beam) : '?') + ' m (' + ft(t.len) + ' × ' + (t.beam ? ft(t.beam) : '?') + ' ft)' : ''],
+    ['Draft', t.draft ? t.draft + ' m (' + ft(t.draft) + ' ft)' : ''],
+    ['Distance', S.fix && Number.isFinite(t.lat) ? fmtDist(distNm(S.fix, t)) + ' at ' + fmtBrg(bearing(S.fix, t)) + '°T' : ''],
+    ['Call sign', t.callsign], ['IMO', t.imo ? String(t.imo) : ''], ['MMSI', mmsi || t.mmsi],
+    ['Last seen', t.seen ? shipAgo(Date.now() - t.seen) + (t.cached ? ' (saved)' : '') : ''],
+  ].filter((x) => x[1]);
+  h += '<div class="facts ship-facts">' + facts.map((f) => '<span>' + esc(f[0]) + '</span><span>' + esc(f[1]) + '</span>').join('') + '</div>';
+  h += '<div class="row-btns ship-btns"><button class="btn small primary" data-act="aisfollow" data-id="' + esc(t.id) + '">' + (S.aisFollow === t.id ? 'Stop following' : 'Follow on chart') + '</button>' +
+    (mmsi ? '<a class="btn small" href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:' + mmsi + '" target="_blank" rel="noopener">MarineTraffic</a><a class="btn small" href="https://www.vesselfinder.com/vessels/details/' + mmsi + '" target="_blank" rel="noopener">VesselFinder</a>' : '') + '</div>';
+  h += '<p class="hint ship-note">AIS carries name, type, size, draft and destination as the crew entered them. Owner, tonnage, cargo details and photos are not broadcast' + (mmsi ? '; MarineTraffic and VesselFinder list them' : '') + '.</p>';
+  return h;
+}
+// Wikipedia: only when a page title matches the ship's name and the page clearly describes a vessel
+const WIKI = { mem: store.get('aisCacheWiki', {}) || {} }; // the aisCache prefix keeps it out of sync
+const WIKI_SHIP = /\b(ship|vessel|tug(boat)?|ferry|tanker|freighter|cargo|carrier|bulker|schooner|steamboat|steamship|yacht|ketch|skipjack|dredger?|barge|icebreaker|liner|cutter|frigate|destroyer|trawler|lightship|research vessel|container)\b/i;
+const wikiNorm = (s) => String(s || '').toUpperCase().replace(/\(.*?\)/g, '').replace(/^(MV|M\/V|MS|M\/S|SS|S\/S|USNS|USS|USCGC|RV|R\/V|NOAAS|MT|M\/T|TS|HMS|SV)\s+/, '').replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+async function shipWiki(t) {
+  const name = wikiNorm(t.name); if (!name || name.length < 3 || /^MMSI/.test(name) || t.demo) return;
+  let hit = WIKI.mem[name];
+  if (hit === undefined) {
+    hit = null;
+    try {
+      const q = 'https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=5&srsearch=' + encodeURIComponent('"' + t.name.trim() + '" ship');
+      const sr = await (await fetch(q)).json(), cands = ((sr.query || {}).search || []).filter((x) => wikiNorm(x.title) === name).slice(0, 3);
+      for (const c of cands) {
+        const sm = await (await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(c.title.replace(/ /g, '_')))).json();
+        if (sm && sm.type !== 'disambiguation' && WIKI_SHIP.test((sm.description || '') + ' ' + (sm.extract || '').slice(0, 240))) {
+          hit = { title: sm.title, desc: sm.description || '', text: (sm.extract || '').slice(0, 420), img: (sm.thumbnail || {}).source || '', url: ((sm.content_urls || {}).mobile || (sm.content_urls || {}).desktop || {}).page || '' }; break;
+        }
+      }
+      WIKI.mem[name] = hit; const keys = Object.keys(WIKI.mem); if (keys.length > 300) delete WIKI.mem[keys[0]]; store.set('aisCacheWiki', WIKI.mem);
+    } catch (e) { return; } // offline: try again next time
+  }
+  const el = $('shipWiki'); if (!hit || !el || el.dataset.id !== t.id) return;
+  el.innerHTML = (hit.img ? '<img src="' + esc(hit.img) + '" alt="" loading="lazy">' : '') + '<div><b>' + esc(hit.title) + '</b>' + (hit.desc ? '<small>' + esc(hit.desc) + '</small>' : '') + '<p>' + esc(hit.text) + '</p>' +
+    (hit.url ? '<a href="' + esc(hit.url) + '" target="_blank" rel="noopener">Wikipedia</a> <small>· matched by name; check it is this ship</small>' : '') + '</div>';
+  el.hidden = false;
+}
+function aisFollowTick() {
+  const t = ais.get(S.aisFollow); if (!t || !Number.isFinite(t.lat)) { S.aisFollow = null; return; }
+  const p = map.latLngToContainerPoint([t.lat, t.lon]), sz = map.getSize();
+  if (Math.abs(p.x - sz.x / 2) > sz.x * 0.2 || Math.abs(p.y - sz.y / 2) > sz.y * 0.2) map.panTo([t.lat, t.lon], { animate: true, duration: 0.5 });
+}
+sheet.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act="aisfollow"]'); if (!b) return;
+  const t = ais.get(b.dataset.id); if (!t) return;
+  if (S.aisFollow === t.id) { S.aisFollow = null; updateAis(); toast('Stopped following ' + (t.name || 'the ship')); closeSheet(); return; }
+  S.aisFollow = t.id; setFollow(false); closeSheet(); map.setView([t.lat, t.lon], Math.max(map.getZoom(), 13)); updateAis();
+  toast('Following ' + (t.name || 'the ship') + '. Drag the chart to stop.', 3500);
+});
+map.on('dragstart', () => { if (S.aisFollow) { S.aisFollow = null; try { updateAis(); } catch (e) { /* later */ } } });
+
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
