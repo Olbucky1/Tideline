@@ -1145,3 +1145,8 @@ html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
 #cockpit .ck-slot.dragging { opacity: .4; } #cockpit .ck-slot.drop { outline: 2px dashed var(--g-acc); outline-offset: 2px; border-radius: 16px; }
 .ck-mv { position: relative; z-index: 3; }
 #cockpit .ck-mv { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 5; background: color-mix(in srgb, var(--g-bg, #0B1A26) 85%, transparent); border-radius: 10px; padding: 4px; }
+.ph-tile { cursor: pointer; position: relative; display: flex; flex-direction: column; }
+.ph-change { position: absolute; right: 8px; bottom: 8px; font-size: 11px; padding: 3px 8px; border-radius: 8px; background: rgba(0,0,0,.45); color: #fff; opacity: 0; transition: opacity .2s; }
+.ph-tile:hover .ph-change { opacity: 1; }
+#cockpit .ck-slot.add { display: grid; place-items: center; border: 2px dashed var(--g-line, #24435A); border-radius: 16px; }
+#cockpit .ck-add { border: 0; background: transparent; color: var(--g-ink, #fff); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; padding: 20px; }
