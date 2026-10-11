@@ -4960,6 +4960,18 @@ $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();
 wake();
+// always-on speed and course dial at the top right of the chart
+function renderMini() {
+  const el = $('miniInst'); if (!el) return;
+  const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, rot = cog == null ? 0 : cog;
+  let ticks = ''; for (let d = 0; d < 360; d += 30) { const a = (d - 90) * Math.PI / 180, r0 = d % 90 ? 25 : 22; ticks += '<line x1="' + (30 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (30 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (30 + 27 * Math.cos(a)).toFixed(1) + '" y2="' + (30 + 27 * Math.sin(a)).toFixed(1) + '"/>'; }
+  el.innerHTML = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text>' +
+    (cog != null ? '<g transform="rotate(' + rot.toFixed(0) + ' 30 30)"><path d="M30 4 L34 13 L30 11 L26 13 Z" class="mi-arrow"/></g>' : '') +
+    '<text x="30" y="33" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="30" y="42" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text><text x="30" y="51" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '°' : '') + '</text></svg>';
+  el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + '. Tap for the full gauges.' : 'Speed and course: waiting for GPS';
+}
+$('miniInst').addEventListener('click', () => setCockpit(true));
+setInterval(renderMini, 1000); renderMini();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

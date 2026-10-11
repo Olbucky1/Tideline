@@ -1172,3 +1172,18 @@ html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
 .alert-bar { z-index: 1300 !important; }
 @media (hover: hover) and (pointer: fine) { .gauge[data-tip]:hover::after { right: auto; left: 50%; top: auto; bottom: 12px; transform: translateX(-50%); width: 80%; white-space: normal; text-align: center; z-index: 20; line-height: 1.35; } }
 .g-idle { font-style: normal; opacity: .6; margin-right: 2px; }
+/* always-on speed and course dial, top of the right column */
+.mini-inst { width: 64px; height: 64px; margin: 0 -13px 6px -13px; padding: 0; border: 0; background: transparent; cursor: pointer; align-self: center; }
+.mini-inst svg { width: 100%; height: 100%; filter: drop-shadow(0 1px 3px rgba(0,0,0,.3)); }
+.mi-ring { fill: color-mix(in srgb, var(--surface) 82%, transparent); stroke: #A9B4BE; stroke-width: 2; }
+.mi-ticks line { stroke: var(--ink2); stroke-width: 1.2; }
+.mi-n { text-anchor: middle; font: 700 6px var(--f-num); fill: #D64545; }
+.mi-arrow { fill: var(--accent); }
+.mi-spd { text-anchor: middle; font: 700 15px var(--f-num); fill: var(--ink); }
+.mi-u { text-anchor: middle; font: 600 5.5px var(--f-ui, sans-serif); fill: var(--ink2); }
+.mi-cog { text-anchor: middle; font: 600 6.5px var(--f-num); fill: var(--ink2); }
+#cockpit .mini-inst { display: none; }
+/* the speed and course dial replaces the big speed strip at the bottom; the strip comes back only to show a destination */
+#navCard .pages, #navCard #pageDots { display: none !important; }
+#navCard:has(#gotoRow[hidden]) { display: none !important; }
+.mini-inst { margin: 0 0 6px -26px !important; align-self: flex-end; }
