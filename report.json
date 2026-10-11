@@ -1,0 +1,653 @@
+{
+ "facts": {
+  "enc_coastal": {
+   "layers": 177,
+   "maxRecordCount": 1000,
+   "depth": 166,
+   "pagination": true,
+   "fields": [
+    "DRVAL1",
+    "DRVAL2"
+   ]
+  },
+  "enc_approach": {
+   "layers": 245,
+   "maxRecordCount": 1000,
+   "depth": 232,
+   "pagination": true,
+   "fields": [
+    "DRVAL1",
+    "DRVAL2"
+   ]
+  },
+  "enc_harbour": {
+   "layers": 240,
+   "maxRecordCount": 1000,
+   "depth": 227,
+   "pagination": true,
+   "fields": [
+    "DRVAL1",
+    "DRVAL2"
+   ]
+  }
+ },
+ "report": [
+  {
+   "name": "SSA to St. Michaels",
+   "ok": true,
+   "shallow": true,
+   "pts": [
+    {
+     "lat": 38.97587648461921,
+     "lon": -76.48030401855215
+    },
+    {
+     "lat": 38.977223951381696,
+     "lon": -76.47961164101011
+    },
+    {
+     "lat": 38.97857141814418,
+     "lon": -76.47164929927655
+    },
+    {
+     "lat": 38.97102560427425,
+     "lon": -76.46299458000094
+    },
+    {
+     "lat": 38.93599146844961,
+     "lon": -76.43287615692182
+    },
+    {
+     "lat": 38.8362789280256,
+     "lon": -76.39998822367451
+    },
+    {
+     "lat": 38.828733114155675,
+     "lon": -76.39029493808583
+    },
+    {
+     "lat": 38.82442122051572,
+     "lon": -76.37921689741304
+    },
+    {
+     "lat": 38.820378820228264,
+     "lon": -76.364330780259
+    },
+    {
+     "lat": 38.81983983352327,
+     "lon": -76.35879175992261
+    },
+    {
+     "lat": 38.84678916877299,
+     "lon": -76.2961315923672
+    },
+    {
+     "lat": 38.85244852917544,
+     "lon": -76.28816925063364
+    },
+    {
+     "lat": 38.85433498264292,
+     "lon": -76.2819378527552
+    },
+    {
+     "lat": 38.8564909294629,
+     "lon": -76.27709120996087
+    },
+    {
+     "lat": 38.85945535634037,
+     "lon": -76.27328313347961
+    },
+    {
+     "lat": 38.87481647743272,
+     "lon": -76.25562750615737
+    },
+    {
+     "lat": 38.875845942039255,
+     "lon": -76.25210358185015
+    },
+    {
+     "lat": 38.87481647743272,
+     "lon": -76.25008848582098
+    },
+    {
+     "lat": 38.871043570497754,
+     "lon": -76.24558803179765
+    },
+    {
+     "lat": 38.87050458379276,
+     "lon": -76.24558803179765
+    },
+    {
+     "lat": 38.850292582355465,
+     "lon": -76.24420327671356
+    },
+    {
+     "lat": 38.84112980837055,
+     "lon": -76.23450999112488
+    },
+    {
+     "lat": 38.83196703438564,
+     "lon": -76.2289709707885
+    },
+    {
+     "lat": 38.826038180630704,
+     "lon": -76.21927768519981
+    },
+    {
+     "lat": 38.81013807283336,
+     "lon": -76.20819964452703
+    },
+    {
+     "lat": 38.805287192488414,
+     "lon": -76.20889202206908
+    },
+    {
+     "lat": 38.80447871243092,
+     "lon": -76.20889202206908
+    },
+    {
+     "lat": 38.80313124566843,
+     "lon": -76.21027677715318
+    },
+    {
+     "lat": 38.796932898560996,
+     "lon": -76.2064687006719
+    },
+    {
+     "lat": 38.794776951741014,
+     "lon": -76.20508394558782
+    },
+    {
+     "lat": 38.788848097986076,
+     "lon": -76.21616198626059
+    },
+    {
+     "lat": 38.788260602477635,
+     "lon": -76.21748812151202
+    },
+    {
+     "lat": 38.786153164461105,
+     "lon": -76.22031625151288
+    }
+   ],
+   "lastErr": null,
+   "secs": 10,
+   "turnPts": 31,
+   "routeNm": 24.8,
+   "straightNm": 16.6,
+   "landPolys": 139,
+   "landHits": [
+    {
+     "leg": 32,
+     "lat": 38.78755,
+     "lon": -76.21894,
+     "svc": "enc_coastal"
+    }
+   ]
+  },
+  {
+   "name": "SSA to Rock Hall",
+   "ok": true,
+   "shallow": true,
+   "pts": [
+    {
+     "lat": 38.97570939309946,
+     "lon": -76.48055226037965
+    },
+    {
+     "lat": 38.97705685986194,
+     "lon": -76.47985817412436
+    },
+    {
+     "lat": 38.97651787315694,
+     "lon": -76.4694468802949
+    },
+    {
+     "lat": 38.96735509917204,
+     "lon": -76.45834150021014
+    },
+    {
+     "lat": 38.96412117894207,
+     "lon": -76.4517476807848
+    },
+    {
+     "lat": 38.97247547286948,
+     "lon": -76.42051379929642
+    },
+    {
+     "lat": 38.97678736650944,
+     "lon": -76.41530815238168
+    },
+    {
+     "lat": 39.05601841214365,
+     "lon": -76.32368876668241
+    },
+    {
+     "lat": 39.06059979913611,
+     "lon": -76.31778903351237
+    },
+    {
+     "lat": 39.0614082791936,
+     "lon": -76.31640086100178
+    },
+    {
+     "lat": 39.08399721199992,
+     "lon": -76.26322460825915
+    },
+    {
+     "lat": 39.09159153467329,
+     "lon": -76.25358605489734
+    },
+    {
+     "lat": 39.09320849478828,
+     "lon": -76.2525449255144
+    },
+    {
+     "lat": 39.11988833668551,
+     "lon": -76.26226213308857
+    },
+    {
+     "lat": 39.12878161731793,
+     "lon": -76.24768632172731
+    }
+   ],
+   "lastErr": null,
+   "secs": 4,
+   "turnPts": 13,
+   "routeNm": 17.1,
+   "straightNm": 14.7,
+   "landPolys": 114,
+   "landHits": [
+    {
+     "leg": 14,
+     "lat": 39.13316,
+     "lon": -76.24191,
+     "svc": "enc_harbour"
+    }
+   ]
+  },
+  {
+   "name": "Annapolis harbor to Thomas Point",
+   "ok": true,
+   "shallow": true,
+   "pts": [
+    {
+     "lat": 38.9763023715415,
+     "lon": -76.48409239160785
+    },
+    {
+     "lat": 38.97791933165649,
+     "lon": -76.47092658748988
+    },
+    {
+     "lat": 38.971720984549044,
+     "lon": -76.46295781131323
+    },
+    {
+     "lat": 38.93965127560187,
+     "lon": -76.43627973454792
+    },
+    {
+     "lat": 38.9361478620194,
+     "lon": -76.43281504925372
+    },
+    {
+     "lat": 38.90407815307223,
+     "lon": -76.43281504925372
+    },
+    {
+     "lat": 38.90165271289975,
+     "lon": -76.43212211219488
+    },
+    {
+     "lat": 38.90084423284225,
+     "lon": -76.43281504925372
+    },
+    {
+     "lat": 38.90057473948976,
+     "lon": -76.43385445484198
+    },
+    {
+     "lat": 38.898957779374776,
+     "lon": -76.4359332660185
+    }
+   ],
+   "lastErr": null,
+   "secs": 2,
+   "turnPts": 8,
+   "routeNm": 6,
+   "straightNm": 5.2,
+   "landPolys": 57,
+   "landHits": []
+  },
+  {
+   "name": "SSA to Back Creek",
+   "ok": true,
+   "shallow": true,
+   "pts": [
+    {
+     "lat": 38.975761358246494,
+     "lon": -76.48050243458701
+    },
+    {
+     "lat": 38.97710882500898,
+     "lon": -76.47980917518453
+    },
+    {
+     "lat": 38.97710882500898,
+     "lon": -76.47426309996473
+    },
+    {
+     "lat": 38.97656983830399,
+     "lon": -76.47322321086102
+    },
+    {
+     "lat": 38.975761358246494,
+     "lon": -76.47183669205607
+    },
+    {
+     "lat": 38.974144398131514,
+     "lon": -76.46802376534247
+    },
+    {
+     "lat": 38.967676557671574,
+     "lon": -76.47183669205607
+    }
+   ],
+   "lastErr": null,
+   "secs": 1,
+   "turnPts": 5,
+   "routeNm": 1.3,
+   "straightNm": 0.6,
+   "landPolys": 19,
+   "landHits": []
+  },
+  {
+   "name": "SSA to Oxford",
+   "ok": true,
+   "shallow": true,
+   "pts": [
+    {
+     "lat": 38.975759975159455,
+     "lon": -76.48041736456572
+    },
+    {
+     "lat": 38.97676269044984,
+     "lon": -76.47998828368279
+    },
+    {
+     "lat": 38.977431167310094,
+     "lon": -76.478271960151
+    },
+    {
+     "lat": 38.97876812103061,
+     "lon": -76.47140666602391
+    },
+    {
+     "lat": 38.972417590858164,
+     "lon": -76.46368321013094
+    },
+    {
+     "lat": 38.94166765528634,
+     "lon": -76.43836743803728
+    },
+    {
+     "lat": 38.93765679412479,
+     "lon": -76.43321846744196
+    },
+    {
+     "lat": 38.69366274013093,
+     "lon": -76.41433890859246
+    },
+    {
+     "lat": 38.67126876531231,
+     "lon": -76.3860195703182
+    },
+    {
+     "lat": 38.66525247357,
+     "lon": -76.37615071001049
+    },
+    {
+     "lat": 38.652217174794984,
+     "lon": -76.36327828352219
+    },
+    {
+     "lat": 38.65088022107447,
+     "lon": -76.36199104087336
+    },
+    {
+     "lat": 38.649543267353955,
+     "lon": -76.36113287910749
+    },
+    {
+     "lat": 38.648206313633445,
+     "lon": -76.36199104087336
+    },
+    {
+     "lat": 38.64486392933216,
+     "lon": -76.35598390851216
+    },
+    {
+     "lat": 38.6441954524719,
+     "lon": -76.35298034233156
+    },
+    {
+     "lat": 38.640853068170614,
+     "lon": -76.34611504820447
+    },
+    {
+     "lat": 38.640853068170614,
+     "lon": -76.34525688643858
+    },
+    {
+     "lat": 38.63851339915971,
+     "lon": -76.33882067319443
+    },
+    {
+     "lat": 38.64753783677319,
+     "lon": -76.2929090187195
+    },
+    {
+     "lat": 38.64787207520332,
+     "lon": -76.26802232750877
+    },
+    {
+     "lat": 38.64787207520332,
+     "lon": -76.26673508485995
+    },
+    {
+     "lat": 38.648206313633445,
+     "lon": -76.26587692309407
+    },
+    {
+     "lat": 38.65890194339756,
+     "lon": -76.19250409211075
+    },
+    {
+     "lat": 38.664583996709744,
+     "lon": -76.18563879798366
+    },
+    {
+     "lat": 38.69299426327067,
+     "lon": -76.17963166562245
+    },
+    {
+     "lat": 38.69499969385144,
+     "lon": -76.17662809944186
+    },
+    {
+     "lat": 38.69399697856106,
+     "lon": -76.17319545237831
+    }
+   ],
+   "lastErr": null,
+   "secs": 5,
+   "turnPts": 26,
+   "routeNm": 32.8,
+   "straightNm": 22.3,
+   "landPolys": 159,
+   "landHits": [
+    {
+     "leg": 27,
+     "lat": 38.69342,
+     "lon": -76.17297,
+     "svc": "enc_coastal"
+    }
+   ]
+  },
+  {
+   "name": "SSA to Baltimore Inner Harbor",
+   "ok": true,
+   "shallow": true,
+   "pts": [
+    {
+     "lat": 38.97586745152568,
+     "lon": -76.48039173616648
+    },
+    {
+     "lat": 38.976872976433704,
+     "lon": -76.4799596564166
+    },
+    {
+     "lat": 38.975532276556336,
+     "lon": -76.46699726392
+    },
+    {
+     "lat": 38.97083982698554,
+     "lon": -76.46224438667126
+    },
+    {
+     "lat": 38.96648255238408,
+     "lon": -76.4579235891724
+    },
+    {
+     "lat": 38.96346597765999,
+     "lon": -76.45230655242388
+    },
+    {
+     "lat": 38.97151017692422,
+     "lon": -76.42292512943162
+    },
+    {
+     "lat": 38.97653780146436,
+     "lon": -76.41644393318333
+    },
+    {
+     "lat": 39.011395998276015,
+     "lon": -76.3831737924421
+    },
+    {
+     "lat": 39.0144125730001,
+     "lon": -76.38144547344254
+    },
+    {
+     "lat": 39.09787114036645,
+     "lon": -76.39483994568901
+    },
+    {
+     "lat": 39.102228414967904,
+     "lon": -76.39397578618924
+    },
+    {
+     "lat": 39.128372062576645,
+     "lon": -76.3952720254389
+    },
+    {
+     "lat": 39.13775696171824,
+     "lon": -76.40348154068674
+    },
+    {
+     "lat": 39.15585641006275,
+     "lon": -76.41687601293322
+    },
+    {
+     "lat": 39.15719710994012,
+     "lon": -76.41817225218287
+    },
+    {
+     "lat": 39.16658200908172,
+     "lon": -76.42465344843116
+    },
+    {
+     "lat": 39.17965383288609,
+     "lon": -76.44409703717604
+    },
+    {
+     "lat": 39.19172013178243,
+     "lon": -76.49292204891317
+    },
+    {
+     "lat": 39.253727501110845,
+     "lon": -76.5702643241428
+    },
+    {
+     "lat": 39.266128974976525,
+     "lon": -76.57501720139155
+    },
+    {
+     "lat": 39.27316764933273,
+     "lon": -76.58106631788995
+    },
+    {
+     "lat": 39.27718974896484,
+     "lon": -76.5888437533879
+    },
+    {
+     "lat": 39.27752492393418,
+     "lon": -76.59446079013642
+    },
+    {
+     "lat": 39.27685457399549,
+     "lon": -76.59921366738517
+    },
+    {
+     "lat": 39.27987114871958,
+     "lon": -76.60310238513415
+    },
+    {
+     "lat": 39.28149174787773,
+     "lon": -76.60449130023261
+    },
+    {
+     "lat": 39.282887723443665,
+     "lon": -76.60699110288313
+    },
+    {
+     "lat": 39.282887723443665,
+     "lon": -76.60742318263301
+    },
+    {
+     "lat": 39.282887723443665,
+     "lon": -76.6078552623829
+    }
+   ],
+   "lastErr": null,
+   "secs": 5,
+   "turnPts": 28,
+   "routeNm": 27.5,
+   "straightNm": 19.4,
+   "landPolys": 223,
+   "landHits": []
+  }
+ ],
+ "netErr": [],
+ "logs": [
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.815,-76.588,39.135,-76.352' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.815,-76.588,39.135,-76.352' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "Failed to load resource: the server responded with a status of 504 (Gateway Timeout)",
+  "Failed to load resource: the server responded with a status of 504 (Gateway Timeout)",
+  "Failed to load resource: the server responded with a status of 504 (Gateway Timeout)",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.815,-76.588,39.135,-76.352' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.493,-76.629,39.271,-76.056' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.493,-76.629,39.271,-76.056' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.71,-76.61,39.388,-76.11' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "Failed to load resource: the server responded with a status of 504 (Gateway Timeout)",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.856,-76.518,39.021,-76.397' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "Failed to load resource: the server responded with a status of 504 (Gateway Timeout)",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.373,-76.647,39.245,-76.005' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "Failed to load resource: the server responded with a status of 400 ()",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.373,-76.647,39.245,-76.005' failed: Error during WebSocket handshake: Unexpected response code: 403",
+  "Failed to load resource: the server responded with a status of 504 (Gateway Timeout)",
+  "WebSocket connection to 'wss://tideline-ais.andy-brickman.workers.dev/?bbox=38.791,-76.74,39.455,-76.249' failed: Error during WebSocket handshake: Unexpected response code: 403"
+ ]
+}
