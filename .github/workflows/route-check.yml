@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['app.js', 'tests/live-route.mjs', '.github/workflows/route-check.yml']
+    paths: ['tests/live-route.mjs', 'tests/enc-snapshot.mjs', '.github/workflows/route-check.yml']
 permissions:
   contents: write
 jobs:
@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm i --no-save playwright@1.47.2 && npx playwright install --with-deps chromium
+      - run: node tests/enc-snapshot.mjs
+        continue-on-error: true
+        timeout-minutes: 25
       - run: (python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 1 && node tests/live-route.mjs
         continue-on-error: true
       - name: Publish report to the diag branch
