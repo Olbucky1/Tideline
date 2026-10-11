@@ -332,7 +332,9 @@ sheet.addEventListener('input', (e) => {
 (() => { // wind, waves, tide and sail/motor live as small buttons at the top of the left column
   const ch = document.querySelector('.topbar .chips'), fc = $('fabs'); if (!ch || !fc) return;
   const grp = document.createElement('div'); grp.className = 'fab-info'; grp.id = 'fabInfo';
-  ['modeChip', 'tideChip', 'waveChip', 'windChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
+  const rb = document.createElement('button'); rb.id = 'rainChip'; rb.type = 'button'; rb.hidden = true; ch.appendChild(rb);
+  ['modeChip', 'tideChip', 'rainChip', 'waveChip', 'windChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
+  rb.addEventListener('click', () => { setTab('chart'); setWxL('rain', !wxOn('rain')); });
   const rt = $('btnRoute'); fc.insertBefore(grp, rt ? rt.nextSibling : null); ch.remove();
 })();
 function applyCalm() { document.documentElement.classList.toggle('calm', !S.settings.chips); placeFabs(); }
@@ -1302,6 +1304,8 @@ function applyWx() {
   if (typeof drawObs === 'function') drawObs();
   if (wxOn('rain')) { if (!map.hasLayer(radarLayer)) radarLayer.addTo(map); if (radarLayer.redraw) radarLayer.redraw(); } else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer);
   if (wxOn('wind') || wxOn('waves')) { if (!map.hasLayer(wxGrid)) wxGrid.addTo(map); loadGrids(); } else { wxGrid.clearLayers(); if (map.hasLayer(wxGrid)) map.removeLayer(wxGrid); }
+  if (!wxOn('wind')) { wsStop(); document.documentElement.classList.remove('wlines'); }
+  try { renderChips(); } catch (e) { /* early */ }
   renderWxBar();
 }
 function gridPoints() {
@@ -1664,8 +1668,11 @@ function renderChips() {
   if (tn) {
     tc.hidden = false;
     tc.innerHTML = '<span class="fi-ic"><svg viewBox="0 0 24 24" aria-hidden="true">' + (tn.rising === false ? '<path d="M12 3v8M8.5 7.5L12 11l3.5-3.5"/>' : '<path d="M12 3v8M8.5 6.5L12 3l3.5 3.5"/>') + '<path d="M3 16c3-2.5 6-2.5 9 0s6 2.5 9 0M3 20.5c3-2.5 6-2.5 9 0s6 2.5 9 0"/></svg></span><b>' + tideLen(tn.v).replace(/\s*(ft|m)$/, '') + '</b>';
-    tc.dataset.tip = 'Tide ' + tideLen(tn.v) + (tn.rising == null ? '' : tn.rising ? ', rising' : ', falling') + (tn.next ? ' · ' + (tn.next.type === 'H' ? 'high ' : 'low ') + fmtClock(tn.next.t) : '') + (S.tide.station ? ' · NOAA ' + S.tide.station.name.replace(/,.*$/, '') : '') + '. Tap for the tide chart.';
+    tc.classList.toggle('on', !!S.tideCardOn);
+    tc.dataset.tip = 'Tide ' + tideLen(tn.v) + (tn.rising == null ? '' : tn.rising ? ', rising' : ', falling') + (tn.next ? ' · ' + (tn.next.type === 'H' ? 'high ' : 'low ') + fmtClock(tn.next.t) : '') + (S.tide.station ? ' · NOAA ' + S.tide.station.name.replace(/,.*$/, '') : '') + '. Tap to show or hide the tide curve.';
   } else tc.hidden = true;
+  const rc = $('rainChip');
+  if (rc) { rc.hidden = false; rc.classList.toggle('on', wxOn('rain')); const pr = w && w.hours ? seriesAt(w.hours, Date.now(), 'rain') : null; rc.innerHTML = '<span class="fi-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 8.5a3.5 3.5 0 0 1 .5 6.5"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/></svg></span><b>Rain</b>'; rc.dataset.tip = 'Rain radar' + (pr > 0.01 ? ' · rain in the forecast here' : '') + '. Tap to show or hide live radar on the chart.'; }
   placeFabs(); renderStatusWx();
 }
 
@@ -3743,7 +3750,21 @@ $('btnLayers').addEventListener('click', () => toggleQuick());
 $('windChip').addEventListener('click', () => { setTab('chart'); setWxL('wind', !wxOn('wind')); renderChips(); });
 $('windChip').dataset.tip = 'Wind: tap to show wind across the chart'; $('waveChip').dataset.tip = 'Waves: tap to show waves across the chart'; $('tideChip').dataset.tip = 'Tide: tap for the tide curve'; $('modeChip').dataset.tip = 'Tap to switch between sail and engine';
 $('waveChip').addEventListener('click', () => { setTab('chart'); setWxL('waves', !wxOn('waves')); renderChips(); });
-$('tideChip').addEventListener('click', () => { WX.view = 'tide'; WX.open = true; setTab('weather'); });
+$('tideChip').addEventListener('click', () => { S.tideCardOn = !S.tideCardOn; setTab('chart'); renderTideCard(); renderChips(); });
+function renderTideCard() {
+  let el = $('tideCard');
+  if (!el) { el = document.createElement('div'); el.id = 'tideCard'; el.className = 'tide-card'; $('bottomStack').insertBefore(el, $('wxBar')); }
+  const tn = tideNow();
+  if (!S.tideCardOn || !S.tide || S.tide.none || !tn) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = '<div class="tc-head"><b>Tide ' + tideLen(tn.v) + ' ' + (tn.rising == null ? '' : tn.rising ? '↑ rising' : '↓ falling') + '</b><span>' + (tn.next ? (tn.next.type === 'H' ? 'High ' : 'Low ') + fmtClock(tn.next.t) + ' · ' : '') + 'NOAA ' + esc((S.tide.station && S.tide.station.name.replace(/,.*$/, '')) || '') + '</span>' +
+    '<button type="button" class="tl-x" data-tcx aria-label="Close tide">&times;</button></div>' + tideCurve(0) + '<button type="button" class="tc-more" data-tcmore>Tide table ›</button>';
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-tcx]')) { S.tideCardOn = false; renderTideCard(); renderChips(); }
+  if (e.target.closest('[data-tcmore]')) { WX.view = 'tide'; WX.open = true; setTab('weather'); }
+});
+setInterval(() => { if (S.tideCardOn) renderTideCard(); }, 60000);
 $('gpsPill').addEventListener('click', () => {
   if (S.fix) toast(ddm(S.fix.lat, true) + '  ' + ddm(S.fix.lon, false));
   else if (S.gpsErr === 1) toast('Location is blocked for this site. Allow it in your browser settings and reload.', 5000);
