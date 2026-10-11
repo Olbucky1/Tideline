@@ -963,3 +963,5 @@ html.wlines .wx-pt b { font-size: 11px; opacity: 0.85; }
 #rainChip b { font-size: 10.5px; color: var(--ink2); }
 #rainChip.on b { color: #fff; }
 .fab.info.on .fi-ic svg { stroke: #fff !important; }
+/* night chart, v3: dark and warm, but buoy and light colours keep their meaning (red stays red, green stays green) */
+:root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) hue-rotate(180deg) brightness(0.56) contrast(1.15) saturate(1.7) sepia(0.28) hue-rotate(-10deg) !important; }
