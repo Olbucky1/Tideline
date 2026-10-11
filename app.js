@@ -2122,9 +2122,9 @@ function renderSettings() {
     '<div class="set-row"><div class="sr-text"><b>Boat name</b><span>Used in radio scripts</span></div><input type="text" data-text="boatName" value="' + esc(S.settings.boatName) + '" placeholder="Name" aria-label="Boat name" style="width:150px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:16px;padding:0 10px"></div>' +
     numRow('boatLen', 'Boat length (' + lenUnit() + ')', 'Used for the anchor circle', ftToLen) +
     gpsSpotHtml() +
-    numRow('cruise', 'Cruising speed (' + SPEED_LBL[S.settings.speedUnit] + ')', 'For ETAs while you are stopped', speedOut) +
+    numRow('cruise', 'Usual speed (' + SPEED_LBL[S.settings.speedUnit] + ')', 'Your normal speed under power. Used to estimate arrival times when you are planning or not moving yet', speedOut) +
     numRow('bridgeMargin', 'Bridge safety margin (' + lenUnit() + ')', 'Warns when a bridge leaves less room than this over your air draft', ftToLen) + '</div>' +
-    '<div class="card"><h4>Captain\'s coach</h4><div class="set-row"><div class="sr-text"><b>How the coach speaks up</b><span>Off: no tips. Chime: a gentle ding-ding and a card you can tap for more. Spoken: a calm voice too, like turn-by-turn directions.</span></div></div>' + seg('coachMode', [['off', 'Off'], ['chime', 'Chime'], ['voice', 'Spoken']]) + '<div style="height:10px"></div><div class="row-btns"><button class="btn" data-act="testvoice">Test the sound</button></div><div style="height:10px"></div>' +
+    '<div class="card"><h4>Captain\'s coach</h4><div class="set-row"><div class="sr-text"><b>How the coach speaks up</b><span>Off: no tips. Chime: a gentle ding-ding and a card you can tap for more. Spoken: a calm voice too, like turn-by-turn directions.</span></div></div>' + seg('coachMode', [['off', 'Off'], ['chime', 'Chime'], ['voice', 'Spoken']]) + '<div style="height:10px"></div><div class="row-btns"><button class="btn" data-act="testvoice">Test the sound</button>' + (('speechSynthesis' in window) ? '<div class="field" style="margin-top:8px"><label for="voicePick">Voice</label><select id="voicePick"><option value="">Best on this device' + (bestVoice() ? ' (' + esc(bestVoice().name) + ')' : '') + '</option>' + voiceOptions().map((v) => '<option value="' + esc(v.name) + '"' + (S.settings.voiceName === v.name ? ' selected' : '') + '>' + esc(v.name) + '</option>').join('') + '</select><p class="hint" style="margin:4px 0 0">For a more natural voice on iPhone or Mac: Settings › Accessibility › Spoken Content › Voices › English, and download an Enhanced or Premium voice. Then pick it here.</p></div>' : '') + '</div><div style="height:10px"></div>' +
     '<p class="hint" style="margin:0 0 12px">Live AIS needs the app-store version with an AIS receiver or feed. Demo mode shows simulated traffic so you can try the coach.</p></div>' +
     '<div class="card"><h4>Display</h4><div class="set-row"><div class="sr-text"><b>Light</b><span>Auto switches day, dusk and red night at civil twilight</span></div></div>' + seg('theme', [['auto', 'Auto'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']]) + '<div style="height:10px"></div>' + sw('keepAwake', 'Keep screen on', 'Recommended underway and at anchor') +
     '<div class="set-row"><div class="sr-text"><b>Cockpit display</b><span>Huge numbers for an iPad or spare phone mounted on deck. Taps are locked; press and hold to exit.</span></div></div><div class="row-btns"><button class="btn" data-act="cockpit">Open cockpit display</button></div><div style="height:12px"></div></div>' +
@@ -2159,6 +2159,7 @@ $('panelSettings').addEventListener('click', async (e) => {
   }
 });
 $('panelSettings').addEventListener('change', (e) => {
+  if (e.target.id === 'voicePick') { S.settings.voiceName = e.target.value; saveSettings(); const was = S.settings.voice; S.settings.voice = true; speak('This is the Tideline voice.'); S.settings.voice = was; return; }
   const swk = e.target.dataset.sw, nk = e.target.dataset.num, tk = e.target.dataset.text;
   if (tk) { S.settings[tk] = e.target.value.trim(); saveSettings(); }
   if (swk) {
@@ -2625,13 +2626,32 @@ function chime() { // gentle two-note heads-up
   });
 }
 function headsUp(text) { if (S.settings.voice) speak(text); else chime(); }
+/* pick the most natural voice this device has: Premium / Enhanced / Natural / Neural voices first */
+function voiceScore(x) {
+  if (!/^en(-|_|$)/i.test(x.lang)) return -1;
+  let sc = /en-US/i.test(x.lang) ? 2 : 1;
+  if (/premium/i.test(x.name)) sc += 40; if (/enhanced/i.test(x.name)) sc += 30; if (/natural|neural|online/i.test(x.name)) sc += 35;
+  if (/siri/i.test(x.name)) sc += 25; if (/^(Ava|Zoe|Evan|Nathan|Samantha|Allison|Susan|Tom|Joelle|Noelle)\b/i.test(x.name)) sc += 10;
+  if (/Google US English|Google UK English/i.test(x.name)) sc += 12;
+  if (/compact|eloquence|fred|albert|bad news|bahh|bells|boing|bubbles|cellos|zarvox|whisper|trinoids|wobble|jester|organ|superstar|ralph|kathy|junior|grandma|grandpa|rocko|shelley|sandy|flo|reed/i.test(x.name)) sc -= 50;
+  return sc;
+}
+function bestVoice() {
+  const all = ('speechSynthesis' in window) ? speechSynthesis.getVoices() : [];
+  if (S.settings.voiceName) { const pick = all.find((x) => x.name === S.settings.voiceName); if (pick) return pick; }
+  return all.filter((x) => voiceScore(x) >= 0).sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null;
+}
+try { if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', () => { if (S.tab === 'settings') renderSettings(); }); } catch (e) { /* no speech */ }
+function voiceOptions() {
+  const all = ('speechSynthesis' in window) ? speechSynthesis.getVoices().filter((x) => voiceScore(x) >= 0).sort((a, b) => voiceScore(b) - voiceScore(a)) : [];
+  return all.slice(0, 12);
+}
 function speak(text) {
   if (!S.settings.voice || !('speechSynthesis' in window)) return;
   try {
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.98; u.pitch = 1; u.lang = 'en-US';
-    const v = speechSynthesis.getVoices().find((x) => /en-US/.test(x.lang) && /Samantha|Ava|Allison|Google US English|Natural/i.test(x.name));
-    if (v) u.voice = v;
+    u.rate = 0.95; u.pitch = 1; u.lang = 'en-US';
+    const v = bestVoice(); if (v) { u.voice = v; u.lang = v.lang; }
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   } catch (e) { /* speech unavailable */ }
 }
