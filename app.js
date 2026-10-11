@@ -2257,7 +2257,7 @@ function renderMenu() {
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 77. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<button type="button" class="btn" data-mact="update" style="margin-top:12px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 78. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
@@ -2268,6 +2268,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'help') { openHelp(); return; }
   if (a === 'pro') { openResources(); return; }
   if (a === 'mapopts') { setTab('chart'); openLayersSheet(); return; }
+  if (a === 'update') { toast('Getting the latest version…'); (async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith('tl-app-')).map((k) => caches.delete(k))); } catch (e) { /* nothing cached */ } location.reload(); })(); return; }
   if (a === 'fish') { setTab('chart'); openFishWild(); return; }
   setTab(a);
 });
