@@ -1289,3 +1289,21 @@ html.nogps #app #fabsR.fab-col { top: calc(56px + env(safe-area-inset-top, 0px))
 .mini-depth b { font-size: 15px !important; }
 .mini-depth small { font-size: 5.6px !important; letter-spacing: .02em; line-height: 1.15 !important; max-width: 40px; }
 :root.easy .fab { width: 50px !important; height: 50px !important; }
+
+/* combined Weather button with a pop-out row; AIS button with ship count */
+.wx-wrap { position: relative; }
+.wx-pop { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); display: flex !important; flex-direction: row !important; gap: 6px; padding: 6px; border-radius: 30px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(10,30,45,.18); z-index: 20; border-bottom: 0; margin: 0; }
+.wx-pop[hidden] { display: none !important; }
+.wx-pop .fab.info { flex: none; }
+.fab.wxbtn, .fab.aisbtn { position: relative; flex-direction: column; gap: 0; }
+.fab.wxbtn svg { width: 16px; height: 16px; } .fab.wxbtn b { font: 600 10px/1 var(--f-num); color: var(--ink); margin-top: -1px; }
+.fab.wxbtn.on b, .fab.aisbtn.on .ais-n { color: #fff; }
+.fab.wxbtn.open { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wx-dots { position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; }
+.wx-dots em { width: 6px; height: 6px; border-radius: 50%; border: 1px solid #fff; }
+.wx-dots .d-wind { background: #1E9E8F; } .wx-dots .d-waves { background: #2A8BC9; } .wx-dots .d-rain { background: #4E7FD6; } .wx-dots .d-tide { background: #3D7FA6; }
+.ais-n { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; border-radius: 8px; background: #E8952B; color: #fff !important; font: 700 10px/16px var(--f-num); text-align: center; padding: 0 3px; }
+.ais-n:empty { display: none; }
+@media (hover: hover) and (pointer: fine) { .wx-pop [data-tip]:hover::after { left: 50% !important; right: auto !important; top: calc(100% + 8px) !important; transform: translateX(-50%) !important; } }
+.fm-card { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 6px 0; font-size: 13.5px; } .fm-card p { margin: 6px 0; } .fm-card a { color: var(--accent); }
+.fw-lic { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }

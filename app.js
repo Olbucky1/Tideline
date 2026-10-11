@@ -359,10 +359,33 @@ sheet.addEventListener('input', (e) => {
   const ch = document.querySelector('.topbar .chips'), fc = $('fabs'); if (!ch || !fc) return;
   const grp = document.createElement('div'); grp.className = 'fab-info'; grp.id = 'fabInfo';
   const rb = document.createElement('button'); rb.id = 'rainChip'; rb.type = 'button'; rb.hidden = true; ch.appendChild(rb);
-  ['modeChip', 'tideChip', 'rainChip', 'waveChip', 'windChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
+  // one Weather button opens a small row of wind, waves, rain and tide toggles; AIS gets its own button
+  const wb = document.createElement('button'); wb.id = 'btnWx'; wb.type = 'button'; wb.className = 'fab wxbtn'; wb.setAttribute('aria-label', 'Weather on the chart: wind, waves, rain, tide');
+  grp.className = 'wx-pop'; grp.hidden = true;
+  ['windChip', 'waveChip', 'rainChip', 'tideChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
+  const mc = $('modeChip'); if (mc) { mc.className = 'fab info'; mc.hidden = true; document.body.appendChild(mc); mc.style.display = 'none'; } // sail/motor lives in Layers now
   rb.addEventListener('click', () => { setTab('chart'); setWxL('rain', !wxOn('rain')); });
-  const rt = $('btnRoute'); fc.insertBefore(grp, rt ? rt.nextSibling : null); ch.remove();
+  const ab = document.createElement('button'); ab.id = 'btnAis'; ab.type = 'button'; ab.className = 'fab aisbtn'; ab.setAttribute('aria-label', 'AIS ships on or off');
+  ab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 16-5-3-5 3z"/></svg><span class="ais-n"></span>';
+  const wrap = document.createElement('div'); wrap.className = 'wx-wrap'; wrap.appendChild(wb); wrap.appendChild(grp);
+  const rt = $('btnRoute'); fc.insertBefore(wrap, rt ? rt.nextSibling : null); fc.insertBefore(ab, wrap.nextSibling); ch.remove();
+  wb.addEventListener('click', (e) => { e.stopPropagation(); grp.hidden = !grp.hidden; wb.classList.toggle('open', !grp.hidden); });
+  document.addEventListener('click', (e) => { if (!grp.hidden && !e.composedPath().some((n) => n.classList && n.classList.contains('wx-wrap'))) { grp.hidden = true; wb.classList.remove('open'); } });
+  ab.addEventListener('click', () => { S.settings.aisShow = S.settings.aisShow === false; saveSettings(); updateAis(); try { aissConnect(true); } catch (err) { /* relay not ready */ } renderAisBtn(); toast(S.settings.aisShow ? 'AIS ships on' : 'AIS ships off'); });
 })();
+function renderWxBtn() {
+  const b = $('btnWx'); if (!b) return; const on = ['wind', 'waves', 'rain'].filter(wxOn).concat(S.tideCardOn ? ['tide'] : []);
+  const w = S.weather, spd = w && w.cur ? Math.round(speedOut(w.cur.spd)) : null;
+  b.classList.toggle('on', on.length > 0);
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9.5a3.5 3.5 0 0 1 0 7.5z"/></svg><b>' + (spd != null ? spd : '') + '</b>' + (on.length ? '<i class="wx-dots">' + on.map((k) => '<em class="d-' + k + '"></em>').join('') + '</i>' : '');
+  b.dataset.tip = 'Weather' + (spd != null ? ': wind ' + spd + ' ' + SPEED_LBL[S.settings.speedUnit] : '') + (on.length ? ' · showing ' + on.join(', ') : '') + '. Tap for wind, waves, rain and tide.';
+}
+function renderAisBtn() {
+  const b = $('btnAis'); if (!b) return; const on = S.settings.aisShow !== false, n = [...ais.values()].filter((t) => t.lat != null).length;
+  b.classList.toggle('on', on); b.querySelector('.ais-n').textContent = on && n ? n : '';
+  b.dataset.tip = on ? 'AIS ships on' + (n ? ' · ' + n + ' in range' : ' · none in range yet') + '. Tap to hide.' : 'AIS ships off. Tap to show ships.';
+}
+setInterval(() => { renderWxBtn(); renderAisBtn(); }, 2000);
 function applyCalm() { document.documentElement.classList.toggle('calm', !S.settings.chips); placeFabs(); }
 function applyEasy() { document.documentElement.classList.toggle('easy', !!S.settings.easy); }
 /* range rings around the boat, scaled to the zoom */
@@ -1905,7 +1928,7 @@ function renderChips() {
   } else tc.hidden = true;
   const rc = $('rainChip');
   if (rc) { rc.hidden = false; rc.classList.toggle('on', wxOn('rain')); const pr = w && w.hours ? seriesAt(w.hours, Date.now(), 'rain') : null; rc.innerHTML = '<span class="fi-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 8.5a3.5 3.5 0 0 1 .5 6.5"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/></svg></span><b>Rain</b>'; rc.dataset.tip = 'Rain radar' + (pr > 0.01 ? ' · rain in the forecast here' : '') + '. Tap to show or hide live radar on the chart.'; }
-  placeFabs(); renderStatusWx();
+  placeFabs(); renderStatusWx(); try { renderWxBtn(); } catch (e) { /* early */ }
 }
 
 /* ---------- panels ---------- */
@@ -2278,7 +2301,7 @@ function renderMenu() {
       menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 92. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 95. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -4339,10 +4362,10 @@ const QUICK = [
   ['rain', 'Rain radar', () => wxOn('rain'), (on) => setWxL('rain', on)],
   ['mp', 'Marinas & clubs', () => S.settings.mplaces !== false, (on) => { S.settings.mplaces = on; refreshMarinePlaces(); }],
   ['br', 'Bridges', () => S.settings.bridges !== false, (on) => { S.settings.bridges = on; refreshBridges(true); }],
-  ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); }],
+  ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); renderAisBtn(); }],
+  ['sail', 'Under sail (off = motoring)', () => !!S.settings.underSail, (on) => { if (!!S.settings.underSail !== on) $('modeChip').click(); }],
   ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); drawPlaceNames(); loadPlaceNames(); }],
   ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
-  ['wild', 'Wildlife sightings', () => !!S.settings.wildOn, (on) => { S.settings.wildOn = on; drawWild(true); }],
   ['struct', 'Fish structure', () => !!S.settings.structOn, (on) => { S.settings.structOn = on; drawStruct(); }],
   ['status', 'Status line (GPS, wind, tide)', () => !!S.settings.statusOn, (on) => { S.settings.statusOn = on; applyStatus(); }],
   ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
@@ -4644,9 +4667,13 @@ function openFishWild(tab) {
       '<div class="fw-cal">' + MONTHS.map((m, i) => '<i class="' + (f.peak.includes(i + 1) ? 'pk' : f.m.includes(i + 1) ? 'on' : '') + (i + 1 === mo ? ' now' : '') + '" title="' + m + '">' + m[0] + '</i>').join('') + '</div>' +
       '<p><b>Bait:</b> ' + esc(f.bait) + '</p><p><b>Where:</b> ' + esc(f.where) + '</p>' + (f.reg ? '<p class="hint">Size, creel limits and closed seasons apply and change yearly.</p>' : '') + '</div>').join('');
     h += '<div class="row-btns"><a class="btn" href="https://dnr.maryland.gov/fisheries/Pages/regulations/index.aspx" target="_blank" rel="noopener">Maryland fishing rules</a><a class="btn" href="https://news.maryland.gov/dnr/" target="_blank" rel="noopener">DNR fishing news and reports</a></div>';
+    const lic = S.settings.fishLic || {};
+    h += '<div class="fw-lic"><b>Fishing license</b><div class="grid2"><div class="field"><label>License number</label><input id="flNum" value="' + esc(lic.num || '') + '" placeholder="MD DNR license or registration no."></div><div class="field"><label>Expires</label><input id="flExp" type="date" value="' + esc(lic.exp || '') + '"></div></div>' + (lic.exp && Date.parse(lic.exp) < Date.now() + 30 * 864e5 ? '<p class="hint"><b class="warn-t">' + (Date.parse(lic.exp) < Date.now() ? 'Expired' : 'Expires soon') + '</b>: renew at <a href="https://compass.dnr.maryland.gov" target="_blank" rel="noopener">DNR COMPASS</a>.</p>' : '') + '</div>';
+    h += '<div class="fw-tips"><label class="air-ok"><input type="checkbox" id="fishTips"' + (S.settings.fishTips !== false ? ' checked' : '') + '> Fishing tips from the first mate (ask “I\'m fishing for rockfish” or “what crabs can I keep”)</label></div>';
     h += '<div class="row-btns"><button class="btn" data-act="fwstruct">' + (S.settings.structOn ? 'Hide' : 'Show') + ' wrecks and obstructions</button><button class="btn" data-act="fwspots">My spots (' + S.spots.length + ')</button></div>';
     h += '<p class="hint">Wrecks and obstructions come from NOAA chart data: they hold fish, and they snag anchors and gear. Your own spots and catches stay private on this device.</p>';
   } else {
+    h += '<p class="hint"><b>Not live.</b> These are past sightings people photographed, good for knowing <i>when</i> an animal tends to show up here. For live dolphin reports on the Chesapeake, use <a href="https://chesapeakedolphinwatch.org" target="_blank" rel="noopener">Chesapeake DolphinWatch</a> (University of Maryland).</p>';
     h += '<div class="sub">What people have photographed within about 15 nm of ' + (S.fix ? 'you' : 'the chart center') + ', from iNaturalist, a free community science project. Tap a species to see which months it shows up.</div>';
     h += '<div class="seg fw-groups">' + WILD_GROUPS.map(([v, l]) => '<button type="button" data-wgrp="' + esc(v) + '" class="' + ((S.settings.wildGrp || 'Cetacea') === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div id="wildList"><p class="sub">Looking…</p></div>';
     h += '<div class="row-btns"><button class="btn" data-act="wildmap">' + (S.settings.wildOn ? 'Hide' : 'Show') + ' sightings on the chart</button><a class="btn" href="https://www.inaturalist.org/observations/upload" target="_blank" rel="noopener">Add your sighting</a></div>';
@@ -4714,6 +4741,10 @@ async function drawStruct() {
     });
   } catch (e) { /* NOAA data unavailable */ }
 }
+sheet.addEventListener('change', (e) => {
+  if (e.target.id === 'flNum' || e.target.id === 'flExp') { S.settings.fishLic = { num: ($('flNum').value || '').trim(), exp: $('flExp').value }; saveSettings(); toast('License saved on this device'); }
+  if (e.target.id === 'fishTips') { S.settings.fishTips = e.target.checked; saveSettings(); }
+});
 sheet.addEventListener('click', (e) => {
   const t = e.target.closest('[data-fwtab]'); if (t) { openFishWild(t.dataset.fwtab); return; }
   const g = e.target.closest('[data-wgrp]'); if (g) { S.settings.wildGrp = g.dataset.wgrp; saveSettings(); openFishWild('wild'); if (S.settings.wildOn) drawWild(true); return; }
@@ -5299,7 +5330,7 @@ const firstMateSpots = L.layerGroup().addTo(map);
 function firstMateMessage(text) { const el = $('firstMateReply'); if (el) el.textContent = text; }
 function openFirstMate() {
   FM.view++; if (FM.recognition) FM.recognition.stop();
-  openSheet('<h3>First mate</h3><p class="sub">Ask naturally: “Show rain”, “Take me to Baltimore”, or “Show the ship ahead”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + (S.settings.assistantUrl ? 'Ready. Navigation requests open a destination for review.' : 'AI connection is not set up yet. Open Connection setup below.') + '</p><div id="firstMateResults"></div><details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
+  openSheet('<h3>First mate</h3><p class="sub">Ask naturally: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Show me the waves”, “Show the weather”, “Hide wind and rain”, “Night mode”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + (S.settings.assistantUrl ? 'Ready. Navigation requests open a destination for review.' : 'AI connection is not set up yet. Open Connection setup below.') + '</p><div id="firstMateResults"></div><details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
 }
 function firstMateListen() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -5359,10 +5390,80 @@ async function firstMateExecute(a) {
     toast('Showing ' + spots.length + ' saved fishing spots' + (a.scope === 'along_route' ? ' within 1 nm of your route.' : '.')); return;
   }
 }
+// Built-in understanding of everyday requests, so the first mate works with no AI service, no sign-in and no cost.
+// Anything it can't place falls through to the AI backend when one is set up.
+const FM_PLACE_FIX = [[/\bssa\b|severn sailing( association)?/i, 'Severn Sailing Association'], [/\bbaltimore harbou?r\b|inner harbou?r/i, 'Baltimore Inner Harbor'], [/\bnaval academy\b/i, 'Naval Academy Annapolis']];
+async function fmPlace(q, near) {
+  q = q.replace(/^(the|a)\s+/i, '').replace(/[.?!]+$/, '').trim();
+  if (/^(here|me|my boat|my location|where i am|current location)$/i.test(q)) return S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : null;
+  if (/^(home|home port|my (home )?port|my dock|my slip)$/i.test(q) && homePort()) return Object.assign({}, homePort());
+  const hp = homePort(); if (hp && q.toLowerCase() === hp.name.toLowerCase()) return Object.assign({}, hp);
+  FM_PLACE_FIX.forEach(([re, v]) => { if (re.test(q)) q = v; });
+  const list = await suggestPlaces(q, near || searchCenter());
+  const o = list[0]; return o ? { name: o.name.replace(/\s*\(sample spot\)/, ''), lat: o.lat, lon: o.lon, sub: o.sub } : null;
+}
+const FM_LAYER = { wind: 'wind', winds: 'wind', waves: 'waves', wave: 'waves', seas: 'waves', swell: 'waves', rain: 'rain', radar: 'rain', storms: 'rain', tide: 'tide', tides: 'tide', current: 'tide' };
+const CRAB_TIPS = '<div class="fm-card"><b>Blue crabs: telling them apart</b><p><b>Male (jimmy):</b> the apron on the belly is long and narrow, shaped like the Washington Monument or a T. Claw tips are blue.</p><p><b>Mature female (sook):</b> the apron is wide and rounded, like the Capitol dome. Claw tips are red, “painted fingernails”.</p><p><b>Young female (sally):</b> apron is a triangle. <b>Sponge crab:</b> a female carrying an orange or brown egg mass under the apron.</p><p><b>What you can keep:</b> Maryland sets the minimum size (measured point to point across the shell), the bushel limit and whether females may be kept, and it changes by season and year. Sponge crabs must always go back.</p><p><a href="https://dnr.maryland.gov/fisheries/Pages/regulations/crab.aspx" target="_blank" rel="noopener">Current Maryland crabbing rules ›</a></p></div>';
+function fishAdvice(c) {
+  if (/crab|jimmy|sook|sally/.test(c)) return CRAB_TIPS;
+  const mo = new Date().getMonth() + 1, aliases = { rockfish: 'striped', striper: 'striped', stripers: 'striped', bass: 'striped', blues: 'blue', perch: 'white perch', hardhead: 'croaker', fluke: 'flounder', reds: 'red drum', redfish: 'red drum', catfish: 'catfish', mackerel: 'mackerel' };
+  let key = null; Object.keys(aliases).forEach((k) => { if (new RegExp('\\b' + k + '\\b').test(c)) key = key || aliases[k]; });
+  const f = key ? FISH.find((x) => x.n.toLowerCase().includes(key)) : FISH.find((x) => c.includes(x.n.split(' ')[0].toLowerCase()));
+  if (!f) { const now = FISH.filter((x) => x.m.includes(mo)).map((x) => x.n); return '<div class="fm-card"><b>In season on the Chesapeake in ' + MONTHS[mo - 1] + '</b><p>' + esc(now.join(', ')) + '.</p><p>Tell me what you are after, for example “I\'m fishing for rockfish”.</p></div>'; }
+  const inS = f.m.includes(mo), peak = f.peak.includes(mo);
+  const lic = S.settings.fishLic || {}, licNote = lic.num ? (lic.exp && Date.parse(lic.exp) < Date.now() ? '<p><b class="warn-t">Your saved fishing license has expired.</b></p>' : '<p>License on file: ' + esc(lic.num) + (lic.exp ? ', valid to ' + new Date(lic.exp + 'T12:00').toLocaleDateString() : '') + '.</p>') : '<p>Tip: save your fishing license in Fishing and wildlife so it is always with you.</p>';
+  return '<div class="fm-card"><b>' + esc(f.n) + (peak ? ' · peak season now' : inS ? ' · in season' : ' · out of season (' + f.m.map((m) => MONTHS[m - 1]).filter((_, i, a) => i === 0 || i === a.length - 1).join('–') + ')') + '</b>' +
+    '<p><b>What they are biting:</b> ' + esc(f.bait) + '.</p><p><b>Where to look:</b> ' + esc(f.where) + '.</p>' +
+    (f.reg ? '<p><b>Keeping fish:</b> minimum size, daily limit and open dates are set by Maryland DNR and change during the year, so check before you keep one.</p><p><a href="https://dnr.maryland.gov/fisheries/Pages/regulations/index.aspx" target="_blank" rel="noopener">Current Maryland limits ›</a></p>' : '') + licNote + '</div>';
+}
+async function fmLocal(text) {
+  const t = text.trim().replace(/\s+/g, ' '), parts = t.split(/\s*(?:,|\band then\b|\bthen\b|\band\b(?=\s+(?:show|hide|turn|switch|zoom|open|set|plot|take|navigate|go|find)))\s*/i).filter(Boolean), done = [];
+  for (const raw of parts) {
+    const c = raw.toLowerCase().replace(/^(hey|ok|okay|please|can you|could you|would you|i want to|i'd like to|let's)\s+/g, '').replace(/^(please|can you|could you)\s+/, '');
+    // routes: "set a course from A to B", "plot a route to B", "take me to B", "navigate to B"
+    let m = c.match(/(?:set|plot|plan|make|chart|lay)(?: me)? (?:a |the )?(?:course|route|trip|passage)(?: from (.+?))? to (.+)/) || c.match(/(?:take me|navigate|go|head|get me|bring me|sail|motor|steer)(?: from (.+?))? to (.+)/) || c.match(/^route(?: from (.+?))? to (.+)/) || c.match(/^course(?: from (.+?))? to (.+)/);
+    if (m) {
+      const fromQ = (m[1] || '').trim(), toQ = m[2].trim();
+      firstMateMessage('Finding ' + toQ + (fromQ ? ' and ' + fromQ : '') + '…');
+      const from = fromQ ? await fmPlace(fromQ) : (S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : homePort());
+      if (!from) { firstMateMessage('I could not find “' + fromQ + '”. Try the marina or town name.'); return true; }
+      const to = await fmPlace(toQ, from); if (!to) { firstMateMessage('I could not find “' + toQ + '”. Try a marina, harbor or town name.'); return true; }
+      if (distNm(from, to) > 400) { firstMateMessage(to.name + ' is ' + fmtDist(distNm(from, to)) + ' away. That is beyond what Tideline can route by water today; pick a nearer stop or plan it leg by leg.'); return true; }
+      closeSheet(); setTab('chart');
+      const pts = await routeByWater([{ lat: from.lat, lon: from.lon, name: from.name }, { lat: to.lat, lon: to.lon, name: to.name }]);
+      RT.pts = pts; store.set('routeDraft', RT.pts); routeMode(true); map.fitBounds(L.latLngBounds(pts.map((q) => [q.lat, q.lon])).pad(0.15));
+      headsUp('Course plotted from ' + from.name + ' to ' + to.name + '. ' + fmtDist(distNm(from, to)) + ' as the crow flies. Review it, then tap Start.');
+      return true;
+    }
+    // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
+    if (S.settings.fishTips !== false && /\b(fish|fishing|biting|bait|lure|catch|keep|limit|crab|crabs|crabbing|jimmy|sook)\b/.test(c)) { const r = fishAdvice(c); if (r) { firstMateMessage(''); $('firstMateResults').innerHTML = r; return true; } }
+    // layers: "show (me) the waves", "hide wind", "turn on rain", "weather"
+    m = c.match(/^(show|display|bring up|turn on|switch on|open|hide|remove|turn off|switch off|clear)(?: me)?(?: the)? (.+)/);
+    const verbOn = m ? !/hide|remove|off|clear/.test(m[1]) : true, what = (m ? m[2] : c).replace(/[.?!]/g, '').trim();
+    const words = what.split(/[\s,&]+/), layers = [...new Set(words.map((w) => FM_LAYER[w]).filter(Boolean))];
+    if (layers.length) { layers.forEach((l) => { if (l === 'tide') { S.tideCardOn = verbOn; renderTideCard(); } else setWxL(l, verbOn); }); setTab('chart'); done.push((verbOn ? 'Showing ' : 'Hiding ') + layers.join(' and ')); continue; }
+    if (/^(the )?(weather|forecast)\b/.test(what)) { if (verbOn) { WX.view = 'wind'; WX.open = true; setTab('weather'); done.push('Here is the forecast'); } else { setWxL('wind', false); setWxL('waves', false); setWxL('rain', false); done.push('Weather hidden'); } continue; }
+    if (/\bais\b|ships|boats|traffic|vessels/.test(what)) { S.settings.aisShow = verbOn; saveSettings(); updateAis(); renderAisBtn(); done.push(verbOn ? 'AIS ships on' : 'AIS ships off'); continue; }
+    if (/satellite|aerial/.test(what)) { S.settings.satOver = verbOn; saveSettings(); applyChart(); done.push(verbOn ? 'Satellite on' : 'Satellite off'); continue; }
+    if (/instrument|gauge|dashboard/.test(what)) { closeSheet(); setCockpit(verbOn); done.push(verbOn ? 'Instruments' : 'Back to the chart'); continue; }
+    if (/(night|dusk|day)( mode| colou?rs| theme)?$/.test(what) || /^(night|dusk|day) mode/.test(c)) { const th = (what.match(/night|dusk|day/) || c.match(/night|dusk|day/))[0]; S.settings.theme = th; saveSettings(); applyNight(); renderThemeBtn(); done.push(th[0].toUpperCase() + th.slice(1) + ' colors'); continue; }
+    if (/^zoom (in|out)/.test(c)) { if (/in/.test(c)) map.zoomIn(); else map.zoomOut(); done.push('Zoomed'); continue; }
+    if (/^(find me|where am i|center (on )?(me|the boat|my boat))/.test(c)) { $('btnFollow').click(); done.push('Centered on you'); continue; }
+    if (/^(stop|end|cancel)( the)? (navigation|navigating|route|course)/.test(c)) { endGoto(); done.push('Navigation ended'); continue; }
+    m = c.match(/^how far (?:is it |to )?(?:to )?(.+)/);
+    if (m) { const to = await fmPlace(m[1]); const from = S.fix || homePort() || refPos(); if (to && from) { firstMateMessage(to.name + ' is ' + fmtDist(distNm(from, to)) + ' away, bearing ' + fmtBrg(bearing(from, to)) + '°T, as the crow flies' + (S.fix ? '' : ' from ' + (homePort() ? homePort().name : 'the chart center')) + '.'); return true; } }
+    return done.length ? (firstMateMessage(done.join(' · ') + '. Could not follow “' + raw + '”.'), true) : false;
+  }
+  if (done.length) { firstMateMessage(done.join(' · ') + '.'); toast(done.join(' · ')); return true; }
+  return false;
+}
 async function askFirstMate() {
   if (FM.busy) return;
   const request = ($('firstMateRequest').value || '').trim(); if (!request) return;
-  if (!S.settings.assistantUrl) { firstMateMessage('Set up the assistant backend first.'); return; }
+  FM.busy = true; let handled = false;
+  try { handled = await fmLocal(request); } catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); handled = true; } finally { FM.busy = false; }
+  if (handled) return;
+  if (!S.settings.assistantUrl) { firstMateMessage('I did not catch that. Try: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Show the waves”, “Hide wind”, “Night mode”, “How far to St. Michaels”.'); return; }
   FM.busy = true; const boat = S.fleet.active, view = FM.view; firstMateMessage('Thinking…');
   const send = sheet.querySelector('[data-fm="send"]'); if (send) send.disabled = true;
   try {
