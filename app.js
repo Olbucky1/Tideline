@@ -259,7 +259,7 @@ function tog(id, label, note, on) {
 }
 function openLayersSheet() {
   const st = S.settings;
-  let html = '<div class="mo"><h3>Map options</h3>' + (window.TL_DEMO ? '<p class="hint" style="margin:6px 0 0">This demo uses a sample chart, because hosted demo pages can\'t load live chart or satellite images. NOAA charts and satellite work in the full app.</p>' : '');
+  let html = '<div class="mo"><div class="mo-top"><h3>Map options</h3><button type="button" class="btn small" data-act="mosettings">All settings</button></div>' + '<div class="mo-h">Color mode</div>' + optSeg('theme', [['auto', 'Auto'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']], st.theme || 'auto') + '' + (window.TL_DEMO ? '<p class="hint" style="margin:6px 0 0">This demo uses a sample chart, because hosted demo pages can\'t load live chart or satellite images. NOAA charts and satellite work in the full app.</p>' : '');
   html += '<div class="mo-h">Chart</div>' + optSeg('chart', Object.entries(CHARTS).map(([k, c]) => [k, c.name.replace(' only', '')]), st.chart);
   html += '<div class="mo-h">Overlays</div>';
   html += tog('satBox', 'Satellite imagery', 'Aerial photo under the chart', st.satOver && st.chart !== 'satellite');
@@ -270,7 +270,7 @@ function openLayersSheet() {
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
   html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
-  html += '<div class="mo-h">Color mode</div>' + optSeg('theme', [['auto', 'Auto'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']], st.theme || 'auto');
+
   html += tog('easyBox', 'Easy view', 'Bigger icons and text', st.easy);
   html += '<div class="row-btns" style="margin-top:12px"><button class="btn" data-act="cockpit">Cockpit display</button><button class="btn primary" data-act="close">Done</button></div></div>';
   openSheet(html);
@@ -328,6 +328,7 @@ sheet.addEventListener('click', (e) => {
     S.waypoints = S.waypoints.filter((w) => w.id !== sp.wp.id); store.set('waypoints', S.waypoints); renderWaypoints(); closeSheet();
   }
   if (act === 'measureclear') { clearMeasure(); closeSheet(); }
+  if (act === 'mosettings') { closeSheet(); setTab('settings'); }
   if (act === 'ptwx' && sp) { b.disabled = true; pointWeather(sp.p); }
   if (act === 'ptmeasure' && sp) { const ll = L.latLng(sp.p.lat, sp.p.lon); closeSheet(); setMeasure(true, ll); }
 });
@@ -1357,6 +1358,7 @@ function menuTile(act, icon, title, sub) {
 function renderMenu() {
   $('panelMenu').innerHTML = '<div class="p-head"><div><div class="eyebrow">Tideline</div><h2>Menu</h2></div></div>' +
     '<div class="m-grid">' +
+    menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline') +
     menuTile('boat', 'boat', esc(S.settings.boatName || 'Your boat'), 'Profile, lights now, maintenance') +
     menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
     menuTile('dash', 'dash', 'Instruments', 'Speed, course, wind and tide gauges') +
@@ -1365,7 +1367,6 @@ function renderMenu() {
     menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
     menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
         menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, overlays, theme') +
-    menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline') +
     '</div><p class="hint" style="margin-top:14px">Tideline prototype 0.6. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 $('panelMenu').addEventListener('click', (e) => {
@@ -1899,9 +1900,30 @@ function applyNight() {
   const th = themeNow(), root = document.documentElement;
   S.settings.night = th === 'night';
   root.toggleAttribute('data-night', th === 'night'); root.toggleAttribute('data-dusk', th === 'dusk');
+  renderThemeBtn(th);
   document.querySelector('meta[name=theme-color]').setAttribute('content', th === 'night' ? '#0A0202' : th === 'dusk' ? '#0F1A25' : '#0B1824');
 }
 setInterval(() => { if ((S.settings.theme || 'auto') === 'auto') applyNight(); }, 60000);
+
+
+/* quick day / dusk / night switch on the chart, and a quick sheet with settings one tap away */
+const THEME_ICON = {
+  day: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+  dusk: '<path d="M3 17h18M6 13a6 6 0 0112 0"/><path d="M12 3v3M4.2 6.2l2 2M19.8 6.2l-2 2M8 21h8"/>',
+  night: '<path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/>',
+};
+function renderThemeBtn(th) {
+  const b = $('btnTheme'), ic = $('themeIcon'); if (!b || !ic) return;
+  ic.innerHTML = THEME_ICON[th] || THEME_ICON.day;
+  b.setAttribute('aria-label', 'Colors: ' + th + ((S.settings.theme || 'auto') === 'auto' ? ' (automatic)' : '') + '. Tap to change.');
+}
+$('btnTheme').addEventListener('click', () => {
+  const cur = S.settings.theme || 'auto', now = themeNow();
+  // cycle Day -> Dusk -> Night -> Auto, starting from what is on screen now
+  const next = cur === 'auto' ? ({ day: 'dusk', dusk: 'night', night: 'day' })[now] : cur === 'day' ? 'dusk' : cur === 'dusk' ? 'night' : 'auto';
+  S.settings.theme = next; saveSettings(); applyNight(); updateBoat();
+  toast(next === 'auto' ? 'Colors: automatic (switches at twilight, now ' + themeNow() + ')' : 'Colors: ' + next + '. Tap again to change.', 2200);
+});
 
 /* ---------- offline chart saving ---------- */
 const lon2x = (lon, z) => Math.floor(((lon + 180) / 360) * 2 ** z);
@@ -3098,6 +3120,13 @@ setInterval(() => {
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => { /* offline features unavailable */ });
+  // a new version was published: reload once so it shows, unless the anchor watch is running
+  const hadCtl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadCtl || S.updating) return; S.updating = true;
+    if (S.anchor || S.mob) toast('A Tideline update is ready. It will load next time you open the app.', 5000);
+    else location.reload();
+  });
 }
 
 /* ---------- start ---------- */

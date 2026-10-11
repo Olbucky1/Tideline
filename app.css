@@ -619,3 +619,5 @@ html.calm #app.wide .topbar { left: calc((100% - 400px) / 2); right: auto; }
 .res { display: block; padding: 12px 2px; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--ink); }
 .res b { display: block; font-size: 15.5px; color: var(--accent); }
 .res span { font-size: 13px; color: var(--ink2); }
+.mo-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mo-top h3 { margin: 0; }
