@@ -1549,7 +1549,7 @@ async function maybeWeather(force) {
       at: Date.now(), pos: { lat: f.lat, lon: f.lon },
       cur: { spd: j.current.wind_speed_10m, dir: j.current.wind_direction_10m, gust: j.current.wind_gusts_10m, temp: j.current.temperature_2m, p: j.current.pressure_msl, code: j.current.weather_code, cloud: j.current.cloud_cover },
       press: j.hourly.pressure_msl ? j.hourly.time.map((t, i) => ({ t: tt(t), p: j.hourly.pressure_msl[i], code: j.hourly.weather_code ? j.hourly.weather_code[i] : null })) : [],
-      hours: j.hourly.time.map((t, i) => ({ t: tt(t), spd: j.hourly.wind_speed_10m[i], dir: j.hourly.wind_direction_10m[i], gust: j.hourly.wind_gusts_10m[i], temp: j.hourly.temperature_2m ? j.hourly.temperature_2m[i] : null, rain: j.hourly.precipitation ? j.hourly.precipitation[i] : null })),
+      hours: j.hourly.time.map((t, i) => ({ t: tt(t), spd: j.hourly.wind_speed_10m[i], dir: j.hourly.wind_direction_10m[i], gust: j.hourly.wind_gusts_10m[i], temp: j.hourly.temperature_2m ? j.hourly.temperature_2m[i] : null, rain: j.hourly.precipitation ? j.hourly.precipitation[i] : null, code: j.hourly.weather_code ? j.hourly.weather_code[i] : null })),
       sunrise: j.daily.sunrise.map(tt), sunset: j.daily.sunset.map(tt),
     };
     try {
@@ -2044,7 +2044,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]'
 document.addEventListener('input', (e) => { if (e.target.id === 'wxHour') wxStop(); }, true);
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
-  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button><button type="button" class="btn small weather-alert-link" data-cur-near>⇄ Currents near you</button>'); return; }
+  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button><button type="button" class="btn small weather-alert-link" data-cur-near>⇄ Currents near you</button><button type="button" class="btn small weather-alert-link" data-lx-open>⚡ Lightning</button>'); return; }
   el.className = 'wxbar';
   if (!wxAny()) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
@@ -2524,7 +2524,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 108. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 109. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5603,7 +5603,7 @@ const firstMateSpots = L.layerGroup().addTo(map);
 function firstMateMessage(text) { const el = $('firstMateReply'); if (el) el.textContent = text; }
 function openFirstMate() {
   FM.view++; if (FM.recognition) FM.recognition.stop();
-  openSheet('<h3>First mate</h3><p class="sub">Try: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Take me to St. Michaels”, “Show the currents”, “Show me the waves”, “Should I reef?”, “When should I leave?”, “Night mode”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + 'Ready. Tap Talk and speak, or type and tap Send.' + '</p><div id="firstMateResults"></div><details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
+  openSheet('<h3>First mate</h3><p class="sub">Try: “Set a course from Severn Sailing Association to Baltimore Harbor”, “Take me to St. Michaels”, “Show the currents”, “Show me the waves”, “Should I reef?”, “When should I leave?”, “Night mode”.</p><div class="field"><label for="firstMateRequest">What would you like to do?</label><input id="firstMateRequest" type="text" maxlength="1000" placeholder="Ask by voice or type…" autocomplete="off"></div><div class="row-btns"><button class="btn" data-fm="listen">🎙 Talk</button><button class="btn primary" data-fm="send">Send</button></div><p id="firstMateReply" class="sub" role="status" aria-live="polite">' + 'Ready. Tap Talk and speak, or type and tap Send.' + '</p><div id="firstMateResults"></div>' + wakeBoxHtml() + '<details><summary>Connection setup</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">Sign in through Account. This requires a deployed assistant backend; never paste an AI API key here.</p></details><p class="hint">Sending shares your words and limited active-boat context with the AI service. Speech processing depends on your browser. This assistant operates app controls, not vessel controls.</p><button class="btn ghost" data-act="close">Close</button>');
 }
 function firstMateListen() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -5736,6 +5736,8 @@ async function fmLocal(text) {
     }
     if (/\bgreat loop|\blooper|\bthe loop\b/.test(c)) { closeSheet(); openLoop(/limit|fit|air draft|bridge|my boat/.test(c) ? 'boat' : /lock|notice|closed|status/.test(c) ? 'live' : /report/.test(c) ? 'reports' : 'plan'); return true; }
     { const rm = c.match(/\brange rings?\b(?:.*?\b(\d+(?:\.\d+)?|half|quarter)\s*(?:nm|nautical|mile|miles)?)?/); if (rm) { const off = /\b(off|hide|remove)\b/.test(c); if (off) { S.settings.rings = false; } else { S.settings.rings = true; if (rm[1]) S.settings.ringStep = rm[1] === 'half' ? '0.5' : rm[1] === 'quarter' ? '0.25' : rm[1]; } saveSettings(); drawRings(); firstMateMessage(off ? 'Range rings off.' : 'Range rings on' + (rm[1] ? ', every ' + fmtDist(+S.settings.ringStep) : '') + '. Tap a ring label to change them.'); return true; } }
+    if (/\blightning\b/.test(c)) { closeSheet(); openLightning(); return true; }
+    if (/\b(stop listening|quit listening)\b/.test(c)) { wakeStop(); firstMateMessage('Stopped listening.'); return true; }
     // fishing assistant: "I'm fishing for rockfish", "what are the croaker biting on", crab sexing and keeping
     if (S.settings.fishTips !== false && /\b(fish|fishing|biting|bait|lure|catch|keep|limit|crab|crabs|crabbing|jimmy|sook)\b/.test(c)) { const r = fishAdvice(c); if (r) { firstMateMessage(''); $('firstMateResults').innerHTML = r; return true; } }
     // layers: "show (me) the waves", "hide wind", "turn on rain", "weather"
@@ -6429,6 +6431,109 @@ setTimeout(() => applyOrient(true), 800);
     if (learning() && !e.target.closest('.sheet')) { show(b); shown = false; setTimeout(hide, 1300); }
   }, true);
 })();
+/* ---------- lightning: strikes on the chart, how close the nearest one is, and a warning when it is coming your way ---------- */
+const LX = { strikes: [], at: 0, layer: L.layerGroup().addTo(map), hist: [], warned: 0, err: '' };
+const lxOn = () => S.settings.lxOn !== false;
+async function lxFetch() {
+  const c = S.fix || refPos(); if (!lxOn() || !c) return;
+  const src = S.settings.lxRelay || '';
+  if (src) {
+    try { const j = await fetchT(src + (src.includes('?') ? '&' : '?') + 'lat=' + c.lat.toFixed(3) + '&lon=' + c.lon.toFixed(3) + '&r=60', 15000).then((r) => r.json()); LX.strikes = (j.strikes || []).filter((x) => x && isFinite(x.lat) && isFinite(x.lon) && isFinite(x.t)); LX.at = Date.now(); LX.err = ''; }
+    catch (e) { LX.err = 'Lightning feed not reachable'; }
+  }
+  if (S.settings.sim && !src) lxDemo(c);
+  lxDraw(); lxCheck();
+}
+function lxDemo(c) { // simulator only: a storm cell drifting toward you
+  const now = Date.now(); if (!LX.demo) LX.demo = { lat: c.lat + 0.15, lon: c.lon - 0.2, t0: now };
+  const k = (now - LX.demo.t0) / 60000, cell = { lat: LX.demo.lat - k * 0.004, lon: LX.demo.lon + k * 0.005 };
+  LX.strikes = LX.strikes.filter((x) => now - x.t < 30 * 60000); for (let i = 0; i < 4; i++) LX.strikes.push({ lat: cell.lat + (Math.random() - 0.5) * 0.04, lon: cell.lon + (Math.random() - 0.5) * 0.05, t: now - Math.random() * 50000, demo: true });
+}
+function lxNearest() {
+  const c = S.fix || refPos(), now = Date.now(); let best = null;
+  LX.strikes.forEach((x) => { if (now - x.t > 30 * 60000) return; const d = distNm(c, x); if (!best || d < best.d) best = { d, x, brg: bearing(c, x), age: now - x.t }; });
+  return best;
+}
+function lxDraw() {
+  LX.layer.clearLayers(); if (!lxOn()) { lxChip(null); return; }
+  const now = Date.now();
+  LX.strikes.forEach((x) => { const age = (now - x.t) / 60000; if (age > 30) return; const cls = age < 5 ? 'new' : age < 15 ? 'mid' : 'old';
+    L.marker([x.lat, x.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<i class="lx-strike ' + cls + '"></i>' }) }).addTo(LX.layer); });
+  lxChip(lxNearest());
+}
+function lxChip(n) {
+  let el = $('lxChip'); if (!el) { el = document.createElement('button'); el.id = 'lxChip'; el.type = 'button'; el.className = 'lx-chip'; $('app').appendChild(el); el.addEventListener('click', openLightning); }
+  if (!n || n.d > 40) { el.hidden = true; return; }
+  const close = n.d < (S.settings.lxNear || 10), app = LX.approach;
+  el.hidden = false; el.className = 'lx-chip' + (close ? ' close' : '') + (app ? ' coming' : '');
+  el.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 5 13.5h6L9.5 22 19 9.5h-6.2z"/></svg><b>' + fmtDist(n.d) + ' ' + compass16(n.brg) + '</b><span>' + (app ? 'coming closer' : Math.max(1, Math.round(n.age / 60000)) + ' min ago') + '</span>';
+  el.dataset.tip = 'Nearest lightning strike ' + fmtDist(n.d) + ' to the ' + compass16(n.brg) + (app ? ', getting closer' : '') + '. Tap for details and alert settings.';
+}
+function lxCheck() {
+  const n = lxNearest(), now = Date.now(); if (!n) { LX.approach = false; return; }
+  LX.hist.push({ t: now, d: n.d }); LX.hist = LX.hist.filter((h) => now - h.t < 20 * 60000);
+  const old = LX.hist.find((h) => now - h.t > 8 * 60000); LX.approach = !!(old && old.d - n.d > 1);
+  const near = S.settings.lxNear || 10;
+  if ((n.d < near || (LX.approach && n.d < near * 1.5)) && now - LX.warned > 10 * 60000) {
+    LX.warned = now;
+    if (S.settings.lxSound !== false) beep(3);
+    headsUp('Lightning ' + fmtDist(n.d) + ' to the ' + compass16(n.brg) + (LX.approach ? ', and getting closer.' : '.'));
+    toast('⚡ Lightning ' + fmtDist(n.d) + ' ' + compass16(n.brg) + (LX.approach ? ', coming closer' : '') + '. Head for shelter; stay off the water until 30 minutes after the last strike.', 9000);
+  }
+  lxChip(n);
+}
+function openLightning() {
+  const n = lxNearest(), st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-lx' + k + '="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  const fc = (() => { const w = S.weather; if (!w || !w.hours) return null; const h = w.hours.find((x) => x.t > Date.now() && x.t < Date.now() + 12 * 3600000 && x.code >= 95); return h || null; })();
+  openSheet('<h3>Lightning</h3>' + (n ? '<div class="lx-big' + (LX.approach ? ' coming' : '') + '"><b>' + fmtDist(n.d) + '</b><span>to the ' + compass16(n.brg) + ' · ' + Math.max(1, Math.round(n.age / 60000)) + ' min ago' + (LX.approach ? ' · <b>getting closer</b>' : '') + '</span></div>' : '<p class="sub">' + (st.lxRelay || st.sim ? 'No strikes within 40 nm in the last 30 minutes.' : 'Live lightning needs a lightning feed (below). Until then Tideline warns you from the forecast and NWS alerts.') + '</p>') +
+    (fc ? '<p class="sub">Thunderstorms are in the forecast here around ' + fmtClock(fc.t) + '.</p>' : '') +
+    '<div class="fm-card"><b>If you can hear thunder, you are close enough to be struck.</b><p>Head for shelter. On the water: get to a harbor, stay low in the cockpit, away from the mast, shrouds and metal. Stay put until 30 minutes after the last thunder.</p></div>' +
+    '<div class="field"><label>Lightning on the chart</label>' + seg('on', String(lxOn()), [['true', 'Show'], ['false', 'Hide']]) + '</div>' +
+    '<div class="field"><label>Warn me when a strike is within</label>' + seg('near', String(st.lxNear || 10), [['5', '5 nm'], ['10', '10 nm'], ['15', '15 nm'], ['25', '25 nm']]) + '</div>' +
+    '<div class="field"><label>Alarm sound</label>' + seg('snd', String(st.lxSound !== false), [['true', 'Sound on'], ['false', 'Muted (show only)']]) + '</div>' +
+    '<details><summary>Lightning feed</summary><div class="field"><label for="lxRelay">Feed URL</label><input id="lxRelay" type="url" value="' + esc(st.lxRelay || '') + '" placeholder="https://tideline-lightning.…workers.dev"></div><button class="btn small" data-lxsave>Save</button><p class="hint">Live strike data comes from a commercial lightning network (for example Xweather/Vaisala) through a small relay; see tools/lightning-relay in the Tideline repo. Never paste a provider key here.</p></details>' +
+    '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lxon],[data-lxnear],[data-lxsnd]'); if (b) { const d = b.dataset; if (d.lxon) S.settings.lxOn = d.lxon === 'true'; if (d.lxnear) S.settings.lxNear = +d.lxnear; if (d.lxsnd) S.settings.lxSound = d.lxsnd === 'true'; saveSettings(); lxDraw(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); return; }
+  if (e.target.closest('[data-lxsave]')) { const v = ($('lxRelay').value || '').trim(); if (v && !/^https:\/\//.test(v)) { toast('Use the https:// address of your relay'); return; } S.settings.lxRelay = v; saveSettings(); toast(v ? 'Lightning feed saved' : 'Lightning feed removed'); lxFetch(); }
+});
+document.addEventListener('click', (e) => { if (e.target.closest('[data-lx-open]')) openLightning(); });
+setInterval(lxFetch, 60000); setTimeout(lxFetch, 4000); setInterval(lxDraw, 60000);
+QUICK.splice(QUICK.findIndex((q) => q[0] === 'rain') + 1, 0, ['lx', 'Lightning', () => lxOn(), (on) => { S.settings.lxOn = on; lxDraw(); }]);
+
+/* ---------- first mate listening: say the wake words ("first mate", or your own) and then the request ---------- */
+const WAKE = { rec: null, on: false, armedUntil: 0 };
+const wakeWord = () => (S.settings.wakeWord || 'first mate').toLowerCase().trim();
+function wakeIndicator() { document.querySelectorAll('[data-first-mate]').forEach((b) => b.classList.toggle('listening', WAKE.on)); }
+function wakeStart() {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition; if (!R) { toast('This browser cannot listen continuously. Tap the first mate button and use the keyboard microphone instead.', 6000); S.settings.wakeOn = false; saveSettings(); return; }
+  if (WAKE.rec) return; const r = new R(); WAKE.rec = r; WAKE.on = true; r.lang = navigator.language || 'en-US'; r.continuous = true; r.interimResults = false;
+  r.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (!e.results[i].isFinal) continue; const said = e.results[i][0].transcript.toLowerCase().trim(), w = wakeWord(), k = said.indexOf(w);
+      let cmd = null; if (k >= 0) { cmd = said.slice(k + w.length).replace(/^[\s,.!?]+/, ''); if (!cmd) { WAKE.armedUntil = Date.now() + 7000; chime(); continue; } } else if (Date.now() < WAKE.armedUntil) cmd = said;
+      if (cmd) { WAKE.armedUntil = 0; wakeRun(cmd); }
+    }
+  };
+  r.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { toast('Microphone permission is off for this site.', 5000); wakeStop(); } };
+  r.onend = () => { WAKE.rec = null; if (WAKE.on && S.settings.wakeOn) setTimeout(() => { if (S.settings.wakeOn && !WAKE.rec) wakeStart(); }, 400); };
+  try { r.start(); } catch (e) { WAKE.rec = null; }
+  wakeIndicator();
+}
+function wakeStop() { WAKE.on = false; S.settings.wakeOn = false; saveSettings(); try { WAKE.rec && WAKE.rec.stop(); } catch (e) { /* stopped */ } WAKE.rec = null; wakeIndicator(); }
+async function wakeRun(cmd) {
+  openFirstMate(); const inp = $('firstMateRequest'); if (inp) inp.value = cmd; await askFirstMate();
+  const r = $('firstMateReply'), txt = r && r.textContent.trim(); if (txt && S.settings.voice) speak(txt.slice(0, 220));
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wake]'); if (!b) return;
+  if (b.dataset.wake === 'on') { const w = ($('wakeWordIn') && $('wakeWordIn').value.trim()) || 'first mate'; S.settings.wakeWord = w; S.settings.wakeOn = true; saveSettings(); wakeStart(); toast('Listening. Say “' + w + '” and then your request.', 5000); }
+  else wakeStop();
+  if ($('wakeBox')) $('wakeBox').outerHTML = wakeBoxHtml();
+});
+function wakeBoxHtml() { return '<div id="wakeBox" class="field wake-box"><label for="wakeWordIn">Hands-free: listen for</label><input id="wakeWordIn" value="' + esc(S.settings.wakeWord || 'first mate') + '" maxlength="30"><div class="row-btns">' + (WAKE.on ? '<button class="btn" data-wake="off">Stop listening</button>' : '<button class="btn" data-wake="on">Start listening</button>') + '</div><small class="hint">Say the words, then your request: “' + esc(S.settings.wakeWord || 'first mate') + ', show the currents”. The screen must stay on; Tideline keeps it awake while navigating. Speech is processed by your phone’s browser.</small></div>'; }
+if (S.settings.wakeOn) setTimeout(wakeStart, 1500);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
