@@ -1597,3 +1597,62 @@ html.arrange #fabs, html.arrange #fabsR { outline: 2px dashed color-mix(in srgb,
 .arr-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 14px); z-index: 3100; width: min(360px, calc(100vw - 24px)); background: rgba(14, 32, 52, .92); color: #fff; border-radius: 16px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .arr-bar b { display: block; font-size: 15px; } .arr-bar span { font-size: 12px; opacity: .8; } .arr-bar div { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
 .arr-bar .btn:not(.primary) { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
+/* Day mode: menus, sheets and panels use the deep navy of dusk so they stand out from a bright chart (Map options → Menu color: Light to undo) */
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel, .cockpit-x) {
+  --surface: #16283A; --surface2: #102030; --line: #2C4258; --ink: #EEF4FA; --ink2: #A9BCCD; --accent: #7CC0FF; --tile: #1B3046; --tile-line: #2E4A66;
+  --teal: #4FC1B1; --teal-ink: #9BE3D8; --teal-bg: #16322F; --amber-bg: #3A2A10; --amber-ink: #F2C27A; color-scheme: dark;
+  background: #16283A !important; color: var(--ink) !important;
+}
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) :is(.card, .li, .field input, .field select, .field textarea, .seg, .m-row, .fm-card, .sc-card, .loop-leg, .sc-win, .alr, .wx-mod, .uses button, .tl-model, .pt-grid > div, .cur-ev, .ev, details) {
+  background-color: rgba(255,255,255,.04) !important; color: var(--ink) !important; border-color: var(--line) !important;
+}
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) :is(.sub, .hint, .li-main span, .m-txt span, label, small, .loop-when) { color: var(--ink2) !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) :is(h2, h3, h4, b, .m-txt b, .li-main b) { color: var(--ink) !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) .seg button { color: var(--ink2) !important; background: transparent !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) .seg button.on, :root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) .btn.primary, :root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick) .q-t.on, :root:not([data-night]):not([data-dusk]):not(.lightmenus) .uses button.on { background: #2E86DE !important; color: #fff !important; border-color: #2E86DE !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) .btn:not(.primary) { background: rgba(255,255,255,.06) !important; color: var(--ink) !important; border-color: var(--line) !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick) .q-t { background: rgba(255,255,255,.04) !important; color: var(--ink) !important; border-color: var(--line) !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) :is(#sheet, #quick, .panel) a { color: #8CC8FF; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) #sheet .sheet-x, :root:not([data-night]):not([data-dusk]):not(.lightmenus) #quick .sheet-x { background: rgba(255,255,255,.1) !important; color: #fff !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) .tabbar { background: #16283A !important; border-top-color: #2C4258 !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) .tabbar .tab { color: #A9BCCD !important; } :root:not([data-night]):not([data-dusk]):not(.lightmenus) .tabbar .tab.on { color: #fff !important; background: rgba(124,192,255,.14) !important; }
+:root:not([data-night]):not([data-dusk]):not(.lightmenus) .tabbar .tab svg { stroke: currentColor !important; }
+/* ---------- gauge themes: bezel metal, face and ink. Midnight chrome is the default ---------- */
+:root { --gi-ink: #EAF4F8; --gi-muted: #8FB0C2; --gi-acc: #5AE3FF; --gi-n: #FF5A4F; }
+:root, :root[data-gtheme="midnight"] { }
+.ch1 { stop-color: #F7FAFC; } .ch2 { stop-color: #A7B2BC; } .ch3 { stop-color: #4E5963; } .ch4 { stop-color: #E2E8ED; } .ch5 { stop-color: #6D7882; }
+.fc1 { stop-color: #1C3A52; } .fc2 { stop-color: #07111A; }
+:root[data-gtheme="arctic"] { --gi-ink: #12283A; --gi-muted: #5B6E7E; --gi-acc: #1565C0; --gi-n: #D32F2F; }
+:root[data-gtheme="arctic"] .fc1 { stop-color: #FFFFFF; } :root[data-gtheme="arctic"] .fc2 { stop-color: #D9E2EA; }
+:root[data-gtheme="bronze"] { --gi-ink: #F6E7CC; --gi-muted: #C9A877; --gi-acc: #F2B25C; --gi-n: #F2B25C; }
+:root[data-gtheme="bronze"] .ch1 { stop-color: #FCE7BE; } :root[data-gtheme="bronze"] .ch2 { stop-color: #C08A45; } :root[data-gtheme="bronze"] .ch3 { stop-color: #6B4518; } :root[data-gtheme="bronze"] .ch4 { stop-color: #F0C987; } :root[data-gtheme="bronze"] .ch5 { stop-color: #8A5A22; }
+:root[data-gtheme="bronze"] .fc1 { stop-color: #2E251B; } :root[data-gtheme="bronze"] .fc2 { stop-color: #0E0A06; }
+:root[data-gtheme="glass"] { --gi-ink: #E8F7FF; --gi-muted: #8CC4E6; --gi-acc: #5EE6FF; --gi-n: #5EE6FF; }
+:root[data-gtheme="glass"] .ch1 { stop-color: #F2FBFF; } :root[data-gtheme="glass"] .ch2 { stop-color: #8FD3F5; } :root[data-gtheme="glass"] .ch3 { stop-color: #2C6E99; } :root[data-gtheme="glass"] .ch4 { stop-color: #CDEFFF; } :root[data-gtheme="glass"] .ch5 { stop-color: #4C93BF; }
+:root[data-gtheme="glass"] .fc1 { stop-color: #11507E; } :root[data-gtheme="glass"] .fc2 { stop-color: #041628; }
+:root[data-gtheme="expedition"] { --gi-ink: #F2F2F2; --gi-muted: #9AA0A6; --gi-acc: #FF7A1A; --gi-n: #FF7A1A; }
+:root[data-gtheme="expedition"] .ch1 { stop-color: #A8AEB4; } :root[data-gtheme="expedition"] .ch2 { stop-color: #4A4F55; } :root[data-gtheme="expedition"] .ch3 { stop-color: #16191C; } :root[data-gtheme="expedition"] .ch4 { stop-color: #7A8087; } :root[data-gtheme="expedition"] .ch5 { stop-color: #2B2F34; }
+:root[data-gtheme="expedition"] .fc1 { stop-color: #23272B; } :root[data-gtheme="expedition"] .fc2 { stop-color: #0A0B0D; }
+:root[data-gtheme="heritage"] { --gi-ink: #1E2A3A; --gi-muted: #6B5E48; --gi-acc: #1E3A5F; --gi-n: #B3261E; }
+:root[data-gtheme="heritage"] .ch1 { stop-color: #FFF1C9; } :root[data-gtheme="heritage"] .ch2 { stop-color: #C9A04E; } :root[data-gtheme="heritage"] .ch3 { stop-color: #6E4F12; } :root[data-gtheme="heritage"] .ch4 { stop-color: #EBCF86; } :root[data-gtheme="heritage"] .ch5 { stop-color: #8E6A1F; }
+:root[data-gtheme="heritage"] .fc1 { stop-color: #FBF5E6; } :root[data-gtheme="heritage"] .fc2 { stop-color: #E6D8BA; }
+:root[data-night] .ch1, :root[data-night] .ch4 { stop-color: #5A2A26 !important; } :root[data-night] .ch2, :root[data-night] .ch5 { stop-color: #2A1210 !important; } :root[data-night] .ch3 { stop-color: #160807 !important; }
+:root[data-night] .fc1 { stop-color: #1A0B0A !important; } :root[data-night] .fc2 { stop-color: #070303 !important; }
+:root[data-night] { --gi-ink: #E5544A; --gi-muted: #9C3E37; --gi-acc: #E5544A; --gi-n: #E5544A; }
+.g-bezel { filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); } .g-seam { stroke: rgba(0,0,0,.45); stroke-width: .8; } .g-glare { pointer-events: none; }
+/* the instrument panel takes its ink and accent from the gauge theme */
+:root:not([data-night]) :is(.cockpit, #panelSide) { --g-ink: var(--gi-ink) !important; --g-muted: var(--gi-muted) !important; --g-acc: var(--gi-acc) !important; --g-acc2: var(--gi-acc) !important; }
+:root[data-gtheme="arctic"]:not([data-night]) :is(.cockpit, #panelSide), :root[data-gtheme="heritage"]:not([data-night]) :is(.cockpit, #panelSide) { --g-line: #9AA9B6 !important; }
+/* speed circle with the theme */
+#miniInst svg { filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)) !important; }
+#miniInst .mi-ring { display: none; }
+#miniInst .mi-ticks line { stroke: var(--gi-muted) !important; } #miniInst .mi-ticks line.mj { stroke: var(--gi-ink) !important; }
+#miniInst .mi-c { fill: var(--gi-muted) !important; } #miniInst .mi-c.n { fill: var(--gi-n) !important; }
+#miniInst .mi-cog, #miniInst .mi-spd { fill: var(--gi-ink) !important; } #miniInst .mi-u { fill: var(--gi-muted) !important; }
+#miniInst .mi-dep { fill: var(--gi-acc) !important; } #miniInst .mi-dep.shallow { fill: #FF5A4F !important; } #miniInst .mi-div { stroke: var(--gi-muted) !important; opacity: .5; }
+#miniInst .mi-arrow { fill: var(--gi-acc) !important; stroke: rgba(0,0,0,.4) !important; }
+/* analog / digital / both */
+#miniInst svg.mi-digital .mi-spd { font-size: 31px !important; } #miniInst svg.mi-analog .mi-cog { display: none; } #miniInst svg.mi-analog .mi-spd { font-size: 21px !important; }
+:root[data-gstyle="digital"] :is(.cockpit, #panelSide) :is(.g-tick, .g-track, .g-danger, .g-ticks, .g-num) { display: none; }
+:root[data-gstyle="digital"] :is(.cockpit, #panelSide) .g-fill { opacity: .25; }
+:root[data-gstyle="analog"] :is(.cockpit, #panelSide) .g-big { font-size: 26px !important; opacity: .9; }

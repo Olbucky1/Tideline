@@ -54,3 +54,6 @@ Product
 - Coaches: sailing (done, keep it suggestions not orders; savvy navvy's rigid leg-by-leg instructions did not hold up), racing (respect Rule 41 / sailing instructions), fishing (respect tournament rules, e.g. NPFL forward-facing sonar ban), kayak pacing, pros.
 - Racing: AIS-based "ahead/behind" vs. other boats, night races.
 - Weather: side-by-side model comparison, weather routing, CBOFS model currents.
+- Cameras: bow / stern / masthead cameras shown as a tile in the instruments (docking, crab pots). Browsers can't show most boat cameras (local http/RTSP streams), so this needs the native app or a camera that offers HTTPS/WebRTC. Partner idea: a cheap solar Wi-Fi bow camera.
+- Gauge looks: six themes now (Midnight chrome, Arctic white, Bronze, Glass ocean, Expedition, Heritage brass) plus Analog / Analog + digital / Digital. ChatGPT's concept images are the visual reference; new themes = new colour sets in app.css (search "gauge themes").
+- Icon themes that match the gauge theme (subtle, chart stays the hero).

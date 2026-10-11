@@ -355,6 +355,8 @@ function openLayersSheet() {
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += '<div class="mo-h">Chart colors</div>' + optSeg('chartTint', [['blue', 'Ocean blue'], ['classic', 'Classic NOAA']], st.chartTint || 'blue');
+  html += '<div class="mo-h">Menu color in daytime</div>' + optSeg('menuTone', [['dark', 'Deep navy (more contrast)'], ['light', 'Light']], st.menuTone || 'dark');
+  html += '<div class="mo-h">Gauge style</div><div class="btheme-row">' + GTHEMES.map(([v, l, c]) => '<button type="button" data-gtheme="' + v + '" class="' + ((st.gTheme || 'midnight') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div>' + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
   html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.miSize || 'l');
   html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['true', 'Flash the name on each tap (first two weeks)'], ['false', 'Only when I press and hold']], String(st.learnTips !== false && st.learnTips !== 'false'));
   html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['true', 'Shows that spot\'s conditions'], ['false', 'Does nothing (press and hold instead)']], String(st.spotTap !== false));
@@ -379,6 +381,8 @@ sheet.addEventListener('click', (e) => {
   if (k === 'wx') applyWx();
   if (k === 'chartTint') applyTint();
   if (k === 'miSize') applyMiSize();
+  if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
+  if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
   if (k === 'navaids') { NV.key = ''; drawNavaids(); }
   if (k === 'shallowStyle' || k === 'shallowLevel') { SH.drawnKey = ''; drawShallow(); }
@@ -2533,7 +2537,7 @@ function renderMenu() {
       menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 115. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 116. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5134,8 +5138,12 @@ let cockTimer = null;
 const G = { cx: 100, cy: 100 };
 function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [G.cx + r * Math.cos(a), G.cy + r * Math.sin(a)]; }
 function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
-const BEZEL = '<defs><linearGradient id="gChrome" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" class="ch1"/><stop offset="0.35" class="ch2"/><stop offset="0.5" class="ch3"/><stop offset="0.65" class="ch2"/><stop offset="1" class="ch1"/></linearGradient><radialGradient id="gFace" cx="0.5" cy="0.35" r="0.75"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient></defs><circle cx="100" cy="100" r="96" fill="url(#gFace)" stroke="url(#gChrome)" stroke-width="6" class="g-bezel"/><circle cx="100" cy="100" r="92.5" fill="none" class="g-bezel-in"/>';
-function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + BEZEL + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
+// a real-instrument bezel: polished ring (many-stop gradient reads as chrome, brass or gunmetal by theme), a dark seam, a lit face and a glass glare
+const bezelSvg = (id, cx, r) => '<defs><linearGradient id="' + id + 'C" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" class="ch1"/><stop offset="0.18" class="ch2"/><stop offset="0.32" class="ch4"/><stop offset="0.48" class="ch1"/><stop offset="0.62" class="ch3"/><stop offset="0.8" class="ch2"/><stop offset="1" class="ch5"/></linearGradient><linearGradient id="' + id + 'I" x1="0" y1="1" x2="0" y2="0"><stop offset="0" class="ch1"/><stop offset="1" class="ch3"/></linearGradient><radialGradient id="' + id + 'F" cx="0.5" cy="0.32" r="0.78"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient><linearGradient id="' + id + 'G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
+  '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.945) + '" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.925) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
+  '<path d="M' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + ' A' + (r * 0.92) + ' ' + (r * 0.92) + ' 0 0 1 ' + (cx + r * 0.8) + ' ' + (cx - r * 0.2) + ' Q' + cx + ' ' + (cx - r * 0.42) + ' ' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + 'z" fill="url(#' + id + 'G)" class="g-glare"/>';
+let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
+function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
   let ticks = '';
@@ -5545,9 +5553,10 @@ function renderMini() {
   const el = $('miniInst'); if (!el) return;
   const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, mr = mapRot();
   // compass card: ticks every 10°, longer every 30°, N E S W letters; it turns with the chart in course-up
-  let ticks = ''; for (let d = 0; d < 360; d += 10) { const major = d % 30 === 0, a = (d - 90) * Math.PI / 180, r0 = major ? 41 : 44; ticks += '<line x1="' + (50 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + 47 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + 47 * Math.sin(a)).toFixed(1) + '"' + (major ? ' class="mj"' : '') + '/>'; }
-  const card = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([t, d]) => { const a = (d - 90) * Math.PI / 180, x = 50 + 37 * Math.cos(a), y = 50 + 37 * Math.sin(a); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5).toFixed(1) + '" class="mi-c' + (t === 'N' ? ' n' : '') + '" transform="rotate(' + (-mr).toFixed(1) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + t + '</text>'; }).join('');
-  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48.5" class="mi-ring"/><g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>' +
+  let ticks = ''; for (let d = 0; d < 360; d += 10) { const major = d % 30 === 0, a = (d - 90) * Math.PI / 180, r0 = major ? 38.5 : 41.5; ticks += '<line x1="' + (50 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + 44.5 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + 44.5 * Math.sin(a)).toFixed(1) + '"' + (major ? ' class="mj"' : '') + '/>'; }
+  const card = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([t, d]) => { const a = (d - 90) * Math.PI / 180, x = 50 + 34 * Math.cos(a), y = 50 + 34 * Math.sin(a); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5).toFixed(1) + '" class="mi-c' + (t === 'N' ? ' n' : '') + '" transform="rotate(' + (-mr).toFixed(1) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + t + '</text>'; }).join('');
+  const gs = S.settings.gStyle || 'hybrid';
+  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true" class="mi-' + gs + '">' + bezelSvg('mb', 50, 50) + (gs === 'digital' ? '' : '<g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>') +
     (cog != null ? '<g transform="rotate(' + (cog + mr).toFixed(0) + ' 50 50)"><path d="M50 1.5 L56 13 L50 10 L44 13 Z" class="mi-arrow"/></g>' : '') +
     '<text x="50" y="31" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '° ' + compass16(cog) : 'COURSE –') + '</text>' +
     '<text x="50" y="54" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="50" y="61" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
@@ -5822,8 +5831,13 @@ const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.id = 'btnFM'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
+document.documentElement.classList.toggle('lightmenus', S.settings.menuTone === 'light');
+const GTHEMES = [['midnight', 'Midnight chrome', 'radial-gradient(circle,#1C3A52 55%,#C9D2DA 58%)'], ['arctic', 'Arctic white', 'radial-gradient(circle,#fff 55%,#B9C3CC 58%)'], ['bronze', 'Bronze horizon', 'radial-gradient(circle,#2A2219 55%,#C08A45 58%)'], ['glass', 'Glass ocean', 'radial-gradient(circle,#0E3D63 55%,#8FD3F5 58%)'], ['expedition', 'Expedition tech', 'radial-gradient(circle,#1E2125 55%,#FF7A1A 58%)'], ['heritage', 'Heritage brass', 'radial-gradient(circle,#FBF5E6 55%,#C9A04E 58%)']];
+function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
 applyMiSize();
+applyGTheme(); document.documentElement.dataset.gstyle = S.settings.gStyle || 'hybrid';
+sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-gtheme]'); if (!b) return; S.settings.gTheme = b.dataset.gtheme; saveSettings(); applyGTheme(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* not shown */ } });
 const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
 function applyBTheme() { document.documentElement.dataset.btheme = S.settings.btheme || 'blue'; }
 applyBTheme();
