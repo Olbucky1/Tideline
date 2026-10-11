@@ -1,10 +1,10 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v102';
+const APP = 'tl-app-v103';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
   './', 'index.html', 'app.css', 'app.js', 'rules.js', 'manifest.webmanifest',
-  'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
+  'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet-rotate/leaflet-rotate.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 const TILE_HOSTS = ['gis.charttools.noaa.gov', 'server.arcgisonline.com', 'basemap.nationalmap.gov', 'tile.openstreetmap.org', 'tiles.openseamap.org'];

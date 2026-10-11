@@ -119,7 +119,8 @@ function armed(btn, label) { // two-tap confirm, no dialogs
 
 /* ---------- map & layers ---------- */
 const last = store.get('lastPos', null);
-const map = L.map('map', { zoomControl: false, tapHold: true, worldCopyJump: true, maxZoom: 19, minZoom: 3, scrollWheelZoom: false, zoomSnap: 0, zoomDelta: 1 })
+const mapRot = () => { try { return map && map.getBearing ? map.getBearing() : 0; } catch (e) { return 0; } }; // how far the chart is turned (course up), so arrows still point true
+const map = L.map('map', { rotate: true, touchRotate: false, rotateControl: false, shiftKeyRotate: false, bearing: 0, zoomControl: false, tapHold: true, worldCopyJump: true, maxZoom: 19, minZoom: 3, scrollWheelZoom: false, zoomSnap: 0, zoomDelta: 1 })
   .setView(last ? [last.lat, last.lon] : [38.975, -76.47], last ? 14 : 12);
 map.attributionControl.setPrefix(false);
 /* Mac trackpads and mice: two-finger swipe pans the chart, pinch zooms smoothly, a mouse wheel zooms smoothly around the pointer */
@@ -265,11 +266,13 @@ function openPointSheet(latlng, wp, auto) {
   const p = { lat: latlng.lat, lon: ((latlng.lng + 540) % 360) - 180 };
   S.sheetPoint = { p, wp: wp || null };
   let html = '<h3>' + (wp ? esc(wp.name) : auto ? 'This spot' : 'Dropped pin') + '</h3><div class="sub tnum">' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + '</div>';
-  html += S.fix ? trio(legInfo(S.fix, p)) : '<p class="sub">Distance from you appears once GPS has a fix.</p>';
-  html += '<div class="pt-acts"><button class="btn primary" data-act="goto">Navigate to</button>' +
-    '<button class="btn" data-act="ptwx">Weather here</button><a class="btn" href="' + nwsGraphUrl(p) + '" target="_blank" rel="noopener">NOAA point forecast ↗</a><button class="btn" data-act="ptmeasure">Measure from here</button>' +
-    (wp ? '<button class="btn" data-act="delwp">Delete</button>' : '<button class="btn" data-act="savewp">Save</button>') +
-    '</div><div id="ptNow" class="pt-now"></div><div id="ptWx"></div><div class="pm" id="pmBox"></div>' + (auto ? '<p class="hint">Tap anywhere on the chart for that spot. Turn this off in Map options.</p>' : '') + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
+  const from = S.fix || homePort();
+  if (from) { const d = distNm(from, p); html += '<div class="sub tnum pt-dist">' + fmtDist(d) + ' at ' + fmtBrg(bearing(from, p)) + '°T from ' + (S.fix ? 'you' : esc(from.name)) + (S.fix && (S.sog || 0) > 1 ? ' · about ' + fmtDur(d / S.sog) : '') + '</div>'; }
+  html += '<div id="ptNow" class="pt-now"></div>';
+  html += '<div class="pt-acts main"><button class="btn primary" data-act="goto">Navigate here</button>' + (S.settings.boatType === 'sail' ? '<button class="btn primary alt" data-act="ptsail">Sail here</button>' : '') +
+    (wp ? '<button class="btn" data-act="delwp">Delete</button>' : '<button class="btn" data-act="savewp">Save spot</button>') + '</div>' +
+    '<details class="pt-more"><summary>More</summary><div class="pt-acts"><a class="btn" href="' + nwsGraphUrl(p) + '" target="_blank" rel="noopener">NOAA point forecast ↗</a><button class="btn" data-act="ptmeasure">Measure from here</button><button class="btn" data-act="ptwx" hidden>Weather here</button></div></details>' +
+    '<div id="ptWx"></div><div class="pm" id="pmBox"></div>' + (auto ? '<p class="hint">Tap anywhere on the chart for that spot. Turn this off in Map options.</p>' : '') + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
   openSheet(html); setTimeout(() => placeMedia(p.lat, p.lon, wp ? wp.name : '', $('pmBox')), 30);
   { const b = sheet.querySelector('[data-act="ptwx"]'); if (b) b.disabled = true; pointWeather(p); spotNow(p); }
 }
@@ -352,6 +355,8 @@ function openLayersSheet() {
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += '<div class="mo-h">Chart colors</div>' + optSeg('chartTint', [['blue', 'Ocean blue'], ['classic', 'Classic NOAA']], st.chartTint || 'blue');
+  html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.miSize || 'l');
+  html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['true', 'Flash the name on each tap (first two weeks)'], ['false', 'Only when I press and hold']], String(st.learnTips !== false && st.learnTips !== 'false'));
   html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['true', 'Shows that spot\'s conditions'], ['false', 'Does nothing (press and hold instead)']], String(st.spotTap !== false));
   html += '<div class="mo-h">What are you doing today?</div><div class="btheme-row">' + ACTIVITY.map(([v, l, th]) => '<button type="button" data-activity="' + v + '" class="' + (st.activity === v ? 'on' : '') + '"><i style="background:' + (BTHEMES.find((x) => x[0] === th) || BTHEMES[0])[2] + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Sets the colors and the layers that matter for it. Change anything afterwards.</small>';
   html += '<div class="mo-h">Button theme</div><div class="btheme-row">' + BTHEMES.map(([v, l, c]) => '<button type="button" data-btheme="' + v + '" class="' + ((st.btheme || 'blue') === v ? 'on' : '') + '"><i style="background:' + c + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Day colors for the round buttons. Dusk and Night keep their dim look.</small>';
@@ -373,6 +378,8 @@ sheet.addEventListener('click', (e) => {
   if (k === 'chart' || k === 'satSrc') { S.satFailed = false; applyChart(); }
   if (k === 'wx') applyWx();
   if (k === 'chartTint') applyTint();
+  if (k === 'miSize') applyMiSize();
+  if (k === 'learnTips') S.settings.learnTips = v === 'true';
   if (k === 'navaids') { NV.key = ''; drawNavaids(); }
   if (k === 'shallowStyle' || k === 'shallowLevel') { SH.drawnKey = ''; drawShallow(); }
   if (k === 'theme') { applyNight(); updateBoat(); }
@@ -403,7 +410,7 @@ function renderWxBtn() {
   const b = $('btnWx'); if (!b) return; const on = ['wind', 'waves', 'rain'].filter(wxOn).concat(S.tideCardOn ? ['tide'] : []).concat(S.settings.curOn ? ['current'] : []);
   const w = S.weather, spd = w && w.cur ? Math.round(speedOut(w.cur.spd)) : null;
   b.classList.toggle('on', on.length > 0);
-  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9.5a3.5 3.5 0 0 1 0 7.5z"/></svg><b>' + (spd != null ? spd : '') + '</b>' + (on.length ? '<i class="wx-dots">' + on.map((k) => '<em class="d-' + k + '"></em>').join('') + '</i>' : '');
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9.5a3.5 3.5 0 0 1 0 7.5z"/></svg><b>' + (spd != null ? spd + '<small class="wx-u">' + SPEED_LBL[S.settings.speedUnit] + '</small>' : '') + '</b>' + (on.length ? '<i class="wx-dots">' + on.map((k) => '<em class="d-' + k + '"></em>').join('') + '</i>' : '');
   b.dataset.tip = 'Weather' + (spd != null ? ': wind ' + spd + ' ' + SPEED_LBL[S.settings.speedUnit] : '') + (on.length ? ' · showing ' + on.join(', ') : '') + '. Tap for wind, waves, rain, tide and current.';
 }
 function renderAisBtn() {
@@ -449,7 +456,16 @@ sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, sp = S.sheetPoint;
   if (act === 'close') closeSheet();
-  if (act === 'goto' && sp) { setGoto(sp.wp ? sp.wp.name : sp.place ? sp.place.name : sp.spot ? (sp.spot.species || 'Fishing spot') : 'Dropped pin', sp.p.lat, sp.p.lon); closeSheet(); }
+  if ((act === 'goto' || act === 'ptsail') && sp) {
+    const name = sp.wp ? sp.wp.name : sp.place ? sp.place.name : sp.spot ? (sp.spot.species || 'Fishing spot') : 'Dropped pin', from = S.fix ? { lat: S.fix.lat, lon: S.fix.lon, name: 'Start' } : homePort();
+    closeSheet(); if (act === 'ptsail' && !S.settings.underSail) { S.settings.underSail = true; saveSettings(); }
+    if (from && distNm(from, sp.p) > 0.3) {
+      (async () => { const pts = await routeByWater([{ lat: from.lat, lon: from.lon, name: from.name }, { lat: sp.p.lat, lon: sp.p.lon, name }]); RT.pts = pts; store.set('routeDraft', RT.pts);
+        if (act === 'ptsail') { routeMode(true); map.fitBounds(L.latLngBounds(pts.map((q) => [q.lat, q.lon])).pad(0.2)); setTimeout(() => openSailCoach('plan'), 300); }
+        else if (S.fix) { let i = 1; routeLeg(pts, i); map.fitBounds(L.latLngBounds(pts.map((q) => [q.lat, q.lon])).pad(0.2)); }
+        else { routeMode(true); map.fitBounds(L.latLngBounds(pts.map((q) => [q.lat, q.lon])).pad(0.2)); toast('Route planned from ' + from.name + '. Tap Start when you are under way.', 4500); } })();
+    } else setGoto(name, sp.p.lat, sp.p.lon);
+  }
   if (act === 'savewp' && sp) {
     const n = S.waypoints.length + 1;
     const w = { id: Date.now(), name: sp.place ? sp.place.name : 'Waypoint ' + n, lat: sp.p.lat, lon: sp.p.lon };
@@ -1251,7 +1267,7 @@ function updateBoat() {
     const g = el.querySelector('#boatRot'), shape = el.querySelector('#boatShape');
     const useBoat = S.settings.iconStyle === 'boat';
     const hdg = useBoat ? (S.cog != null ? S.cog : 0) : (moving && S.cog != null ? S.cog : 0);
-    if (g) g.setAttribute('transform', 'rotate(' + hdg + ' 18 18)');
+    if (g) g.setAttribute('transform', 'rotate(' + (hdg + mapRot()) + ' 18 18)');
     let d;
     if (!useBoat) d = moving && S.cog != null ? 'M18 3 L28 31 L18 25 L8 31 Z' : 'M18 8 a10 10 0 1 0 0.01 0 Z';
     else if (S.settings.boatType === 'sail') d = 'M18 2 C24.5 9 25.5 21 23.5 34 L12.5 34 C10.5 21 11.5 9 18 2 Z M18 12 L18 30';
@@ -1760,7 +1776,7 @@ function drawGrid() {
     let html;
     if (w) {
       const col = colFor(WIND_COL, w.v);
-      html = '<div class="wx-pt" style="--c:' + col + '"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><g transform="rotate(' + ((w.dir + 180) % 360) + ' 12 12)"><path d="M12 2v18M12 2l-5.5 6.5M12 2l5.5 6.5" /></g></svg><b>' + Math.round(speedOut(w.v)) + (w.g != null ? '<small>' + Math.round(speedOut(w.g)) + '</small>' : '') + '</b>' +
+      html = '<div class="wx-pt" style="--c:' + col + '"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><g transform="rotate(' + ((w.dir + 180 + mapRot()) % 360) + ' 12 12)"><path d="M12 2v18M12 2l-5.5 6.5M12 2l5.5 6.5" /></g></svg><b>' + Math.round(speedOut(w.v)) + (w.g != null ? '<small>' + Math.round(speedOut(w.g)) + '</small>' : '') + '</b>' +
         (v ? '<span class="wx-wave" style="--w:' + colFor(WAVE_COL, v.v) + '">' + waveLen(v.v).replace(' ', '&#8202;') + '</span>' : '') + '</div>';
     } else {
       html = '<div class="wv-pt" style="--c:' + colFor(WAVE_COL, v.v) + '" title="Waves ' + waveLen(v.v) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1M2 16c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/></svg><b>' + waveLen(v.v).replace(' ', '&#8202;') + '</b></div>';
@@ -2054,7 +2070,7 @@ function drawObs() {
   if (map.getZoom() < 9 || !(S.settings.chips || wxOn('wind'))) return; // station wind pins only when you ask for wind on the chart
   S.obs.forEach((o) => {
     const old = Date.now() - o.t > 45 * 60000;
-    const html = '<div class="obs-pin' + (old ? ' old' : '') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(' + ((o.dir + 180) % 360) + ' 12 12)"><path d="M12 3v16M12 3l-5 6M12 3l5 6"/></g></svg><b>' + compass16(o.dir) + ' ' + Math.round(speedOut(o.spd)) + '</b>' + (o.gust ? '<span>g' + Math.round(speedOut(o.gust)) + '</span>' : '') + '</div>';
+    const html = '<div class="obs-pin' + (old ? ' old' : '') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(' + ((o.dir + 180 + mapRot()) % 360) + ' 12 12)"><path d="M12 3v16M12 3l-5 6M12 3l5 6"/></g></svg><b>' + compass16(o.dir) + ' ' + Math.round(speedOut(o.spd)) + '</b>' + (o.gust ? '<span>g' + Math.round(speedOut(o.gust)) + '</span>' : '') + '</div>';
     const m = L.marker([o.lat, o.lon], { zIndexOffset: 500, keyboard: false, icon: L.divIcon({ className: '', iconSize: [90, 26], iconAnchor: [45, 13], html }) });
     m.on('click', () => toast('Measured wind at NOAA ' + o.name + ': ' + compass16(o.dir) + ' ' + Math.round(speedOut(o.spd)) + ' ' + SPEED_LBL[S.settings.speedUnit] + (o.gust ? ', gusts ' + Math.round(speedOut(o.gust)) : '') + ', ' + agoTxt(o.t) + '.', 4500));
     obsLayer.addLayer(m);
@@ -2473,7 +2489,7 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 102. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 103. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -3346,7 +3362,7 @@ function aisIcon(t, level) {
   const col = level === 'danger' ? '#D64545' : level === 'caution' ? '#E8952B' : t.type === 'ship' ? '#5B6B7A' : t.type === 'sail' ? '#6B4FBB' : '#3D7D9C';
   const big = t.type === 'ship';
   const path = big ? 'M12 1 L17 7 L17 25 L7 25 L7 7 Z' : 'M12 3 L18 23 L12 19 L6 23 Z';
-  return L.divIcon({ className: 'ais-icon', iconSize: [24, 26], iconAnchor: [12, 13], html: '<svg width="24" height="26" viewBox="0 0 24 26"><g transform="rotate(' + t.cog + ' 12 13)"><path d="' + path + '" fill="' + col + '" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g></svg>' });
+  return L.divIcon({ className: 'ais-icon', iconSize: [24, 26], iconAnchor: [12, 13], html: '<svg width="24" height="26" viewBox="0 0 24 26"><g transform="rotate(' + ((t.cog || 0) + mapRot()) + ' 12 13)"><path d="' + path + '" fill="' + col + '" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g></svg>' });
 }
 function updateAis() {
   aisLayer.clearLayers();
@@ -4613,6 +4629,7 @@ map.on('click', (e) => {
   if (!sheet.hidden) { closeSheet(); return; }
   if (Date.now() - (S.quickClosedAt || 0) < 400) return; // that tap just closed the layers panel
   if (document.querySelector('.wx-pop:not([hidden])')) return; // that tap closes the weather buttons
+  if (S.settings.view3d) { toast('Switch to the flat 2D view (press and hold the compass) to tap a spot.', 3000); return; }
   if (S.settings.spotTap !== false && S.settings.spotTap !== 'false') openPointSheet(e.latlng, null, true); // tap any spot: wind, waves, current, tide, depth
 });
 
@@ -5438,8 +5455,9 @@ function renderMini() {
   const el = $('miniInst'); if (!el) return;
   const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, rot = cog == null ? 0 : cog;
   let ticks = ''; for (let d = 0; d < 360; d += 30) { const a = (d - 90) * Math.PI / 180, r0 = d % 90 ? 25 : 22; ticks += '<line x1="' + (30 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (30 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (30 + 27 * Math.cos(a)).toFixed(1) + '" y2="' + (30 + 27 * Math.sin(a)).toFixed(1) + '"/>'; }
-  el.innerHTML = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text>' +
-    (cog != null ? '<g transform="rotate(' + rot.toFixed(0) + ' 30 30)"><path d="M30 4 L34 13 L30 11 L26 13 Z" class="mi-arrow"/></g>' : '') +
+  const mr = mapRot();
+  el.innerHTML = '<svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="28.5" class="mi-ring"/><g transform="rotate(' + mr.toFixed(1) + ' 30 30)"><g class="mi-ticks">' + ticks + '</g><text x="30" y="9.5" class="mi-n">N</text></g>' +
+    (cog != null ? '<g transform="rotate(' + (rot + mr).toFixed(0) + ' 30 30)"><path d="M30 4 L34 13 L30 11 L26 13 Z" class="mi-arrow"/></g>' : '') +
     '<text x="30" y="33" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="30" y="42" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text><text x="30" y="51" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '°' : '') + '</text></svg>';
   maybeDepth();
   const d = DEP.v, validDepth = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000;
@@ -5706,6 +5724,8 @@ const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
+function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
+applyMiSize();
 const BTHEMES = [['blue', 'Blue', 'rgba(46,112,190,.75)'], ['green', 'Green', 'rgba(34,139,96,.8)'], ['teal', 'Teal', 'rgba(16,140,150,.8)'], ['navy', 'Navy', 'rgb(18,42,78)'], ['white', 'Plain white', '#F4F8FC'], ['july4', 'Fourth of July', 'linear-gradient(135deg,#1A2E6E 50%,#C81E2D 50%)'], ['xmas', 'Christmas', 'linear-gradient(135deg,#14643C 50%,#C41E28 50%)'], ['gold', 'Gold and blue', 'linear-gradient(135deg,#123A6B 50%,#D4A62A 50%)'], ['sunset', 'Sunset', 'linear-gradient(135deg,#E0703A 50%,#7A3C78 50%)']];
 function applyBTheme() { document.documentElement.dataset.btheme = S.settings.btheme || 'blue'; }
 applyBTheme();
@@ -5795,7 +5815,7 @@ async function drawCurrents() {
       const col = curColor(now.kn), len = Math.round(26 + Math.min(3, now.kn) * 8), slack = now.kn < 0.4, lbl = S.settings.curLbl || 'all';
       if (slack && dens === 'few') return;
       const showN = lbl === 'all' || (lbl === 'strong' && now.kn >= 1);
-      const html = '<div class="cur-a' + (slack ? ' slack' : '') + '" style="--c:' + col + '">' + (slack ? '<i class="cur-dot"></i>' : '<svg width="' + len + '" height="' + len + '" viewBox="0 0 24 24" style="transform:rotate(' + Math.round(now.dir || 0) + 'deg)"><path d="M12 2l6 10h-4v10h-4V12H6z"/></svg>') + (showN ? '<b>' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn') + '</b>' : '') + '</div>';
+      const html = '<div class="cur-a' + (slack ? ' slack' : '') + '" style="--c:' + col + '">' + (slack ? '<i class="cur-dot"></i>' : '<svg width="' + len + '" height="' + len + '" viewBox="0 0 24 24" style="transform:rotate(' + Math.round((now.dir || 0) + mapRot()) + 'deg)"><path d="M12 2l6 10h-4v10h-4V12H6z"/></svg>') + (showN ? '<b>' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn') + '</b>' : '') + '</div>';
       const m = L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: '', iconSize: [56, 56], iconAnchor: [28, 28], html }) }).addTo(CUR.layer);
       m.on('click', (e) => { L.DomEvent.stop(e); openCurrent(st); });
       m.bindTooltip(esc(st.n) + ': ' + (slack ? 'slack' : now.kn.toFixed(1) + ' kn ' + (now.flood ? 'flood' : 'ebb') + ' toward ' + compass16(now.dir || 0)), { direction: 'top' });
@@ -6204,6 +6224,83 @@ function startTour(i) {
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-tour]'); if (!b) return; e.stopPropagation(); const v = b.dataset.tour; if (v === 'end') { $('tour').hidden = true; store.set('toured', true); toast('You can take the tour again from Menu → Help.', 3500); } else startTour(+v); }, true);
 setTimeout(() => { if (!showWelcome() && !store.get('toured', false) && !store.get('welcomed', false)) { /* signed in already */ } }, 600);
+/* ---------- chart orientation: north up or course up (bow forward), and a flat 2D or tilted 3D view ---------- */
+const ORI = { last: 0, t: null };
+function roseSvg() { return '<svg viewBox="0 0 24 24" aria-hidden="true" class="rose"><g transform="rotate(' + mapRot().toFixed(1) + ' 12 12)"><path class="rose-n" d="M12 2.2 14 12h-4z"/><path class="rose-s" d="M12 21.8 10 12h4z"/><path class="rose-ew" d="M2.2 12 12 10v4zM21.8 12 12 14v-4z"/><circle cx="12" cy="12" r="1.6" class="rose-c"/></g></svg>'; }
+function renderOrientBtn() {
+  const b = $('btnOrient'); if (!b) return; const o = S.settings.orient || 'north', d3 = !!S.settings.view3d;
+  b.innerHTML = roseSvg() + '<span class="or-lbl">' + (o === 'course' ? 'BOW' : 'N') + (d3 ? '·3D' : '') + '</span>';
+  b.classList.toggle('on', o === 'course' || d3);
+  const tip = (o === 'course' ? 'Course up: the chart turns so your bow points up' : 'North up') + (d3 ? ', tilted 3D view' : '') + '. Tap to switch north up / course up; press and hold for 2D or 3D.';
+  b.dataset.tip = tip; b.setAttribute('aria-label', tip);
+}
+function applyOrient(force) {
+  if (!map.setBearing) return;
+  const o = S.settings.orient || 'north';
+  if (o === 'north') { if (Math.abs(mapRot()) > 0.5) map.setBearing(0); }
+  else if (S.cog != null && (S.sog || 0) > 1) { const want = (360 - S.cog) % 360, cur = (mapRot() + 360) % 360, diff = Math.abs(((want - cur + 540) % 360) - 180); if (force || diff > 3) map.setBearing(want); }
+  document.documentElement.classList.toggle('tilt3d', !!S.settings.view3d);
+  renderOrientBtn();
+}
+function setOrient(o, d3) {
+  if (o) S.settings.orient = o; if (d3 != null) S.settings.view3d = d3; saveSettings();
+  if (S.settings.orient === 'course' && !((S.sog || 0) > 1)) toast('Course up turns the chart once you are moving. North up until then.', 4000);
+  if (S.settings.view3d) setFollow && S.fix && setFollow(true);
+  applyOrient(true); setTimeout(() => map.invalidateSize(), 60);
+}
+(() => {
+  const col = $('fabsR'), zi = $('btnZoomIn'); if (!col) return;
+  const b = document.createElement('button'); b.id = 'btnOrient'; b.type = 'button'; b.className = 'fab orient'; col.insertBefore(b, zi);
+  let lp = null, held = false;
+  b.addEventListener('pointerdown', () => { held = false; lp = setTimeout(() => { held = true; openOrientSheet(); }, 550); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => clearTimeout(lp)));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('click', () => { if (held) { held = false; return; } const o = (S.settings.orient || 'north') === 'north' ? 'course' : 'north'; setOrient(o); toast(o === 'course' ? 'Course up: bow forward' : 'North up', 1800); });
+  renderOrientBtn();
+})();
+function openOrientSheet() {
+  const o = S.settings.orient || 'north', d3 = !!S.settings.view3d, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-ori' + k + '="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  openSheet('<h3>Chart view</h3><div class="field"><label>Which way is up</label>' + seg('o', o, [['north', 'North up'], ['course', 'Course up (bow forward)']]) + '</div><div class="field"><label>View</label>' + seg('d', String(d3), [['false', 'Flat 2D'], ['true', 'Tilted 3D']]) + '<small class="hint">3D tilts the chart so you see farther ahead, like car navigation. Taps on the chart work in 2D.</small></div><div class="row-btns"><button class="btn ghost" data-act="close">Done</button></div>');
+}
+sheet.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-orio]'), d = e.target.closest('[data-orid]'); if (!a && !d) return;
+  setOrient(a ? a.dataset.orio : null, d ? d.dataset.orid === 'true' : null); (a || d).parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === (a || d)));
+});
+map.on('rotate', () => { renderOrientBtn(); clearTimeout(ORI.t); ORI.t = setTimeout(() => { try { updateBoat(); updateAis(); renderMini(); if (curOn()) drawCurrents(); drawGrid(); } catch (e) { /* not ready */ } }, 120); });
+setInterval(() => { if ((S.settings.orient || 'north') === 'course') applyOrient(); }, 1500);
+setTimeout(() => applyOrient(true), 800);
+
+/* ---------- phone help: press and hold any button to see what it does (like hovering on a computer) ---------- */
+(() => {
+  let t = null, tipEl = null, holdBtn = null, shown = false;
+  const hide = () => { clearTimeout(t); if (tipEl) tipEl.remove(); tipEl = null; };
+  const label = (b) => b.dataset.tip || b.getAttribute('aria-label') || b.title || '';
+  const show = (b) => {
+    const txt = label(b); if (!txt) return; hide(); shown = true;
+    tipEl = document.createElement('div'); tipEl.className = 'touch-tip'; tipEl.textContent = txt.replace(/\s*Tap[^.]*\.\s*$/, ''); document.body.appendChild(tipEl);
+    const r = b.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight, left = r.left + r.width / 2 < innerWidth / 2;
+    let x = left ? r.right + 10 : r.left - w - 10; x = Math.max(8, Math.min(innerWidth - w - 8, x));
+    let y = r.top + r.height / 2 - h / 2; y = Math.max(8, Math.min(innerHeight - h - 8, y));
+    if (b.closest('.tabbar')) { x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)); y = r.top - h - 10; }
+    tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+  };
+  const learning = () => S.settings.learnTips !== false && Date.now() - (store.get('firstRun', 0) || Date.now()) < 14 * 86400000;
+  if (!store.get('firstRun', 0)) store.set('firstRun', Date.now());
+  document.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse') return;
+    holdBtn = b; shown = false; clearTimeout(t);
+    if (b.id === 'btnMOB' || b.id === 'curChip' || b.id === 'btnOrient') return; // these use press and hold for their own job
+    t = setTimeout(() => show(b), 450);
+  }, true);
+  document.addEventListener('pointerup', () => { clearTimeout(t); if (shown) setTimeout(hide, 1600); }, true);
+  document.addEventListener('pointercancel', () => { clearTimeout(t); hide(); }, true);
+  // a held button shows its name and does nothing else; while you are new, a quick tap also flashes the name
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.fab, .tab, .alert-bar, .mini-inst'); if (!b) return;
+    if (shown && holdBtn === b) { e.stopPropagation(); e.preventDefault(); shown = false; return; }
+    if (learning() && !e.target.closest('.sheet')) { show(b); shown = false; setTimeout(hide, 1300); }
+  }, true);
+})();
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
