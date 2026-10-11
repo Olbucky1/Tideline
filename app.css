@@ -1088,3 +1088,6 @@ html[data-pins="L"] .br-ic { transform: scale(1.2); } html[data-pins="XL"] .br-i
 html.calm .fab-col.fab-right { right: 12px !important; left: auto !important; }
 html.calm #app.wide .fab-col.fab-right { right: 412px !important; }
 html[data-side="third"].calm #app.wide:has(#panelSide:not([hidden])) .fab-col.fab-right, html[data-side="half"].calm #app.wide:has(#panelSide:not([hidden])) .fab-col.fab-right { right: calc(var(--sideW) + 12px) !important; }
+.fab-right #btnInst { margin-top: 6px; }
+.ck-head .ck-gps, .ck-head .ck-time { white-space: nowrap; }
+@media (max-width: 600px) { .ck-head .ck-time { display: none; } .ck-head b { font-size: 18px; } .ck-head .ck-gps { font-size: 12px; } }

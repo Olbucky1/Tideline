@@ -4535,6 +4535,7 @@ function setCockpit(on) {
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="ckclose"]')) setCockpit(false); });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="cockpit"]')) setCockpit(true); });
+$('btnInst').addEventListener('click', () => setCockpit(true));
 
 /* ---------- housekeeping ---------- */
 setInterval(() => {
