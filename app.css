@@ -895,3 +895,27 @@ html.calm .chips-free { display: none !important; }
 .g-fill.depth { stroke: #36A3D9; }
 .g-fill.warnf { stroke: #E0A526; }
 .g-plus { font-size: 26px; }
+
+/* right-hand column: zoom and find me, beside the gauges */
+.fab-col.fab-right, #app.wide .fab-col.fab-right { left: auto !important; right: 12px !important; top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+#app.wide .fab-col.fab-right { right: 412px !important; }
+html.calm .fab-col.fab-right, html.calm #app.wide .fab-col.fab-right { left: auto !important; }
+html.calm #app.wide .fab-col.fab-right { right: 412px !important; }
+@media (hover: hover) and (pointer: fine) { .fab-right [data-tip]:hover::after { left: auto !important; right: calc(100% + 10px) !important; } }
+.fab-right #btnFollow { margin-top: 6px; }
+@media (max-width: 899px) { #app:has(.wxbar.tl.open) .fab-right { display: none; } }
+
+/* night: a gentle red, easy on night vision without being a red wall */
+:root[data-night] {
+  --chart: #0C0607; --surface: #170C0C; --surface2: #1C1010; --line: #3A1F1D;
+  --ink: #E2998A; --ink2: #A66A5E; --accent: #D9614C;
+  --panel: #0C0607; --tile: #170C0C; --tile-line: #3A1F1D; --p-ink: #E2998A; --p-muted: #A66A5E;
+  --teal: #B9675A; --teal-ink: #E2998A; --teal-bg: #241212; --teal-hi: #E2998A;
+  --amber: #D9614C; --amber-bg: #261210; --amber-ink: #E8876F; --red: #E0533F;
+}
+:root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) hue-rotate(180deg) brightness(0.4) contrast(1.1) sepia(0.85) hue-rotate(-28deg) saturate(1.7) !important; }
+:root[data-night] .cockpit, :root[data-night] #app.wide #panelSide { --g-bg: #0C0607 !important; --g-face: #170C0C !important; --g-line: #3A1F1D !important; --g-ink: #E2998A !important; --g-muted: #A66A5E !important; --g-acc: #D9614C !important; --g-acc2: #C97A62 !important; --g-amber: #D9614C !important; --g-port: #A33A2E !important; --g-stbd: #7E5A45 !important; --g-red: #F0503A !important; }
+:root[data-night] .cockpit { background: #0C0607 !important; }
+:root[data-night] .ring-lbl, :root[data-night] .mp-pin span, :root[data-night] .wv-pt b { color: #C98576 !important; text-shadow: 0 0 3px #0C0607 !important; }
+:root[data-night] .tl-chips button.on, :root[data-night] .tl-tabs button.on { color: #0C0607; }
+:root[data-night] .fab.info .fi-ic svg, :root[data-night] #waveChip .fi-ic svg, :root[data-night] #tideChip .fi-ic svg { stroke: #D9614C; }

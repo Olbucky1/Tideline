@@ -148,14 +148,15 @@ function noaaUrl(x, y, z, transparent) {
   const bbox = [xmin, ymax - size, xmin + size, ymax].map((v) => v.toFixed(2)).join(',');
   return NOAA + '?bbox=' + bbox + '&bboxSR=3857&imageSR=3857&size=' + TILE_PX + ',' + TILE_PX +
     '&dpi=' + (TILE_PX === 512 ? 192 : 96) + '&format=png&transparent=' + (transparent ? 'true' : 'false') +
-    '&layers=show:0,1,2,3,4,5,6,7' + noaaDisplay() + '&f=image';
+    '&layers=show:' + (depthFocus() ? '0,1,2,3,6,7,11' : '0,1,2,3,4,5,6,7') + noaaDisplay() + '&f=image';
 }
 // NOAA chart display: show every depth sounding (S-52 "other" category) and shade water by this boat's safety depth
 let noaaDP = true;
+const depthFocus = () => S.settings.soundings !== false; // depth first: hide traffic lanes, cable areas and other special areas; add NOAA's shallow-water pattern
 function noaaDisplay() {
-  if (!noaaDP || S.settings.soundings === false) return '';
+  if (!noaaDP || !depthFocus()) return '';
   const need = S.boat && S.boat.draftFt ? (S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt)) * 0.3048 : 2;
-  const P = [['DisplayCategory', '1,2,4'], ['SafetyContour', +need.toFixed(1)], ['SafetyDepth', +need.toFixed(1)], ['ShallowContour', +Math.max(1, need * 0.6).toFixed(1)], ['DeepContour', +Math.max(10, need * 3).toFixed(1)], ['TwoDepthShades', 2]];
+  const P = [['DisplayCategory', '1,2,4'], ['SafetyContour', +need.toFixed(1)], ['SafetyDepth', +need.toFixed(1)], ['ShallowContour', +Math.max(1, need * 0.6).toFixed(1)], ['DeepContour', +Math.max(10, need * 3).toFixed(1)], ['TwoDepthShades', 2], ['HonorScamin', 1], ['TextGroups', '10,11,21,23,28']];
   return '&display_params=' + encodeURIComponent(JSON.stringify({ ECDISParameters: { version: '10.9', DynamicParameters: { Parameter: P.map(([name, value]) => ({ name, value })) } } }));
 }
 const NoaaLayer = L.TileLayer.extend({
@@ -307,7 +308,7 @@ function openLayersSheet() {
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
-  html += tog('soundBox', 'All depth soundings on the NOAA chart', 'Shows every charted depth number and shades water shallower than your draft plus buffer', st.soundings !== false);
+  html += tog('soundBox', 'Depth focus', 'More depth numbers, shallow water shaded for your draft. Hides shipping lanes, cable areas and other special areas. Turn off for the full NOAA chart', st.soundings !== false);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
   html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
 
@@ -330,8 +331,8 @@ sheet.addEventListener('input', (e) => {
 (() => { // wind, waves, tide and sail/motor live as small buttons at the top of the left column
   const ch = document.querySelector('.topbar .chips'), fc = $('fabs'); if (!ch || !fc) return;
   const grp = document.createElement('div'); grp.className = 'fab-info'; grp.id = 'fabInfo';
-  ['windChip', 'waveChip', 'tideChip', 'modeChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
-  fc.insertBefore(grp, fc.firstChild); ch.remove();
+  ['modeChip', 'tideChip', 'waveChip', 'windChip'].forEach((id) => { const b = $(id); if (b) { b.className = 'fab info'; grp.appendChild(b); } });
+  const rt = $('btnRoute'); fc.insertBefore(grp, rt ? rt.nextSibling : null); ch.remove();
 })();
 function applyCalm() { document.documentElement.classList.toggle('calm', !S.settings.chips); placeFabs(); }
 function applyEasy() { document.documentElement.classList.toggle('easy', !!S.settings.easy); }
