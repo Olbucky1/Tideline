@@ -148,15 +148,15 @@ function noaaUrl(x, y, z, transparent) {
   const bbox = [xmin, ymax - size, xmin + size, ymax].map((v) => v.toFixed(2)).join(',');
   return NOAA + '?bbox=' + bbox + '&bboxSR=3857&imageSR=3857&size=' + TILE_PX + ',' + TILE_PX +
     '&dpi=' + (TILE_PX === 512 ? 192 : 96) + '&format=png&transparent=' + (transparent ? 'true' : 'false') +
-    '&layers=show:' + (depthFocus() ? '0,1,2,3,6,7,11' : '0,1,2,3,4,5,6,7') + noaaDisplay() + '&f=image';
+    '&layers=show:' + (depthFocus() ? '0,1,2,3,6,7,11' : '0,1,2,3,4,5,6,7') + noaaDisplay(z) + '&f=image';
 }
 // NOAA chart display: show every depth sounding (S-52 "other" category) and shade water by this boat's safety depth
 let noaaDP = true;
 const depthFocus = () => S.settings.soundings !== false; // depth first: hide traffic lanes, cable areas and other special areas; add NOAA's shallow-water pattern
-function noaaDisplay() {
+function noaaDisplay(z) {
   if (!noaaDP || !depthFocus()) return '';
   const need = S.boat && S.boat.draftFt ? (S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt)) * 0.3048 : 2;
-  const P = [['DisplayCategory', '1,2,4'], ['SafetyContour', +need.toFixed(1)], ['SafetyDepth', +need.toFixed(1)], ['ShallowContour', +Math.max(1, need * 0.6).toFixed(1)], ['DeepContour', +Math.max(10, need * 3).toFixed(1)], ['TwoDepthShades', 2], ['HonorScamin', 1], ['TextGroups', '10,11,21,23,28']];
+  const P = [['DisplayCategory', '1,2,4'], ['SafetyContour', +need.toFixed(1)], ['SafetyDepth', +need.toFixed(1)], ['ShallowContour', +Math.max(1, need * 0.6).toFixed(1)], ['DeepContour', +Math.max(10, need * 3).toFixed(1)], ['TwoDepthShades', 2]].concat(z >= 15 ? [['HonorScamin', 1]] : []).concat([ ['TextGroups', '10,11,21,23,28']]);
   return '&display_params=' + encodeURIComponent(JSON.stringify({ ECDISParameters: { version: '10.9', DynamicParameters: { Parameter: P.map(([name, value]) => ({ name, value })) } } }));
 }
 const NoaaLayer = L.TileLayer.extend({
