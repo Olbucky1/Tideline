@@ -1097,3 +1097,29 @@ html[data-side="third"].calm #app.wide:has(#panelSide:not([hidden])) .fab-col.fa
 .pl-name.geo { font-style: italic; color: #6E6252; }
 :root[data-dusk] .pl-name { color: #C8BBA5; } :root[data-night] .pl-name { color: #9A6458; }
 html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+
+/* fishing and wildlife */
+.fw .seg { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.fw .seg button { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.fw .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fw-fish { border-top: 1px solid var(--line); padding: 10px 0; }
+.fw-fish p { margin: 4px 0; font-size: 13.5px; }
+.fw-top { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.fw-peak { background: var(--accent) !important; color: #fff !important; }
+.fw-cal { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; margin: 6px 0; }
+.fw-cal i { font-style: normal; text-align: center; font-size: 10px; padding: 2px 0; border-radius: 4px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink2); }
+.fw-cal i.on { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--ink); }
+.fw-cal i.pk { background: var(--accent); color: #fff; }
+.fw-cal i.now { outline: 2px solid var(--ink); outline-offset: -1px; }
+.fw-sp { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.fw-sp img, .fw-noimg { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; background: var(--line); display: block; }
+.fw-sp-main b { display: block; font-size: 14px; } .fw-sp-main em { font-size: 12px; color: var(--ink2); }
+.fw-n { font-size: 12.5px; color: var(--ink2); }
+.fw-bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; height: 70px; align-items: end; margin: 4px 0; }
+.fw-bars div { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; text-align: center; }
+.fw-bars i { display: block; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+.fw-bars span { font-size: 10px; color: var(--ink2); } .fw-bars .now span { color: var(--ink); font-weight: 700; }
+.wild-pin { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); background: #8aa center/cover; cursor: pointer; }
+.st-pin { width: 12px; height: 12px; margin: 3px; border-radius: 3px; transform: rotate(45deg); background: #6B5B95; border: 1.5px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); cursor: pointer; }
+.st-pin.w { background: #8A5A2B; }
+.tl-sky { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--ink2); margin: 2px 0 6px; }

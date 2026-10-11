@@ -606,15 +606,15 @@ function routeLeg(pts, i) {
 
 
 /* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
-const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds3', {}), cache: new Map() };
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: store.get('encIds4', {}), cache: new Map() };
 async function encLayerIds(svc) {
   if (WR.ids[svc]) return WR.ids[svc];
   for (const h of WR.hosts) {
     try {
       const j = await fetchT(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 12000).then((r) => r.json());
       const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
-      const ids = { host: h, depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i) };
-      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds3', WR.ids); return ids; }
+      const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i) };
+      if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds4', WR.ids); return ids; }
     } catch (e) { /* try the other NOAA host */ }
   }
   return null;
@@ -1520,6 +1520,49 @@ function hourLabel(h) {
 
 /* air and water temperature: model values, labelled as such; NOAA station water temperature when one is close */
 function tempTxt(f) { return f == null ? '–' : (S.settings.speedUnit === 'kmh' || S.settings.speedUnit === 'ms' ? Math.round((f - 32) * 5 / 9) + '°C' : Math.round(f) + '°F'); }
+/* ---------- moon and sky: moonrise, moonset and phase computed here (after SunCalc), plus the year's big meteor showers ---------- */
+const AST = (() => {
+  const rad = Math.PI / 180, dayMs = 864e5, J1970 = 2440588, J2000 = 2451545, e = rad * 23.4397;
+  const toDays = (d) => d.valueOf() / dayMs - 0.5 + J1970 - J2000;
+  const ra = (l, b) => Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l));
+  const dec = (l, b) => Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
+  const sidereal = (d, lw) => rad * (280.16 + 360.9856235 * d) - lw;
+  const alt = (H, phi, dc) => Math.asin(Math.sin(phi) * Math.sin(dc) + Math.cos(phi) * Math.cos(dc) * Math.cos(H));
+  function moonCoords(d) { const L = rad * (218.316 + 13.176396 * d), M = rad * (134.963 + 13.064993 * d), F = rad * (93.272 + 13.229350 * d); const l = L + rad * 6.289 * Math.sin(M), b = rad * 5.128 * Math.sin(F), dt = 385001 - 20905 * Math.cos(M); return { ra: ra(l, b), dec: dec(l, b), dist: dt }; }
+  function moonAlt(date, lat, lng) { const lw = rad * -lng, phi = rad * lat, d = toDays(date), c = moonCoords(d), H = sidereal(d, lw) - c.ra; let h = alt(H, phi, c.dec); h += rad * 0.017 / Math.tan(h + rad * 10.26 / (h + rad * 5.10)); return h; }
+  function moonTimes(date, lat, lng) { // rise and set within the local day of `date`
+    const t = new Date(date); t.setHours(0, 0, 0, 0); const hc = 0.133 * rad, hAt = (h) => moonAlt(new Date(t.valueOf() + h * 36e5), lat, lng) - hc;
+    let h0 = hAt(0), rise = null, set = null;
+    for (let i = 1; i <= 24; i += 2) {
+      const h1 = hAt(i), h2 = hAt(i + 1), a = (h0 + h2) / 2 - h1, b2 = (h2 - h0) / 2, xe = -b2 / (2 * a), ye = (a * xe + b2) * xe + h1, dd = b2 * b2 - 4 * a * h1;
+      let roots = 0, x1 = 0, x2 = 0;
+      if (dd >= 0) { const dx = Math.sqrt(dd) / (Math.abs(a) * 2); x1 = xe - dx; x2 = xe + dx; if (Math.abs(x1) <= 1) roots++; if (Math.abs(x2) <= 1) roots++; if (x1 < -1) x1 = x2; }
+      if (roots === 1) { if (h0 < 0) rise = i + x1; else set = i + x1; } else if (roots === 2) { rise = i + (ye < 0 ? x2 : x1); set = i + (ye < 0 ? x1 : x2); }
+      if (rise != null && set != null) break; h0 = h2;
+    }
+    const at = (h) => (h == null ? null : new Date(t.valueOf() + h * 36e5));
+    return { rise: at(rise), set: at(set) };
+  }
+  function phase(date) { // 0 new, 0.25 first quarter, 0.5 full, 0.75 last quarter; fraction lit
+    const d = toDays(date), M = rad * (357.5291 + 0.98560028 * d), C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M)), Ls = M + C + rad * 102.9372 + Math.PI;
+    const sun = { ra: ra(Ls, 0), dec: dec(Ls, 0) }, m = moonCoords(d), sdist = 149598000;
+    const phi = Math.acos(Math.sin(sun.dec) * Math.sin(m.dec) + Math.cos(sun.dec) * Math.cos(m.dec) * Math.cos(sun.ra - m.ra)), inc = Math.atan2(sdist * Math.sin(phi), m.dist - sdist * Math.cos(phi));
+    const angle = Math.atan2(Math.cos(sun.dec) * Math.sin(sun.ra - m.ra), Math.sin(sun.dec) * Math.cos(m.dec) - Math.cos(sun.dec) * Math.sin(m.dec) * Math.cos(sun.ra - m.ra));
+    return { frac: (1 + Math.cos(inc)) / 2, phase: 0.5 + 0.5 * inc * (angle < 0 ? -1 : 1) / Math.PI };
+  }
+  return { moonTimes, phase };
+})();
+function moonName(p) { const x = p.phase; return x < 0.03 || x > 0.97 ? 'New moon' : x < 0.22 ? 'Waxing crescent' : x < 0.28 ? 'First quarter' : x < 0.47 ? 'Waxing gibbous' : x < 0.53 ? 'Full moon' : x < 0.72 ? 'Waning gibbous' : x < 0.78 ? 'Last quarter' : 'Waning crescent'; }
+// annual meteor-shower peaks (dates move a day either way year to year)
+const SHOWERS = [['Quadrantids', 1, 3, 'up to 80 an hour, short sharp peak before dawn'], ['Lyrids', 4, 22, 'about 15 an hour, best after midnight'], ['Eta Aquariids', 5, 6, 'best in the hour before dawn'], ['Perseids', 8, 12, 'up to 60–100 an hour, best after midnight'], ['Draconids', 10, 8, 'best in the early evening'], ['Orionids', 10, 21, 'about 20 an hour after midnight'], ['Leonids', 11, 17, 'about 15 an hour before dawn'], ['Geminids', 12, 14, 'up to 120 an hour, good from mid-evening']];
+function skyNotes(date) {
+  const d = date || new Date(), c = S.fix || refPos(), out = [], mt = AST.moonTimes(d, c.lat, c.lon), ph = AST.phase(d);
+  out.push(moonName(ph) + ' (' + Math.round(ph.frac * 100) + '% lit)' + (mt.rise ? ' · moonrise ' + fmtClock(mt.rise.getTime()) : '') + (mt.set ? ' · moonset ' + fmtClock(mt.set.getTime()) : ''));
+  SHOWERS.forEach(([n, mo, day, how]) => { const pk = new Date(d.getFullYear(), mo - 1, day, 23), dd = (pk - d) / 864e5; if (dd > -1.5 && dd < 2.5) out.push('★ ' + n + ' meteor shower ' + (dd < 0.5 && dd > -1.5 ? 'peaks tonight' : 'peaks in ' + Math.round(dd) + ' day' + (Math.round(dd) === 1 ? '' : 's')) + ': ' + how + (ph.frac > 0.6 ? '; a bright moon will wash out the fainter ones' : '; dark skies on the water make it a good one') + '.'); });
+  if (ph.frac > 0.97) out.push('Full moon: expect stronger tides (spring tides) and a bright night watch.');
+  if (ph.frac < 0.03) out.push('New moon: dark night, stronger spring tides; lights on other boats are easier to see, unlit marks are not.');
+  return out;
+}
 function tempsLine(t) {
   const w = S.weather; if (!w) return '';
   const air = t && WX.hour ? seriesAt(w.hours, t, 'temp') : w.cur && w.cur.temp;
@@ -1577,7 +1620,8 @@ function renderTimeline(el) {
   if (w) { const air = WX.hour ? seriesAt(w.hours, t, 'temp') : w.cur && w.cur.temp, water = S.waterObs ? S.waterObs.f : w.sst; if (air != null) parts.push('air ' + tempTxt(air)); if (water != null) parts.push('water ' + tempTxt(water)); }
   let h = '<button type="button" class="tl-x" data-tlx aria-label="Close weather">&times;</button>' + (wide ? '' : '<button type="button" class="tl-grab" data-tlopen aria-label="' + (open ? 'Show less' : 'Show the hours') + '"><i></i></button>') +
     '<div class="tl-chips">' + chips + '</div>' +
-    '<div class="tl-sum"><b>' + (WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now') + '</b> ' + esc(parts.join(' · ') || 'Waiting for forecast') + '</div>';
+    '<div class="tl-sum"><b>' + (WX.hour ? hourLabel(WX.hour).replace('Forecast ', '') : 'Now') + '</b> ' + esc(parts.join(' · ') || 'Waiting for forecast') + '</div>' +
+    '<div class="tl-sky">' + skyNotes(new Date(Date.now() + WX.hour * 3600000)).map((x) => '<span>' + esc(x) + '</span>').join('') + '</div>';
   if (open) {
     if (v === 'wind' || v === 'waves') {
       const cells = [];
@@ -2126,7 +2170,8 @@ function renderMenu() {
     grp('On the water', menuTile('search', 'search', 'Search', 'Marinas, fuel, ramps, bridges') +
       menuTile('pro', 'rules', 'Captain\'s resources', 'Coast Pilot, notices, marine forecast') +
       menuTile('rules', 'rules', 'Rules of the Road', 'Search the Navigation Rules') +
-      menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan')) +
+      menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
+      menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
@@ -2141,6 +2186,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'help') { openHelp(); return; }
   if (a === 'pro') { openResources(); return; }
   if (a === 'mapopts') { setTab('chart'); openLayersSheet(); return; }
+  if (a === 'fish') { setTab('chart'); openFishWild(); return; }
   setTab(a);
 });
 
@@ -4021,6 +4067,8 @@ const QUICK = [
   ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); }],
   ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); drawPlaceNames(); loadPlaceNames(); }],
   ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
+  ['wild', 'Wildlife sightings', () => !!S.settings.wildOn, (on) => { S.settings.wildOn = on; drawWild(true); }],
+  ['struct', 'Fish structure', () => !!S.settings.structOn, (on) => { S.settings.structOn = on; drawStruct(); }],
   ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
   ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
 ];
@@ -4283,6 +4331,118 @@ async function refreshBridges(force) {
 }
 map.on('moveend', () => { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 900); });
 if (!S.settings.roadsOff1) { S.settings.landRoads = false; S.settings.roadsOff1 = 1; saveSettings(); } // Esri's road layer brings its own outlined, curved street labels: off unless asked for
+/* ---------- fishing guide and wildlife: what is in season, baits, structure, and what people actually see here ---------- */
+// Typical Chesapeake patterns, not rules: seasons shift with water temperature. Limits and closures change every year: always check Maryland DNR.
+const FISH = [
+  { n: 'Striped bass (rockfish)', m: [4, 5, 6, 7, 8, 9, 10, 11, 12], peak: [5, 10, 11], bait: 'Live spot or perch, bloodworms, cut menhaden; bucktails, soft plastics, topwater at dawn and dusk', where: 'Points, channel edges, bridge pilings, rock piles, and fish breaking under diving birds', reg: true },
+  { n: 'Bluefish', m: [6, 7, 8, 9, 10], peak: [8, 9], bait: 'Cut menhaden in a chum slick; metal spoons and surface plugs', where: 'Open bay, rips and channel edges' },
+  { n: 'Spot', m: [6, 7, 8, 9, 10], peak: [8, 9], bait: 'Bloodworms, Fishbites; small hooks on a bottom rig', where: 'Hard bottom 8–20 ft, oyster bars' },
+  { n: 'Atlantic croaker (hardhead)', m: [5, 6, 7, 8, 9, 10], peak: [7, 8], bait: 'Bloodworms, squid, peeler crab', where: 'Channel edges and shoals, best in the evening' },
+  { n: 'White perch', m: [4, 5, 6, 7, 8, 9, 10, 11], peak: [5, 9, 10], bait: 'Grass shrimp, bloodworms; small spinners and jigs', where: 'Tributaries, docks, oyster bars, riprap' },
+  { n: 'Spanish mackerel', m: [7, 8, 9], peak: [8], bait: 'Small gold or silver spoons trolled fast', where: 'Middle and lower bay, around breaking bait' },
+  { n: 'Red drum', m: [6, 7, 8, 9, 10], peak: [8, 9], bait: 'Peeler crab, cut menhaden or spot', where: 'Shoals and channel edges; big reds in the lower bay', reg: true },
+  { n: 'Cobia', m: [6, 7, 8, 9], peak: [7], bait: 'Live eels, large bucktails; sight casting', where: 'Mostly the lower bay', reg: true },
+  { n: 'Summer flounder (fluke)', m: [6, 7, 8, 9], peak: [7, 8], bait: 'Minnows, squid strips, scented soft baits drifted on the bottom', where: 'Sandy edges and drop-offs, mostly lower bay', reg: true },
+  { n: 'Yellow perch', m: [2, 3], peak: [3], bait: 'Minnows, small jigs, grass shrimp', where: 'Upper tidal creeks during the late-winter spawning run', reg: true },
+  { n: 'Blue catfish (invasive)', m: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], peak: [3, 4, 10, 11], bait: 'Cut menhaden or gizzard shad, chicken liver', where: 'Tidal rivers and deeper holes; keeping them helps the Bay' },
+  { n: 'Blue crab (crabbing)', m: [4, 5, 6, 7, 8, 9, 10, 11, 12], peak: [8, 9, 10], bait: 'Chicken necks, razor clams, menhaden on trotlines or pots', where: 'Shallows and creek mouths in summer, deeper water in fall', reg: true },
+];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WILD_GROUPS = [['Cetacea', 'Whales and dolphins'], ['Pinnipedia', 'Seals and sea lions'], ['Elasmobranchii', 'Sharks and rays'], ['Cheloniidae', 'Sea turtles'], ['Actinopterygii', 'Fish'], ['Pandion haliaetus', 'Ospreys'], ['Haliaeetus leucocephalus', 'Bald eagles'], ['Callinectes sapidus', 'Blue crabs']];
+const WILD = { layer: L.layerGroup().addTo(map), obs: [], at: 0, key: '' };
+function inChesapeake(p) { return p && p.lat > 36.8 && p.lat < 39.7 && p.lon > -77.4 && p.lon < -75.5; }
+function openFishWild(tab) {
+  const c = S.fix || refPos(), mo = new Date().getMonth() + 1, ches = inChesapeake(c), t = tab || S.fwTab || 'fish'; S.fwTab = t;
+  let h = '<h3>Fishing and wildlife</h3><div class="seg fw-tabs">' + [['fish', 'What\'s biting'], ['wild', 'Wildlife here']].map(([v, l]) => '<button type="button" data-fwtab="' + v + '" class="' + (t === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  if (t === 'fish') {
+    if (!ches) h += '<p class="hint">The fishing guide covers the Chesapeake Bay so far. Other waters are coming; your saved spots and catch log work everywhere.</p>';
+    const now = FISH.filter((f) => f.m.includes(mo)).sort((a, b) => (b.peak.includes(mo) ? 1 : 0) - (a.peak.includes(mo) ? 1 : 0));
+    h += '<div class="sub">' + MONTHS[mo - 1] + ' on the Chesapeake: typical patterns, not guarantees. Water temperature moves everything a few weeks either way.</div>';
+    h += now.map((f) => '<div class="fw-fish"><div class="fw-top"><b>' + esc(f.n) + '</b>' + (f.peak.includes(mo) ? '<span class="badge fw-peak">Peak</span>' : '<span class="badge">In season</span>') + '</div>' +
+      '<div class="fw-cal">' + MONTHS.map((m, i) => '<i class="' + (f.peak.includes(i + 1) ? 'pk' : f.m.includes(i + 1) ? 'on' : '') + (i + 1 === mo ? ' now' : '') + '" title="' + m + '">' + m[0] + '</i>').join('') + '</div>' +
+      '<p><b>Bait:</b> ' + esc(f.bait) + '</p><p><b>Where:</b> ' + esc(f.where) + '</p>' + (f.reg ? '<p class="hint">Size, creel limits and closed seasons apply and change yearly.</p>' : '') + '</div>').join('');
+    h += '<div class="row-btns"><a class="btn" href="https://dnr.maryland.gov/fisheries/Pages/regulations/index.aspx" target="_blank" rel="noopener">Maryland fishing rules</a><a class="btn" href="https://news.maryland.gov/dnr/" target="_blank" rel="noopener">DNR fishing news and reports</a></div>';
+    h += '<div class="row-btns"><button class="btn" data-act="fwstruct">' + (S.settings.structOn ? 'Hide' : 'Show') + ' wrecks and obstructions</button><button class="btn" data-act="fwspots">My spots (' + S.spots.length + ')</button></div>';
+    h += '<p class="hint">Wrecks and obstructions come from NOAA chart data: they hold fish, and they snag anchors and gear. Your own spots and catches stay private on this device.</p>';
+  } else {
+    h += '<div class="sub">What people have photographed within about 15 nm of ' + (S.fix ? 'you' : 'the chart center') + ', from iNaturalist, a free community science project. Tap a species to see which months it shows up.</div>';
+    h += '<div class="seg fw-groups">' + WILD_GROUPS.map(([v, l]) => '<button type="button" data-wgrp="' + esc(v) + '" class="' + ((S.settings.wildGrp || 'Cetacea') === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div><div id="wildList"><p class="sub">Looking…</p></div>';
+    h += '<div class="row-btns"><button class="btn" data-act="wildmap">' + (S.settings.wildOn ? 'Hide' : 'Show') + ' sightings on the chart</button><a class="btn" href="https://www.inaturalist.org/observations/upload" target="_blank" rel="noopener">Add your sighting</a></div>';
+    h += '<p class="hint">Keep your distance: in US waters stay at least 50 yards from dolphins and seals, and 100 yards from whales. Photos belong to their owners, credited on each one.</p>';
+    setTimeout(wildSpecies, 30);
+  }
+  openSheet('<div class="fw">' + h + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div></div>');
+}
+async function inat(path, params) {
+  const u = 'https://api.inaturalist.org/v1/' + path + '?' + new URLSearchParams(params).toString();
+  const r = await fetchT(u, 15000); if (!r.ok) throw new Error('iNat ' + r.status); return r.json();
+}
+async function wildSpecies() {
+  const box = $('wildList'); if (!box) return;
+  const c = S.fix || refPos(), grp = S.settings.wildGrp || 'Cetacea';
+  try {
+    const j = await inat('observations/species_counts', { lat: c.lat.toFixed(3), lng: c.lon.toFixed(3), radius: 28, taxon_name: grp, quality_grade: 'research', per_page: 12 });
+    const res = j.results || []; if (!$('wildList')) return;
+    if (!res.length) { box.innerHTML = '<p class="sub">No confirmed sightings of this group near here yet.</p>'; return; }
+    box.innerHTML = res.map((r) => { const tx = r.taxon || {}, ph = tx.default_photo && tx.default_photo.square_url; return '<button type="button" class="fw-sp" data-wsp="' + tx.id + '" data-wname="' + esc(tx.preferred_common_name || tx.name) + '">' + (ph ? '<img src="' + esc(ph) + '" alt="" loading="lazy">' : '<span class="fw-noimg"></span>') + '<span class="fw-sp-main"><b>' + esc(tx.preferred_common_name || tx.name) + '</b><em>' + esc(tx.name) + '</em></span><span class="fw-n">' + r.count + ' seen</span></button><div class="fw-hist" id="wh' + tx.id + '" hidden></div>'; }).join('');
+  } catch (e) { box.innerHTML = '<p class="sub">Could not reach iNaturalist just now.</p>'; }
+}
+async function wildHistogram(id) {
+  const el = $('wh' + id); if (!el) return; if (!el.hidden) { el.hidden = true; return; } el.hidden = false; el.innerHTML = '<p class="sub">Counting by month…</p>';
+  const c = S.fix || refPos();
+  try {
+    const j = await inat('observations/histogram', { lat: c.lat.toFixed(3), lng: c.lon.toFixed(3), radius: 28, taxon_id: id, interval: 'month_of_year', quality_grade: 'research' });
+    const m = (j.results && j.results.month_of_year) || {}, vals = MONTHS.map((_, i) => m[i + 1] || 0), mx = Math.max(1, ...vals), mo = new Date().getMonth();
+    const best = vals.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).filter((x) => x[0] > 0).slice(0, 3).map((x) => MONTHS[x[1]]);
+    el.innerHTML = '<div class="fw-bars">' + vals.map((v, i) => '<div class="' + (i === mo ? 'now' : '') + '"><i style="height:' + Math.round(v / mx * 100) + '%"></i><span>' + MONTHS[i][0] + '</span></div>').join('') + '</div><p class="hint">' + (best.length ? 'Most sightings in ' + best.join(', ') + '. ' + (vals[mo] ? vals[mo] + ' recorded in ' + MONTHS[mo] + ' over the years.' : 'None recorded in ' + MONTHS[mo] + ' so far.') : 'Not enough sightings to tell.') + '</p>';
+  } catch (e) { el.innerHTML = '<p class="sub">Could not reach iNaturalist just now.</p>'; }
+}
+async function drawWild(force) {
+  WILD.layer.clearLayers(); if (!S.settings.wildOn || map.getZoom() < 9) return;
+  const b = map.getBounds(), grp = S.settings.wildGrp || 'Cetacea', key = grp + b.toBBoxString();
+  try {
+    if (force || key !== WILD.key) {
+      const j = await inat('observations', { nelat: b.getNorth().toFixed(3), nelng: b.getEast().toFixed(3), swlat: b.getSouth().toFixed(3), swlng: b.getWest().toFixed(3), taxon_name: grp, photos: 'true', quality_grade: 'research', order_by: 'observed_on', per_page: 60 });
+      WILD.obs = (j.results || []).filter((o) => o.geojson && o.photos && o.photos.length); WILD.key = key;
+    }
+  } catch (e) { return; }
+  WILD.layer.clearLayers();
+  const taken = [];
+  WILD.obs.forEach((o) => {
+    const [lon, lat] = o.geojson.coordinates, pt = map.latLngToContainerPoint([lat, lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 30 && Math.abs(q.y - pt.y) < 30)) return; taken.push(pt);
+    const ph = o.photos[0].url;
+    const m = L.marker([lat, lon], { keyboard: false, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: '<div class="wild-pin" style="background-image:url(' + esc(ph) + ')"></div>' }) });
+    m.on('click', () => { const tx = o.taxon || {}; openSheet('<h3>' + esc(tx.preferred_common_name || tx.name || 'Sighting') + '</h3><div class="sub">' + esc(o.observed_on || '') + (o.place_guess ? ' · ' + esc(o.place_guess) : '') + '</div><img src="' + esc(ph.replace('square', 'medium')) + '" alt="" style="width:100%;border-radius:12px;margin:6px 0"><p class="hint">' + esc(o.photos[0].attribution || ('Photo: ' + ((o.user && o.user.login) || 'iNaturalist observer'))) + ' · via iNaturalist</p><div class="row-btns"><a class="btn" href="https://www.inaturalist.org/observations/' + o.id + '" target="_blank" rel="noopener">See on iNaturalist</a><button class="btn ghost" data-act="close">Close</button></div>'); });
+    WILD.layer.addLayer(m);
+  });
+}
+map.on('moveend', () => { if (S.settings.wildOn) { clearTimeout(WILD.t); WILD.t = setTimeout(() => drawWild(false), 1200); } if (S.settings.structOn) { clearTimeout(WILD.st); WILD.st = setTimeout(drawStruct, 900); } });
+const STRUCT = { layer: L.layerGroup().addTo(map) };
+async function drawStruct() {
+  STRUCT.layer.clearLayers(); if (!S.settings.structOn || map.getZoom() < 12) return;
+  const b = map.getBounds(), bb = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], svc = map.getZoom() >= 14 ? 'enc_harbour' : 'enc_approach';
+  try {
+    const [w, o] = await Promise.all([encPoints(svc, 'wreck', bb).catch(() => []), encPoints(svc, 'obstr', bb).catch(() => [])]);
+    STRUCT.layer.clearLayers();
+    w.concat(o).forEach((p) => {
+      const isW = p.kind === 'wreck', a = p.a, dep = a.VALSOU != null ? Math.round(+a.VALSOU / 0.3048) + ' ft over it' : '';
+      const m = L.marker([p.lat, p.lon], { keyboard: false, icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="st-pin' + (isW ? ' w' : '') + '" title="' + (isW ? 'Wreck' : 'Obstruction') + '"></div>' }) });
+      m.on('click', () => openSheet('<h3>' + (isW ? 'Wreck' : 'Obstruction') + '</h3><div class="sub">' + esc(a.OBJNAM || 'Charted by NOAA') + (dep ? ' · ' + dep : '') + '</div><p class="hint">Structure like this often holds fish, and it snags anchors and gear. From NOAA chart data; positions can be approximate.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>'));
+      STRUCT.layer.addLayer(m);
+    });
+  } catch (e) { /* NOAA data unavailable */ }
+}
+sheet.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-fwtab]'); if (t) { openFishWild(t.dataset.fwtab); return; }
+  const g = e.target.closest('[data-wgrp]'); if (g) { S.settings.wildGrp = g.dataset.wgrp; saveSettings(); openFishWild('wild'); if (S.settings.wildOn) drawWild(true); return; }
+  const sp = e.target.closest('[data-wsp]'); if (sp) { wildHistogram(sp.dataset.wsp); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'wildmap') { S.settings.wildOn = !S.settings.wildOn; saveSettings(); drawWild(true); openFishWild('wild'); }
+  if (b.dataset.act === 'fwstruct') { S.settings.structOn = !S.settings.structOn; saveSettings(); drawStruct(); openFishWild('fish'); }
+  if (b.dataset.act === 'fwspots') { closeSheet(); setTab('nav'); }
+});
+setTimeout(() => { if (S.settings.wildOn) drawWild(true); if (S.settings.structOn) drawStruct(); }, 3000);
+
 /* ---------- place names on land: plain, straight text from OpenStreetMap, thinned out as you zoom out ---------- */
 const PLB = { tiles: new Map(Object.entries(store.get('plTiles', {}))), layer: L.layerGroup().addTo(map), busy: false, t: null };
 const PL_MIN = { city: 8, town: 10, village: 11.5, suburb: 12.5, island: 12, hamlet: 13, neighbourhood: 13.5, locality: 14, cape: 12.5, peninsula: 12.5, bay: 12, point: 12.5 };
@@ -4495,7 +4655,7 @@ function ckGauge(id) {
   if (id === 'dest') { if (!(S.goto && S.fix)) return gWrap('DESTINATION', '<text x="100" y="100" class="g-unit">Not navigating</text><text x="100" y="122" class="g-unit">Start one in Navigate</text>', ''); const li = legInfo(S.fix, S.goto); const gr = S.goto.route, onTurn = gr && gr.pts[gr.i] && gr.pts[gr.i].turn; return gWrap(onTurn ? 'NEXT TURN' : 'TO ' + esc(S.goto.name.toUpperCase()), steerGauge(li.b, moving ? S.cog : null, li.d), isFinite(li.hrs) ? 'ETA ' + fmtClock(Date.now() + li.hrs * 3600000) + ' · ' + fmtDur(li.hrs) : 'Steer to the arrow'); }
   if (id === 'anchor') return S.anchor ? gWrap('ANCHOR', anchorGauge(S.anchor.lastFt, S.anchor.radiusFt), S.alarmOn ? 'ALARM' : 'Distance from anchor', S.alarmOn ? 'g-alarm' : '') : gWrap('ANCHOR', '<text x="100" y="108" class="g-unit">Watch is off</text>', '');
   if (id === 'position') { const f = S.fix; return gWrap('GPS POSITION', '<text x="100" y="84" class="g-big pos">' + (f ? ddm(f.lat, true) : '–') + '</text><text x="100" y="124" class="g-big pos">' + (f ? ddm(f.lon, false) : '') + '</text><text x="100" y="156" class="g-unit">' + (f && f.acc ? '±' + Math.round(ftToLen(f.acc * 3.28084)) + ' ' + lenUnit() + ' accuracy' : 'No fix') + '</text>', S.lastFixAt ? 'Last fix ' + Math.max(0, Math.round((Date.now() - S.lastFixAt) / 1000)) + ' s ago' : ''); }
-  if (id === 'time') { const now = Date.now(), ss = w && (w.sunset || []).find((t) => t > now), sr = w && (w.sunrise || []).find((t) => t > now); return gWrap('TIME', '<text x="100" y="108" class="g-big">' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?(AM|PM)/i, '') + '</text>' + (ss ? '<text x="100" y="142" class="g-unit">Sunset ' + fmtClock(ss) + '</text>' : '') + (sr ? '<text x="100" y="' + (ss ? 164 : 142) + '" class="g-unit">Sunrise ' + fmtClock(sr) + '</text>' : ''), ''); }
+  if (id === 'time') { const now = Date.now(), ss = w && (w.sunset || []).find((t) => t > now), sr = w && (w.sunrise || []).find((t) => t > now); return gWrap('TIME', '<text x="100" y="108" class="g-big">' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?(AM|PM)/i, '') + '</text>' + (ss ? '<text x="100" y="142" class="g-unit">Sunset ' + fmtClock(ss) + '</text>' : '') + (sr ? '<text x="100" y="' + (ss ? 164 : 142) + '" class="g-unit">Sunrise ' + fmtClock(sr) + '</text>' : ''), (() => { const c = S.fix || refPos(), mt = AST.moonTimes(new Date(), c.lat, c.lon), ph = AST.phase(new Date()); return moonName(ph) + (mt.rise ? ' · rise ' + fmtClock(mt.rise.getTime()) : '') + (mt.set ? ' · set ' + fmtClock(mt.set.getTime()) : ''); })()); }
   return '';
 }
 let ckMap = null, ckMark = null, ckEdit = false;
@@ -4609,7 +4769,7 @@ $('recDot').hidden = !S.rec.on;
 setTab('chart');
 startGPS();
 wake();
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
