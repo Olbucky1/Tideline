@@ -197,6 +197,7 @@ function chartLayerKeys() {
 let demoChart = null;
 function applyChart() {
   document.documentElement.classList.toggle('sat', S.settings.chart === 'satellite' || !!S.settings.satOver);
+  setTimeout(() => { try { SH.drawnKey = ''; drawShallow(); } catch (e) { /* not ready yet */ } }, 50);
   Object.values(LAYERS).forEach((l) => { if (map.hasLayer(l)) map.removeLayer(l); });
   if (window.TL_DEMO) { // hosted demo: a sample chart image instead of live chart tiles
     if (!demoChart) demoChart = L.imageOverlay(window.TL_DEMO.chart, window.TL_DEMO.bounds, { zIndex: 1, attribution: 'Sample chart for demonstration only' });
@@ -303,8 +304,8 @@ function openLayersSheet() {
   html += tog('satBox', 'Satellite imagery', 'Aerial photo under the chart', st.satOver && st.chart !== 'satellite');
   if (st.satOver && st.chart !== 'satellite') html += '<div class="field" style="margin:4px 0 8px"><label for="satMix">Chart on top: <b id="satMixVal">' + Math.round(st.chartOnSat * 100) + '%</b></label><input id="satMix" type="range" min="20" max="100" step="5" value="' + Math.round(st.chartOnSat * 100) + '"></div>';
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
-  html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats' : S.settings.aisKey ? 'Live from aisstream.io: ships and AIS-equipped boats within about 20 nm' + (AISS.n ? ' · ' + [...ais.values()].filter((t) => t.live).length + ' in view' : '') : 'Add a free aisstream.io key below for live ships over the internet', S.settings.aisShow !== false);
-  if (!S.settings.sim) html += '<div class="ais-key"><input id="aisKeyIn" type="password" autocomplete="off" placeholder="aisstream.io API key" value="' + esc(S.settings.aisKey || '') + '"><button type="button" class="btn small" data-act="aiskeysave">' + (S.settings.aisKey ? 'Update' : 'Save') + '</button></div><p class="hint" style="margin:2px 0 10px">Free: sign in at aisstream.io with GitHub, copy your key, paste it here. Shows ships and boats that broadcast AIS; small boats without AIS will not appear. ' + (AISS.err ? '<b>' + esc(AISS.err) + '</b>' : '') + '</p>';
+  html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats' : S.settings.aisRelay ? 'Live from aisstream.io through your relay: ships and AIS-equipped boats within about 20 nm' + (AISS.n ? ' · ' + [...ais.values()].filter((t) => t.live).length + ' in view' : '') : 'Live ships over the internet need a small relay (below)', S.settings.aisShow !== false);
+  if (!S.settings.sim) html += '<div class="ais-key"><input id="aisKeyIn" type="url" autocomplete="off" placeholder="AIS relay address (wss://…)" value="' + esc(S.settings.aisRelay || '') + '"><button type="button" class="btn small" data-act="aiskeysave">' + (S.settings.aisRelay ? 'Update' : 'Save') + '</button></div><p class="hint" style="margin:2px 0 10px">aisstream.io (free) does not let browsers connect directly, so live AIS goes through a small free relay that holds your key. Setup steps: tools/ais-relay in the Tideline repo. ' + (AISS.err ? '<b>' + esc(AISS.err) + '</b>' : '') + '</p>';
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
   html += tog('mpBox', 'Marinas, clubs, fuel and ramps', 'Named on the chart when you zoom in', S.settings.mplaces !== false);
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
@@ -322,7 +323,7 @@ function openLayersSheet() {
   openSheet(html);
 }
 sheet.addEventListener('click', (e) => {
-  if (e.target.closest('[data-act="aiskeysave"]')) { S.settings.aisKey = ($('aisKeyIn').value || '').trim(); S.settings.aisShow = true; saveSettings(); AISS.retry = 0; aissConnect(true); toast(S.settings.aisKey ? 'AIS key saved. Ships appear as their next broadcast comes in, usually within a minute or two.' : 'AIS key removed.', 4500); return; }
+  if (e.target.closest('[data-act="aiskeysave"]')) { S.settings.aisRelay = ($('aisKeyIn').value || '').trim(); S.settings.aisShow = true; saveSettings(); AISS.retry = 0; aissConnect(true); toast(S.settings.aisRelay ? 'Relay saved. Ships appear as their next broadcast comes in, usually within a minute or two.' : 'Relay removed.', 4500); return; }
   const o = e.target.closest('[data-opt]'); if (!o) return;
   const k = o.dataset.opt, v = o.dataset.val;
   S.settings[k] = v; saveSettings();
@@ -811,8 +812,10 @@ function shallowOn() { return S.settings.shallowTint !== false && S.settings.cha
 function shallowStyleFor(shallow, night) {
   const lv = [0.55, 1, 1.5][(+S.settings.shallowLevel || 2) - 1], sty = S.settings.shallowStyle || 'coral';
   const P = { coral: ['#FF7A6B', '#FFD27A', 0.2, 0.12], amber: ['#F5A623', '#FFE08A', 0.2, 0.12], pale: ['#FFFFFF', '#FFFFFF', 0.5, 0.25], edge: ['#E5484D', '#E8A33A', 0, 0] }[sty];
-  const col = night ? (shallow ? '#C0392B' : '#8A4A2A') : (shallow ? P[0] : P[1]);
+  const sat = document.documentElement.classList.contains('sat'); // over satellite water coral reads as purple: use warm sand and amber there
+  const col = night ? (shallow ? '#C0392B' : '#8A4A2A') : sat ? (shallow ? '#FFB547' : '#FFE29A') : (shallow ? P[0] : P[1]);
   const fo = (shallow ? P[2] : P[3]) * lv * (night ? 0.9 : 1);
+  if (sat && sty !== 'edge') return { fillColor: col, fillOpacity: (shallow ? 0.26 : 0.14) * lv, stroke: true, color: shallow ? '#FFB547' : '#FFE29A', weight: shallow ? 1.4 : 0.8, opacity: 0.85 };
   return sty === 'edge' ? { fillOpacity: 0, stroke: true, color: col, weight: shallow ? 1.6 * lv : 1, opacity: shallow ? 0.75 : 0.45, dashArray: shallow ? null : '4 4' } : { fillColor: col, fillOpacity: fo, stroke: shallow, color: col, weight: 0.8, opacity: 0.35 * lv };
 }
 async function drawShallow() {
@@ -1262,15 +1265,16 @@ async function maybeWeather(force) {
   wxBusy = true;
   try {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + f.lat.toFixed(3) + '&longitude=' + f.lon.toFixed(3) +
-      '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,precipitation' +
-      '&daily=sunrise,sunset&wind_speed_unit=kn&temperature_unit=fahrenheit&timezone=auto&forecast_days=7';
+      '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,pressure_msl,weather_code,cloud_cover&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,precipitation,pressure_msl,weather_code' +
+      '&daily=sunrise,sunset&wind_speed_unit=kn&temperature_unit=fahrenheit&timezone=auto&forecast_days=7&past_days=1';
     const r = await fetch(url); if (!r.ok) throw new Error('weather ' + r.status);
     const j = await r.json();
     const off = (j.utc_offset_seconds || 0) * 1000;
     const tt = (s) => Date.parse(s + 'Z') - off;
     S.weather = {
       at: Date.now(), pos: { lat: f.lat, lon: f.lon },
-      cur: { spd: j.current.wind_speed_10m, dir: j.current.wind_direction_10m, gust: j.current.wind_gusts_10m, temp: j.current.temperature_2m },
+      cur: { spd: j.current.wind_speed_10m, dir: j.current.wind_direction_10m, gust: j.current.wind_gusts_10m, temp: j.current.temperature_2m, p: j.current.pressure_msl, code: j.current.weather_code, cloud: j.current.cloud_cover },
+      press: j.hourly.pressure_msl ? j.hourly.time.map((t, i) => ({ t: tt(t), p: j.hourly.pressure_msl[i], code: j.hourly.weather_code ? j.hourly.weather_code[i] : null })) : [],
       hours: j.hourly.time.map((t, i) => ({ t: tt(t), spd: j.hourly.wind_speed_10m[i], dir: j.hourly.wind_direction_10m[i], gust: j.hourly.wind_gusts_10m[i], temp: j.hourly.temperature_2m ? j.hourly.temperature_2m[i] : null, rain: j.hourly.precipitation ? j.hourly.precipitation[i] : null })),
       sunrise: j.daily.sunrise.map(tt), sunset: j.daily.sunset.map(tt),
     };
@@ -3111,13 +3115,15 @@ function aisUpsert(t) {
 const AISS = { ws: null, center: null, at: 0, retry: 0, timer: null, n: 0, err: '' };
 function aisShipType(code) { const c = +code || 0; if (c === 36) return 'sail'; if (c === 37) return 'power'; if (c === 30) return 'fishing'; if (c === 31 || c === 32 || c === 52) return 'tug'; if (c >= 60 && c < 70) return 'passenger'; if (c >= 70 && c < 90) return 'ship'; return c ? 'other' : null; }
 function aissConnect(force) {
-  const key = (S.settings.aisKey || '').trim();
-  if (!key || S.settings.aisShow === false || S.settings.sim) { aissClose(); return; }
+  const relay = (S.settings.aisRelay || '').trim();
+  if (!relay || S.settings.aisShow === false || S.settings.sim) { aissClose(); return; }
   const c = S.fix || refPos(); if (!c) return;
   if (!force && AISS.ws && AISS.ws.readyState <= 1 && AISS.center && distNm(AISS.center, c) < 8) return;
   aissClose(); AISS.center = { lat: c.lat, lon: c.lon };
-  const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); AISS.ws = ws;
-  ws.onopen = () => { AISS.retry = 0; AISS.err = ''; ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[c.lat - 0.35, c.lon - 0.45], [c.lat + 0.35, c.lon + 0.45]]], FilterMessageTypes: ['PositionReport', 'StandardClassBPositionReport', 'ExtendedClassBPositionReport', 'ShipStaticData', 'StaticDataReport'] })); };
+  // aisstream.io does not allow browsers to connect directly, so the app talks to a tiny relay you run (see tools/ais-relay in the repo)
+  let ws; try { ws = new WebSocket(relay.replace(/^http/, 'ws').replace(/\/$/, '') + '/?bbox=' + [c.lat - 0.35, c.lon - 0.45, c.lat + 0.35, c.lon + 0.45].map((v) => v.toFixed(3)).join(',')); } catch (e) { AISS.err = 'That relay address is not valid'; return; }
+  AISS.ws = ws;
+  ws.onopen = () => { AISS.retry = 0; AISS.err = ''; };
   ws.onmessage = async (ev) => {
     let m; try { m = JSON.parse(typeof ev.data === 'string' ? ev.data : await ev.data.text()); } catch (e) { return; }
     if (m.error) { AISS.err = m.error; return; }
@@ -3133,11 +3139,11 @@ function aissConnect(force) {
     clearTimeout(AISS.timer); AISS.timer = setTimeout(updateAis, 700);
   };
   ws.onerror = () => { AISS.err = 'Could not reach aisstream.io'; };
-  ws.onclose = () => { if (AISS.ws !== ws) return; AISS.ws = null; if ((S.settings.aisKey || '') && AISS.retry < 6) setTimeout(() => aissConnect(true), Math.min(60000, 3000 * 2 ** AISS.retry++)); };
+  ws.onclose = () => { if (AISS.ws !== ws) return; AISS.ws = null; if ((S.settings.aisRelay || '') && AISS.retry < 6) setTimeout(() => aissConnect(true), Math.min(60000, 3000 * 2 ** AISS.retry++)); };
 }
 function aissClose() { const w = AISS.ws; AISS.ws = null; if (w) try { w.close(); } catch (e) { /* closed */ } }
 setInterval(() => { const now = Date.now(); let ch = false; ais.forEach((t, id) => { if (t.live && now - (t.seen || 0) > 12 * 60000) { ais.delete(id); ch = true; } }); if (ch) updateAis(); }, 60000);
-map.on('moveend', () => { if (!S.fix && S.settings.aisKey) { clearTimeout(AISS.mt); AISS.mt = setTimeout(() => aissConnect(false), 2000); } });
+map.on('moveend', () => { if (!S.fix && S.settings.aisRelay) { clearTimeout(AISS.mt); AISS.mt = setTimeout(() => aissConnect(false), 2000); } });
 setTimeout(() => aissConnect(true), 2500);
 
 /* demo AIS traffic: a crossing sailboat, a ship in the channel, a powerboat overtaking */
@@ -4610,7 +4616,7 @@ function anchorGauge(ft, radius) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, lim, A1) + '" class="g-danger"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (frac > 1 ? ' bad' : '') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + (ft == null ? '–' : Math.round(ftToLen(ft))) + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' of ' + fmtLen(radius) + '</text>';
 }
-const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['chart', 'Small chart'], ['off', 'Off']];
+const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
 function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
 /* charted depth where the boat is (or the chart centre): NOAA ENC depth area, plus the predicted tide. Not a sounder. */
@@ -4641,11 +4647,64 @@ function depthGauge() {
     (need ? '<text x="100" y="160" class="g-unit">' + (bad ? 'SHALLOW' : 'need ' + Math.round(ftToLen(need))) + '</text>' : ''),
     'NOAA chart ' + Math.round(ftToLen(d.d1 / 0.3048)) + (d.d2 != null ? '–' + Math.round(ftToLen(d.d2 / 0.3048)) : '') + ' ' + lenUnit() + (tn ? ' ' + (tide >= 0 ? '+' : '') + tide.toFixed(1) + ' tide' : '') + ' · not a sounder', bad ? 'g-alarm' : '');
 }
+/* ---------- weather warnings from the National Weather Service: tornado, special marine, thunderstorm, gale and small craft ---------- */
+const ALR = { list: [], at: 0, seen: new Set(store.get('alrSeen', [])), busy: false };
+const ALR_LOUD = /tornado|special marine|severe thunderstorm|hurricane|tropical storm|storm warning|gale warning|waterspout|tsunami|extreme wind/i;
+function alrClass(a) { return /warning/i.test(a.event) ? 'warn' : /watch/i.test(a.event) ? 'watch' : 'adv'; }
+async function checkAlerts() {
+  const c = S.fix || refPos(); if (!c || ALR.busy) return;
+  if (!(c.lat > 17 && c.lat < 72 && c.lon < -60 && c.lon > -180)) { ALR.list = []; renderAlertBar(); return; } // NWS covers US waters
+  ALR.busy = true;
+  try {
+    const j = await fetchT('https://api.weather.gov/alerts/active?point=' + c.lat.toFixed(4) + ',' + c.lon.toFixed(4), 15000).then((r) => r.json());
+    ALR.list = (j.features || []).map((f) => f.properties).filter((p) => p && p.status === 'Actual' && p.event).sort((a, b) => ({ warn: 0, watch: 1, adv: 2 }[alrClass(a)] - { warn: 0, watch: 1, adv: 2 }[alrClass(b)]));
+    ALR.at = Date.now();
+    ALR.list.forEach((a) => { if (!ALR.seen.has(a.id)) { ALR.seen.add(a.id); if (ALR_LOUD.test(a.event) && /warning/i.test(a.event)) { beep(3); headsUp('Weather warning. ' + a.event + '.'); toast('⚠ ' + a.event + ': tap the red bar for details', 8000); } } });
+    store.set('alrSeen', [...ALR.seen].slice(-80));
+  } catch (e) { /* offline or outside NWS coverage */ }
+  ALR.busy = false; renderAlertBar();
+}
+function renderAlertBar() {
+  let el = $('alertBar'); if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'alertBar'; el.className = 'alert-bar'; $('app').appendChild(el); el.addEventListener('click', openAlerts); }
+  const a = ALR.list[0]; if (!a) { el.hidden = true; return; }
+  el.hidden = false; el.className = 'alert-bar ' + alrClass(a);
+  el.innerHTML = '<b>⚠ ' + esc(a.event) + '</b><span>' + (a.ends || a.expires ? 'until ' + fmtClock(Date.parse(a.ends || a.expires)) : '') + (ALR.list.length > 1 ? ' · +' + (ALR.list.length - 1) + ' more' : '') + '</span>';
+}
+function openAlerts() {
+  openSheet('<h3>Weather warnings here</h3><div class="sub">From the National Weather Service · checked ' + agoTxt(ALR.at) + '</div>' + ALR.list.map((a) => '<div class="alr ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><div class="sub">' + esc(a.headline || '') + '</div>' + (a.instruction ? '<p><b>What to do:</b> ' + esc(a.instruction) + '</p>' : '') + '<details><summary>Full text</summary><p style="white-space:pre-wrap">' + esc(a.description || '') + '</p></details></div>').join('') + '<p class="hint">Also monitor VHF weather channels (WX1–WX7) for NOAA Weather Radio.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+setTimeout(checkAlerts, 3500); setInterval(checkAlerts, 5 * 60000);
+const WMO = { 0: ['Clear', '☀'], 1: ['Mostly clear', '🌤'], 2: ['Partly cloudy', '⛅'], 3: ['Overcast', '☁'], 45: ['Fog', '🌫'], 48: ['Freezing fog', '🌫'], 51: ['Light drizzle', '🌦'], 53: ['Drizzle', '🌦'], 55: ['Heavy drizzle', '🌧'], 61: ['Light rain', '🌦'], 63: ['Rain', '🌧'], 65: ['Heavy rain', '🌧'], 71: ['Light snow', '🌨'], 73: ['Snow', '🌨'], 75: ['Heavy snow', '❄'], 80: ['Showers', '🌦'], 81: ['Showers', '🌧'], 82: ['Violent showers', '⛈'], 95: ['Thunderstorms', '⛈'], 96: ['Thunderstorms, hail', '⛈'], 99: ['Severe thunderstorms', '⛈'] };
+const wmo = (c) => WMO[c] || WMO[Math.floor((c || 0) / 10) * 10] || ['', ''];
+// barometer: pressure now and its 3-hour trend. A fall of 3 hPa or more in 3 hours means wind and weather are on the way.
+function baroTrend() {
+  const w = S.weather; if (!w || !w.press || !w.press.length) return null;
+  const now = Date.now(), at = (t) => { let b = null; w.press.forEach((x) => { if (x.p != null && (!b || Math.abs(x.t - t) < Math.abs(b.t - t))) b = x; }); return b && Math.abs(b.t - t) < 2 * 3600000 ? b.p : null; };
+  const p = w.cur && w.cur.p != null ? w.cur.p : at(now), p3 = at(now - 3 * 3600000), n3 = at(now + 3 * 3600000);
+  if (p == null) return null;
+  const d = p3 != null ? p - p3 : null, f = n3 != null ? n3 - p : null;
+  const word = d == null ? '' : d <= -3 ? 'falling fast' : d <= -1 ? 'falling' : d >= 3 ? 'rising fast' : d >= 1 ? 'rising' : 'steady';
+  return { p, d, f, word, warn: (d != null && d <= -3) || (f != null && f <= -3) };
+}
+const inHg = () => S.settings.speedUnit === 'kn' || S.settings.speedUnit === 'mph';
+function baroGauge(b) {
+  const lo = 980, hi = 1040, A0 = -135, A1 = 135, a = A0 + (A1 - A0) * Math.max(0, Math.min(1, (b.p - lo) / (hi - lo)));
+  const [px, py] = polar(84, a), val = inHg() ? (b.p * 0.02953).toFixed(2) : Math.round(b.p), unit = inHg() ? 'inHg' : 'hPa';
+  const arrow = b.d == null ? '' : b.d <= -1 ? '▼' : b.d >= 1 ? '▲' : '▶';
+  return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (b.warn ? ' bad' : '') + '"/><circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="6" class="g-dot"/>' +
+    '<text x="100" y="108" class="g-big sm">' + val + '</text><text x="100" y="132" class="g-unit">' + unit + ' · ' + arrow + ' ' + esc(b.word || '') + '</text>' + (b.d != null ? '<text x="100" y="156" class="g-unit">' + (b.d > 0 ? '+' : '') + b.d.toFixed(1) + ' hPa in 3 h</text>' : '');
+}
 function ckGauge(id) {
   const w = S.weather, tn = tideNow(), ob = nearestObs(), moving = (S.sog || 0) > 0.6;
   if (id === 'auto') id = S.goto && S.fix ? 'dest' : 'tide';
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'depth') { maybeDepth(); return depthGauge(); }
+  if (id === 'baro') { const b = baroTrend(); return b ? gWrap('BAROMETER', baroGauge(b), b.warn ? 'Pressure dropping fast: expect wind and squalls' : 'Sea-level pressure · model, Open-Meteo', b.warn ? 'g-alarm' : '') : gWrap('BAROMETER', '<text x="100" y="108" class="g-unit">Waiting for pressure data</text>', ''); }
+  if (id === 'weather') { const c = w && w.cur, nx = w && w.press ? w.press.filter((x) => x.t > Date.now()).filter((_, i) => i % 3 === 2).slice(0, 4) : [];
+    if (!c) return gWrap('WEATHER', '<text x="100" y="108" class="g-unit">Waiting for the forecast</text>', '');
+    const [t, ic] = wmo(c.code); return '<div class="gauge wx-tile"><div class="g-lbl">WEATHER</div><div class="wxt-now"><span class="wxt-ic">' + ic + '</span><div><b>' + esc(t) + '</b><span>' + tempTxt(c.temp) + ' · wind ' + compass16(c.dir) + ' ' + Math.round(speedOut(c.spd)) + ' ' + SPEED_LBL[S.settings.speedUnit] + '</span></div></div><div class="wxt-next">' + nx.map((x) => '<div><em>' + new Date(x.t).toLocaleTimeString([], { hour: 'numeric' }) + '</em><span>' + wmo(x.code)[1] + '</span></div>').join('') + '</div>' + (ALR.list.length ? '<div class="wxt-alert">⚠ ' + esc(ALR.list[0].event) + '</div>' : '') + '<div class="g-foot">Open-Meteo forecast</div></div>'; }
+  if (id === 'alerts') { const L2 = ALR.list; return '<div class="gauge wx-tile"><div class="g-lbl">WEATHER WARNINGS</div>' + (L2.length ? L2.slice(0, 3).map((a) => '<div class="wxt-al ' + alrClass(a) + '"><b>' + esc(a.event) + '</b><span>until ' + (a.ends ? fmtClock(Date.parse(a.ends)) : '—') + '</span></div>').join('') : '<div class="wxt-ok">No active warnings here</div>') + '<div class="g-foot">National Weather Service · checked ' + (ALR.at ? agoTxt(ALR.at) : '—') + '</div></div>'; }
+  if (id === 'photo') { const ph = S.boat.photo; return '<div class="gauge ph-tile"' + (ph ? ' style="background-image:url(' + ph + ')"' : '') + '>' + (ph ? '' : '<div class="g-lbl">PHOTO</div><p class="g-unit" style="margin:auto;text-align:center">Add a boat photo in Boat to show it here</p>') + '</div>'; }
   if (id === 'waves') { const wv = w && w.wave; return gWrap('WAVES', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="108" class="g-big sm">' + (wv && wv.h != null ? waveLen(wv.h).replace(/\s*(ft|m)$/, '') : '–') + '</text><text x="100" y="132" class="g-unit">' + lenUnit() + (wv && wv.per ? ' · every ' + Math.round(wv.per) + ' s' : '') + '</text>' + (wv && wv.dir != null ? '<text x="100" y="156" class="g-unit">from ' + compass16(wv.dir) + '</text>' : ''), 'Model forecast · Open-Meteo'); }
   if (id === 'trip') { const t = S.trip || { dist: 0, moving: 0 }, [dv, du] = distParts(t.dist || 0); return gWrap('TRIP', '<circle cx="100" cy="100" r="84" class="g-ring"/><text x="100" y="104" class="g-big sm">' + dv + '</text><text x="100" y="128" class="g-unit">' + du + '</text><text x="100" y="156" class="g-unit">' + fmtDur((t.moving || 0) / 3600) + ' underway</text>', t.moving > 60 ? 'Average ' + fmtSpeed(t.dist / (t.moving / 3600)) + ' ' + SPEED_LBL[S.settings.speedUnit] : 'Since trip reset'); }
   if (id === 'temps') { const air = w && w.cur && w.cur.temp, water = S.waterObs && Date.now() - S.waterObs.t < 3 * 3600000 ? S.waterObs.f : w && w.sst; return gWrap('AIR · WATER', '<text x="100" y="66" class="g-unit">AIR</text><text x="100" y="112" class="g-big sm">' + tempTxt(air) + '</text><text x="100" y="146" class="g-unit">WATER ' + tempTxt(water) + '</text>', S.waterObs ? 'Water measured · NOAA' : 'Forecast'); }
@@ -4678,9 +4737,9 @@ function ckUnhost() {
 function buildCockpit() {
   const grid = $('cockpit').querySelector('.ck-grid'), sl = ckSlots().filter((x) => x !== 'off');
   ckUnhost(); if (ckMap) { ckMap.remove(); ckMap = null; }
-  grid.dataset.n = sl.length + (ckEdit && sl.length < 6 ? 1 : 0);
+  grid.dataset.n = sl.length + (ckEdit && sl.length < 9 ? 1 : 0);
   grid.innerHTML = sl.map((id, i) => '<div class="ck-slot' + (id === 'chart' ? ' chart' : '') + '" data-slot="' + i + '">' + (id === 'chart' ? '<div class="gauge"><div class="g-lbl">CHART</div><div class="ck-map" id="ckMap"></div></div>' : '') + '</div>').join('') +
-    (ckEdit && sl.length < 6 ? '<div class="ck-slot add"><button type="button" class="ck-add" data-ckadd>+ Add a gauge</button></div>' : '');
+    (ckEdit && sl.length < 9 ? '<div class="ck-slot add"><button type="button" class="ck-add" data-ckadd>+ Add a gauge</button></div>' : '');
   if (sl.includes('chart')) ckHost($('ckMap')); else ckUnhost();
   if (false) {
     ckMap = L.map('ckMap', { zoomControl: false, attributionControl: false, dragging: true, zoomSnap: 0 });
@@ -4697,16 +4756,42 @@ function buildCockpit() {
     grid.style.gridTemplateRows = sp ? 'repeat(' + rows + ', minmax(0, 1fr))' : '';
     const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = sp ? '1 / span ' + rows : ''; }
   if (ckMap) setTimeout(() => ckMap.invalidateSize(), 60);
+  // fill any empty cells so the grid stays even: weather, barometer, warnings, then your boat photo
+  if (!ckEdit) setTimeout(() => {
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length || 1, chart = sl.includes('chart'), wide = window.innerWidth >= 900;
+    let free = 0;
+    if (chart && wide && (lay === 'half' || lay === 'big')) { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)); free = rows * (cols - 1) - (sl.length - 1); } else free = (cols - (sl.length % cols)) % cols;
+    const pool = (S.settings.ckFillers || ['weather', 'baro', 'alerts', 'photo', 'time']).filter((x) => !sl.includes(x));
+    for (let i = 0; i < free && i < pool.length; i++) grid.insertAdjacentHTML('beforeend', '<div class="ck-slot filler" data-filler="' + pool[i] + '"></div>');
+    renderCockpit();
+  }, 0);
+  grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { el.draggable = ckEdit; });
   renderCockpit();
+}
+// Customize: drag a tile onto another to swap them (arrows do the same on touch screens)
+(() => {
+  const g = () => $('cockpit').querySelector('.ck-grid'); let from = null;
+  document.addEventListener('dragstart', (e) => { const t = e.target.closest && e.target.closest('#cockpit .ck-slot[data-slot]'); if (!t || !ckEdit) return; from = +t.dataset.slot; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(from)); } catch (err) { /* old browsers */ } t.classList.add('dragging'); });
+  document.addEventListener('dragover', (e) => { const t = e.target.closest && e.target.closest('#cockpit .ck-slot[data-slot]'); if (t && from != null) { e.preventDefault(); g().querySelectorAll('.drop').forEach((x) => x.classList.remove('drop')); t.classList.add('drop'); } });
+  document.addEventListener('dragend', () => { from = null; document.querySelectorAll('#cockpit .dragging, #cockpit .drop').forEach((x) => x.classList.remove('dragging', 'drop')); });
+  document.addEventListener('drop', (e) => { const t = e.target.closest && e.target.closest('#cockpit .ck-slot[data-slot]'); if (!t || from == null) return; e.preventDefault(); ckSwap(from, +t.dataset.slot); from = null; });
+  document.addEventListener('click', (e) => { const m = e.target.closest('[data-ckmove]'); if (!m) return; const [i, d] = m.dataset.ckmove.split(':').map(Number); ckSwap(i, i + d); });
+})();
+function ckSwap(a, b) {
+  const sl = ckSlots().filter((x) => x !== 'off').slice(); if (a === b || a < 0 || b < 0 || a >= sl.length || b >= sl.length) return;
+  [sl[a], sl[b]] = [sl[b], sl[a]]; S.settings.ckSlots = sl; saveSettings(); buildCockpit();
 }
 function renderCockpit() {
   const el = $('cockpit'); if (!el || el.hidden) return;
   const sl = ckSlots().filter((x) => x !== 'off');
+  el.querySelectorAll('.ck-slot.filler').forEach((box) => { box.innerHTML = ckGauge(box.dataset.filler); });
   el.querySelectorAll('.ck-slot[data-slot]').forEach((box) => {
     const i = +box.dataset.slot, id = sl[i];
-    const pick = ckEdit ? '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
+    const mv = ckEdit ? '<div class="ck-mv"><button type="button" data-ckmove="' + i + ':-1" aria-label="Move earlier">◀</button><span>drag to move</span><button type="button" data-ckmove="' + i + ':1" aria-label="Move later">▶</button></div>' : '';
+    const pick = ckEdit ? mv + '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
     if (id === 'chart') { const old = box.querySelector('.ck-pick'); if (old) old.remove(); if (pick) box.insertAdjacentHTML('afterbegin', pick); return; }
-    if (box.querySelector('select:focus')) return;
+    if (box.querySelector('select:focus') || (ckEdit && box.dataset.drawn)) return; // while customizing, keep tiles still so taps land
+    box.dataset.drawn = ckEdit ? '1' : '';
     box.innerHTML = pick + ckGauge(id);
   });
   const acc = S.fix && S.fix.acc != null ? '±' + Math.round(ftToLen(S.fix.acc * 3.28084)) + ' ' + lenUnit() : '';

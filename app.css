@@ -1123,3 +1123,25 @@ html.sat .pl-name { color: #F2F2EE; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
 .st-pin { width: 12px; height: 12px; margin: 3px; border-radius: 3px; transform: rotate(45deg); background: #6B5B95; border: 1.5px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); cursor: pointer; }
 .st-pin.w { background: #8A5A2B; }
 .tl-sky { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--ink2); margin: 2px 0 6px; }
+
+/* weather warnings bar */
+.alert-bar { position: absolute; top: calc(52px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 760; border: 0; border-radius: 12px; padding: 7px 14px; display: flex; gap: 8px; align-items: baseline; font: inherit; font-size: 13px; color: #fff; background: #B3261E; box-shadow: 0 2px 10px rgba(0,0,0,.25); cursor: pointer; max-width: calc(100vw - 120px); }
+.alert-bar.watch { background: #C77A12; } .alert-bar.adv { background: #3D6B8C; }
+.alert-bar span { opacity: .85; font-size: 12px; white-space: nowrap; }
+#app.wide .alert-bar { left: calc((100% - 400px) / 2); }
+.alr { border-left: 4px solid #B3261E; padding: 6px 10px; margin: 8px 0; } .alr.watch { border-color: #C77A12; } .alr.adv { border-color: #3D6B8C; }
+/* tiles */
+.wx-tile { display: flex; flex-direction: column; gap: 8px; color: var(--g-ink); padding: 10px 12px; }
+.wxt-now { display: flex; gap: 12px; align-items: center; } .wxt-ic { font-size: 44px; line-height: 1; } .wxt-now b { display: block; font-size: 18px; } .wxt-now span { font-size: 13px; color: var(--g-muted); }
+.wxt-next { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; } .wxt-next em { display: block; font-style: normal; font-size: 11px; color: var(--g-muted); } .wxt-next span { font-size: 22px; }
+.wxt-alert, .wxt-al.warn { color: #FF8A80; font-weight: 600; font-size: 13px; }
+.wxt-al { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 4px 0; } .wxt-al.watch { color: #FFC266; } .wxt-al span { color: var(--g-muted); }
+.wxt-ok { margin: auto; color: var(--g-muted); font-size: 14px; }
+.ph-tile { background: var(--g-face, #0F2433) center/cover no-repeat; min-height: 120px; }
+.ck-slot.filler { opacity: .92; }
+.ck-mv { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--g-muted); margin-bottom: 4px; }
+.ck-mv button { border: 1px solid var(--g-line); background: transparent; color: var(--g-ink); border-radius: 8px; padding: 2px 10px; cursor: pointer; }
+#cockpit .ck-grid.editing .ck-slot[data-slot] { cursor: grab; }
+#cockpit .ck-slot.dragging { opacity: .4; } #cockpit .ck-slot.drop { outline: 2px dashed var(--g-acc); outline-offset: 2px; border-radius: 16px; }
+.ck-mv { position: relative; z-index: 3; }
+#cockpit .ck-mv { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 5; background: color-mix(in srgb, var(--g-bg, #0B1A26) 85%, transparent); border-radius: 10px; padding: 4px; }
