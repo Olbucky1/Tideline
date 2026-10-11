@@ -1,0 +1,25 @@
+name: Live route check
+# Runs real routes against live NOAA chart data (the build workspace cannot reach NOAA)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['app.js', 'tests/live-route.mjs', '.github/workflows/route-check.yml']
+permissions:
+  contents: write
+jobs:
+  routes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm i --no-save playwright@1.47.2 && npx playwright install --with-deps chromium
+      - run: (python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 1 && node tests/live-route.mjs
+        continue-on-error: true
+      - name: Publish report to the diag branch
+        run: |
+          mkdir -p /tmp/out && cp -r diag/* /tmp/out/ || true
+          git config user.name "route-check" && git config user.email "actions@users.noreply.github.com"
+          git checkout --orphan diag-tmp && git rm -rfq . && cp -r /tmp/out/* . && git add -A && git commit -qm "Route check $(date -u +%FT%TZ) for ${GITHUB_SHA::7}" && git push -f origin diag-tmp:diag

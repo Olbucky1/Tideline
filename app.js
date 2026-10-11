@@ -2313,23 +2313,38 @@ function fuzzyScore(q, name) { // 0 = no match; tolerant of typos like "severanc
   return sc;
 }
 const sugCache = new Map();
-async function suggestPlaces(q, center) {
+// Marine first: a boat app suggests places you can reach by water. Streets, shops and
+// houses are dropped unless the caller asks for everything (opts.all).
+const SUG_MARINE_V = /^(marina|slipway|harbour|harbor|boatyard|ferry_terminal|pier|dock|anchorage|mooring|boat_rental|boat_sharing|boat_storage|yacht_club|sailing|lighthouse|breakwater|quay|wharf|beach|beach_resort|lock_gate|lock|bridge)$/;
+const SUG_WATER_V = /^(bay|water|strait|cape|peninsula|island|islet|shoal|reef|river|stream|canal|coastline|lake|reservoir|lagoon|wetland|sound|cove|inlet|harbour|basin)$/;
+const SUG_TOWN_V = /^(city|town|village|hamlet|suburb|neighbourhood|quarter|locality)$/;
+const SUG_NAME = /\b(marina|harbou?r|yacht|sailing|boat|landing|wharf|docks?|pier|creek|cove|river|bay|island|point|light(house)?|inlet|sound|basin|anchorage|ramp|ferry|club|channel|narrows|shoal|beach|waterfront)\b/i;
+function sugClass(pr) {
+  const k = pr.osm_key || '', v = pr.osm_value || '', n = pr.name || '';
+  if (k === 'seamark' || k === 'waterway' && v !== 'stream' || SUG_MARINE_V.test(v) || k === 'leisure' && /marina|slipway|beach/.test(v) || /\b(sailing|yacht|boat)\b/i.test(n) && /club|sports_centre|clubhouse/.test(v)) return 'marine';
+  if (SUG_WATER_V.test(v) || k === 'natural' && /water|bay|beach|strait|cape|coastline/.test(v)) return 'water';
+  if (k === 'place' && SUG_TOWN_V.test(v) || /^(city|district|locality)$/.test(pr.type || '')) return 'town';
+  if (SUG_NAME.test(n)) return 'water';
+  return 'land';
+}
+async function suggestPlaces(q, center, opts) {
+  opts = opts || {};
   const c = center || searchCenter(), out = [];
   S.waypoints.forEach((w) => { const sc = fuzzyScore(q, w.name); if (sc) out.push({ name: w.name, sub: 'Your waypoint', lat: w.lat, lon: w.lon, type: 'place', score: sc + 2, wp: w }); });
   (searchResults || []).forEach((p) => { const sc = fuzzyScore(q, p.name); if (sc) out.push({ name: p.name, sub: PLACE_TYPES[p.type].label, lat: p.lat, lon: p.lon, type: p.type, score: sc + 1, place: p }); });
   // Keep local suggestions first, but reserve room for unbiased worldwide matches.
   async function photonMatches(worldwide) {
-    const key = (worldwide ? 'world' : 'near|' + c.lat.toFixed(1) + ',' + c.lon.toFixed(1)) + '|' + q.trim().toLowerCase();
+    const key = (opts.all ? 'all|' : '') + (worldwide ? 'world' : 'near|' + c.lat.toFixed(1) + ',' + c.lon.toFixed(1)) + '|' + q.trim().toLowerCase();
     if (sugCache.has(key)) return sugCache.get(key);
-    const url = 'https://photon.komoot.io/api/?limit=8&q=' + encodeURIComponent(q) + (worldwide ? '' : '&lat=' + c.lat.toFixed(3) + '&lon=' + c.lon.toFixed(3));
+    const url = 'https://photon.komoot.io/api/?limit=' + (opts.all ? 8 : 15) + '&q=' + encodeURIComponent(q) + (worldwide ? '' : '&lat=' + c.lat.toFixed(3) + '&lon=' + c.lon.toFixed(3));
     const response = await fetchT(url, 10000);
     if (!response.ok) throw new Error('Destination search ' + response.status);
     const j = await response.json();
     const matches = (j.features || []).filter((f) => f.geometry && Array.isArray(f.geometry.coordinates)).map((f) => {
       const pr = f.properties || {}, [lon, lat] = f.geometry.coordinates;
-      const marine = /marina|harbour|slipway|boat|fuel|sailing|yacht/.test((pr.osm_value || '') + ' ' + (pr.name || '').toLowerCase());
-      return { name: pr.name || pr.street || 'Unnamed place', sub: [pr.osm_value && pr.osm_value.replace(/_/g, ' '), pr.city || pr.county, pr.state, pr.country].filter(Boolean).join(' · '), lat, lon, type: /marina/.test(pr.osm_value || '') ? 'marina' : 'place', score: marine ? 2.5 : 1.5, worldwide };
-    }).filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lon));
+      const cls = sugClass(pr);
+      return { name: pr.name || pr.street || 'Unnamed place', sub: [cls === 'town' ? 'town · find its marina or dock' : pr.osm_value && pr.osm_value.replace(/_/g, ' '), pr.city || pr.county, pr.state, pr.country].filter(Boolean).join(' · '), lat, lon, type: /marina/.test(pr.osm_value || '') ? 'marina' : 'place', score: cls === 'marine' ? 3 : cls === 'water' ? 2.5 : cls === 'town' ? 1.2 : 0.8, cls, worldwide };
+    }).filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lon) && (opts.all || o.cls !== 'land'));
     sugCache.set(key, matches);
     return matches;
   }
@@ -2574,7 +2589,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 121. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 122. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2617,14 +2632,7 @@ function renderNav() {
   const g = S.goto, st = S.settings;
   let h = '<div class="p-head"><div><div class="eyebrow">Navigate</div><h2>Where to?</h2></div></div>';
   if (g) h += '<div class="card nav-active"><div class="li"><div class="li-main"><b>Navigating to ' + esc(g.name) + '</b><span class="tnum">' + (S.fix ? fmtDist(distNm(S.fix, g)) + ' · ' + fmtBrg(bearing(S.fix, g)) + '°T' : 'Waiting for GPS') + '</span></div><div class="li-btns"><button class="btn small" data-act="navshow">Show</button><button class="btn small danger" data-act="navend">End</button></div></div></div>';
-  h += '<div class="card"><div class="nav-fields">' +
-    '<div class="nf"><span class="nf-dot from"></span><div style="flex:1"><small>From</small><b>' + (S.fix ? 'My boat' : homePort() ? esc(homePort().name) + ' (home port)' : 'Set a home port') + '</b></div><button type="button" class="btn small" data-act="navhome">' + (homePort() ? 'Home port' : 'Set home port') + '</button></div>' +
-    '<div class="nf"><span class="nf-dot to"></span><div style="flex:1;min-width:0"><small>To</small><input id="navToQ" type="search" autocomplete="off" enterkeyhint="search" placeholder="Marina, club, anchorage, town…" value="' + esc(S.navDest ? S.navDest.name : '') + '"><div id="navSugs" class="sugs" hidden></div></div></div>' +
-    '<div class="nf-quick"><button type="button" class="btn small" data-act="navpick">Pick on the chart</button>' + S.waypoints.slice(-3).reverse().map((w) => '<button type="button" class="btn small" data-wpdest="' + w.id + '">' + esc(w.name) + '</button>').join('') + '</div></div>' +
-    '<div class="set-row"><div class="sr-text"><b>Under</b></div></div>' + optSeg2('navMode', [['engine', 'Engine · ' + fmtSpeed(st.cruise) + ' ' + SPEED_LBL[st.speedUnit]], ['sail', 'Sail · ' + fmtSpeed(st.sailSpeed || 5) + ' ' + SPEED_LBL[st.speedUnit]]], st.navMode) +
-    '<div class="row-btns" style="margin-top:12px"><button class="btn primary" data-act="navgo">Go direct</button><button class="btn" data-act="navplan">Plan a route</button></div>' +
-    '<p class="hint" style="margin:8px 0 0">Autoroute, which finds a safe path for your draft, comes later. Routes are straight lines you place.</p></div>';
-  h += tripCard();
+  h += planCard();
   h += '<div class="card"><h4>My trips</h4>' +
     (S.routes.length ? S.routes.slice().reverse().map((r) => { const d = r.pts.reduce((a, p, i) => (i ? a + distNm(r.pts[i - 1], p) : 0), 0);
       return '<div class="li"><div class="li-main"><b>' + esc(r.name) + '</b><span class="tnum">' + (r.pts.some((p) => p.name) ? esc(r.pts.map((p) => p.name || '·').join(' → ')) : r.pts.length + ' waypoints') + ' · ' + fmtDist(d) + '</span></div><div class="li-btns"><button class="btn small primary" data-act="navtrip" data-id="' + r.id + '">Plan</button><button class="btn small" data-act="navroute" data-id="' + r.id + '">Chart</button></div></div>'; }).join('') :
@@ -2633,6 +2641,64 @@ function renderNav() {
     '<div class="row-btns" style="margin-top:8px"><button class="btn" data-act="navlog">Tracks and waypoints</button>' + (S.rec.on ? '<button class="btn danger" data-act="navrecstop">Stop recording</button>' : '<button class="btn" data-act="navrec">Record track</button>') + '</div></div>';
   $('panelNav').innerHTML = h;
 }
+/* ---------- route planner, Google Maps style: From (your boat or home port, or anything you type or tap), optional stops, To ---------- */
+const boatLabel = () => S.settings.boatName || 'My boat';
+S.plan = store.get('plan2', { from: null, via: [], to: null }); S.planEdit = null;
+function savePlan() { store.set('plan2', S.plan); }
+function planFrom() { if (S.plan.from) return S.plan.from; if (S.fix && Date.now() - (S.lastFixAt || 0) < 120000) return { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon, live: true }; const hp = homePort(); return hp ? Object.assign({ home: true }, hp) : null; }
+function planCard() {
+  const f = planFrom(), t = S.plan.to, ed = S.planEdit, st = S.settings, need = fmtLen(wrNeedM() / 0.3048);
+  const field = (k, ph) => '<input id="plQ" type="search" autocomplete="off" enterkeyhint="search" data-for="' + k + '" placeholder="' + ph + '">';
+  const chips = (k) => '<div class="pl-chips">' + (S.fix ? '<button type="button" class="chip-b" data-plq="' + k + ':boat">⦿ ' + esc(boatLabel()) + '</button>' : '') + (homePort() ? '<button type="button" class="chip-b" data-plq="' + k + ':home">⌂ ' + esc(homePort().name.length > 24 ? 'Home port' : homePort().name) + '</button>' : '<button type="button" class="chip-b" data-act="navhome">⌂ Set home port</button>') + '<button type="button" class="chip-b" data-plq="' + k + ':map">◎ Pick on the chart</button>' + S.waypoints.slice(-3).reverse().map((w) => '<button type="button" class="chip-b" data-plwp="' + k + ':' + w.id + '">' + esc(w.name) + '</button>').join('') + '</div>';
+  let h = '<div class="card plan"><div class="pl-line">';
+  h += '<div class="pl-row"><span class="nf-dot from"></span><div class="pl-f"><small>From</small>' + (ed === 'from' ? field('from', 'Start: marina, club, town…') : '<button type="button" class="pl-val" data-pl="from">' + (f ? esc(f.name) + (f.live ? ' <em>(GPS)</em>' : f.home ? ' <em>(home port)</em>' : '') : '<span class="pl-ph">Choose a start</span>') + '</button>') + '</div>' + (f && t ? '<button type="button" class="pl-swap" data-pl="swap" aria-label="Swap start and destination">⇅</button>' : '') + '</div>';
+  if (ed === 'from') h += chips('from');
+  S.plan.via.forEach((v, i) => { h += '<div class="pl-row via"><span class="nf-dot via"></span><div class="pl-f"><small>Stop ' + (i + 1) + '</small><b>' + esc(v.name) + '</b></div><button type="button" class="pl-x" data-plx="' + i + '" aria-label="Remove stop">×</button></div>'; });
+  if (ed === 'via') h += '<div class="pl-row via"><span class="nf-dot via"></span><div class="pl-f"><small>Add a stop</small>' + field('via', 'Stop on the way…') + '</div></div>' + chips('via');
+  h += '<div class="pl-row"><span class="nf-dot to"></span><div class="pl-f"><small>To</small>' + (ed === 'to' || !t ? field('to', 'Where to? marina, club, anchorage, town…') : '<button type="button" class="pl-val" data-pl="to">' + esc(t.name) + '</button>') + '</div>' + (t ? '<button type="button" class="pl-x" data-pl="clearto" aria-label="Clear destination">×</button>' : '') + '</div>';
+  if (ed === 'to' || !t) h += chips('to');
+  h += '</div><div id="plSugs" class="sugs" hidden></div>';
+  if (ed !== 'via' && t) h += '<button type="button" class="pl-add" data-pl="via">+ Add a stop</button>';
+  h += '<div class="set-row" style="margin-top:8px"><div class="sr-text"><b>Under</b></div></div>' + optSeg2('navMode', [['engine', 'Engine · ' + fmtSpeed(st.cruise) + ' ' + SPEED_LBL[st.speedUnit]], ['sail', 'Sail · ' + fmtSpeed(st.sailSpeed || 5) + ' ' + SPEED_LBL[st.speedUnit]]], st.navMode);
+  if (f && t) { const d = [f].concat(S.plan.via, [t]).reduce((a, p, i, arr) => i ? a + distNm(arr[i - 1], p) : 0, 0); h += '<div class="tp-sum tnum"><b>' + fmtDist(d) + '</b> straight-line · about ' + fmtDur(d / navSpeed()) + '</div>'; }
+  h += '<div class="row-btns" style="margin-top:10px"><button class="btn primary" data-pl="route"' + (f && t ? '' : ' disabled') + '>Route by water</button><button class="btn" data-pl="direct"' + (t ? '' : ' disabled') + '>Go straight there</button>' + (f && t ? '<button class="btn" data-pl="save">Save</button>' : '') + '</div>';
+  h += '<p class="hint" style="margin:8px 0 0">Route by water keeps to charted water at least ' + need + ' deep for your boat, under bridges you fit and around closed areas. You can drag the route on the chart afterwards.</p></div>';
+  return h;
+}
+let plList = [], plT = null, plSeq = 0;
+function planSet(k, o) { S.plAll = false; if (k === 'from') S.plan.from = o; else if (k === 'to') S.plan.to = o; else S.plan.via.push(o); S.planEdit = null; savePlan(); renderNav(); }
+$('panelNav').addEventListener('input', (e) => {
+  if (e.target.id !== 'plQ') return; const q = e.target.value.trim(), box = $('plSugs'); clearTimeout(plT);
+  if (q.length < 2) { box.hidden = true; return; } box.hidden = false; box.innerHTML = '<div class="sug-empty">Searching…</div>';
+  plT = setTimeout(async () => { const seq = ++plSeq; let list = []; try { list = await suggestPlaces(q, planFrom() || searchCenter(), { all: S.plAll }); } catch (err) { list = []; }
+    const kn = FM_KNOWN.filter(([re]) => re.test(q.toLowerCase())).map(([, n, la, lo]) => ({ name: n, lat: la, lon: lo, sub: 'Chesapeake', d: planFrom() ? distNm(planFrom(), { lat: la, lon: lo }) : null }));
+    list = kn.concat(list.filter((x) => !kn.some((k) => k.name === x.name))); if (seq !== plSeq || !$('plSugs')) return; plList = list; $('plSugs').innerHTML = (list.length ? placeSugHtml(list, 'data-plsug') : '<div class="sug-empty">No water destinations found. Try a marina, creek, harbor or town, or pick on the chart.</div>') + (S.plAll ? '' : '<button type="button" class="sug all" data-plall="1"><b>Include places on land</b><span>Shops, streets, landmarks (you\'ll need a dock nearby)</span></button>'); }, 250);
+});
+$('panelNav').addEventListener('keydown', (e) => { if (e.target.id === 'plQ' && e.key === 'Enter' && plList[0]) { e.preventDefault(); planSet(e.target.dataset.for, { name: plList[0].name.replace(/\s*\(sample spot\)/, ''), lat: plList[0].lat, lon: plList[0].lon }); } });
+$('panelNav').addEventListener('click', async (e) => {
+  if (e.target.closest('button[data-plall]')) { S.plAll = true; const q = $('plQ'); if (q) q.dispatchEvent(new Event('input', { bubbles: true })); return; }
+  const g = e.target.closest('[data-plsug]'); if (g) { const o = plList[+g.dataset.plsug], k = $('plQ') ? $('plQ').dataset.for : 'to'; planSet(k, { name: o.name.replace(/\s*\(sample spot\)/, ''), lat: o.lat, lon: o.lon }); return; }
+  const q = e.target.closest('[data-plq]'); if (q) { const [k, what] = q.dataset.plq.split(':');
+    if (what === 'boat' && S.fix) planSet(k, k === 'from' ? null : { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon });
+    if (what === 'home' && homePort()) planSet(k, Object.assign({ home: true }, homePort()));
+    if (what === 'map') { S.planPick = k; setTab('chart'); toast('Tap the chart where you want ' + (k === 'from' ? 'to start' : k === 'to' ? 'to go' : 'to stop') + '.', 4000); }
+    if (k === 'from' && what === 'boat') { S.plan.from = null; savePlan(); renderNav(); }
+    return; }
+  const w = e.target.closest('[data-plwp]'); if (w) { const [k, id] = w.dataset.plwp.split(':'), wp = S.waypoints.find((x) => String(x.id) === id); if (wp) planSet(k, { name: wp.name, lat: wp.lat, lon: wp.lon }); return; }
+  const x = e.target.closest('[data-plx]'); if (x) { S.plan.via.splice(+x.dataset.plx, 1); savePlan(); renderNav(); return; }
+  const b = e.target.closest('[data-pl]'); if (!b) return; const a = b.dataset.pl;
+  if (a === 'from' || a === 'to' || a === 'via') { S.planEdit = a; renderNav(); setTimeout(() => { const i = $('plQ'); if (i) i.focus(); }, 40); return; }
+  if (a === 'clearto') { S.plan.to = null; savePlan(); S.planEdit = 'to'; renderNav(); return; }
+  if (a === 'swap') { const f = planFrom(), t = S.plan.to; S.plan.from = t; S.plan.to = f && { name: f.name, lat: f.lat, lon: f.lon }; S.plan.via.reverse(); savePlan(); renderNav(); return; }
+  const f = planFrom(), t = S.plan.to;
+  if (a === 'direct' && t) { setGoto(t.name, t.lat, t.lon); setTab('chart'); return; }
+  if (a === 'save' && f && t) { const stops = [f].concat(S.plan.via, [t]); S.routes.push({ id: Date.now(), name: f.name + ' to ' + t.name, pts: stops.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })) }); store.set('routes', S.routes); toast('Saved in My trips'); renderNav(); return; }
+  if (a === 'route' && f && t) {
+    b.disabled = true; b.textContent = 'Finding the water route…';
+    const pts = await routeByWater([f].concat(S.plan.via, [t]).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })));
+    RT.pts = pts; store.set('routeDraft', RT.pts); setTab('chart'); routeMode(true); map.fitBounds(L.latLngBounds(pts.map((p) => [p.lat, p.lon])).pad(0.15));
+  }
+});
 function optSeg2(name, opts, cur) {
   return '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-nseg="' + name + '" data-val="' + v + '" class="' + (String(cur) === String(v) ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
 }
@@ -4732,6 +4798,7 @@ map.on('click', (e) => {
   if (S.measure.on) { measureTap(e.latlng); return; }
   if (RT.edit) { routeAdd(e.latlng); return; }
   if (!sheet.hidden) { closeSheet(); return; }
+  if (S.planPick) { const k = S.planPick; S.planPick = null; const o = { name: 'Point ' + ddm(e.latlng.lat, true).replace(/\s/g, '') , lat: e.latlng.lat, lon: e.latlng.lng }; setTab('nav'); planSet(k, o); toast('Set. Tap Route by water when you are ready.', 2500); return; }
   if (Date.now() - (S.quickClosedAt || 0) < 400) return; // that tap just closed the layers panel
   if (document.querySelector('.wx-pop:not([hidden])')) return; // that tap closes the weather buttons
   if (S.settings.view3d) { toast('Switch to the flat 2D view (press and hold the compass) to tap a spot.', 3000); return; }
@@ -5393,7 +5460,19 @@ function baroMeaning(b) {
   return { short: 'Little change expected', long: 'Steady: little change in the weather expected for now.' + low };
 }
 const inHg = () => S.settings.speedUnit === 'kn' || S.settings.speedUnit === 'mph';
+// a real aneroid barometer face: Stormy · Rain · Change · Fair · Very dry, a black hand for now and a brass set hand for 3 hours ago
+function aneroidGauge(b) {
+  const lo = 960, hi = 1050, A0 = -135, A1 = 135, ang = (p) => A0 + (A1 - A0) * Math.max(0, Math.min(1, (p - lo) / (hi - lo)));
+  let t = '';
+  for (let p = lo; p <= hi; p += 2) { const big = p % 10 === 0, [x0, y0] = polar(big ? 74 : 79, ang(p)), [x1, y1] = polar(86, ang(p)); t += '<line x1="' + x0.toFixed(1) + '" y1="' + y0.toFixed(1) + '" x2="' + x1.toFixed(1) + '" y2="' + y1.toFixed(1) + '" class="g-tick' + (big ? ' big' : '') + '"/>'; if (big && p % 20 === 0) { const [tx, ty] = polar(63, ang(p)); t += '<text x="' + tx.toFixed(1) + '" y="' + (ty + 4).toFixed(1) + '" class="g-num">' + (inHg() ? (p * 0.02953).toFixed(1) : p) + '</text>'; } }
+  const words = [['STORMY', 970], ['RAIN', 990], ['CHANGE', 1006], ['FAIR', 1022], ['VERY DRY', 1040]].map(([w, p]) => { const [x, y] = polar(46, ang(p)); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3).toFixed(1) + '" class="g-baro-w" transform="rotate(' + (ang(p) * 0.55).toFixed(0) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + w + '</text>'; }).join('');
+  const hand = (p, cls, len) => { const [x, y] = polar(len, ang(p)), [bx, by] = polar(-14, ang(p)); return '<line x1="' + bx.toFixed(1) + '" y1="' + by.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" class="' + cls + '"/>'; };
+  const before = b.d != null ? b.p - b.d : null, val = inHg() ? (b.p * 0.02953).toFixed(2) : Math.round(b.p);
+  return t + words + (before != null ? hand(before, 'g-baro-set', 70) : '') + hand(b.p, 'g-baro-hand' + (b.warn ? ' bad' : ''), 78) + '<circle cx="100" cy="100" r="7" class="g-hub"/>' +
+    '<text x="100" y="140" class="g-unit">' + val + ' ' + (inHg() ? 'inHg' : 'hPa') + (b.word ? ' · ' + esc(b.word) : '') + '</text>';
+}
 function baroGauge(b) {
+  if ((S.settings.gStyle || 'hybrid') !== 'digital') return aneroidGauge(b);
   const lo = 980, hi = 1040, A0 = -135, A1 = 135, a = A0 + (A1 - A0) * Math.max(0, Math.min(1, (b.p - lo) / (hi - lo)));
   const [px, py] = polar(84, a), val = inHg() ? (b.p * 0.02953).toFixed(2) : Math.round(b.p), unit = inHg() ? 'inHg' : 'hPa';
   const arrow = b.d == null ? '' : b.d <= -1 ? '▼' : b.d >= 1 ? '▲' : '▶';
@@ -5766,7 +5845,7 @@ const FM_KNOWN = [
 ];
 async function fmPlace(q, near) {
   q = q.replace(/^(the|a)\s+/i, '').replace(/[.?!]+$/, '').trim();
-  if (/^(here|me|my boat|my location|where i am|current location)$/i.test(q)) return S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : null;
+  if (/^(here|me|my boat|my location|where i am|current location)$/i.test(q)) return S.fix ? { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon } : null;
   if (/^(home|home port|my (home )?port|my dock|my slip)$/i.test(q) && homePort()) return Object.assign({}, homePort());
   const hp = homePort(); if (hp && q.toLowerCase() === hp.name.toLowerCase()) return Object.assign({}, hp);
   const kn = FM_KNOWN.find(([re]) => re.test(q.toLowerCase().replace(/^seven sailing/, 'severn sailing')));
@@ -5798,7 +5877,7 @@ async function fmLocal(text) {
     if (m) {
       const fromQ = (m[1] || '').trim(), toQ = m[2].trim();
       firstMateMessage('Finding ' + toQ + (fromQ ? ' and ' + fromQ : '') + '…');
-      const from = fromQ ? await fmPlace(fromQ) : (S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : homePort());
+      const from = fromQ ? await fmPlace(fromQ) : (S.fix ? { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon } : homePort());
       if (!from) { firstMateMessage('I could not find “' + fromQ + '”. Try the marina or town name.'); return true; }
       const to = await fmPlace(toQ, from); if (!to) { firstMateMessage('I could not find “' + toQ + '”. Try a marina, harbor or town name.'); return true; }
       if (distNm(from, to) > 400) { firstMateMessage(to.name + ' is ' + fmtDist(distNm(from, to)) + ' away. That is beyond what Tideline can route by water today; pick a nearer stop or plan it leg by leg.'); return true; }
@@ -5816,7 +5895,7 @@ async function fmLocal(text) {
     if (/\b(best time|when should (i|we)|what time should (i|we))\b.*\b(leave|go|sail|depart|head out)\b/.test(c)) {
       const dm = c.match(/\b(?:for|to)\s+(.+?)[?.!]*$/), dq = dm ? dm[1].replace(/^(the)\s+/, '').trim() : '';
       if (dq && !/^(go|sail|leave)$/.test(dq)) {
-        const from = S.fix ? { name: 'My boat', lat: S.fix.lat, lon: S.fix.lon } : homePort(), to = await fmPlace(dq, from);
+        const from = S.fix ? { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon } : homePort(), to = await fmPlace(dq, from);
         if (from && to) { firstMateMessage('Plotting a course to ' + to.name + '…'); RT.pts = await routeByWater([{ lat: from.lat, lon: from.lon, name: from.name }, { lat: to.lat, lon: to.lon, name: to.name }]); store.set('routeDraft', RT.pts); drawRoute(); }
       }
       closeSheet(); openSailCoach('plan'); return true;
@@ -5884,7 +5963,7 @@ const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
 document.documentElement.classList.toggle('lightmenus', S.settings.menuTone === 'light');
-const GTHEMES = [['midnight', 'Midnight chrome', 'radial-gradient(circle,#1C3A52 55%,#C9D2DA 58%)'], ['arctic', 'Arctic white', 'radial-gradient(circle,#fff 55%,#B9C3CC 58%)'], ['bronze', 'Bronze horizon', 'radial-gradient(circle,#2A2219 55%,#C08A45 58%)'], ['glass', 'Glass ocean', 'radial-gradient(circle,#0E3D63 55%,#8FD3F5 58%)'], ['expedition', 'Expedition tech', 'radial-gradient(circle,#1E2125 55%,#FF7A1A 58%)'], ['heritage', 'Heritage brass', 'radial-gradient(circle,#FBF5E6 55%,#C9A04E 58%)']];
+const GTHEMES = [['midnight', 'Midnight chrome', 'radial-gradient(circle,#1C3A52 55%,#C9D2DA 58%)'], ['arctic', 'Arctic white', 'radial-gradient(circle,#fff 55%,#B9C3CC 58%)'], ['bronze', 'Bronze horizon', 'radial-gradient(circle,#2A2219 55%,#C08A45 58%)'], ['glass', 'Glass ocean', 'radial-gradient(circle,#0E3D63 55%,#8FD3F5 58%)'], ['expedition', 'Expedition tech', 'radial-gradient(circle,#1E2125 55%,#FF7A1A 58%)'], ['heritage', 'Heritage brass', 'radial-gradient(circle,#FBF5E6 55%,#C9A04E 58%)'], ['classic', 'Classic black', ''], ['whiteface', 'Classic white', ''], ['brass', 'Brass and ivory', ''], ['navybrass', 'Navy and brass', ''], ['simple', 'Simple digital', ''], ['carbon', 'Carbon', '']];
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
 applyMiSize();
@@ -6831,7 +6910,7 @@ function openGaugeLook() {
 document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
 function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
 applyGArt();
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
