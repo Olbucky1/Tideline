@@ -1064,7 +1064,7 @@ function applyWx() {
 }
 function gridPoints() {
   const b = map.getBounds(), sz = map.getSize();
-  const cols = Math.max(3, Math.min(9, Math.round(sz.x / 130))), rows = Math.max(4, Math.min(11, Math.round(sz.y / 130)));
+  const cols = Math.max(3, Math.min(8, Math.round(sz.x / 170))), rows = Math.max(3, Math.min(9, Math.round(sz.y / 170)));
   const pts = [];
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const lat = b.getNorth() - (b.getNorth() - b.getSouth()) * (r + 0.5) / rows, lon = b.getWest() + (b.getEast() - b.getWest()) * (c + 0.5) / cols;
