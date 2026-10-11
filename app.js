@@ -160,7 +160,7 @@ const LAYERS = {
   noaaOver: new NoaaLayer('', { maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA' }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics' }),
   satHD: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery: USGS The National Map' }),
-  places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, opacity: 0.75, zIndex: 3, attribution: 'Places: Esri' }),
+  places: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 14.99, minZoom: 5, opacity: 0.7, zIndex: 3, attribution: 'Labels: &copy; OpenStreetMap, &copy; CARTO' }), // town names only, gone before street names appear
   roads: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, opacity: 0.45, zIndex: 2, attribution: 'Roads: Esri' }),
   street: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
   seamarks: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Seamarks: OpenSeaMap' }),
@@ -291,7 +291,8 @@ function openLayersSheet() {
   if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
   html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats. Live AIS comes from your boat\'s receiver' : 'Live AIS needs your boat\'s AIS receiver connected (app-store version)', S.settings.aisShow !== false);
   html += tog('chipsBox', 'Wind, waves and tide on the chart', 'Off keeps the chart calm; the status line shows wind', st.chips);
-  html += tog('placesBox', 'Towns and state lines', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
+  html += tog('mpBox', 'Marinas, clubs, fuel and ramps', 'Named on the chart when you zoom in', S.settings.mplaces !== false);
+  html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
@@ -334,6 +335,7 @@ sheet.addEventListener('change', (e) => {
   if (e.target.id === 'wxWind' || e.target.id === 'wxWaves' || e.target.id === 'wxRain') setWxL({ wxWind: 'wind', wxWaves: 'waves', wxRain: 'rain' }[e.target.id], e.target.checked);
   if (e.target.id === 'bridgesBox') { S.settings.bridges = e.target.checked; saveSettings(); refreshBridges(true); }
   if (e.target.id === 'satBox') { S.settings.satOver = e.target.checked; if (S.settings.chart === 'satellite') S.settings.chart = 'noaa'; saveSettings(); applyChart(); openLayersSheet(); }
+  if (e.target.id === 'mpBox') { S.settings.mplaces = e.target.checked; saveSettings(); refreshMarinePlaces(); }
   if (e.target.id === 'placesBox') { S.settings.landPlaces = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'roadsBox') { S.settings.landRoads = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'aisBox') { S.settings.aisShow = e.target.checked; saveSettings(); updateAis(); }
@@ -455,7 +457,9 @@ function dragHandle(mk, onMove, onEnd) { // finger drag for a marker, with zoom-
 }
 function drawRoute() {
   RT.marks.clearLayers();
-  RT.line.setLatLngs(RT.pts.map((p) => [p.lat, p.lon]));
+  const show = RT.edit || (S.goto && S.goto.route);
+  RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
+  if (!show) return;
   RT.pts.forEach((p, i) => {
     const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: 1100, icon: L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + '">' + (i + 1) + '</div>' }) }).addTo(RT.marks);
     if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { store.set('routeDraft', RT.pts); renderRouteSheet(); });
@@ -542,7 +546,7 @@ function setGoto(name, lat, lon) {
   updateGoto(); renderStrip(); setTab('chart');
   if (S.fix) { setFollow(false); map.fitBounds(L.latLngBounds([[S.fix.lat, S.fix.lon], [lat, lon]]).pad(0.25), { maxZoom: 16 }); }
 }
-function endGoto() { S.goto = null; store.set('goto', null); updateGoto(); renderStrip(); }
+function endGoto() { S.goto = null; store.set('goto', null); updateGoto(); renderStrip(); if (typeof drawRoute === 'function') drawRoute(); }
 function updateGoto() {
   const g = S.goto;
   if (!g) { gotoLine.setLatLngs([]); if (map.hasLayer(gotoMarker)) map.removeLayer(gotoMarker); $('gotoRow').hidden = true; return; }
@@ -3081,6 +3085,7 @@ const PLACE_TYPES = {
   lighthouse: { label: 'Lighthouse', color: '#B0412F', icon: '<path d="M9 21l1.5-13h3L15 21M8 8h8M10 5h4v3h-4zM12 2v3M5 6l-2-1M19 6l2-1"/>' },
   marker: { label: 'Marker', color: '#2C8A3E', icon: '<path d="M8 20h8M12 4l4 13H8z"/>' },
   bridge: { label: 'Bridge', color: '#6B4FBB', icon: '<path d="M3 10h18M5 10v8M19 10v8M5 15c2-3 5-4 7-4s5 1 7 4"/>' },
+  club: { label: 'Yacht or sailing club', color: '#1B4F8A', icon: '<path d="M12 3v15M12 4l6 9h-6M5 19h14l-2 2H7z"/>' },
   place: { label: 'Place', color: '#4A5A68', icon: '<path d="M12 21s-7-7-7-12a7 7 0 0114 0c0 5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>' },
 };
 const SEARCH_CATS = [
@@ -3120,6 +3125,7 @@ function classify(t) {
   if (t.waterway === 'fuel' || (t.amenity === 'fuel' && t.boat === 'yes') || (/fuel_station/.test(scf) && !t.leisure)) return 'fuel';
   if (t.leisure === 'marina' || /marina/.test(t['seamark:harbour:category'] || '')) return 'marina';
   if (t.leisure === 'slipway') return 'ramp';
+  if (/sailing|yacht|boat/.test((t.club || '') + ' ' + (t.sport || '')) || /yacht club|sailing (club|association|center)/i.test(t.name || '')) return 'club';
   if (st === 'anchorage') return 'anchorage';
   if (/^(buoy|beacon|light_minor)/.test(st)) return 'marker';
   if (st === 'bridge') return 'bridge';
@@ -3385,8 +3391,11 @@ function drawBridges() {
   BR.layer.clearLayers();
   if (!S.settings.bridges || map.getZoom() < 12) return;
   const b = map.getBounds().pad(0.2);
+  const taken = [];
   BR.list.forEach((br) => {
     if (!b.contains([br.lat, br.lon])) return;
+    if (br.closed == null && map.getZoom() < 15.5) return; // no charted height: only show when zoomed right in
+    const pt = map.latLngToContainerPoint([br.lat, br.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 96 && Math.abs(q.y - pt.y) < 30)) return; taken.push(pt);
     const j = judgeBridge(br), col = BR_COL[j.level];
     const h = br.closed == null ? '?' : Math.round(ftToLen(j.eff != null ? j.eff : br.closed));
     const html = '<div class="br-pin" style="--c:' + col + '" title="Height under the bridge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M5 9v9M19 9v9M5 14c2-3 5-4 7-4s5 1 7 4"/></svg><b>' + h + '</b>' + lenUnit() + '<span>' + (br.movable ? 'high · opens' : 'high') + '</span></div>';
@@ -3444,6 +3453,46 @@ async function refreshBridges(force) {
   if (keys.length > 30) { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 1500); }
 }
 map.on('moveend', () => { clearTimeout(BR.timer); BR.timer = setTimeout(() => refreshBridges(), 900); });
+/* ---------- marine places on the chart: marinas, yacht and sailing clubs, fuel docks, ramps ---------- */
+const MP = { list: new Map(store.get('mplaces', [])), tiles: store.get('mpTiles', {}), layer: L.layerGroup().addTo(map), busy: false, timer: null };
+function drawMarinePlaces() {
+  MP.layer.clearLayers();
+  if (S.settings.mplaces === false || map.getZoom() < 12.5) return;
+  const b = map.getBounds().pad(0.1), z = map.getZoom(), taken = [];
+  const rank = { club: 0, marina: 1, fuel: 2, pumpout: 3, ramp: 4 };
+  [...MP.list.values()].filter((p) => b.contains([p.lat, p.lon])).sort((a, c) => (rank[a.type] ?? 9) - (rank[c.type] ?? 9)).forEach((p) => {
+    const pt = map.latLngToContainerPoint([p.lat, p.lon]); if (taken.some((q) => Math.abs(q.x - pt.x) < 70 && Math.abs(q.y - pt.y) < 26)) return; taken.push(pt);
+    const t = PLACE_TYPES[p.type] || PLACE_TYPES.place, named = z >= 13.5 && p.name && p.name !== t.label;
+    const html = '<div class="mp-pin"><i style="background:' + t.color + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + t.icon + '</svg></i>' + (named ? '<span>' + esc(p.name) + '</span>' : '') + '</div>';
+    const m = L.marker([p.lat, p.lon], { zIndexOffset: 500, keyboard: false, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html }) });
+    m.on('click', () => openPlaceSheet(Object.assign({ badges: [], light: '' }, p)));
+    MP.layer.addLayer(m);
+  });
+}
+async function refreshMarinePlaces() {
+  drawMarinePlaces();
+  if (S.settings.mplaces === false || MP.busy || map.getZoom() < 11.5) return;
+  const b = map.getBounds(), keys = [];
+  for (let la = Math.floor(b.getSouth() / TILE_DEG); la <= Math.floor(b.getNorth() / TILE_DEG); la++)
+    for (let lo = Math.floor(b.getWest() / TILE_DEG); lo <= Math.floor(b.getEast() / TILE_DEG); lo++) { const k = la + ',' + lo; if (!MP.tiles[k] || Date.now() - MP.tiles[k] > 14 * 86400000) keys.push([la, lo, k]); }
+  if (!keys.length) return;
+  MP.busy = true; const batch = keys.slice(0, 20);
+  const s0 = Math.min(...batch.map((k) => k[0])), w0 = Math.min(...batch.map((k) => k[1])), n0 = Math.max(...batch.map((k) => k[0])) + 1, e0 = Math.max(...batch.map((k) => k[1])) + 1;
+  const bb = '(' + (s0 * TILE_DEG).toFixed(2) + ',' + (w0 * TILE_DEG).toFixed(2) + ',' + (n0 * TILE_DEG).toFixed(2) + ',' + (e0 * TILE_DEG).toFixed(2) + ')';
+  try {
+    const els = await overpass(['nwr[leisure=marina]', 'nwr[club~"sailing|yacht|boat"]', 'nwr[sport=sailing][name]', 'nwr[name~"Yacht Club|Sailing"]', 'nwr[waterway=fuel]', 'nwr[amenity=fuel][boat=yes]', 'nwr[leisure=slipway]', 'nwr[amenity=sanitary_dump_station]'].map((q) => q + bb).join(';') + ';');
+    els.map(toPlace).filter(Boolean).forEach((p) => { if (p.type === 'place' && /yacht|sailing/i.test(p.name)) p.type = 'club'; if (p.type !== 'place') MP.list.set(p.id, { id: p.id, name: p.name, type: p.type, lat: p.lat, lon: p.lon, tags: p.tags }); });
+    batch.forEach((k) => { MP.tiles[k[2]] = Date.now(); });
+    if (MP.list.size > 2000) MP.list = new Map([...MP.list.entries()].slice(-2000));
+    try { store.set('mplaces', [...MP.list.entries()]); store.set('mpTiles', MP.tiles); } catch (e) { /* storage full */ }
+  } catch (e) { /* offline */ }
+  MP.busy = false; drawMarinePlaces();
+  if (keys.length > 20) { clearTimeout(MP.timer); MP.timer = setTimeout(refreshMarinePlaces, 1500); }
+}
+map.on('moveend', () => { clearTimeout(MP.timer); MP.timer = setTimeout(refreshMarinePlaces, 1100); });
+map.on('zoomend', drawMarinePlaces);
+setTimeout(refreshMarinePlaces, 2000);
+
 function checkBridgesAhead() {
   const card = $('bridgeCard'), f = S.fix;
   if (!S.settings.bridges || !S.goto || !f || !(S.sog > 1.5) || S.cog == null) { card.hidden = true; return; }
