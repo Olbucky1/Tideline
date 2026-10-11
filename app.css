@@ -943,3 +943,10 @@ html.wlines .wx-pt svg { display: none; }
 html.wlines .wx-pt b { font-size: 11px; opacity: 0.85; }
 /* night chart: deeper red shading, closer to the original red night view */
 :root[data-night] #map .leaflet-tile-pane, :root[data-night] #map .leaflet-image-layer { filter: invert(1) brightness(0.37) sepia(1) hue-rotate(-45deg) saturate(2.4) contrast(1.05) !important; }
+
+/* typed stops in the route sheet and home port search */
+.sheet .rt-q, .sheet #hpQ { margin: 4px 0 10px; }
+.sheet .rt-q input, .sheet #hpQ { width: 100%; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface2, var(--surface)); color: var(--ink); padding: 0 14px; font: inherit; font-size: 15px; }
+.sheet .rt-q input:focus, .sheet #hpQ:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sheet .rt-q .hint { display: block; margin-top: 4px; color: var(--ink2); font-size: 12.5px; }
+.sheet .sugs { margin-top: 6px; max-height: 240px; overflow: auto; }

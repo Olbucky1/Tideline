@@ -170,7 +170,7 @@ const LAYERS = {
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics' }),
   satHD: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery: USGS The National Map' }),
   places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.99, maxNativeZoom: 13, minZoom: 5, opacity: 0.8, zIndex: 3, attribution: 'Labels: Esri' }), // quiet grey town names, gone before street names appear
-  roads: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, opacity: 0.45, zIndex: 2, attribution: 'Roads: Esri' }),
+  roads: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.49, maxNativeZoom: 12, opacity: 0.4, zIndex: 2, attribution: 'Roads: Esri' }), // main roads only: the layer fades out before neighbourhood streets appear
   street: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
   seamarks: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Seamarks: OpenSeaMap' }),
 };
@@ -505,6 +505,22 @@ function routeMode(on) {
   else closeSheet();
   drawRoute();
 }
+function rtSearchHtml(n) {
+  return '<div class="field rt-q"><input id="rtQ" type="search" autocomplete="off" enterkeyhint="search" placeholder="' + (n ? 'Type the next stop (marina, club, town)…' : 'Type where you start (marina, club, town)…') + '"><div id="rtSugs" class="sugs" hidden></div><small class="hint">' + (n ? 'Or tap the chart to drop a waypoint.' : 'Or tap the chart to set the start.') + '</small></div>';
+}
+function rtFit() { if (RT.pts.length > 1) map.fitBounds(L.latLngBounds(RT.pts.map((q) => [q.lat, q.lon])).pad(0.2)); else if (RT.pts.length) map.setView([RT.pts[0].lat, RT.pts[0].lon], Math.max(map.getZoom(), 13)); }
+let rtList = [], rtT = null;
+sheet.addEventListener('input', (e) => {
+  if (e.target.id !== 'rtQ') return; const q = e.target.value.trim(), box = $('rtSugs'); clearTimeout(rtT);
+  if (q.length < 2) { box.hidden = true; return; } box.hidden = false; box.innerHTML = '<div class="sug-empty">Searching…</div>';
+  const last = RT.pts[RT.pts.length - 1];
+  rtT = setTimeout(async () => { rtList = await suggestPlaces(q, last || homePort() || searchCenter()); if ($('rtSugs')) $('rtSugs').innerHTML = placeSugHtml(rtList, 'data-rtsug'); }, 250);
+});
+sheet.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-rtsug]'); if (!g) return; const o = rtList[+g.dataset.rtsug];
+  RT.pts.push({ lat: o.lat, lon: o.lon, name: o.name.replace(/\s*\(sample spot\)/, '') }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit();
+  setTimeout(() => { const q = $('rtQ'); if (q) q.focus(); }, 40);
+});
 function routeAdd(ll) { RT.pts.push({ lat: ll.lat, lon: ll.lng }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
 function windAt(t) {
   const h = S.weather && S.weather.hours; if (!h || !h.length) return null;
@@ -535,7 +551,7 @@ function renderRouteSheet() {
   let h = '<div class="rt-sheet"><h3>Route</h3>';
   if (n < 2) {
     h += '<div class="sub">' + (n ? 'Now tap where you want to go. Add as many waypoints as you like.' : 'Tap the chart to set your start, or start from your boat.') + '</div>';
-    h += '<div class="row-btns">' + (S.fix ? '<button class="btn primary" data-act="rtboat">Start from my boat</button>' : '') + (n ? '<button class="btn" data-act="rtundo">Undo</button>' : '') + '<button class="btn ghost" data-act="rtclose">Close</button></div>';
+    h += rtSearchHtml(n) + '<div class="row-btns">' + (S.fix ? '<button class="btn primary" data-act="rtboat">Start from my boat</button>' : '') + (homePort() ? '<button class="btn' + (S.fix ? '' : ' primary') + '" data-act="rthome">' + (n ? 'Go to ' : 'Start from ') + esc(homePort().name) + '</button>' : '') + (n ? '<button class="btn" data-act="rtundo">Undo</button>' : '') + '<button class="btn ghost" data-act="rtclose">Close</button></div>';
     if (S.routes.length && !n) h += '<div class="mo-h">Saved routes</div>' + S.routes.slice().reverse().map((r) => '<div class="li"><div class="li-main"><b>' + esc(r.name) + '</b><span class="tnum">' + r.pts.length + ' waypoints</span></div><div class="li-btns"><button class="btn small" data-act="rtload" data-id="' + r.id + '">Open</button><button class="btn small" data-act="rtdel" data-id="' + r.id + '">Delete</button></div></div>').join('');
     h += '</div>'; openSheet(h); return;
   }
@@ -543,6 +559,7 @@ function renderRouteSheet() {
   h += '<div class="trio"><div><span class="lbl">DISTANCE</span><b class="tnum">' + dv + '</b><span class="unit">' + du + '</span></div><div><span class="lbl">TIME</span><b class="tnum">' + fmtDur(st.hrs).replace(' min', 'm') + '</b><span class="unit">at ' + fmtSpeed(st.spd) + ' ' + SPEED_LBL[S.settings.speedUnit] + '</span></div><div><span class="lbl">ARRIVE</span><b class="tnum">' + fmtClock(st.arrive) + '</b><span class="unit">' + new Date(st.arrive).toLocaleDateString([], { weekday: 'short' }) + '</span></div></div>' +
     (st.fuel != null ? '<div class="sub tnum" style="margin:-4px 0 8px">Fuel about ' + (Math.round(st.fuel * 10) / 10) + ' gal at ' + S.boat.gph + ' gal/h' + (S.boat.tankGal ? ' · ' + Math.round(st.fuel / S.boat.tankGal * 100) + '% of your tank' : '') + '. An estimate: keep a third in reserve.</div>' : '');
   h += '<div class="field" style="margin:4px 0 8px"><label for="rtDepart">Depart</label><input id="rtDepart" type="datetime-local" value="' + toLocalInput(RT.depart || Date.now()) + '"></div>';
+  h += rtSearchHtml(n);
   h += '<div class="rt-legs">' + st.legs.map((l) => '<div class="rt-leg"><span class="rt-n">' + l.i + '→' + (l.i + 1) + '</span><span class="tnum">' + fmtDist(l.d) + ' · ' + fmtBrg(l.brg) + '°T · ' + fmtDur(l.hrs).replace(' min', 'm') + '</span><span class="rt-w">' + (l.wind ? compass16(l.wind.dir) + ' ' + Math.round(speedOut(l.wind.spd)) + ' g' + Math.round(speedOut(l.wind.gust)) : '') + '</span></div>' +
     l.bridges.map((x) => '<div class="rt-warn v-' + x.j.level + '">' + esc(x.br.name) + ': ' + esc(x.j.text) + '</div>').join('')).join('') + '</div>';
   h += '<p class="hint" style="margin:6px 0">Follow the water adds turning points so each leg stays in water NOAA charts as deep enough for your boat. Check the chart for shoals; the wind shown is the forecast where you are now.</p>';
@@ -558,6 +575,7 @@ sheet.addEventListener('click', (e) => {
   if (act === 'rtrev') { RT.pts.reverse(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclear') { if (!armed(b, 'Tap again to clear')) return; RT.pts = []; store.set('routeDraft', []); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclose') routeMode(false);
+  if (act === 'rthome' && homePort()) { const hp = homePort(); if (RT.pts.length) RT.pts.push({ lat: hp.lat, lon: hp.lon, name: hp.name }); else RT.pts.unshift({ lat: hp.lat, lon: hp.lon, name: hp.name }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); }
   if (act === 'rtwater' && RT.pts.length > 1) { b.disabled = true; (async () => { const keep = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); RT.pts = await routeByWater(keep); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); })(); }
   if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn || undefined })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
   if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((p) => ({ lat: p.lat, lon: p.lon })); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
@@ -1790,6 +1808,30 @@ function placeSugHtml(list, attr) {
   return list.map((o, i) => '<button type="button" class="sug" ' + attr + '="' + i + '"><b>' + esc(o.name) + '</b><span>' + esc(o.sub || '') + '</span><em class="tnum">' + fmtDist(o.d) + '</em></button>').join('');
 }
 
+/* ---------- home port ---------- */
+if (!S.settings.homePort && !S.settings.homeSeeded) { S.settings.homePort = { name: 'Severn Sailing Association', lat: 38.97542, lon: -76.48041 }; S.settings.homeSeeded = 1; saveSettings(); }
+const homePort = () => S.settings.homePort || null;
+function openHomePort() {
+  const hp = homePort();
+  openSheet('<h3>Home port</h3><div class="sub">' + (hp ? 'Now: <b>' + esc(hp.name) + '</b>. ' : '') + 'Used as the start of routes when you plan from a computer, and where Find me goes without GPS.</div>' +
+    '<div class="field"><input id="hpQ" type="search" autocomplete="off" placeholder="Marina, club or town…"></div><div id="hpSugs" class="sugs" hidden></div>' +
+    '<div class="row-btns">' + (S.fix ? '<button class="btn" data-act="hphere">Where I am now</button>' : '') + '<button class="btn" data-act="hpcenter">Center of the chart</button><button class="btn ghost" data-act="close">Close</button></div>');
+  setTimeout(() => { const q = $('hpQ'); if (q) q.focus(); }, 60);
+}
+function setHomePort(o) { S.settings.homePort = { name: o.name.replace(/\s*\(sample spot\)/, ''), lat: o.lat, lon: o.lon }; saveSettings(); closeSheet(); toast('Home port: ' + S.settings.homePort.name); try { renderNav(); } catch (e) { /* closed */ } }
+let hpList = [], hpT = null;
+sheet.addEventListener('input', (e) => {
+  if (e.target.id !== 'hpQ') return; const q = e.target.value.trim(), box = $('hpSugs'); clearTimeout(hpT);
+  if (q.length < 2) { box.hidden = true; return; } box.hidden = false; box.innerHTML = '<div class="sug-empty">Searching…</div>';
+  hpT = setTimeout(async () => { hpList = await suggestPlaces(q, homePort() || searchCenter()); if ($('hpSugs')) $('hpSugs').innerHTML = placeSugHtml(hpList, 'data-hpsug'); }, 250);
+});
+sheet.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-hpsug]'); if (g) { setHomePort(hpList[+g.dataset.hpsug]); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'hphere' && S.fix) setHomePort({ name: 'Home port', lat: S.fix.lat, lon: S.fix.lon });
+  if (b.dataset.act === 'hpcenter') { const c = map.getCenter(); setHomePort({ name: 'Home port', lat: c.lat, lon: c.lng }); }
+});
+
 /* ---------- multi-stop trip planner: type each stop, see legs, save, start ---------- */
 S.trip2 = store.get('tripDraft', { name: '', stops: [] });
 function saveTripDraft() { store.set('tripDraft', S.trip2); }
@@ -1804,7 +1846,7 @@ function tripCard() {
   h += '<div class="tp-stops">' + st.map((p, i) => '<div class="tp-stop"><span class="tp-n">' + (i + 1) + '</span><div class="tp-main"><b>' + esc(p.name) + '</b>' + (i ? '<span class="tnum">' + fmtDist(L2.legs[i - 1].d) + ' · ' + fmtDur(L2.legs[i - 1].hrs).replace(' min', 'm') + ' · ' + fmtBrg(L2.legs[i - 1].brg) + '°T</span>' : '<span>Start</span>') + '</div>' +
     '<button type="button" class="tp-b" data-tpup="' + i + '" aria-label="Move up"' + (i ? '' : ' disabled') + '>↑</button><button type="button" class="tp-b" data-tpx="' + i + '" aria-label="Remove">×</button></div>').join('') + '</div>';
   h += '<div class="tp-add"><input id="tpQ" type="search" autocomplete="off" placeholder="' + (st.length ? 'Add the next stop…' : 'Where do you start? (or tap My boat)') + '"><div id="tpSugs" class="sugs" hidden></div>' +
-    '<div class="nf-quick" style="margin-left:0">' + (S.fix && !st.length ? '<button type="button" class="btn small" data-act="tpboat">My boat</button>' : '') + (st.length > 1 ? '<button type="button" class="btn small" data-act="tpback">Back to start</button>' : '') + '</div></div>';
+    '<div class="nf-quick" style="margin-left:0">' + (S.fix && !st.length ? '<button type="button" class="btn small" data-act="tpboat">My boat</button>' : '') + (homePort() ? '<button type="button" class="btn small" data-act="tphome">' + esc(homePort().name.length > 22 ? 'Home port' : homePort().name) + '</button>' : '') + (st.length > 1 ? '<button type="button" class="btn small" data-act="tpback">Back to start</button>' : '') + '</div></div>';
   if (st.length > 1) {
     h += '<div class="tp-sum tnum"><b>' + fmtDist(L2.tot) + '</b> · ' + fmtDur(L2.hrs) + ' at ' + fmtSpeed(navSpeed()) + ' ' + SPEED_LBL[S.settings.speedUnit] + (L2.fuel != null ? ' · about ' + (Math.round(L2.fuel * 10) / 10) + ' gal' : '') + '</div>' +
       '<p class="hint" style="margin:4px 0 8px">Start and Edit on chart work out a path through charted water deep enough for your boat, from NOAA chart depths. Check it on the chart before you go.</p>' +
@@ -1828,6 +1870,7 @@ $('panelNav').addEventListener('click', (e) => {
   const up = e.target.closest('[data-tpup]'); if (up) { const i = +up.dataset.tpup, a = S.trip2.stops; if (i > 0) { [a[i - 1], a[i]] = [a[i], a[i - 1]]; saveTripDraft(); renderNav(); } return; }
   const x = e.target.closest('[data-tpx]'); if (x) { S.trip2.stops.splice(+x.dataset.tpx, 1); saveTripDraft(); renderNav(); return; }
   const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act, st = S.trip2.stops;
+  if (act === 'tphome' && homePort()) { st.push(Object.assign({}, homePort())); saveTripDraft(); renderNav(); }
   if (act === 'tpboat' && S.fix) { st.push({ name: 'My boat', lat: S.fix.lat, lon: S.fix.lon }); saveTripDraft(); renderNav(); }
   if (act === 'tpback' && st.length) { st.push(Object.assign({}, st[0])); saveTripDraft(); renderNav(); }
   if (act === 'tpclear') { if (!armed(b, 'Tap again to clear')) return; S.trip2 = { name: '', stops: [] }; saveTripDraft(); renderNav(); }
@@ -2000,7 +2043,7 @@ function renderNav() {
   let h = '<div class="p-head"><div><div class="eyebrow">Navigate</div><h2>Where to?</h2></div></div>';
   if (g) h += '<div class="card nav-active"><div class="li"><div class="li-main"><b>Navigating to ' + esc(g.name) + '</b><span class="tnum">' + (S.fix ? fmtDist(distNm(S.fix, g)) + ' · ' + fmtBrg(bearing(S.fix, g)) + '°T' : 'Waiting for GPS') + '</span></div><div class="li-btns"><button class="btn small" data-act="navshow">Show</button><button class="btn small danger" data-act="navend">End</button></div></div></div>';
   h += '<div class="card"><div class="nav-fields">' +
-    '<div class="nf"><span class="nf-dot from"></span><div><small>From</small><b>' + (S.fix ? 'My boat' : 'Tap the chart in the route planner') + '</b></div></div>' +
+    '<div class="nf"><span class="nf-dot from"></span><div style="flex:1"><small>From</small><b>' + (S.fix ? 'My boat' : homePort() ? esc(homePort().name) + ' (home port)' : 'Set a home port') + '</b></div><button type="button" class="btn small" data-act="navhome">' + (homePort() ? 'Home port' : 'Set home port') + '</button></div>' +
     '<div class="nf"><span class="nf-dot to"></span><div style="flex:1;min-width:0"><small>To</small><input id="navToQ" type="search" autocomplete="off" enterkeyhint="search" placeholder="Marina, club, anchorage, town…" value="' + esc(S.navDest ? S.navDest.name : '') + '"><div id="navSugs" class="sugs" hidden></div></div></div>' +
     '<div class="nf-quick"><button type="button" class="btn small" data-act="navpick">Pick on the chart</button>' + S.waypoints.slice(-3).reverse().map((w) => '<button type="button" class="btn small" data-wpdest="' + w.id + '">' + esc(w.name) + '</button>').join('') + '</div></div>' +
     '<div class="set-row"><div class="sr-text"><b>Under</b></div></div>' + optSeg2('navMode', [['engine', 'Engine · ' + fmtSpeed(st.cruise) + ' ' + SPEED_LBL[st.speedUnit]], ['sail', 'Sail · ' + fmtSpeed(st.sailSpeed || 5) + ' ' + SPEED_LBL[st.speedUnit]]], st.navMode) +
@@ -2023,8 +2066,10 @@ $('panelNav').addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, dest = S.navDest || null;
   if (act === 'navpick') { setTab('chart'); toast('Press and hold the spot you want, then tap Navigate to.', 4000); return; }
+  if (act === 'navhome') { openHomePort(); return; }
   if (act === 'navgo') {
-    if (dest) { S.navDest = null; if (S.fix && distNm(S.fix, dest) > 0.3) { (async () => { const pts = await routeByWater([{ lat: S.fix.lat, lon: S.fix.lon, name: 'Start' }, { lat: dest.lat, lon: dest.lon, name: dest.name }]); if (pts.length > 2) routeLeg(pts, 1); else setGoto(dest.name, dest.lat, dest.lon); })(); } else setGoto(dest.name, dest.lat, dest.lon); return; }
+    const from = S.fix || homePort();
+    if (dest) { S.navDest = null; if (from && distNm(from, dest) > 0.3) { (async () => { const pts = await routeByWater([{ lat: from.lat, lon: from.lon, name: S.fix ? 'Start' : from.name }, { lat: dest.lat, lon: dest.lon, name: dest.name }]); if (pts.length > 2) routeLeg(pts, 1); else setGoto(dest.name, dest.lat, dest.lon); })(); } else setGoto(dest.name, dest.lat, dest.lon); return; }
     toast('Type a destination first, or press and hold a spot on the chart.', 3500); const q = $('navToQ'); if (q) q.focus();
   }
   if (act === 'navplan') { RT.pts = []; if (S.fix) RT.pts.push({ lat: S.fix.lat, lon: S.fix.lon }); if (dest) RT.pts.push({ lat: dest.lat, lon: dest.lon }); store.set('routeDraft', RT.pts); routeMode(true); }
@@ -3635,7 +3680,7 @@ $('searchShowMap').addEventListener('click', () => {
 $('btnFollow').addEventListener('click', () => {
   if (S.fix) { setFollow(true); return; }
   // no GPS (laptop): take me home — your home waypoint if saved, otherwise Annapolis
-  const home = S.waypoints.find((w) => /home/i.test(w.name)) || { lat: 38.975, lon: -76.47, name: 'Annapolis' };
+  const home = homePort() || S.waypoints.find((w) => /home/i.test(w.name)) || { lat: 38.975, lon: -76.47, name: 'Annapolis' };
   map.setView([home.lat, home.lon], 12); toast('No GPS here, so this is ' + (home.name || 'home') + '. Drag the chart to plan anywhere.', 3500);
 });
 $('btnZoomIn').addEventListener('click', () => map.zoomIn());
@@ -3671,7 +3716,7 @@ const QUICK = [
   ['br', 'Bridges', () => S.settings.bridges !== false, (on) => { S.settings.bridges = on; refreshBridges(true); }],
   ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); }],
   ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); }],
-  ['roads', 'Roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
+  ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
   ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); }],
   ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
 ];
