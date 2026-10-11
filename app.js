@@ -7,8 +7,9 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
   get(k, d) { try { const v = localStorage.getItem('tl.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('tl.' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } },
+  set(k, v) { try { localStorage.setItem('tl.' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } if (window.__tlSync && !SYNC_SKIP.test(k)) window.__tlSync(); },
 };
+const SYNC_SKIP = /^(stations|bridges|bridgeTiles|mplaces|mpTiles|plTiles|weather|tide|encIds|obs|alrSeen|demo|sync)/; // caches stay local; your own data syncs
 const saveTimers = {};
 function saveSoon(key, getter, ms = 3000) {
   clearTimeout(saveTimers[key]);
@@ -2255,9 +2256,10 @@ function renderMenu() {
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
       menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
+      menuTile('account', 'settings', 'Account and sync', window.__sbEmail ? 'Signed in as ' + esc(window.__sbEmail) : 'Sign in so your boats follow you everywhere') +
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 79. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 80. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2275,6 +2277,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'help') { openHelp(); return; }
   if (a === 'pro') { openResources(); return; }
   if (a === 'mapopts') { setTab('chart'); openLayersSheet(); return; }
+  if (a === 'account') { openAccount(); return; }
   if (a === 'backup') { // everything the app keeps in this browser (boats, routes, tracks, spots, settings, logs, receipts); photos stay on the device
     const o = { app: 'Tideline', v: 1, at: new Date().toISOString(), data: {} };
     for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('tl.') && !/^tl\.(stations|bridges|mplaces|plTiles|weather|tide|encIds)/.test(k)) o.data[k] = localStorage.getItem(k); }
@@ -5023,6 +5026,67 @@ function renderMini() {
 }
 $('miniInst').addEventListener('click', () => setCockpit(true));
 setInterval(renderMini, 1000); renderMini();
+/* ---------- account and sync (Supabase): sign in with your email, and your boats, routes and logs follow you to any browser or phone ---------- */
+const SB = { cfg: store.get('syncCfg', null), client: null, user: null, busy: false, t: null, last: store.get('syncAt', 0) };
+function syncData() { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('tl.') && !SYNC_SKIP.test(k.slice(3)) && k !== 'tl.syncCfg' && k !== 'tl.syncAt') o[k] = localStorage.getItem(k); } return o; }
+function sbLoad() { return new Promise((res, rej) => { if (window.supabase) return res(); const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); }
+async function sbInit() {
+  if (!SB.cfg || SB.client) return SB.client;
+  try { await sbLoad(); SB.client = window.supabase.createClient(SB.cfg.url, SB.cfg.key, { auth: { persistSession: true, detectSessionInUrl: true } }); } catch (e) { return null; }
+  const { data } = await SB.client.auth.getSession(); SB.user = data.session && data.session.user; window.__sbEmail = SB.user && SB.user.email;
+  SB.client.auth.onAuthStateChange((ev, sess) => { const was = SB.user; SB.user = sess && sess.user; window.__sbEmail = SB.user && SB.user.email; if (SB.user && !was) { toast('Signed in as ' + SB.user.email + '. Syncing…'); syncPull(true); } renderAccount(); });
+  if (SB.user) syncPull(false);
+  return SB.client;
+}
+async function syncPull(first) {
+  if (!SB.client || !SB.user || SB.busy) return; SB.busy = true;
+  try {
+    const { data, error } = await SB.client.from('tideline_data').select('data, updated_at').eq('user_id', SB.user.id).maybeSingle();
+    if (error) throw error;
+    const remoteAt = data ? Date.parse(data.updated_at) : 0, localHas = Object.keys(syncData()).length > 3;
+    if (data && data.data && remoteAt > SB.last && (!localHas || first ? confirm('Load the boats, routes and settings saved in your account (' + new Date(remoteAt).toLocaleString() + ')? This replaces what is in this browser.') : true)) {
+      Object.entries(data.data).forEach(([k, v]) => localStorage.setItem(k, v)); SB.last = remoteAt; store.set('syncAt', remoteAt); SB.busy = false; toast('Your data is loaded. Reloading…'); setTimeout(() => location.reload(), 700); return;
+    }
+    SB.busy = false; if (!data || remoteAt <= SB.last || localHas) await syncPush();
+  } catch (e) { SB.err = (e && e.message) || 'Sync failed'; }
+  SB.busy = false; renderAccount();
+}
+async function syncPush() {
+  if (!SB.client || !SB.user) return;
+  try {
+    const now = new Date().toISOString();
+    const { error } = await SB.client.from('tideline_data').upsert({ user_id: SB.user.id, data: syncData(), updated_at: now });
+    if (error) throw error; SB.last = Date.parse(now); localStorage.setItem('tl.syncAt', String(SB.last)); SB.err = '';
+  } catch (e) { SB.err = (e && e.message) || 'Sync failed'; }
+  renderAccount();
+}
+window.__tlSync = () => { if (!SB.user) return; clearTimeout(SB.t); SB.t = setTimeout(syncPush, 4000); };
+window.addEventListener('online', () => { if (SB.user) syncPush(); });
+function renderAccount() { if (!sheet.hidden && $('acctBox')) openAccount(true); }
+function openAccount(refresh) {
+  let h = '<h3>Account and sync</h3>';
+  if (!SB.cfg) {
+    h += '<div class="sub">Connect Tideline to your free Supabase project once. After that you sign in with your email on any browser or phone, and everything follows you.</div>' +
+      '<div class="field"><label>Project URL</label><input id="sbUrl" placeholder="https://xxxx.supabase.co"></div><div class="field"><label>Anon public key</label><input id="sbKey" placeholder="eyJhbGciOi…"></div>' +
+      '<div class="row-btns"><button class="btn primary" data-act="sbcfg">Connect</button></div><p class="hint">Setup steps are in the Tideline repo: tools/supabase/README.md. The anon key is meant to be public; your data is protected by sign-in.</p>';
+  } else if (!SB.user) {
+    h += '<div class="sub">Sign in with your email. We send you a link; tap it on this device and you are in. No password.</div><div class="field"><label>Email</label><input id="sbEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>' +
+      '<div class="row-btns"><button class="btn primary" data-act="sbsend">Email me a sign-in link</button></div>' + (SB.sent ? '<p class="hint"><b>Check your email</b> (and spam) for the link from Supabase. Open it in this browser.</p>' : '');
+  } else {
+    h += '<div class="sub">Signed in as <b>' + esc(SB.user.email) + '</b></div><p class="hint">' + (SB.err ? '<b class="warn-t">' + esc(SB.err) + '</b>' : 'Boats, routes, tracks, spots, logs, receipts and settings sync automatically.' + (SB.last ? ' Last saved ' + agoTxt(SB.last) + '.' : '')) + ' Photos stay on the device they were taken on.</p>' +
+      '<div class="row-btns"><button class="btn" data-act="sbpush">Sync now</button><button class="btn ghost" data-act="sbout">Sign out</button></div>';
+  }
+  h = '<div id="acctBox">' + h + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div></div>';
+  if (refresh && $('acctBox')) $('acctBox').outerHTML = h; else openSheet(h);
+}
+sheet.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act]'); if (!b || !$('acctBox')) return; const a = b.dataset.act;
+  if (a === 'sbcfg') { const url = ($('sbUrl').value || '').trim().replace(/\/$/, ''), key = ($('sbKey').value || '').trim(); if (!/^https:\/\/.+\.supabase\.co$/.test(url) || key.length < 40) { toast('Paste the Project URL and the anon public key from Supabase → Project settings → API'); return; } SB.cfg = { url, key }; store.set('syncCfg', SB.cfg); await sbInit(); openAccount(true); }
+  if (a === 'sbsend') { const em = ($('sbEmail').value || '').trim(); if (!/.+@.+\..+/.test(em)) { toast('Enter your email'); return; } await sbInit(); const { error } = await SB.client.auth.signInWithOtp({ email: em, options: { emailRedirectTo: location.origin + location.pathname } }); if (error) toast(error.message); else { SB.sent = true; openAccount(true); } }
+  if (a === 'sbpush') { await syncPush(); toast(SB.err ? SB.err : 'Synced'); }
+  if (a === 'sbout') { await SB.client.auth.signOut(); SB.user = null; openAccount(true); }
+});
+setTimeout(sbInit, 1500);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, encLayerIds, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
