@@ -1,5 +1,5 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v74';
+const APP = 'tl-app-v75';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
@@ -27,10 +27,10 @@ async function cacheFirst(req, cacheName) {
   if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
   return res;
 }
-async function networkFirst(req, cacheName) {
+async function networkFirst(req, cacheName, fresh) {
   const cache = await caches.open(cacheName);
   try {
-    const res = await fetch(req);
+    const res = await fetch(fresh ? new Request(req, { cache: 'no-cache' }) : req); // the app's own files skip the browser cache so updates show on reload
     if (res && res.ok) cache.put(req, res.clone());
     return res;
   } catch (err) {
@@ -54,5 +54,5 @@ self.addEventListener('fetch', (e) => {
   if (FONT_HOSTS.includes(url.hostname)) { e.respondWith(cacheFirst(req, APP)); return; }
   if (DATA_HOSTS.includes(url.hostname)) { e.respondWith(networkFirst(req, DATA)); return; }
   // the app itself: always try the network first so a new version shows on the next reload; the saved copy is only for offline
-  if (url.origin === self.location.origin) { e.respondWith(networkFirst(req, APP).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || new Response('Offline', { status: 503 })))); }
+  if (url.origin === self.location.origin) { e.respondWith(networkFirst(req, APP, true).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || new Response('Offline', { status: 503 })))); }
 });
