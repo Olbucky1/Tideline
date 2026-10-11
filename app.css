@@ -1079,3 +1079,12 @@ html.nogps #app.wide .bottom-stack { left: 10px; }
 :root[data-night] .br-ic i, :root[data-dusk] .br-ic i { background: rgba(20,14,14,.85); }
 :root[data-night] .br-ic b, :root[data-dusk] .br-ic b { color: var(--ink); text-shadow: 0 0 3px #000, 0 0 4px #000; }
 html[data-pins="L"] .br-ic { transform: scale(1.2); } html[data-pins="XL"] .br-ic { transform: scale(1.45); }
+/* MOB v3: small, bottom-left everywhere */
+#btnMOB.mob { width: 38px !important; height: 38px !important; font-size: 10px !important; border-width: 2px !important; }
+@media (max-width: 899px) {
+  .mob { top: auto !important; bottom: calc(var(--tabbar-h) + var(--stackH, 90px) + 18px + env(safe-area-inset-bottom, 0px)) !important; left: 12px !important; }
+  html:not(.nogps) .fab-col:not(.fab-right) { top: calc(56px + env(safe-area-inset-top, 0px)) !important; }
+}
+html.calm .fab-col.fab-right { right: 12px !important; left: auto !important; }
+html.calm #app.wide .fab-col.fab-right { right: 412px !important; }
+html[data-side="third"].calm #app.wide:has(#panelSide:not([hidden])) .fab-col.fab-right, html[data-side="half"].calm #app.wide:has(#panelSide:not([hidden])) .fab-col.fab-right { right: calc(var(--sideW) + 12px) !important; }
