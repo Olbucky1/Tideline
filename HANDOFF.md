@@ -1,6 +1,6 @@
 # Tideline handoff notes
 
-Last updated: build 110 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
+Last updated: build 118 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
 
 ## What it is
 A phone-first marine chart app (PWA) for the Chesapeake, built to work anywhere NOAA has data. Owner: Andy Brickman. Design rules from Andy: clean, calm first screen; symmetry; everything toggleable; an X on every popup; press-and-hold names on phone (hover on desktop); nothing cluttered.
@@ -57,3 +57,15 @@ Product
 - Cameras: bow / stern / masthead cameras shown as a tile in the instruments (docking, crab pots). Browsers can't show most boat cameras (local http/RTSP streams), so this needs the native app or a camera that offers HTTPS/WebRTC. Partner idea: a cheap solar Wi-Fi bow camera.
 - Gauge looks: six themes now (Midnight chrome, Arctic white, Bronze, Glass ocean, Expedition, Heritage brass) plus Analog / Analog + digital / Digital. ChatGPT's concept images are the visual reference; new themes = new colour sets in app.css (search "gauge themes").
 - Icon themes that match the gauge theme (subtle, chart stays the hero).
+
+## Since build 110
+Spot card (dark glass), arrange buttons, weather model picker, AIS memory (3 h for moored boats, follows the chart), "What do you use Tideline for" + monthly events page, gauge themes (6) with chrome/brass bezels and analog/digital/both, deep-navy daytime menus, smooth forecast slider (5-minute steps) with the last 50 minutes of real radar, wind lines blend between forecast hours.
+
+## For a reviewer (another AI or a person)
+Live app: https://olbucky1.github.io/Tideline/ (phone first; Safari on iPhone is the main target). Code: https://github.com/Olbucky1/Tideline (app.js, app.css, index.html).
+Please review as a demanding boater (fishing, cruising, sailing) and as a front-end engineer:
+1. Top 10 problems on a phone, ranked: confusing, ugly, broken, slow, cluttered.
+2. Safety: anything that could mislead someone navigating (depth, routes, bridges, currents, weather).
+3. Missing basics that Navionics, Argo, PredictWind or savvy navvy users would expect.
+4. Code risks: bugs, performance, things that will break at scale, data-licensing problems (Open-Meteo is free for non-commercial use only; NOAA data is public).
+Give concrete fixes. Keep the design rules: calm chart first, symmetry, everything toggleable, an X on every popup.

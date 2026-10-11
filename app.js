@@ -1762,9 +1762,14 @@ function wsField() {
   WS.moving = false;
   const sz = map.getSize(), dpr = Math.min(2, window.devicePixelRatio || 1);
   WS.cv.width = sz.x * dpr; WS.cv.height = sz.y * dpr; WS.cv.style.width = sz.x + 'px'; WS.cv.style.height = sz.y + 'px'; WS.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  WS.field = g.pts.filter((p) => p.t.length).map((p) => { const i = gridIndex(p.t), spd = p.a && p.a[i], dir = p.b && p.b[i]; if (spd == null || dir == null) return null; const pt = map.latLngToContainerPoint([p.lat, p.lon]), to = (dir + 180) * Math.PI / 180; return { x: pt.x, y: pt.y, u: Math.sin(to) * spd, v: -Math.cos(to) * spd, s: spd }; }).filter(Boolean);
+  const want = Date.now() + WX.hour * 3600000, rot = mapRot();
+  WS.field = g.pts.filter((p) => p.t.length).map((p) => { // blend the two forecast hours either side of the slider time, so the lines change smoothly
+    let i0 = 0; for (let i = 0; i < p.t.length; i++) if (p.t[i] <= want) i0 = i; const i1 = Math.min(p.t.length - 1, i0 + 1), f = p.t[i1] > p.t[i0] ? Math.max(0, Math.min(1, (want - p.t[i0]) / (p.t[i1] - p.t[i0]))) : 0;
+    const uv = (i) => { const sp = p.a && p.a[i], d = p.b && p.b[i]; if (sp == null || d == null) return null; const to = (d + 180 + rot) * Math.PI / 180; return [Math.sin(to) * sp, -Math.cos(to) * sp, sp]; };
+    const a = uv(i0), b = uv(i1) || a; if (!a) return null; const u = a[0] + (b[0] - a[0]) * f, v = a[1] + (b[1] - a[1]) * f, spd = a[2] + (b[2] - a[2]) * f;
+    const pt = map.latLngToContainerPoint([p.lat, p.lon]); return { x: pt.x, y: pt.y, u, v, s: spd }; }).filter(Boolean);
   const n = Math.min(1400, Math.round(sz.x * sz.y / 1500));
-  WS.parts = Array.from({ length: n }, () => wsSeed(sz));
+  if (!WS.parts.length || !WS.sz || WS.sz.x !== sz.x || WS.sz.y !== sz.y) WS.parts = Array.from({ length: n }, () => wsSeed(sz)); // keep the lines flowing while the time slider moves
   WS.ref = map.getCenter(); WS.refPt = map.latLngToContainerPoint(WS.ref);
   WS.sz = sz;
 }
@@ -1785,7 +1790,7 @@ function wsFrame() {
   if (!WS.run) return;
   WS.raf = requestAnimationFrame(wsFrame);
   if (WS.moving || !WS.field || !WS.field.length) return;
-  const c = WS.ctx, sz = WS.sz, k = 0.11; // pixels per frame per knot
+  const c = WS.ctx, sz = WS.sz, k = 0.09; // pixels per frame per knot: light air barely drifts, a breeze streams
   c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.085)'; c.fillRect(0, 0, sz.x, sz.y);
   c.globalCompositeOperation = 'source-over'; c.lineWidth = 1.4; c.lineCap = 'round';
   for (const p of WS.parts) {
@@ -1800,8 +1805,13 @@ function wsStop() { WS.run = false; cancelAnimationFrame(WS.raf); if (WS.cv) { W
 const rainGrid = L.layerGroup().addTo(map);
 function drawRainForecast() { // future hours: model rain as soft blue patches; hour 0 is the live radar
   rainGrid.clearLayers();
-  const g = wxOn('rain') && WX.grids.rain, live = WX.hour < 0.08;
+  const g = wxOn('rain') && WX.grids.rain, live = Math.abs(WX.hour) < 0.08, past = WX.hour <= -0.08;
   if (map.hasLayer(radarLayer) !== (wxOn('rain') && live)) { if (wxOn('rain') && live) radarLayer.addTo(map); else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer); }
+  // the past 50 minutes of real radar, in 5-minute frames (Iowa Environmental Mesonet keeps them), so you can see where a storm came from
+  const mm = past ? Math.max(5, Math.min(50, Math.round(-WX.hour * 12) * 5)) : 0;
+  if (wxOn('rain') && past && !window.TL_DEMO) { const url = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-m' + String(mm).padStart(2, '0') + 'm/{z}/{x}/{y}.png'; if (!WX.pastRadar) WX.pastRadar = L.tileLayer(url, { opacity: 0.6, zIndex: 5, maxNativeZoom: 12, attribution: 'Radar: Iowa Environmental Mesonet' }); else if (WX.pastRadar._url !== url) WX.pastRadar.setUrl(url, false); if (!map.hasLayer(WX.pastRadar)) WX.pastRadar.addTo(map); }
+  else if (WX.pastRadar && map.hasLayer(WX.pastRadar)) map.removeLayer(WX.pastRadar);
+  if (past) return;
   if (!g || live) return;
   const sz = map.getSize(), r = Math.max(sz.x, sz.y) / 7, ren = WX.rren || (WX.rren = L.canvas({ padding: 0.3 }));
   g.pts.forEach((p) => { if (!p.t.length || !p.a) return; const v = p.a[gridIndex(p.t)]; if (!(v >= 0.1)) return;
@@ -2026,20 +2036,20 @@ function hourSeverity(k, only) { // the colour for one layer at hour k, using th
   return 'var(--line)';
 }
 function forecastScrubber() {
-  const max = WXH, k = Math.min(max, WX.hour), strip = [];
+  const max = WXH, k = Math.min(max, WX.hour), strip = [], lo = wxOn('rain') ? -0.84 : 0;
   const kinds = ['wind', 'waves', 'rain'].filter(wxOn); if (!kinds.length) kinds.push('wind');
   kinds.forEach((kd) => { const row = []; for (let i = 0; i <= max; i++) row.push('<i style="background:' + hourSeverity(i, kd) + '"></i>'); strip.push('<div class="sc-row" title="' + kd + '">' + row.join('') + '</div>'); });
   const marks = []; for (let i = 0; i <= max; i++) { const d = new Date(Date.now() + i * 3600000); if (d.getHours() === 0) marks.push('<em style="left:' + (i / max * 100).toFixed(1) + '%">' + d.toLocaleDateString([], { weekday: 'short' }) + '</em>'); }
   return '<div class="scrub"><button type="button" class="sc-b" data-wxstep="-24" aria-label="Back a day">«</button><button type="button" class="sc-b" data-wxstep="-1" aria-label="Back an hour">‹</button>' +
-    '<div class="sc-mid"><div class="sc-bub" id="wxBub" style="left:' + (k / max * 100).toFixed(1) + '%">' + scrubLabel(k) + '</div><div class="sc-strip" aria-hidden="true">' + strip.join('') + '</div>' + marks.join('') +
-    '<input type="range" id="wxHour" min="0" max="' + max + '" step="any" value="' + k + '" aria-label="Forecast time"></div>' +
+    '<div class="sc-mid"><div class="sc-bub" id="wxBub" style="left:' + ((k - lo) / (max - lo) * 100).toFixed(1) + '%">' + scrubLabel(k) + '</div><div class="sc-strip" aria-hidden="true">' + strip.join('') + '</div>' + marks.join('') +
+    '<input type="range" id="wxHour" min="' + (wxOn('rain') ? -0.84 : 0) + '" max="' + max + '" step="any" value="' + k + '" aria-label="Forecast time"></div>' +
     '<button type="button" class="sc-b" data-wxstep="1" aria-label="Forward an hour">›</button><button type="button" class="sc-b" data-wxstep="24" aria-label="Forward a day">»</button><button type="button" class="sc-b sc-play' + (WX.play ? ' on' : '') + '" data-wxplay aria-label="' + (WX.play ? 'Pause' : 'Play the forecast') + '" data-tip="' + (WX.play ? 'Pause' : 'Play: watch wind, waves and rain change hour by hour') + '">' + (WX.play ? '❚❚' : '▶') + '</button></div>';
 }
-function scrubLabel(k) { if (k < 0.08) return 'Now'; const d = new Date(Math.round((Date.now() + k * 3600000) / 600000) * 600000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+function scrubLabel(k) { if (Math.abs(k) < 0.08) return 'Now'; if (k < 0) return Math.round(-k * 60 / 5) * 5 + ' min ago'; const d = new Date(Math.round((Date.now() + k * 3600000) / 300000) * 300000); return (d.toDateString() === new Date().toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ') + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
 // the time slider moves smoothly; the map layers redraw at most a few times a second, and whenever the hour changes
 function setWxHour(k) {
-  WX.hour = Math.max(0, Math.min(WXH, k)); const r = $('wxHour'); if (r && document.activeElement !== r) r.value = WX.hour;
-  const b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = (WX.hour / WXH * 100).toFixed(2) + '%'; }
+  WX.hour = Math.max(wxOn('rain') ? -0.84 : 0, Math.min(WXH, k)); const r = $('wxHour'); if (r && document.activeElement !== r) r.value = WX.hour;
+  const lo = wxOn('rain') ? -0.84 : 0, b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = ((WX.hour - lo) / (WXH - lo) * 100).toFixed(2) + '%'; }
   $('wxBar').classList.toggle('future', WX.hour > 0.08);
   const hr = Math.round(WX.hour), now = performance.now();
   if (hr !== WX.drawnHr || now - (WX.drawnAt || 0) > 300) { WX.drawnHr = hr; WX.drawnAt = now; drawGrid(); try { if (curOn()) { drawCurrents(); } } catch (e) { /* currents not ready */ } }
@@ -2542,7 +2552,7 @@ function renderMenu() {
       menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 117. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 118. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;

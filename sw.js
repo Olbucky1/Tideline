@@ -1,5 +1,5 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v117';
+const APP = 'tl-app-v118';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [

@@ -1656,3 +1656,5 @@ html.arrange #fabs, html.arrange #fabsR { outline: 2px dashed color-mix(in srgb,
 :root[data-gstyle="digital"] :is(.cockpit, #panelSide) :is(.g-tick, .g-track, .g-danger, .g-ticks, .g-num) { display: none; }
 :root[data-gstyle="digital"] :is(.cockpit, #panelSide) .g-fill { opacity: .25; }
 :root[data-gstyle="analog"] :is(.cockpit, #panelSide) .g-big { font-size: 26px !important; opacity: .9; }
+/* water current arrows look different from wind: teal, with a wave mark on the label */
+.cur-a b::before { content: '≈ '; font-weight: 800; }
