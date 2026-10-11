@@ -148,7 +148,15 @@ function noaaUrl(x, y, z, transparent) {
   const bbox = [xmin, ymax - size, xmin + size, ymax].map((v) => v.toFixed(2)).join(',');
   return NOAA + '?bbox=' + bbox + '&bboxSR=3857&imageSR=3857&size=' + TILE_PX + ',' + TILE_PX +
     '&dpi=' + (TILE_PX === 512 ? 192 : 96) + '&format=png&transparent=' + (transparent ? 'true' : 'false') +
-    '&layers=show:0,1,2,3,4,5,6,7&f=image';
+    '&layers=show:0,1,2,3,4,5,6,7' + noaaDisplay() + '&f=image';
+}
+// NOAA chart display: show every depth sounding (S-52 "other" category) and shade water by this boat's safety depth
+let noaaDP = true;
+function noaaDisplay() {
+  if (!noaaDP || S.settings.soundings === false) return '';
+  const need = S.boat && S.boat.draftFt ? (S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt)) * 0.3048 : 2;
+  const P = [['DisplayCategory', '1,2,4'], ['SafetyContour', +need.toFixed(1)], ['SafetyDepth', +need.toFixed(1)], ['ShallowContour', +Math.max(1, need * 0.6).toFixed(1)], ['DeepContour', +Math.max(10, need * 3).toFixed(1)], ['TwoDepthShades', 2]];
+  return '&display_params=' + encodeURIComponent(JSON.stringify({ ECDISParameters: { version: '10.9', DynamicParameters: { Parameter: P.map(([name, value]) => ({ name, value })) } } }));
 }
 const NoaaLayer = L.TileLayer.extend({
   getTileUrl(c) { return noaaUrl(c.x, c.y, c.z, this.options.transparentChart); },
@@ -165,6 +173,10 @@ const LAYERS = {
   street: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
   seamarks: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Seamarks: OpenSeaMap' }),
 };
+(() => { let ok = 0, bad = 0; // if NOAA ever refuses the depth display settings, fall back to its plain chart
+  ['noaa', 'noaaOver'].forEach((k) => { LAYERS[k].on('tileload', () => { if (noaaDP) ok++; }); LAYERS[k].on('tileerror', () => { if (!noaaDP || ok) return; if (++bad >= 4) { noaaDP = false; LAYERS.noaa.redraw(); LAYERS.noaaOver.redraw(); } }); });
+})();
+
 const CHARTS = {
   noaa: { name: 'NOAA chart', note: 'Official US charts: depths, buoys, lights', layers: ['noaa'] },
   street: { name: 'Street map', note: 'Roads, marinas and shoreline, worldwide', layers: ['street'] },
@@ -295,6 +307,7 @@ function openLayersSheet() {
   html += tog('placesBox', 'Town names', 'A faint outline on land so you know where you are', S.settings.landPlaces !== false) + tog('roadsBox', 'Roads', 'Faint major roads on land', !!S.settings.landRoads);
   html += tog('ringsBox', 'Range rings', 'Distance rings around your boat', st.rings);
   html += tog('bridgesBox', 'Bridge clearances', 'Labels and warnings checked against your boat', st.bridges);
+  html += tog('soundBox', 'All depth soundings on the NOAA chart', 'Shows every charted depth number and shades water shallower than your draft plus buffer', st.soundings !== false);
   html += tog('seamarksBox', 'Buoys and lights on street and satellite maps', 'From OpenSeaMap, a community chart', st.seamarks);
   html += '<div class="mo-h">Weather on the chart (pick any)</div>' + tog('wxWind', 'Wind', 'Forecast arrows, speed and gust', wxOn('wind')) + tog('wxWaves', 'Waves', 'Forecast wave height', wxOn('waves')) + tog('wxRain', 'Rain radar', 'Live NEXRAD, every 5 minutes', wxOn('rain'));
 
@@ -337,6 +350,7 @@ function drawRings() {
 map.on('zoomend', drawRings);
 sheet.addEventListener('change', (e) => {
   if (e.target.name === 'chart') { S.settings.chart = e.target.value; saveSettings(); applyChart(); }
+  if (e.target.id === 'soundBox') { S.settings.soundings = e.target.checked; saveSettings(); noaaDP = true; LAYERS.noaa.redraw(); LAYERS.noaaOver.redraw(); }
   if (e.target.id === 'seamarksBox') { S.settings.seamarks = e.target.checked; saveSettings(); applyChart(); }
   if (e.target.id === 'wxWind' || e.target.id === 'wxWaves' || e.target.id === 'wxRain') setWxL({ wxWind: 'wind', wxWaves: 'waves', wxRain: 'rain' }[e.target.id], e.target.checked);
   if (e.target.id === 'bridgesBox') { S.settings.bridges = e.target.checked; saveSettings(); refreshBridges(true); }
