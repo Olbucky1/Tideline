@@ -117,9 +117,27 @@ function armed(btn, label) { // two-tap confirm, no dialogs
 
 /* ---------- map & layers ---------- */
 const last = store.get('lastPos', null);
-const map = L.map('map', { zoomControl: false, tapHold: true, worldCopyJump: true, maxZoom: 19, minZoom: 3 })
+const map = L.map('map', { zoomControl: false, tapHold: true, worldCopyJump: true, maxZoom: 19, minZoom: 3, scrollWheelZoom: false, zoomSnap: 0, zoomDelta: 1 })
   .setView(last ? [last.lat, last.lon] : [38.975, -76.47], last ? 14 : 12);
 map.attributionControl.setPrefix(false);
+/* Mac trackpads and mice: two-finger swipe pans the chart, pinch zooms smoothly, a mouse wheel zooms smoothly around the pointer */
+(() => {
+  const el = map.getContainer(); let zoomAcc = 0, raf = null, at = null;
+  const flush = () => { raf = null; if (!zoomAcc) return; const z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), map.getZoom() + zoomAcc)); zoomAcc = 0; map.setZoomAround(at, z, { animate: false }); };
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const px = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1, dx = e.deltaX * px, dy = e.deltaY * px;
+    const mouseWheel = e.deltaMode !== 0 || (e.wheelDeltaY && Math.abs(e.wheelDeltaY) % 120 === 0 && !e.deltaX) || (Math.abs(dy) >= 100 && !dx && Number.isInteger(dy));
+    if (e.ctrlKey || mouseWheel) { // pinch, or a real mouse wheel: smooth zoom around the pointer
+      at = map.mouseEventToContainerPoint(e);
+      zoomAcc += -dy * (e.ctrlKey ? 0.012 : 0.0035);
+      if (!raf) raf = requestAnimationFrame(flush);
+    } else { // two-finger swipe: pan like a document
+      if (typeof setFollow === 'function' && S.follow) setFollow(false);
+      map.panBy([dx, dy], { animate: false });
+    }
+  }, { passive: false });
+})();
 
 const NOAA = 'https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/MapServer/export';
 const HALF = 20037508.342789244;
