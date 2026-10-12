@@ -2775,7 +2775,8 @@ function renderMenu() {
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
       menuTile('month', 'log', new Date().toLocaleString([], { month: 'long' }) + ' on the water', 'Events, seasons and tips for how you boat') +
       menuTile('sailcoach', 'dash', 'Sailing coach', 'Sail plan, trim, which tack, best time to leave') +
-      menuTile('racecoach', 'dash', 'Race coach', 'Trim, targets, shifts and current for today') +
+      menuTile('tour', 'rules', 'Tour guide', 'History and sights along the way') +
+      menuTile('racecoach', 'dash', 'Race coach', 'Targets and trim for today, then a debrief of your race') +
       menuTile('fishcoach', 'dash', 'Fishing coach', 'What is biting, where, the tide and trolling speed') +
       menuTile('loop', 'log', 'Great Loop advisor', 'The route leg by leg, your boat\'s limits, live notices, looper reports') +
       menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
@@ -2786,7 +2787,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 160. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 161. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2816,6 +2817,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'fish') { setTab('chart'); openFishWild(); return; }
   if (a === 'sailcoach') { openSailCoach(); return; }
   if (a === 'racecoach') { openCoach('race'); return; }
+  if (a === 'tour') { openTour(); return; }
   if (a === 'fishcoach') { openCoach('fish'); return; }
   if (a === 'loop') { openLoop(); return; }
   if (a === 'tour') { startTour(0); return; }
@@ -8522,7 +8524,7 @@ function navStartIdx(pts) {
    and thumbs up / down that tunes it for this sailor. Everything it held back is in the debrief. */
 const KB = { trim: null, race: null, fish: null, loading: null };
 async function kbLoad() { if (KB.trim) return KB; if (!KB.loading) KB.loading = Promise.all(['trim', 'race', 'fish'].map((k) => fetch('kb/' + k + '.json').then((r) => r.json()).then((j) => { KB[k] = j; }))).catch(() => null); await KB.loading; return KB; }
-const RC = { on: false, kind: 'race', boat: null, log: [], held: [], lastSay: 0, topicAt: {}, quietUntil: 0, startAt: null, crew: null, stw: null, hist: [], tackAt: 0, perf: [], vote: store.get('coachVotes', {}), t: null, species: null };
+const RC = { on: false, kind: 'race', boat: null, log: [], held: [], lastSay: 0, topicAt: {}, quietUntil: 0, startAt: null, crew: null, stw: null, hist: [], trk: [], tackAt: 0, perf: [], vote: store.get('coachVotes', {}), t: null, species: null };
 const RC_BOATS = () => (KB.trim ? KB.trim.targets.map((x) => x.boat) : []);
 const lerp = (tbl, tws) => { if (!tbl) return null; const ks = Object.keys(tbl).map((k) => +k.replace('tws', '')).sort((a, b) => a - b); if (tws <= ks[0]) return tbl['tws' + ks[0]] * Math.max(0.3, tws / ks[0]); for (let i = 1; i < ks.length; i++) if (tws <= ks[i]) { const a = ks[i - 1], b = ks[i], f = (tws - a) / (b - a); return tbl['tws' + a] + (tbl['tws' + b] - tbl['tws' + a]) * f; } return tbl['tws' + ks[ks.length - 1]]; };
 function rcBoatRow() {
@@ -8569,6 +8571,7 @@ async function rcBriefHtml() {
 }
 // the live coach: runs every 15 s while on, speaks rarely
 function rcSay(topic, text, conf, why) {
+  if (RC.kind === 'race' && !S.settings.rcLive) { const n = Date.now(); RC.heldAt = RC.heldAt || {}; if (n - (RC.heldAt[topic] || 0) > 3 * 60000) { RC.heldAt[topic] = n; RC.held.push({ t: n, topic, text, conf, why }); } return; } // recording only: kept for the debrief
   const now = Date.now(), v = RC.vote[topic] || 0, gap = 4 * 60000 * (v < 0 ? 3 : 1), quiet = now < RC.quietUntil || (RC.startAt && now > RC.startAt - 120000 && now < RC.startAt + 30000) || now - RC.tackAt < 25000;
   const entry = { t: now, topic, text, conf, why };
   if (quiet || now - RC.lastSay < gap || now - (RC.topicAt[topic] || 0) < 15 * 60000 || (conf === 'low' && v <= 0)) { RC.held.push(entry); return; }
@@ -8580,6 +8583,7 @@ function rcTick() {
   if (!RC.on || !S.fix || !KB.trim) return;
   const now = Date.now(), sog = S.sog || 0, cog = S.cog;
   RC.hist.push({ t: now, cog, sog }); RC.hist = RC.hist.filter((x) => now - x.t < 15 * 60000);
+  RC.trk.push({ t: now, lat: S.fix.lat, lon: S.fix.lon, sog, cog }); if (RC.trk.length > 2880) RC.trk.shift();
   const prev = RC.hist.length > 4 ? RC.hist[RC.hist.length - 5] : null; if (prev && cog != null && prev.cog != null && Math.abs(rcAng(cog, prev.cog)) > 60) RC.tackAt = now;
   if (RC.kind === 'fish') return fcTick(now, sog, cog);
   const w = rcWind(), row = rcBoatRow(); if (cog != null) rcCourseTick(now, w, row, cog); if (!w || !row || cog == null || sog < 1) return;
@@ -8587,6 +8591,7 @@ function rcTick() {
   // performance: boat speed (crew log reading, else SOG with the predicted current taken out) against the polar target
   const cur = RC.curNow, along = cur ? cur.kn * Math.cos((cur.dir - cog) * Math.PI / 180) : 0;
   const bs = RC.stw && now - RC.stw.at < 10 * 60000 ? RC.stw.v : sog - along, tgt = mode === 'up' ? lerp(row.upwind, w.tws) : mode === 'down' ? lerp(row.downwind, w.tws) : null;
+  Object.assign(RC.trk[RC.trk.length - 1], { tws: w.tws, twd: w.twd, mode, bs, tgt, tack: now - RC.tackAt < 16000 });
   if (tgt && now - RC.tackAt > 60000) { RC.perf.push({ t: now, r: bs / tgt }); RC.perf = RC.perf.filter((x) => now - x.t < 4 * 60000);
     const avg = RC.perf.reduce((s, x) => s + x.r, 0) / RC.perf.length, conf = RC.stw ? (w.conf === 'high' ? 'high' : 'medium') : w.conf === 'high' ? 'medium' : 'low';
     if (RC.perf.length >= 12 && avg < 0.88) { const band = rcBand(w.tws), sym = (KB.trim.symptoms || []).find((x) => /slow|sticky/i.test(x.symptom)), fix = band.id === 'light' ? 'Ease for power and foot a little: speed first, then height.' : band.id === 'overpowered' || band.id === 'heavy' ? 'Depower in order: outhaul, cunningham, backstay, then traveler down in the puffs.' : (sym && sym.coachLine) || 'Ease a touch and build speed before you point.';
@@ -8634,23 +8639,48 @@ function rcCourseTick(now, w, row, cog) { // the next mark, its distance, and a 
   if (rel < 80 && Math.abs(rel - twaU) < 4 && d > 0.08) rcSay('layline' + c.leg, 'Layline for mark ' + m.n + ', ' + fmtDist(d) + ' away. Overstand a little if the current is pushing you down.', w.conf === 'low' ? 'low' : 'medium', 'bearing to the mark against the ' + Math.round(twaU) + '° upwind angle for your boat');
 }
 function rcStart(kind) {
-  RC.on = true; RC.kind = kind || 'race'; RC.log = []; RC.held = []; RC.perf = []; RC.hist = []; S.settings.rcKind = RC.kind; saveSettings();
+  RC.on = true; RC.kind = kind || 'race'; RC.log = []; RC.held = []; RC.perf = []; RC.hist = []; RC.trk = []; RC.t0 = Date.now(); RC.heldAt = {}; S.settings.rcKind = RC.kind; saveSettings();
   if (!$('rcCard')) { const el = document.createElement('div'); el.id = 'rcCard'; el.className = 'rc-card'; el.hidden = true; $('app').appendChild(el); }
   clearInterval(RC.t); RC.t = setInterval(rcTick, 15000);
   const f = S.fix || refPos(); scCurrentNear(f, Date.now()).then((c) => { RC.curNow = c; }); clearInterval(RC.ct); RC.ct = setInterval(() => scCurrentNear(S.fix || refPos(), Date.now()).then((c) => { RC.curNow = c; }), 10 * 60000);
-  toast((RC.kind === 'race' ? 'Race coach' : 'Fishing coach') + ' on. I will speak up only when something changes and it matters.', 3500);
+  toast(RC.kind === 'race' ? (S.settings.rcLive ? 'Recording, with live tips on. Check your class rules allow it.' : 'Recording the race. Tap Stop when you finish for the debrief.') : 'Fishing coach on. I will speak up only when something changes and it matters.', 3500);
 }
-function rcStop() { RC.on = false; clearInterval(RC.t); clearInterval(RC.ct); const el = $('rcCard'); if (el) el.hidden = true; }
+function rcStop() { RC.on = false; clearInterval(RC.t); clearInterval(RC.ct); const el = $('rcCard'); if (el) el.hidden = true;
+  if (RC.kind === 'race' && RC.trk && RC.trk.length > 20) { const sm = rcSummary(); if (sm) { const all = store.get('rcRaces', []); all.unshift(sm); store.set('rcRaces', all.slice(0, 12)); } } }
+// the debrief: what the recording says, in plain words, a few things to work on. Legal everywhere because it happens after the race.
+function rcSummary() {
+  const tk = RC.trk || []; if (tk.length < 20) return null; let dist = 0; for (let i = 1; i < tk.length; i++) dist += distNm(tk[i - 1], tk[i]);
+  const pct = (m) => { const xs = tk.filter((x) => x.mode === m && x.tgt && !x.tack && x.bs > 0.5); return xs.length >= 8 ? { p: xs.reduce((a, x) => a + x.bs / x.tgt, 0) / xs.length, n: xs.length } : null; };
+  const ws = tk.filter((x) => x.tws), tws = ws.length ? ws.reduce((a, x) => a + x.tws, 0) / ws.length : null, upN = tk.filter((x) => x.mode === 'up').length;
+  let tacks = 0, lastI = -99; for (let i = 4; i < tk.length; i++) if (tk[i].cog != null && tk[i - 4].cog != null && Math.abs(rcAng(tk[i].cog, tk[i - 4].cog)) > 60 && i - lastI > 4) { tacks++; lastI = i; }
+  const heads = RC.held.concat(RC.log).filter((x) => x.topic === 'shift'), missed = heads.filter((h) => !tk.some((x) => x.t > h.t && x.t < h.t + 150000 && x.tack)).length;
+  return { t0: RC.t0, t1: Date.now(), boat: (rcBoatRow() || {}).boat || '', dist, up: pct('up'), dn: pct('down'), tws, tacks, upMin: upN * 15 / 60, heads: heads.length, missed, below: RC.held.concat(RC.log).filter((x) => x.topic === 'perf').length };
+}
+function rcSummaryHtml(sm) {
+  const li = (t) => '<li>' + t + '</li>', band = sm.tws != null ? rcBand(sm.tws) : null, out = [];
+  if (sm.up) out.push('Upwind you sailed at <b>' + Math.round(sm.up.p * 100) + '%</b> of target' + (sm.up.p < 0.93 && band ? '. In ' + esc(band.id) + ' air: ' + esc(band.goal.charAt(0).toLowerCase() + band.goal.slice(1)) : sm.up.p >= 0.98 ? ': on the numbers.' : '.'));
+  if (sm.dn) out.push('Downwind <b>' + Math.round(sm.dn.p * 100) + '%</b> of target' + (sm.dn.p < 0.93 ? '. ' + esc(((KB.trim.downwind || {}).general || [])[1] ? KB.trim.downwind.general[1].rule : 'Soak in the puffs, head up in the lulls.') : '.'));
+  if (sm.upMin > 6 && sm.tacks / sm.upMin > 1 / 3) out.push('<b>' + sm.tacks + ' tacks</b> in about ' + Math.round(sm.upMin) + ' minutes upwind. Each one costs a boat length or two; in steady breeze, tack on the real shifts only.');
+  if (sm.missed) out.push('Headed <b>' + sm.missed + (sm.missed > 1 ? ' times' : ' time') + '</b> and kept going for more than two minutes. In oscillating breeze, tack on the header.');
+  if (sm.tws != null && sm.tws > 15) out.push('Wind averaged ' + Math.round(sm.tws) + ' kn. If your boat carries more than one headsail, this is usually the smaller-jib end of the range (rule of thumb; your class tuning guide decides).');
+  if (sm.tws != null && sm.tws < 6) out.push('Light air, ' + Math.round(sm.tws) + ' kn: biggest headsail, crew weight forward and to leeward, and speed before height.');
+  if (!sm.up && !sm.dn) out.push('No wind reading during the race, so I can only show distance and tacks. Enter the wind next time (Live tab) for speed against target.');
+  return '<div class="rc-head"><b>' + fmtClock(sm.t0) + ' to ' + fmtClock(sm.t1) + '</b><span>' + esc(sm.boat) + ' · ' + fmtDist(sm.dist) + ' sailed' + (sm.tws != null ? ' · ' + Math.round(sm.tws) + ' kn average wind' : '') + '</span></div><h4>What to work on</h4><ul class="rc-list">' + out.map(li).join('') + '</ul>';
+}
 function rcDebriefHtml() {
+  const races = store.get('rcRaces', []), live = RC.on && RC.kind === 'race' ? rcSummary() : null;
+  let top = live ? '<p class="sub">Recording now. This is the debrief so far.</p>' + rcSummaryHtml(live) : races[0] ? rcSummaryHtml(races[0]) : '';
+  if (races.length > 1) top += '<h4>Earlier races</h4><ul class="rc-list">' + races.slice(live ? 0 : 1, 8).map((r) => '<li><b>' + new Date(r.t0).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '</b> ' + fmtDist(r.dist) + (r.up ? ' · upwind ' + Math.round(r.up.p * 100) + '%' : '') + (r.dn ? ' · downwind ' + Math.round(r.dn.p * 100) + '%' : '') + ' · ' + r.tacks + ' tacks</li>').join('') + '</ul>';
+  if (!top && !RC.log.length && !RC.held.length) return '<p class="sub">Record a race (Live tab, Record the race) and the breakdown shows up here when you stop: speed against target upwind and down, tacks, headers you sailed through, and what to work on.</p>';
   const all = RC.log.map((x) => ({ ...x, said: true })).concat(RC.held.map((x) => ({ ...x, said: false }))).sort((a, b) => a.t - b.t);
-  if (!all.length) return '<p class="sub">Nothing to report yet. The coach keeps quiet unless something changes.</p>';
-  return '<ul class="rc-list">' + all.slice(-30).map((x) => '<li><b>' + fmtClock(x.t) + '</b> ' + (x.said ? '' : '<i>(held back)</i> ') + esc(x.text) + ' <span class="hint">' + esc(x.why) + '</span></li>').join('') + '</ul>';
+  if (!all.length) return top;
+  return top + '<h4>Moments</h4><ul class="rc-list">' + all.slice(-30).map((x) => '<li><b>' + fmtClock(x.t) + '</b> ' + (x.said || RC.kind === 'race' ? '' : '<i>(held back)</i> ') + esc(x.text) + ' <span class="hint">' + esc(x.why) + '</span></li>').join('') + '</ul>';
 }
 async function openCoach(kind, tab) {
   kind = kind || S.settings.rcKind || 'race'; tab = tab || 'brief';
   openSheet('<h3>' + (kind === 'race' ? 'Race coach' : 'Fishing coach') + '</h3><p class="sub">Loading the coach notes…</p>'); await kbLoad();
   const tabs = '<div class="seg fw-tabs">' + [['cruise', 'Cruising'], ['race', 'Racing'], ['fish', 'Fishing']].map(([v, l]) => '<button type="button" data-rck="' + v + '" class="' + (kind === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
-    '<div class="seg fw-tabs">' + [['brief', 'Today'], ['live', 'Live coach'], ['debrief', 'Debrief']].map(([v, l]) => '<button type="button" data-rct="' + v + '" data-k="' + kind + '" class="' + (tab === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+    '<div class="seg fw-tabs">' + (kind === 'race' ? [['brief', 'Today'], ['debrief', 'Debrief'], ['live', 'Record']] : [['brief', 'Today'], ['live', 'Live coach'], ['debrief', 'Debrief']]).map(([v, l]) => '<button type="button" data-rct="' + v + '" data-k="' + kind + '" class="' + (tab === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
   if (kind === 'cruise') { closeSheet(); openSailCoach(); return; }
   let h = '<h3>' + (kind === 'race' ? 'Race coach' : 'Fishing coach') + '</h3>' + tabs;
   if (kind === 'race' && tab === 'brief') {
@@ -8663,13 +8693,13 @@ async function openCoach(kind, tab) {
     const tn = tideNow(); if (tn && tn.next) h += '<p class="sub">Tide turns ' + fmtClock(tn.next.t) + ' (' + (tn.next.type === 'H' ? 'high' : 'low') + '). Fish usually feed best when the water is moving.</p>';
     h += watchedHtml() + '<p class="hint">Your spots stay private: the coach never shares them.</p>';
   } else if (tab === 'live') {
-    h += '<p class="sub">Silent by default. At most one spoken tip every 4 minutes, only when something changes, with the reason and how sure it is. Quiet through the start and tacks. Tap 👍 or 👎 on a tip and it learns what you want.</p>' +
+    h += (kind === 'race' ? '<p class="sub">Record the race and get the breakdown afterwards. Nothing pops up while you race unless you turn on live tips.</p><label class="opt"><input type="checkbox" id="rcLive"' + (S.settings.rcLive ? ' checked' : '') + '><span>Live tips during the race<small>For practice and casual racing</small></span></label><p class="hint">Many one-design classes ban electronic coaching while racing, and paid live data can count as outside help (rule 41). Check your class rules and sailing instructions.</p>' : '<p class="sub">Silent by default. At most one tip every 4 minutes, only when something changes, with the reason and how sure it is. Tap 👍 or 👎 on a tip and it learns what you want.</p>') +
       (kind === 'race' ? '<div class="grid2"><div class="field"><label>True wind now (kn)</label><input id="rcTws" type="number" inputmode="decimal" step="any" min="0" placeholder="from your instruments or the flag"></div><div class="field"><label>From (°)</label><input id="rcTwd" type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="e.g. 200"></div></div><div class="field"><label>Boat speed through the water (kn, optional)</label><input id="rcStw" type="number" inputmode="decimal" step="any" min="0" placeholder="from your log"></div><div class="row-btns"><button class="btn" data-rcset>Use these readings</button><button class="btn" data-rcstart5>Start in 5 min</button></div><h4>The course</h4><div class="row-btns"><button class="btn small" data-rcping="cb">Committee boat end is here</button><button class="btn small" data-rcping="pin">Pin end is here</button></div><div class="grid2"><div class="field"><label>Windward mark bearing (°)</label><input id="rcBrg" type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="' + (rcWind() ? Math.round(rcWind().twd) : '') + '"></div><div class="field"><label>Leg length (nm)</label><input id="rcLeg" type="number" inputmode="decimal" step="any" min="0.1" value="1"></div></div><div class="seg" role="group"><button type="button" data-rclay="wl">Windward-leeward</button><button type="button" data-rclay="tri" data-w="port">Triangle, wing to port</button><button type="button" data-rclay="tri" data-w="stbd">Wing to starboard</button></div><p class="hint">Marks are never dropped exactly: drag any mark on the chart to where you see it. Blank bearing = straight upwind.</p>' + (RC.course && RC.course.marks ? '<div class="row-btns"><button class="btn small" data-rcclear>Clear the course</button></div>' : '') + '<p class="hint">A phone only knows speed over the ground. Readings you enter make the coach more accurate; without them it says so.</p>' : '') +
-      '<div class="row-btns">' + (RC.on && RC.kind === kind ? '<button class="btn" data-rcstop>Stop the coach</button>' : '<button class="btn primary" data-rcgo="' + kind + '">Start the coach</button>') + '</div>';
+      '<div class="row-btns">' + (RC.on && RC.kind === kind ? '<button class="btn" data-rcstop>' + (kind === 'race' ? 'Stop and see the debrief' : 'Stop the coach') + '</button>' : '<button class="btn primary" data-rcgo="' + kind + '">' + (kind === 'race' ? 'Record the race' : 'Start the coach') + '</button>') + '</div>';
   } else h += rcDebriefHtml();
   openSheet(h + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
 }
-document.addEventListener('change', (e) => { if (e.target.id === 'rcBoat') { S.settings.rcBoat = e.target.value; RC.boat = e.target.value; saveSettings(); openCoach('race', 'brief'); } if (e.target.id === 'fcSpecies') { RC.species = e.target.value || null; openCoach('fish', 'brief'); } });
+document.addEventListener('change', (e) => { if (e.target.id === 'rcLive') { S.settings.rcLive = e.target.checked; saveSettings(); } if (e.target.id === 'rcBoat') { S.settings.rcBoat = e.target.value; RC.boat = e.target.value; saveSettings(); openCoach('race', 'brief'); } if (e.target.id === 'fcSpecies') { RC.species = e.target.value || null; openCoach('fish', 'brief'); } });
 document.addEventListener('click', (e) => {
   const k = e.target.closest('[data-rck]'); if (k) { openCoach(k.dataset.rck, 'brief'); return; }
   const t = e.target.closest('[data-rct]'); if (t) { openCoach(t.dataset.k, t.dataset.rct); return; }
@@ -8685,7 +8715,96 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-rcq]')) { RC.quietUntil = Date.now() + 10 * 60000; $('rcCard').hidden = true; toast('Coach quiet for 10 minutes.', 1800); return; }
   if (e.target.closest('[data-rcx]')) { $('rcCard').hidden = true; }
 });
-window.Tideline = { openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+// Tour guide ("along the way"): what a good guide would point out from the boat. Hand-checked stops (kb/tour.json) plus Wikipedia
+// articles near you or your route, so it works anywhere without anyone writing it up. One card at a time, at most one every 3 minutes.
+// Mode: off · pins only · cards · read aloud. Depth: a quick line or the full story.
+const TG = { stops: null, wiki: new Map(), seen: store.get('tourSeen', {}), lastAt: 0, quietUntil: 0, layer: L.layerGroup().addTo(map), lastQ: null, sum: new Map() };
+const tgMode = () => S.settings.tourMode || 'cards', tgDepth = () => S.settings.tourDepth || 'brief';
+async function tgLoad() { if (TG.stops) return TG.stops; try { const d = await (await fetch('kb/tour.json')).json(); TG.stops = (d.stops || []).map((x) => ({ ...x, from: 'guide' })); } catch (e) { TG.stops = []; } return TG.stops; }
+const TG_SKIP = /\bschool\b|elementary|church of|county\b|census|\broad\b|route \d|highway|street|avenue|railway station|train station|metro station|fire station|police station|airport|\bmall\b|apartment|hospital|cemetery|disambiguation|^list of|shopping|\bhotel\b|stadium|post office/i;
+async function tgWikiNear(lat, lon) {
+  const k = (Math.round(lat * 20) / 20) + ',' + (Math.round(lon * 20) / 20); if (TG.wiki.has(k) || offNow()) return; TG.wiki.set(k, []);
+  try {
+    const g = await fetchT('https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&list=geosearch&gscoord=' + lat.toFixed(4) + '|' + lon.toFixed(4) + '&gsradius=10000&gslimit=80&gsprop=type', 9000).then((r) => r.json());
+    TG.wiki.set(k, ((g.query || {}).geosearch || []).filter((h) => !TG_SKIP.test(h.title) && !/^(edu|railwaystation|airport|adm\w*|country|state)$/.test(h.type || ''))
+      .map((h) => ({ id: 'w' + h.pageid, title: h.title, name: h.title.replace(/\s*\(.*\)$/, ''), lat: h.lat, lon: h.lon, kind: h.type || 'place', r: /isle|waterbody|landmark/.test(h.type || '') || /light|island|point|bridge|fort|narrows|creek|river|harbou?r/i.test(h.title) ? 1.8 : 1, from: 'wiki' })));
+  } catch (e) { TG.wiki.delete(k); }
+}
+function tgAll() {
+  const cur = TG.stops || [], ids = new Set(), first = (n) => n.toLowerCase().replace(/^(the|fort|port|cape|mount)\s+/, '').split(/[\s,]/)[0];
+  const w = [].concat(...TG.wiki.values()).filter((x) => { if (ids.has(x.id)) return false; ids.add(x.id); return !cur.some((c) => distNm(c, x) < 0.5 || (first(c.name) === first(x.name) && distNm(c, x) < 4)); });
+  return cur.concat(w);
+}
+async function tgSummary(st) { // text and photo for a stop: hand-written text wins; Wikipedia fills the gaps (and the photo)
+  if (TG.sum.has(st.id)) return TG.sum.get(st.id);
+  let out = { brief: st.brief || '', full: st.full || '', img: null, link: null };
+  if (!offNow()) try {
+    const t = st.title || st.wiki || st.name, j = await fetchT('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(t.replace(/ /g, '_')), 8000).then((r) => (r.ok ? r.json() : null));
+    if (j && j.type !== 'disambiguation') { const x = (j.extract || '').trim(); if (!out.full) out.full = x; if (!out.brief) out.brief = (x.match(/^.*?[.!?](\s|$)/) || [x])[0].trim(); if (j.thumbnail) out.img = j.thumbnail.source; out.link = j.content_urls && j.content_urls.mobile && j.content_urls.mobile.page; }
+  } catch (e) { /* offline: text only */ }
+  if (out.brief || out.full) TG.sum.set(st.id, out); return out;
+}
+function tgCardHtml(st, sm, depth) {
+  const full = depth === 'full';
+  return (sm.img ? '<img class="tg-img" src="' + esc(sm.img) + '" alt="" loading="lazy">' : '') + '<div class="tg-txt"><small>' + (st.from === 'guide' ? 'ALONG THE WAY' : 'NEARBY · WIKIPEDIA') + (S.fix ? ' · ' + fmtDist(distNm(S.fix, st)) + ' ' + compass16(bearing(S.fix, st)) : '') + '</small><b>' + esc(st.name) + '</b><p>' + esc(full ? sm.full || sm.brief : sm.brief || sm.full) + '</p>' +
+    (full && st.photo ? '<p class="tg-note">📷 ' + esc(st.photo) + '</p>' : '') + (st.watch ? '<p class="tg-note">⚓ ' + esc(st.watch) + '</p>' : '') + (full && st.song ? '<p class="tg-note">♪ ' + esc(st.song) + '</p>' : '') + '</div>';
+}
+async function tgShow(st) {
+  const sm = await tgSummary(st); if (!sm.brief && !sm.full) return false;
+  let el = $('tourCard'); if (!el) { el = document.createElement('div'); el.id = 'tourCard'; el.className = 'rc-card tg-card'; $('app').appendChild(el); }
+  const draw = (depth) => { el.innerHTML = tgCardHtml(st, sm, depth) + '<div class="rc-btns"><button type="button" data-tgmore="' + (depth === 'full' ? 'brief' : 'full') + '">' + (depth === 'full' ? 'Less' : 'More') + '</button><button type="button" data-tgq>Quiet 30 min</button><button type="button" data-tgx aria-label="Close">×</button></div>'; };
+  draw(tgDepth()); el.hidden = false; el.dataset.id = st.id; TG.cur = { st, sm, draw };
+  clearTimeout(TG.hideT); TG.hideT = setTimeout(() => { el.hidden = true; }, tgDepth() === 'full' ? 90000 : 45000);
+  if (tgMode() === 'voice') { try { const keep = S.settings.voice; S.settings.voice = true; speak(st.name + '. ' + (tgDepth() === 'full' ? sm.full || sm.brief : sm.brief || sm.full)); S.settings.voice = keep; } catch (e) { /* */ } }
+  return true;
+}
+function tgDraw() {
+  TG.layer.clearLayers(); if (tgMode() === 'off' || !TG.stops) return; const z = map.getZoom(), b = map.getBounds().pad(0.2);
+  tgAll().forEach((st) => { if (!b.contains([st.lat, st.lon]) || (st.from === 'wiki' ? z < 13 : z < 10)) return;
+    L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: 'tg-pin' + (st.from === 'wiki' ? ' w' : ''), iconSize: [22, 22], iconAnchor: [11, 11], html: '<i></i>' }) }).bindTooltip(esc(st.name), { direction: 'top', offset: [0, -10] }).on('click', (e) => { if (e.originalEvent) L.DomEvent.stop(e.originalEvent); tgSheet(st); }).addTo(TG.layer); });
+}
+async function tgSheet(st) {
+  openSheet('<h3>' + esc(st.name) + '</h3><p class="sub">Loading…</p>'); const sm = await tgSummary(st);
+  openSheet('<div class="tg-sheet">' + tgCardHtml(st, sm, 'full') + '</div>' + (sm.link ? '<p class="hint">From Wikipedia · <a href="' + esc(sm.link) + '" target="_blank" rel="noopener">read more</a></p>' : st.from === 'guide' ? '<p class="hint">Tideline guide notes, checked against the sources below. Stories marked as legend are just that.</p>' + (st.src || []).slice(0, 3).map((u) => '<a class="hint" style="display:block" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]) + '</a>').join('') : '') + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+async function tgTick() {
+  const m = tgMode(); if (m === 'off' || !S.fix) return; await tgLoad(); const f = S.fix, now = Date.now();
+  if (!TG.lastQ || distNm(TG.lastQ, f) > 2) { TG.lastQ = { lat: f.lat, lon: f.lon }; tgWikiNear(f.lat, f.lon).then(tgDraw); }
+  if (m === 'pins' || now - TG.lastAt < 3 * 60000 || now < TG.quietUntil || (S.sog || 0) < 1 || (RC.on && RC.kind === 'race')) return;
+  let best = null, bd = 1e9;
+  tgAll().forEach((st) => { if (now - (TG.seen[st.id] || 0) < 12 * 3600000) return; const d = distNm(f, st) / (st.from === 'guide' ? 1.3 : 1); if (d < (st.r || 1.2) * (st.from === 'guide' ? 1.3 : 1) && d < bd) { bd = d; best = st; } });
+  if (!best) return; TG.seen[best.id] = now; Object.keys(TG.seen).forEach((k) => { if (now - TG.seen[k] > 3 * 86400000) delete TG.seen[k]; }); store.set('tourSeen', TG.seen);
+  if (await tgShow(best)) TG.lastAt = now;
+}
+setInterval(tgTick, 20000); setTimeout(() => tgLoad().then(tgDraw), 2500); map.on('moveend', () => { clearTimeout(TG.dt); TG.dt = setTimeout(tgDraw, 400); });
+// what is coming up: along the route you have planned (in order), or around you
+function tgAlongRoute(pts) {
+  const dense = []; for (let i = 0; i < pts.length; i++) { if (i) { const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(distNm(a, b) / 0.3)); for (let j = 1; j <= n; j++) dense.push({ lat: a.lat + (b.lat - a.lat) * j / n, lon: a.lon + (b.lon - a.lon) * j / n }); } else dense.push(pts[0]); }
+  const cum = [0]; for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + distNm(dense[i - 1], dense[i]));
+  return tgAll().map((st) => { let bi = 0, bd = 1e9; dense.forEach((p, i) => { const d = distNm(p, st); if (d < bd) { bd = d; bi = i; } }); return { st, off: bd, at: cum[bi] }; })
+    .filter((x) => x.off < Math.max(1.5, (x.st.r || 1) * 1.2) && (x.st.from === 'guide' || x.off < 1)).sort((a, b) => a.at - b.at);
+}
+async function openTour() {
+  openSheet('<h3>Tour guide</h3><p class="sub">Looking along the way…</p>'); await tgLoad();
+  const rt = RT.pts && RT.pts.length > 1 ? RT.pts : null, c = S.fix || refPos();
+  if (rt) { const step = []; let acc = 0; rt.forEach((p, i) => { if (i) acc += distNm(rt[i - 1], p); if (!i || acc > 4) { step.push(p); acc = 0; } }); step.push(rt[rt.length - 1]); await Promise.race([Promise.all(step.slice(0, 12).map((p) => tgWikiNear(p.lat, p.lon))), new Promise((r) => setTimeout(r, 6000))]); }
+  else await Promise.race([tgWikiNear(c.lat, c.lon), new Promise((r) => setTimeout(r, 5000))]);
+  const list = rt ? tgAlongRoute(rt).slice(0, 40) : tgAll().map((st) => ({ st, at: distNm(c, st) })).filter((x) => x.at < 8 && (x.st.from === 'guide' || x.at < 3)).sort((a, b) => a.at - b.at).slice(0, 30);
+  const md = tgMode(), dp = tgDepth(), seg = (k, opts, cur) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-tgset="' + k + '" data-v="' + v + '" class="' + (cur === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  let h = '<h3>Tour guide</h3><p class="sub">History, sights and the stories a local would tell you, as you pass them. Never during a race you are recording.</p>' +
+    '<div class="field"><label>Show</label>' + seg('tourMode', [['off', 'Off'], ['pins', 'Pins only'], ['cards', 'Pop-up cards'], ['voice', 'Read aloud']], md) + '</div>' +
+    '<div class="field"><label>How much</label>' + seg('tourDepth', [['brief', 'Quick brief'], ['full', 'The full story']], dp) + '</div>';
+  h += '<h4>' + (rt ? 'Along your route' : 'Around you') + '</h4>' + (list.length ? '<ul class="tg-list">' + list.map((x) => '<li><button type="button" data-tgopen="' + esc(x.st.id) + '"><b>' + esc(x.st.name) + '</b><span>' + (rt ? fmtDist(x.at) + ' along' : fmtDist(x.at) + ' away') + (x.st.from === 'wiki' ? ' · Wikipedia' : '') + '</span></button></li>').join('') + '</ul>' : '<p class="sub">' + (offNow() ? 'No signal: only the hand-written stops work offline.' : 'Nothing found close by.') + '</p>');
+  openSheet(h + '<p class="hint">Hand-written stops cover the middle Chesapeake so far; everywhere else uses Wikipedia, which needs a signal.</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+document.addEventListener('click', (e) => {
+  const st = e.target.closest('[data-tgset]'); if (st) { S.settings[st.dataset.tgset] = st.dataset.v; saveSettings(); tgDraw(); if (st.dataset.v === 'off') { const el = $('tourCard'); if (el) el.hidden = true; } openTour(); return; }
+  const op = e.target.closest('[data-tgopen]'); if (op) { const x = tgAll().find((q) => q.id === op.dataset.tgopen); if (x) tgSheet(x); return; }
+  const mo = e.target.closest('[data-tgmore]'); if (mo && TG.cur) { TG.cur.draw(mo.dataset.tgmore); clearTimeout(TG.hideT); return; }
+  if (e.target.closest('[data-tgq]')) { TG.quietUntil = Date.now() + 30 * 60000; $('tourCard').hidden = true; toast('Tour guide quiet for 30 minutes.', 1800); return; }
+  if (e.target.closest('[data-tgx]')) { $('tourCard').hidden = true; }
+});
+window.Tideline = { openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();

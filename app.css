@@ -2364,3 +2364,16 @@ html[data-btheme="white"]:not([data-night]) .fab.on:not(.attn):not(.fish) :is(b,
 .rc-list { margin: 4px 0 10px; padding-left: 18px; } .rc-list li { margin: 4px 0; line-height: 1.4; }
 .rc-mark { display: grid; place-items: center; background: #FFC233; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.4); color: #1A1200; font: 700 13px/1 system-ui; }
 .ais-watched svg { filter: drop-shadow(0 0 0 #FFC233) drop-shadow(0 0 4px #FFC233); }
+
+/* build 161: tour guide */
+.tg-card { padding: 0; overflow: hidden; gap: 0; } .tg-card .rc-btns { padding: 0 14px 12px; }
+.tg-img { display: block; width: 100%; max-height: 150px; object-fit: cover; }
+.tg-txt { padding: 10px 14px 8px; } .tg-txt small { display: block; font-size: 10px; letter-spacing: .08em; color: #9DB0C2; font-weight: 700; } .tg-txt b { display: block; font-size: 17px; margin: 2px 0 4px; } .tg-txt p { margin: 0 0 6px; line-height: 1.42; font-size: 14px; }
+.tg-card .tg-txt { max-height: 46vh; overflow: auto; }
+.tg-note { font-size: 13px !important; color: #C9D6E2; }
+.tg-sheet .tg-img { border-radius: 12px; max-height: 220px; } .tg-sheet .tg-txt { padding: 10px 0; } .tg-sheet .tg-txt small { color: var(--ink2, #6B7B8B); } .tg-sheet .tg-note { color: var(--ink2, #6B7B8B); }
+.tg-pin i { display: block; width: 18px; height: 18px; margin: 2px; border-radius: 50%; background: #0E5A8A; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); position: relative; }
+.tg-pin i::after { content: ''; position: absolute; left: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: #FFC233; }
+.tg-pin.w i { width: 12px; height: 12px; margin: 5px; background: #5B7A93; } .tg-pin.w i::after { display: none; }
+.tg-list { list-style: none; padding: 0; margin: 4px 0 10px; } .tg-list li button { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line, #DDE3E8); padding: 10px 2px; color: inherit; font: inherit; display: flex; justify-content: space-between; gap: 10px; } .tg-list span { color: var(--ink2, #6B7B8B); font-size: 13px; white-space: nowrap; }
+.rc-card .rc-btns { padding-left: 52px; } .tg-card .rc-btns { padding-left: 66px; }

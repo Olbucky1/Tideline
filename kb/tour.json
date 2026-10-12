@@ -1,0 +1,617 @@
+{
+ "region": "Chesapeake Bay (middle)",
+ "stops": [
+  {
+   "id": "thomas-point",
+   "name": "Thomas Point Shoal Lighthouse",
+   "lat": 38.899,
+   "lon": -76.436,
+   "r": 2.5,
+   "kind": "lighthouse",
+   "brief": "That little red-roofed hexagon on stilts is Thomas Point Shoal Light, the icon of the Chesapeake since 1875.",
+   "full": "First lit in November 1875, Thomas Point Shoal Light is a screwpile cottage lighthouse standing about 1.5 miles off Thomas Point at the mouth of the South River. It replaced an 1825 tower on the point itself that erosion was eating away. It is the last unaltered screwpile cottage-type lighthouse on its original foundation in the Bay, and it was the Bay's last staffed light until automation in 1986. Ice was the great enemy: in 1877 floes shook the lens until it toppled, and riprap and extra piles were added. It became a National Historic Landmark in 1999 and has been owned by the City of Annapolis since 2004; the U.S. Lighthouse Society runs summer tours.",
+   "photo": "Best in low golden light from the south or east side, with Annapolis haze behind. Sunrise from the bay side is the classic shot.",
+   "watch": "The shoal extends roughly 1.25 miles off Thomas Point. Give the light and its riprap a wide berth; don't cut inside between the light and the point.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Thomas_Point_Shoal_Light",
+    "https://www.lighthousefriends.com/light.asp?ID=425"
+   ]
+  },
+  {
+   "id": "thomas-point-park",
+   "name": "Thomas Point Park",
+   "lat": 38.9,
+   "lon": -76.465,
+   "r": 1.2,
+   "kind": "point",
+   "brief": "The wooded point to the west is Thomas Point, where the first lighthouse stood in 1825 before the bluff eroded away.",
+   "full": "Thomas Point was home to the original 1825 lighthouse, a 30-foot conical tower. Erosion of the bluff forced a rebuild farther back in 1838, and the land eventually shrank so much that the old tower collapsed in 1894. Because the shoal ran more than a mile offshore, the Lighthouse Board moved the light out onto the shoal itself in 1875. Today the point is a county park with limited, permit-based access and one of the best land views of the lighthouse.",
+   "photo": "From the water you can frame the shoal light against the point's trees from the east.",
+   "watch": "Shoal water extends well off the point toward the lighthouse.",
+   "src": [
+    "https://www.lighthousefriends.com/light.asp?ID=425"
+   ]
+  },
+  {
+   "id": "south-river",
+   "name": "South River",
+   "lat": 38.907,
+   "lon": -76.485,
+   "r": 1.5,
+   "kind": "river",
+   "brief": "The South River opens up behind Thomas Point — about ten miles long, with the 'lost town' of London Town up its shores.",
+   "full": "The South River runs about 10 miles from western Anne Arundel County to the Bay, entering just south of Annapolis at Thomas Point. London Town, founded on its south shore in 1683, was once the county seat and a busy port but is now a 'lost town'; its surviving William Brown House (1758–1764) is part of Historic London Town and Gardens. Edgewater is the main town on the river today, and the Route 2 South River Bridge crosses the navigable portion.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/South_River_(Maryland)"
+   ]
+  },
+  {
+   "id": "tolly-point",
+   "name": "Tolly Point",
+   "lat": 38.941,
+   "lon": -76.457,
+   "r": 1.2,
+   "kind": "point",
+   "brief": "Tolly Point marks the turn into Annapolis; in the 1880s a grand Victorian resort, Bay Ridge, stood right here.",
+   "full": "Tolly Point sits at the community of Bay Ridge, at the southern edge of the approach to Annapolis harbor. In the late 1800s Bay Ridge was a grand Victorian resort billed as the 'Queen Resort of the Chesapeake,' reached by steamship and rail from Baltimore; its hotel stood atop Tolly Point. The resort failed in the early 1900s and the land was subdivided for summer cottages.",
+   "photo": "",
+   "watch": "Shoals run east off Tolly Point; the 'Tolly Point Dolphin' (1AH) marks the approach. Keep it to the correct side when entering the Severn.",
+   "src": [
+    "https://www.annapolishomemag.com/neighborhood-visit-bay-ridge-on-the-chesapeake/",
+    "https://files.firecrown.com/PDFs/2025-SWRS-Annapolis-Racing-Marks.pdf"
+   ]
+  },
+  {
+   "id": "annapolis-harbor",
+   "name": "Annapolis Harbor & City Dock",
+   "lat": 38.9775,
+   "lon": -76.486,
+   "r": 1.2,
+   "kind": "town",
+   "brief": "Welcome to Annapolis — 'America's Sailing Capital,' and for a few months in 1783–84 the capital of the United States.",
+   "full": "Puritans from Virginia founded a settlement called Providence on the Severn in 1649; the town became Annapolis in 1694 and Maryland's capital that same year. In December 1783 George Washington resigned his commission at the Maryland State House, and the Treaty of Paris was ratified there in January 1784 while Annapolis served as the temporary national capital. The State House is the oldest state capitol in continuous legislative use, crowned by a large wooden dome. City Dock sits at the mouth of Spa Creek, and recreational boating has largely replaced the old seafood trade.",
+   "photo": "Shoot the State House dome over the masts of City Dock from the harbor at dusk.",
+   "watch": "Busy, narrow harbor with heavy small-boat traffic; observe the no-wake zone.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Annapolis,_Maryland"
+   ]
+  },
+  {
+   "id": "naval-academy",
+   "name": "U.S. Naval Academy",
+   "lat": 38.984,
+   "lon": -76.483,
+   "r": 1.2,
+   "kind": "history",
+   "brief": "Off to port is the U.S. Naval Academy, founded in 1845 on the site of old Fort Severn.",
+   "full": "The Naval Academy was established in 1845 on the grounds of Fort Severn, at the mouth of the Severn River where it meets Annapolis harbor. Midshipmen train on the river and the Bay, and the Academy's sailing fleet is a common sight. Across the river, the Academy also manages Greenbury Point and the old North Severn naval station grounds.",
+   "photo": "The seawall and chapel dome make a strong composition from the harbor entrance.",
+   "watch": "Respect any security zones off the Academy waterfront and give Academy training craft room.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Annapolis,_Maryland",
+    "https://en.wikipedia.org/wiki/Severn_River_(Maryland)"
+   ]
+  },
+  {
+   "id": "severn-river",
+   "name": "Severn River",
+   "lat": 38.993,
+   "lon": -76.49,
+   "r": 1.5,
+   "kind": "river",
+   "brief": "The Severn runs about 14 miles inland from here; the first colonial settlement in the county, Providence, began on its shores in 1649.",
+   "full": "The Severn is a tidal estuary about 14 miles long that meets the Bay at Annapolis, with the Naval Academy at its mouth. Puritans and non-conformists from Virginia founded Providence on its north shore in 1649–50, the first colonial settlement in Anne Arundel County; it faded as Annapolis rose. The Naval Academy Bridge (MD 450), once a drawbridge from the late 1920s, was replaced by today's high span in 1994, and the US 50 Severn River Bridge crosses farther upriver.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Severn_River_(Maryland)"
+   ]
+  },
+  {
+   "id": "greenbury-point",
+   "name": "Greenbury Point",
+   "lat": 38.975,
+   "lon": -76.455,
+   "r": 1.5,
+   "kind": "point",
+   "brief": "Those radio towers on Greenbury Point once beamed Navy signals worldwide — the station began transmitting in 1918.",
+   "full": "In 1918 the Navy built towers on Greenbury Point to communicate with U.S. forces in World War I; the transmitter, call sign NSS, went on the air that August. By 1969 the site had a 1,200-foot center tower ringed by 600-foot towers. Sixteen of the nineteen towers were demolished on December 9, 1999, leaving three. The point now belongs to the Naval Academy and is largely managed as wildlife habitat. Puritan settlers founded Providence in this area in 1649. A small light has marked Greenbury Point Shoal, about half a mile south, since 1892.",
+   "photo": "The remaining towers make a strong silhouette at sunset when seen from the Bay side.",
+   "watch": "Greenbury Point Shoal extends south of the point; it is marked by the old shoal light structure.",
+   "src": [
+    "https://www.globalsecurity.org/military/facility/greenbury-point.htm",
+    "https://en.wikipedia.org/wiki/Greenbury_Point_Light"
+   ]
+  },
+  {
+   "id": "whitehall-bay",
+   "name": "Whitehall Bay",
+   "lat": 38.99,
+   "lon": -76.44,
+   "r": 1.2,
+   "kind": "nature",
+   "brief": "Whitehall Bay, a sheltered anchorage three miles from Annapolis, hides Mill Creek, Whitehall Creek and a colonial governor's mansion.",
+   "full": "Whitehall Bay lies southwest of the Bay Bridge, sheltered from west, north and east winds. Its three creeks — Mill, Whitehall and Meredith — all have narrow S-curved entrances. At the meeting of Whitehall and Meredith creeks stands Whitehall, built by Provincial Governor Horatio Sharpe, who returned to England in 1773; the house was restored in the late 20th century.",
+   "photo": "",
+   "watch": "Creek entrances are narrow with shoals both sides; follow the marks and watch for crab pots.",
+   "src": [
+    "https://www.proptalk.com/whitehall-bay-and-its-creeks"
+   ]
+  },
+  {
+   "id": "hackett-point",
+   "name": "Hackett Point",
+   "lat": 38.976,
+   "lon": -76.417,
+   "r": 1.2,
+   "kind": "point",
+   "brief": "Hackett Point's sandy spit is a hangout for ospreys, cormorants and bald eagles — and a magnet for shallow-draft boats.",
+   "full": "Hackett Point is the eastern tip of the Broadneck peninsula guarding Whitehall Bay. Its beach spit draws shallow-draft boaters, birds and fish, and Goose Pond behind it nearly makes the point an island. In fall, migrating waterfowl gather here.",
+   "photo": "Good spot for birds-in-flight shots with the Bay Bridge behind.",
+   "watch": "Hackett Point Shoal extends off the point and is marked by a green buoy (1); stay outside it.",
+   "src": [
+    "https://www.proptalk.com/whitehall-bay-and-its-creeks",
+    "https://files.firecrown.com/PDFs/2025-SWRS-Annapolis-Racing-Marks.pdf"
+   ]
+  },
+  {
+   "id": "bay-bridge",
+   "name": "Chesapeake Bay Bridge",
+   "lat": 38.9917,
+   "lon": -76.3722,
+   "r": 3.0,
+   "kind": "bridge",
+   "brief": "The Bay Bridge: the first span opened in 1952 as the world's longest continuous over-water steel structure.",
+   "full": "The William Preston Lane Jr. Memorial Bridge links Sandy Point near Annapolis with Kent Island. The eastbound span opened on July 30, 1952, and the westbound span on June 28, 1973; each runs a little over four miles shore to shore. The main shipping channel span is 1,600 feet with 186 feet of vertical clearance, and the towers rise roughly 354 and 379 feet. It is famously on lists of the world's scariest bridges, and nervous drivers can hire someone to drive them across.",
+   "photo": "From under the main span looking up, or from Sandy Point light with both spans in frame.",
+   "watch": "Big-ship channel under the main span; watch for commercial traffic and stay clear of the bridge piers.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Chesapeake_Bay_Bridge"
+   ]
+  },
+  {
+   "id": "sandy-point-light",
+   "name": "Sandy Point Shoal Light",
+   "lat": 39.016,
+   "lon": -76.3845,
+   "r": 2.0,
+   "kind": "lighthouse",
+   "brief": "Just north of the Bay Bridge stands Sandy Point Shoal Light, a red-brick 1883 house on an iron caisson.",
+   "full": "Sandy Point Shoal Light was first lit in 1883: an octagonal brick house with a mansard roof on a caisson foundation, about 0.6 miles off Sandy Point. It was sold to a private bidder at auction in 2006, and the Coast Guard discontinued the light in June 2019 because the privately owned structure had deteriorated. It's easily seen from the westbound span of the Bay Bridge.",
+   "photo": "Frame it with the bridge spans behind, from the north or northeast.",
+   "watch": "Shoal water around the caisson; don't approach close.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Sandy_Point_Shoal_Light"
+   ]
+  },
+  {
+   "id": "baltimore-light",
+   "name": "Baltimore Light",
+   "lat": 39.0592,
+   "lon": -76.399,
+   "r": 2.0,
+   "kind": "lighthouse",
+   "brief": "Baltimore Light at the Magothy's mouth was briefly America's only nuclear-powered lighthouse, in 1964–65.",
+   "full": "Construction of Baltimore Light began in 1904, but a violent October storm that year upended the caisson and sent it to the bottom; the light was finally lit in 1908, on what was then the world's tallest caisson. It marks the channel toward the Patapsco and Baltimore. In May 1964 it was fitted with a 60-watt SNAP-7B radioisotope generator as a test, making it the first and only nuclear-powered lighthouse in the U.S.; the unit was removed about a year later. It is solar-powered today.",
+   "photo": "",
+   "watch": "It sits near the busy Craighill/Brewerton approach channels to Baltimore; watch for ships.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Baltimore_Harbor_Light"
+   ]
+  },
+  {
+   "id": "magothy-river",
+   "name": "Magothy River",
+   "lat": 39.0561,
+   "lon": -76.4344,
+   "r": 1.5,
+   "kind": "river",
+   "brief": "The Magothy opens to the west — about 12 miles long, its name on maps since 1663.",
+   "full": "The Magothy River runs 12.1 miles through Anne Arundel County and enters the Bay just south of Gibson Island. It appears as 'Magoty River' on a 1663 map; the name may come from a Native phrase meaning a place without trees, though that's not certain. The estuary reaches 2.5 miles wide off Gibson Island, and the anchorage north of Dobbins Island is a local favorite. The Magothy River Association, formed in 1946, is one of the area's early environmental groups.",
+   "photo": "Sunset anchorages behind Dobbins Island are a classic.",
+   "watch": "Shoals at the entrance; follow the marked channel past Gibson Island.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Magothy_River"
+   ]
+  },
+  {
+   "id": "gibson-island",
+   "name": "Gibson Island",
+   "lat": 39.0742,
+   "lon": -76.4239,
+   "r": 1.5,
+   "kind": "island",
+   "brief": "Gibson Island, laid out by Frederick Law Olmsted Jr., is one of Maryland's most exclusive gated communities.",
+   "full": "Captain John Smith sailed past Gibson Island in 1608. In the early 1900s W. Stuart Symington Jr. and his brother Thomas bought its farms and hired Frederick Law Olmsted Jr. to plan a residential community; the first deed was recorded in 1925. About two-thirds of the land is kept as open space and forest. Today it is a private, gated island connected by causeway, with its own yacht club and police force.",
+   "photo": "",
+   "watch": "Private island; landing ashore is not permitted without invitation.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Gibson_Island_(Maryland)"
+   ]
+  },
+  {
+   "id": "love-point",
+   "name": "Love Point Light site",
+   "lat": 39.0539,
+   "lon": -76.2904,
+   "r": 1.5,
+   "kind": "lighthouse",
+   "brief": "Off Kent Island's northern tip is Love Point, where a screwpile lighthouse stood from 1872 to 1964.",
+   "full": "Love Point marks the northern tip of Kent Island, where the Chester River meets the Bay. A screwpile lighthouse with a hexagonal house was first lit here in 1872; it was deactivated and the house removed in 1964, leaving a small light and fog bell on the old foundation. In the 19th century Love Point had a resort and railroad passenger service.",
+   "photo": "",
+   "watch": "Shoals extend north off Love Point; keep clear of the old foundation.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Love_Point_Light",
+    "https://en.wikipedia.org/wiki/Kent_Island_(Maryland)"
+   ]
+  },
+  {
+   "id": "kent-island",
+   "name": "Kent Island",
+   "lat": 38.9486,
+   "lon": -76.315,
+   "r": 3.0,
+   "kind": "island",
+   "brief": "Kent Island, the Bay's largest island, is Maryland's oldest English settlement — William Claiborne set up a trading post here in 1631.",
+   "full": "In August 1631 Virginian William Claiborne founded a trading post near the island's southern end and named it the Isle of Kent after his English home. That makes Kent Island the oldest English settlement in present-day Maryland, predating St. Mary's City by three years. Claiborne insisted the island belonged to Virginia, setting off a long feud with Lord Baltimore's Maryland; he was forced out and returned twice before leaving for good in 1658. The island is about 15 miles long and 6 wide, with some 157 miles of shoreline.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Kent_Island_(Maryland)",
+    "https://en.wikipedia.org/wiki/Kent_Fort,_Maryland"
+   ]
+  },
+  {
+   "id": "matapeake",
+   "name": "Matapeake",
+   "lat": 38.9536,
+   "lon": -76.3525,
+   "r": 1.2,
+   "kind": "history",
+   "brief": "Matapeake was the ferry landing for Annapolis before the Bay Bridge — summer lines of cars once stretched three miles.",
+   "full": "Ferry service from Annapolis to Matapeake began in July 1930, and a clubhouse for waiting travelers was built in 1936. On peak summer weekends cars lined up for three miles. The state took over in 1941 and moved the western terminal to Sandy Point in 1943; service ended when the Bay Bridge opened in 1952. The site, named for the Matapeake people, is now a county-run state park with a beach and a fishing pier on the old ferry landing.",
+   "photo": "The pier gives a broadside view of the Bay Bridge.",
+   "watch": "",
+   "src": [
+    "https://qac.org/1022/History-of-Matapeake",
+    "https://en.wikipedia.org/wiki/Matapeake_State_Park"
+   ]
+  },
+  {
+   "id": "bloody-point",
+   "name": "Bloody Point Bar Light",
+   "lat": 38.833,
+   "lon": -76.391,
+   "r": 2.5,
+   "kind": "lighthouse",
+   "brief": "Bloody Point Light guards Kent Island's southern tip — and just west of it lies the deepest water in the whole Bay.",
+   "full": "Bloody Point Bar Light was first lit in 1882 on an iron caisson. That first winter, storms scoured sand from one side and it began to lean — about five feet out of plumb at the lantern; dredging and 760 tons of stone in 1884–85 brought it back to within about two degrees. A 1960 electrical fire gutted it, and the keepers escaped just before the fuel tanks exploded. It was sold at auction in 2006 and is privately owned. As for the name, legend has it that settlers massacred Native Americans here, or that a pirate or mutineers were hanged on the point — none of it is verified.",
+   "photo": "",
+   "watch": "The light sits in shallow water on the bar, but about 150 yards west the bottom plunges to roughly 170–174 feet — the 'Bloody Point Hole,' the Bay's deepest spot. Sounders will show a dramatic drop-off here.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Bloody_Point_Bar_Light",
+    "https://lighthousefriends.com/light.asp?ID=427",
+    "https://talbotspy.org/drilling-down-into-bloody-point-its-lore-and-radical-location-by-dennis-forney",
+    "https://www.spinsheet.com/chesapeake-bay/chesapeake-bay-facts-and-figures"
+   ]
+  },
+  {
+   "id": "eastern-bay",
+   "name": "Eastern Bay",
+   "lat": 38.8797,
+   "lon": -76.2697,
+   "r": 3.0,
+   "kind": "nature",
+   "brief": "Eastern Bay opens between Kent Island and Tilghman Point, fed by the Miles and Wye rivers.",
+   "full": "Eastern Bay lies between Queen Anne's and Talbot counties, south of the Chester River and north of the Choptank. Its main tributaries are the Miles and Wye rivers, and Kent Narrows connects it north to the Chester. Until December 31, 1952, a ferry ran across it from Romancoke on Kent Island to Claiborne.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Eastern_Bay"
+   ]
+  },
+  {
+   "id": "parsons-island",
+   "name": "Parsons Island",
+   "lat": 38.909,
+   "lon": -76.2458,
+   "r": 1.5,
+   "kind": "island",
+   "brief": "That small wooded island is Parsons Island — McCormick & Company, the Old Bay spice makers, bought it in 1944 as an experimental spice farm.",
+   "full": "Parsons Island in Eastern Bay was once a point of land that erosion separated from Kent Island. Mapped around 1685 at about 441 acres, it was 177 acres by 1847 and is roughly 77 acres today. McCormick & Company bought it in 1944 for use as an experimental spice farm, and it later served as a company retreat for hunting and fishing. It remains privately owned, and its owners have worked with the Chesapeake Conservancy on a plan to slow erosion and rebuild habitat; artifacts found on its eroding shore point to very ancient human presence.",
+   "photo": "",
+   "watch": "Private island. Shallow flats and oyster bars surround it.",
+   "src": [
+    "https://easternshorebrent.com/2014/04/11/chester-md-kent-islands-eastern-shore/",
+    "https://www.asla.org/2021awards/2834.html",
+    "https://topoquest.com/place-detail.php?id=597874"
+   ]
+  },
+  {
+   "id": "kent-narrows",
+   "name": "Kent Narrows",
+   "lat": 38.9693,
+   "lon": -76.2402,
+   "r": 1.0,
+   "kind": "town",
+   "brief": "Kent Narrows, 'The Narrows,' is the dock-and-dine shortcut between the Chester River and Eastern Bay.",
+   "full": "In colonial times this shallow passage was called 'The Wading Place,' crossed by a small ferry. An 1820s causeway of logs, stones and shells blocked boats until it was removed and the channel dredged. Seafood packers once lined its shores to handle the watermen's catch. A drawbridge went up in 1952 and was dedicated as the Waterman's Memorial Bridge in 2011; the high six-lane US 50 bridge opened in 1990.",
+   "photo": "",
+   "watch": "Tidal current can run hard through the narrows, and the old Route 18 drawbridge must open for taller boats; check current bridge-opening rules before you go.",
+   "src": [
+    "https://www.proptalk.com/chesapeake-history-kent-narrows",
+    "https://en.wikipedia.org/wiki/Kent_Narrows,_Maryland"
+   ]
+  },
+  {
+   "id": "wye-river",
+   "name": "Wye River",
+   "lat": 38.865,
+   "lon": -76.2,
+   "r": 1.5,
+   "kind": "river",
+   "brief": "The Wye winds inland from Eastern Bay; near its head at Wye Mills grew the famous Wye Oak, Maryland's state tree.",
+   "full": "The Wye joins the Miles River near its mouth at Eastern Bay and wraps around Wye Island. Inland at Wye Mills stood the Wye Oak, a white oak believed to be over 460 years old, 96 feet tall with a 119-foot crown, and Maryland's state tree from 1941 until a thunderstorm toppled it on June 6, 2002.",
+   "photo": "Quiet coves and calm evenings make for mirror-water reflections.",
+   "watch": "Shoals at the river's mouth; follow the marks.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Wye_River_(Maryland)",
+    "https://en.wikipedia.org/wiki/Wye_Oak"
+   ]
+  },
+  {
+   "id": "wye-island",
+   "name": "Wye Island",
+   "lat": 38.885,
+   "lon": -76.145,
+   "r": 2.0,
+   "kind": "island",
+   "brief": "Wye Island, about 2,800 acres, was once partly owned by William Paca, a signer of the Declaration of Independence.",
+   "full": "William Paca, Maryland's third governor and a signer of the Declaration, owned the island's northern half through his wife's family; John Beale Bordley farmed the southern half with orchards, a vineyard, shops, a windmill and a brewery. Facing the threat of residential development, the state bought most of the island in the mid-1970s. It is now the Wye Island Natural Resources Management Area.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Wye_River_(Maryland)",
+    "https://dnr.maryland.gov/publiclands/Pages/eastern/WyeIsland/History-WyeIslandNRMA.aspx"
+   ]
+  },
+  {
+   "id": "miles-river",
+   "name": "Miles River",
+   "lat": 38.83,
+   "lon": -76.23,
+   "r": 1.5,
+   "kind": "river",
+   "brief": "The Miles River leads up to St. Michaels — it was originally called the St. Michaels River.",
+   "full": "The Miles is a tidal river about 13 miles long in Talbot County, flowing into Eastern Bay. It was originally known as the St. Michaels River. Oysters were tonged from the Miles and Eastern Bay for generations, and in August 1813 British barges rowed up this river to attack St. Michaels.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Miles_River",
+    "https://en.wikipedia.org/wiki/Saint_Michaels,_Maryland",
+    "https://www.nps.gov/stsp/learn/historyculture/the-town-that-fooled-the-british.htm"
+   ]
+  },
+  {
+   "id": "st-michaels",
+   "name": "St. Michaels",
+   "lat": 38.7836,
+   "lon": -76.2222,
+   "r": 1.2,
+   "kind": "town",
+   "brief": "St. Michaels — 'the town that fooled the British' in 1813, or so the legend goes.",
+   "full": "St. Michaels was a shipbuilding town that turned out fast schooners later known as Baltimore Clippers. When British barges attacked on August 10, 1813, legend has it that townsfolk hung lanterns in trees and masts so the British aimed too high. Historians doubt it: it was already light, if overcast, and the British did hit several buildings. The Cannonball House is said to have taken a round shot through its roof. Frederick Douglass lived here as an enslaved young man in the 1830s and returned in 1877 to visit his former owner.",
+   "photo": "Golden hour from the harbor catches the Hooper Strait light and the town waterfront together.",
+   "watch": "Busy harbor in season; slow down entering and watch for log canoe races in summer.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Saint_Michaels,_Maryland",
+    "https://www.nps.gov/stsp/learn/historyculture/the-town-that-fooled-the-british.htm"
+   ]
+  },
+  {
+   "id": "cbmm-hooper-strait",
+   "name": "Chesapeake Bay Maritime Museum & Hooper Strait Light",
+   "lat": 38.7873,
+   "lon": -76.2202,
+   "r": 1.0,
+   "kind": "lighthouse",
+   "brief": "That screwpile lighthouse on Navy Point is the 1879 Hooper Strait Light, barged 40 miles up the Bay in 1966.",
+   "full": "The Chesapeake Bay Maritime Museum opened in 1965 on Navy Point, once lined with seafood packing houses. It holds the world's largest collection of Chesapeake Bay boats, including the Edna E. Lockwood, the last sailing log-bottom bugeye. Its centerpiece is Hooper Strait Light, built in 1879 for shoals near Tangier Sound. Slated for demolition, it was lifted off its piles in two pieces and barged to St. Michaels, arriving November 9, 1966, and opening to visitors in May 1967.",
+   "photo": "Shoot the lighthouse from the water off Navy Point late in the day.",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Chesapeake_Bay_Maritime_Museum",
+    "https://preservationmaryland.org/a-maritime-minute-the-hooper-strait-lighthouse/"
+   ]
+  },
+  {
+   "id": "poplar-island",
+   "name": "Poplar Island",
+   "lat": 38.7669,
+   "lon": -76.3817,
+   "r": 2.5,
+   "kind": "island",
+   "brief": "Poplar Island shrank to about 5 acres — now it's rebuilt to over 1,000 acres from Baltimore's channel dredgings.",
+   "full": "Poplar Island was settled in the 1630s and later held the village of Valliant. In the 1930s and '40s a hunting clubhouse here hosted Franklin Roosevelt and Harry Truman, who met with Democratic leaders over poker and crabs; it burned in 1946. Erosion took the island from about 1,140 acres in 1847 to roughly 5 acres by 1990. Starting in 1998, the Army Corps of Engineers built dikes and filled them with clean dredged material from the Baltimore shipping channels, restoring it to about 1,140 acres by 2005, with more planned. Terns, ospreys and diamondback terrapins now thrive there.",
+   "photo": "Watch for terns and ospreys working along the dikes.",
+   "watch": "Restricted project site: no landing. Rock dikes and shoals around the perimeter.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Poplar_Island_(Chesapeake_Bay)",
+    "https://talbotspy.org/?p=117218"
+   ],
+   "song": "\"Poplar Island\" by Foreman Wolfe, a Chesapeake song written about this island (Apple Music, YouTube Music)."
+  },
+  {
+   "id": "knapps-narrows",
+   "name": "Knapps Narrows",
+   "lat": 38.7206,
+   "lon": -76.3339,
+   "r": 0.8,
+   "kind": "bridge",
+   "brief": "Knapps Narrows cuts across the top of Tilghman Island — its drawbridge is said by some to be among the busiest in the nation.",
+   "full": "Knapps Narrows is a short channel separating Tilghman Island from the mainland, linking the Bay side to the Choptank without the long run around Black Walnut Point. The original drawbridge of 1934 opened an estimated 12,000 times before it was replaced by a new bridge in 1998. Some reports call it the busiest drawbridge in the country, but we couldn't confirm an official ranking. Workboats crowd the 'tongers' basin' here.",
+   "photo": "",
+   "watch": "Narrow, frequently shoaling channel that needs regular dredging; strong current. Wait for the bridge to open fully.",
+   "src": [
+    "https://cbmm.org/knapps-narrows-bridge",
+    "https://aloft.zenfolio.com/chesapeakebay/eF4E88E69",
+    "https://www.waterwayguide.com/waterway/38/knapps-narrows-md"
+   ]
+  },
+  {
+   "id": "tilghman-island",
+   "name": "Tilghman Island",
+   "lat": 38.7088,
+   "lon": -76.335,
+   "r": 1.5,
+   "kind": "town",
+   "brief": "Tilghman Island is still home to skipjacks — the Bay's traditional sail-powered oyster dredgers — at Dogwood Harbor.",
+   "full": "First called Great Choptank Island, it has carried the Tilghman name since Matthew Tilghman's family acquired it in 1752. Its economy shifted from farming to oystering and fishing, helped by steamboat service in the 1890s. Thirteen skipjacks associated with the island are on the National Register, including the Rebecca T. Ruark, and Dogwood Harbor is one of the few places skipjacks are still in use. The island's southern tip is Black Walnut Point.",
+   "photo": "Skipjacks at Dogwood Harbor at sunrise are a must.",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Tilghman_Island,_Maryland",
+    "https://www.nps.gov/places/dogwood-harbor.htm"
+   ]
+  },
+  {
+   "id": "sharps-island",
+   "name": "Sharps Island Light",
+   "lat": 38.6391,
+   "lon": -76.3757,
+   "r": 2.5,
+   "kind": "lighthouse",
+   "brief": "That tilting lighthouse is Sharps Island Light — its island vanished beneath the Bay, and ice knocked it 15 degrees off true in 1977.",
+   "full": "Sharps Island was once about 600 acres, with a three-story hotel and steamboat landing around 1900; by 1960 it had eroded completely away. The current caisson light, built in 1882, is the third on the site — in 1881 ice destroyed the previous screwpile light and carried its keepers nearly five miles. An ice floe in 1977 left it leaning about 15 degrees. It was deactivated in 2010 and is on the Lighthouse Digest Doomsday List.",
+   "photo": "The lean reads best broadside from the east or west.",
+   "watch": "Charted as 'Sharps Island Obstruction'; shoal water and old debris surround the light.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Sharps_Island_Light",
+    "https://proptalk.com/chesapeake-history-sharps-island"
+   ]
+  },
+  {
+   "id": "choptank",
+   "name": "Choptank River",
+   "lat": 38.655,
+   "lon": -76.31,
+   "r": 2.5,
+   "kind": "river",
+   "brief": "The Choptank, opening south of Tilghman, is the largest river on the Delmarva Peninsula.",
+   "full": "Named for the Choptank people, the river rises in Delaware and runs roughly 70 miles to the Bay just south of Tilghman Island. Its mouth is marked by the tilting Sharps Island Light. Cambridge sits on its south shore, and Oxford on the Tred Avon, one of its tributaries.",
+   "photo": "",
+   "watch": "Wide mouth can stack up a nasty chop in wind against tide.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Choptank_River"
+   ]
+  },
+  {
+   "id": "oxford",
+   "name": "Oxford",
+   "lat": 38.6867,
+   "lon": -76.1708,
+   "r": 1.2,
+   "kind": "town",
+   "brief": "Oxford, on the Tred Avon, has run a ferry to Bellevue since 1683 — the oldest privately operated ferry in America.",
+   "full": "Oxford dates its founding to 1683, when it was named a seaport; it was later one of Maryland's two ports of entry. Robert Morris Sr. worked here as a shipping agent; his son became 'the financier of the Revolution.' Tench Tilghman, Washington's aide who carried news of Yorktown to Congress, is buried in the town. The Oxford–Bellevue Ferry, established in 1683, is the oldest privately operated ferry still running in the U.S.",
+   "photo": "Catch the little ferry mid-crossing from off the town waterfront.",
+   "watch": "Watch for the ferry crossing the Tred Avon.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Oxford,_Maryland"
+   ]
+  },
+  {
+   "id": "west-river",
+   "name": "West River & Galesville",
+   "lat": 38.8431,
+   "lon": -76.5436,
+   "r": 1.2,
+   "kind": "town",
+   "brief": "Galesville on the West River is considered the birthplace of organized Quakerism in Maryland.",
+   "full": "Galesville sits on the western shore of the West River, an arm of the Bay about 14 miles south of Annapolis by road. Through the West River Friends meeting, it is considered the birthplace of organized Quakerism in Maryland. It was once the terminus of a steamship line to Annapolis and Baltimore and long a community of watermen; today pleasure boating dominates.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Galesville,_Maryland"
+   ]
+  },
+  {
+   "id": "rhode-river",
+   "name": "Rhode River",
+   "lat": 38.87,
+   "lon": -76.515,
+   "r": 1.2,
+   "kind": "nature",
+   "brief": "The Rhode River shoreline is home to the Smithsonian Environmental Research Center, studying the Bay since the 1960s.",
+   "full": "The Smithsonian Environmental Research Center occupies about 2,650 acres on the Rhode and West rivers near Edgewater. The land was left to the Smithsonian in 1964, and field biology began there the next year. Scientists study forests, farms, marshes and the estuary — from blue crab movement to invasive marine species.",
+   "photo": "",
+   "watch": "Shallow; the Rhode is a popular but thin-water anchorage.",
+   "src": [
+    "https://en.wikipedia.org/wiki/Smithsonian_Environmental_Research_Center"
+   ]
+  },
+  {
+   "id": "herring-bay",
+   "name": "Herring Bay",
+   "lat": 38.7528,
+   "lon": -76.5433,
+   "r": 2.0,
+   "kind": "nature",
+   "brief": "Herring Bay's 'thumbprint' shoreline holds Deale and the charter fishing fleet of Rockhold Creek.",
+   "full": "Herring Bay is a bight on the western shore of the mid-Bay in Anne Arundel County. Rockhold Creek at Deale holds a large fleet of charter fishing boats. During the War of 1812 a fortification on Town Point, at the mouth of Rockhold Creek, fired on British marines.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Herring_Bay",
+    "https://chesapeakebaymagazine.com/wow/deale-herring-bay"
+   ]
+  },
+  {
+   "id": "chesapeake-beach",
+   "name": "Chesapeake Beach",
+   "lat": 38.686,
+   "lon": -76.534,
+   "r": 1.2,
+   "kind": "town",
+   "brief": "Chesapeake Beach was built as a railroad resort — trains ran from Washington from 1898 to 1935.",
+   "full": "Colorado railroad builder Otto Mears drove the Chesapeake Beach Railway to a planned resort at Fishing Creek, with hotels, a boardwalk and a steamboat pier. Trains ran from December 1898 until April 15, 1935. Ridership peaked in 1921, but cars, a 1923 hotel fire and a 1933 hurricane finished it. The old station has housed the Chesapeake Beach Railway Museum since 1979.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Chesapeake_Beach_Railway"
+   ]
+  },
+  {
+   "id": "rock-hall",
+   "name": "Rock Hall",
+   "lat": 39.1367,
+   "lon": -76.2419,
+   "r": 1.5,
+   "kind": "town",
+   "brief": "Rock Hall, 'the Pearl of the Chesapeake,' is still a working watermen's harbor.",
+   "full": "Established in 1707 as Rock Hall Crossroads, the town shipped tobacco, seafood and farm goods in colonial times. Fishing and seafood processing became its biggest industry, and the harbor still serves commercial watermen and charter boats. It has a watermen's museum and hosts the summer Pirates and Wenches Weekend.",
+   "photo": "",
+   "watch": "",
+   "src": [
+    "https://en.wikipedia.org/wiki/Rock_Hall,_Maryland"
+   ]
+  },
+  {
+   "id": "swan-point",
+   "name": "Swan Point & Swan Point Bar",
+   "lat": 39.145,
+   "lon": -76.276,
+   "r": 1.5,
+   "kind": "point",
+   "brief": "Swan Point Bar, west of Rock Hall, is notorious for putting boats aground — charted depths of 3 to 4 feet.",
+   "full": "Swan Point sits southwest of Rock Hall near the mouth of Swan Creek. The bar extending off it is a broad shoal crossed by local skippers using favorite tracks, and it's a popular fishing ground.",
+   "photo": "",
+   "watch": "Charted depths of about 3–4 feet at MLLW; north winds and blowout tides can drop water levels sharply. Most boaters honor G5 off the bar.",
+   "src": [
+    "https://www.spinsheet.com/see-bay/see-bay-sailing-swan-point-bar-it-right-you"
+   ]
+  }
+ ]
+}
