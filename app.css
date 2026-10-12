@@ -2094,3 +2094,14 @@ html[data-tint="vintage"]:not([data-night]):not([data-dusk]) #vintageFx {
 }
 
 #vintageFx { display: none; }
+
+/* ---------- chart styles: the same NOAA chart re-coloured (one colour matrix per style; no redrawing) ---------- */
+html[data-tint="ivory"]:not([data-night]):not([data-dusk]) .noaa-chart-tile { filter: url(#cs-ivory); }
+html[data-tint="navyp"]:not([data-night]):not([data-dusk]) .noaa-chart-tile { filter: url(#cs-navyp); }
+html[data-tint="driftwood"]:not([data-night]):not([data-dusk]) .noaa-chart-tile { filter: url(#cs-driftwood); }
+html[data-tint="slate"]:not([data-night]):not([data-dusk]) .noaa-chart-tile { filter: url(#cs-slate); }
+html[data-tint="linen"]:not([data-night]):not([data-dusk]) .noaa-chart-tile { filter: url(#cs-linen); }
+html[data-tint="atlas"]:not([data-night]):not([data-dusk]) .noaa-chart-tile { filter: url(#cs-atlas); }
+html:is([data-tint="ivory"],[data-tint="driftwood"],[data-tint="linen"]):not([data-night]):not([data-dusk]) #vintageFx { display: block; position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 50px 10px rgba(120, 90, 40, .22); }
+html[data-tint="navyp"]:not([data-night]):not([data-dusk]) #map { background: #183353; }
+.cs-row button i { width: 54px !important; height: 40px !important; border-radius: 8px !important; }

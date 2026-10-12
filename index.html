@@ -16,12 +16,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="app.css?v=136">
+<link rel="stylesheet" href="app.css?v=137">
 </head>
 <body>
 <!-- Tint only pale blue chart fills; keep land, dark text and nautical symbol colors. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;pointer-events:none">
   <defs>
+    <filter id="cs-ivory" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="0.0057 0.7338 -0.0101 0 0.2275 -0.3957 1.0011 0.1280 0 0.2000 -0.3938 0.3457 0.7579 0 0.1569 0 0 0 1 0"/></filter>
+    <filter id="cs-navyp" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="-2.6865 6.1666 -4.3271 0 0.9412 -2.2348 4.7825 -3.2497 0 0.9020 -1.4574 2.6503 -1.6674 0 0.8000 0 0 0 1 0"/></filter>
+    <filter id="cs-driftwood" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="0.4349 -0.1795 0.3917 0 0.2902 -0.1255 0.2510 0.5373 0 0.2275 -0.4097 0.1711 0.8661 0 0.1569 0 0 0 1 0"/></filter>
+    <filter id="cs-slate" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="1.4711 -2.4293 1.7033 0 0.1176 1.1490 -1.9980 1.5745 0 0.1647 0.9394 -1.7240 1.4826 0 0.2118 0 0 0 1 0"/></filter>
+    <filter id="cs-linen" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="-0.1879 0.8854 0.0319 0 0.2314 -0.4067 0.8424 0.2741 0 0.2275 -0.1255 -0.2490 1.0373 0 0.2275 0 0 0 1 0"/></filter>
+    <filter id="cs-atlas" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix type="matrix" values="0.2794 0.3669 0.0752 0 0.1804 -0.1393 0.8269 -0.0406 0 0.2902 -0.3514 0.9416 -0.0725 0 0.4471 0 0 0 1 0"/></filter>
     <filter id="coastalBlueWater" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
       <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  -12 0 12 0 -0.35" result="blueMask"/>
       <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 10 0 0 -6.5" result="lightMask"/>
@@ -153,7 +159,7 @@
 </div>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/leaflet-rotate/leaflet-rotate.js"></script>
-<script src="rules.js?v=136"></script>
-<script src="app.js?v=136"></script>
+<script src="rules.js?v=137"></script>
+<script src="app.js?v=137"></script>
 </body>
 </html>
