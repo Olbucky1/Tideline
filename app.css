@@ -2352,3 +2352,15 @@ html[data-fabart="simple"] :is(.fab, .mini-depth, .tabbar) { --bt-img: initial !
 :root[data-btheme="white"]:not([data-night]):not([data-dusk]) .fab.on:not(.attn):not(.fish):not(.ai) svg { stroke: #fff !important; color: #fff !important; }
 html[data-btheme="white"]:not([data-night]) .fab.on:not(.attn):not(.fish) svg [fill]:not([fill="none"]) { fill: #fff !important; }
 html[data-btheme="white"]:not([data-night]) .fab.on:not(.attn):not(.fish) :is(b, small, .ais-n) { color: #fff !important; }
+
+/* build 160: race and fishing coaches */
+.rc-card { position: absolute; z-index: 700; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom, 0px)); width: min(520px, calc(100vw - 28px)); background: rgba(10, 18, 28, .94); color: #F4F7FA; border-radius: 16px; padding: 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 8px; }
+.rc-card[hidden] { display: none; }
+.rc-say b { display: block; font-size: 16px; line-height: 1.35; } .rc-say span { display: block; color: #9DB0C2; font-size: 12px; margin-top: 4px; }
+.rc-btns { display: flex; gap: 8px; } .rc-btns button { min-width: 44px; min-height: 40px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff; font-size: 15px; }
+.rc-btns [data-rcx] { margin-left: auto; }
+.rc-head b { display: block; font-size: 20px; } .rc-head span { color: var(--ink2, #6B7B8B); font-size: 13px; }
+.rc-tgt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; } .rc-tgt > div { border: 1px solid var(--line, #DDE3E8); border-radius: 12px; padding: 8px 10px; } .rc-tgt small { display: block; font-size: 10px; letter-spacing: .08em; color: var(--ink2, #6B7B8B); font-weight: 600; } .rc-tgt b { font-size: 22px; } .rc-tgt span { display: block; font-size: 12px; color: var(--ink2, #6B7B8B); }
+.rc-list { margin: 4px 0 10px; padding-left: 18px; } .rc-list li { margin: 4px 0; line-height: 1.4; }
+.rc-mark { display: grid; place-items: center; background: #FFC233; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.4); color: #1A1200; font: 700 13px/1 system-ui; }
+.ais-watched svg { filter: drop-shadow(0 0 0 #FFC233) drop-shadow(0 0 4px #FFC233); }

@@ -2775,6 +2775,8 @@ function renderMenu() {
       menuTile('safety', 'safety', 'Safety and education', 'VHF, safety check, float plan') +
       menuTile('month', 'log', new Date().toLocaleString([], { month: 'long' }) + ' on the water', 'Events, seasons and tips for how you boat') +
       menuTile('sailcoach', 'dash', 'Sailing coach', 'Sail plan, trim, which tack, best time to leave') +
+      menuTile('racecoach', 'dash', 'Race coach', 'Trim, targets, shifts and current for today') +
+      menuTile('fishcoach', 'dash', 'Fishing coach', 'What is biting, where, the tide and trolling speed') +
       menuTile('loop', 'log', 'Great Loop advisor', 'The route leg by leg, your boat\'s limits, live notices, looper reports') +
       menuTile('fish', 'search', 'Fishing and wildlife', 'What is biting, baits, structure, what people see here')) +
     grp('App', menuTile('mapopts', 'layers', 'Map options', 'Chart, satellite, weather, colors') +
@@ -2784,7 +2786,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 159. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 160. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2813,6 +2815,8 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'update') { toast('Checking for the latest version…'); (async () => { try { const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 6000); const r = await fetch('app.js?probe=' + Date.now(), { cache: 'no-store', signal: ac.signal }); clearTimeout(tm); if (!r.ok) throw new Error('bad'); } catch (e) { toast('No connection right now, so I kept the version you have. Try again with signal.', 5000); return; } try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith('tl-app-')).map((k) => caches.delete(k))); } catch (e) { /* nothing cached */ } location.reload(); })(); return; }
   if (a === 'fish') { setTab('chart'); openFishWild(); return; }
   if (a === 'sailcoach') { openSailCoach(); return; }
+  if (a === 'racecoach') { openCoach('race'); return; }
+  if (a === 'fishcoach') { openCoach('fish'); return; }
   if (a === 'loop') { openLoop(); return; }
   if (a === 'tour') { startTour(0); return; }
   if (a === 'gaugelook') { setTab('chart'); openGaugeLook(); return; }
@@ -3759,7 +3763,7 @@ function evaluate(t) {
   return res;
 }
 function aisIcon(t, level) {
-  try { return aisShipIcon(t, level); } catch (e) { /* ship markers not set up yet: plain arrow below */ } // ship-shaped, sized by length, coloured by type
+  try { const ic = aisShipIcon(t, level); const wl = S.settings.aisWatch || {}; if (t.mmsi && wl[t.mmsi] && ic && ic.options) return L.divIcon(Object.assign({}, ic.options, { className: (ic.options.className || '') + ' ais-watched' })); return ic; } catch (e) { /* ship markers not set up yet: plain arrow below */ } // ship-shaped, sized by length, coloured by type
   const col = level === 'danger' ? '#D64545' : level === 'caution' ? '#E8952B' : t.type === 'ship' ? '#5B6B7A' : t.type === 'sail' ? '#6B4FBB' : '#3D7D9C';
   const big = t.type === 'ship';
   const path = big ? 'M12 1 L17 7 L17 25 L7 25 L7 7 Z' : 'M12 3 L18 23 L12 19 L6 23 Z', age = Date.now() - (t.seen || Date.now()), op = age > 30 * 60000 ? 0.45 : age > 10 * 60000 ? 0.7 : 1;
@@ -3830,6 +3834,13 @@ sheet.addEventListener('click', (e) => {
     openAisList(); toast(on ? 'Demo GPS and simulated AIS. Tap Details to inspect a target.' : 'Demo stopped. Waiting for real GPS.', 5000);
   }
 });
+// boats you follow: a tournament group, your fleet, friends. They get a gold ring on the chart and a list with distance and bearing.
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-aiswatch]'); if (!b) return; const id = b.dataset.aiswatch; if (!id) { toast('This target has no MMSI to follow.'); return; }
+  const wl = S.settings.aisWatch || (S.settings.aisWatch = {}); if (wl[id]) delete wl[id]; else { const g = (prompt('Group for this boat (e.g. White Marlin Open, my fleet):', S.settings.aisWatchLast || 'My fleet') || '').trim() || 'My fleet'; S.settings.aisWatchLast = g; wl[id] = { g, n: b.dataset.nm || id }; }
+  saveSettings(); try { const t = [...ais.values()].find((x) => String(x.mmsi) === id); if (t) openAisSheet(t); updateAis(); } catch (err) { /* */ } });
+function watchedHtml() { const wl = S.settings.aisWatch || {}, ids = Object.keys(wl); if (!ids.length) return '';
+  const rows = ids.map((id) => { const t = [...ais.values()].find((x) => String(x.mmsi) === id), w = wl[id]; return '<li><b>' + esc(t && t.name || w.n) + '</b> <span class="hint">' + esc(w.g) + '</span> ' + (t && S.fix ? fmtDist(distNm(S.fix, t)) + ' · ' + fmtBrg(bearing(S.fix, t)) + '°' + (t.sog != null ? ' · ' + fmtSpeed(t.sog) + ' kn' : '') : 'not in range') + '</li>'; }).join('');
+  return '<h4>Boats you are watching</h4><ul class="rc-list">' + rows + '</ul><p class="hint">Only boats sending AIS show up, and some turn it off while fishing.</p>'; }
 function openAisSheet(t) {
   const r = t.eval || evaluate(t);
   let h = shipSheetTop(t); // name, type, flag, photo, particulars and links (below)
@@ -3848,6 +3859,7 @@ function openAisSheet(t) {
       h += '<div class="lbl" style="margin-bottom:6px">RULES THAT APPLY · TAP TO READ</div><div>' + Array.from(new Set(r.rules)).map((c) => { const ru = RULES.find((x) => x.n === ruleBase(c)); if (!ru) return ''; const part = ru.p.find((x) => x[0] === c); return '<button class="rulechip" data-rule="' + c + '" style="text-align:left;height:auto;padding:8px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%"><span>' + esc(citeLabel(c)) + ' · ' + esc(ru.t) + '</span>' + (part ? '<span style="font-weight:400;font-size:12.5px;color:var(--ink2);line-height:1.35">' + esc(part[2]) + '</span>' : '') + '</button>'; }).join('') + '</div>';
     } else h += '<p class="sub">No close pass predicted from the current AIS reports. Keep a lookout; reports may be incomplete.</p>';
   }
+  { const wl = S.settings.aisWatch || {}, on = t.mmsi && wl[t.mmsi]; h += '<div class="row-btns"><button class="btn' + (on ? '' : ' primary') + '" data-aiswatch="' + esc(t.mmsi || '') + '" data-nm="' + esc(t.name || '') + '">' + (on ? 'Stop watching (' + esc(on.g) + ')' : 'Watch this boat') + '</button></div>'; }
   h += '<div class="row-btns" style="margin-top:6px"><button class="btn ghost" data-act="close">Close</button></div><p class="disclaim">' + DISCLAIMER + '</p>';
   openSheet(h); S.aisSheetId = t.id; shipWiki(t); shipPhoto(t);
 }
@@ -8502,7 +8514,178 @@ function navStartIdx(pts) {
   if (bd > 0.5) return 0; // well off the route: head for its start first
   return Math.min(pts.length - 1, best + 1);
 }
-window.Tideline = { navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+/* ---------- race and fishing coaches ----------
+   Built on a researched knowledge base (kb/trim.json, kb/race.json, kb/fish.json: North Sails, Quantum, ORC polars,
+   Annapolis local guides, Maryland DNR, NOAA HMS). Rules that keep it from becoming noise, borrowed from cockpit alerting:
+   silent by default, one spoken tip every 4 minutes at most, only when something changed, only above a confidence level,
+   always with the reason and where the data came from, quiet in the start sequence and through tacks, a Quiet button,
+   and thumbs up / down that tunes it for this sailor. Everything it held back is in the debrief. */
+const KB = { trim: null, race: null, fish: null, loading: null };
+async function kbLoad() { if (KB.trim) return KB; if (!KB.loading) KB.loading = Promise.all(['trim', 'race', 'fish'].map((k) => fetch('kb/' + k + '.json').then((r) => r.json()).then((j) => { KB[k] = j; }))).catch(() => null); await KB.loading; return KB; }
+const RC = { on: false, kind: 'race', boat: null, log: [], held: [], lastSay: 0, topicAt: {}, quietUntil: 0, startAt: null, crew: null, stw: null, hist: [], tackAt: 0, perf: [], vote: store.get('coachVotes', {}), t: null, species: null };
+const RC_BOATS = () => (KB.trim ? KB.trim.targets.map((x) => x.boat) : []);
+const lerp = (tbl, tws) => { if (!tbl) return null; const ks = Object.keys(tbl).map((k) => +k.replace('tws', '')).sort((a, b) => a - b); if (tws <= ks[0]) return tbl['tws' + ks[0]] * Math.max(0.3, tws / ks[0]); for (let i = 1; i < ks.length; i++) if (tws <= ks[i]) { const a = ks[i - 1], b = ks[i], f = (tws - a) / (b - a); return tbl['tws' + a] + (tbl['tws' + b] - tbl['tws' + a]) * f; } return tbl['tws' + ks[ks.length - 1]]; };
+function rcBoatRow() {
+  if (!KB.trim) return null; const name = RC.boat || S.settings.rcBoat || (S.boat.model ? KB.trim.targets.find((x) => (S.boat.make + ' ' + S.boat.model).toLowerCase().includes(x.boat.toLowerCase().replace('/', '').replace('j', 'j/')) || (S.boat.model || '').toLowerCase().replace(/\s/g, '').includes(x.boat.toLowerCase().replace(/[\s/]/g, ''))) : null);
+  const row = KB.trim.targets.find((x) => x.boat === (typeof name === 'string' ? name : name && name.boat)); return row || KB.trim.targets.find((x) => /GENERIC/.test(x.boat));
+}
+// the wind the coach trusts most: what the crew typed in the last 20 min, else a nearby station, else the forecast
+function rcWind() {
+  if (RC.crew && Date.now() - RC.crew.at < 20 * 60000) return { tws: RC.crew.tws, twd: RC.crew.twd, src: 'crew reading', conf: 'high' };
+  const ob = nearestObs(); if (ob && ob.spd != null && ob.dir != null) return { tws: ob.spd, twd: ob.dir, src: 'station ' + agoTxt(ob.t), conf: 'medium' };
+  const c = S.weather && S.weather.cur; if (c && c.spd != null && c.dir != null) return { tws: c.spd, twd: c.dir, src: 'forecast', conf: 'low' };
+  return null;
+}
+const rcAng = (a, b) => ((a - b + 540) % 360) - 180;
+function rcBand(tws) { const b = KB.trim.windBands; return b.find((x) => tws >= x.tws[0] && tws < x.tws[1]) || b[b.length - 1]; }
+// Chesapeake patterns by wind direction, from the local guides (marked lore where it is lore)
+function rcLocal(twd, month) {
+  const C = (KB.race && KB.race.chesapeake) || [], pick = (re) => C.find((x) => re.test(x.pattern));
+  if (twd >= 300 || twd < 30) return pick(/North \/ northwest/); if (twd >= 140 && twd < 240) return pick(/south \/ southwest/i); if (twd >= 30 && twd < 120) return pick(/Easterly/); return pick(/Pre-frontal/);
+}
+function rcSea(twd, tws, cur) { // chop when wind fights the current or a northerly blows down the Bay; long waves on a steady southerly
+  const S2 = KB.trim.seaState, get = (id) => S2.find((x) => x.id === id) || S2[0];
+  if (cur && cur.kn > 0.4 && Math.abs(rcAng(cur.dir, (twd + 180) % 360)) > 120 && tws > 8) return get('chop');
+  if ((twd >= 300 || twd < 30) && tws > 8) return get('chop');
+  if (tws < 6) return get('flat'); return S2.find((x) => /swell|roll/i.test(x.id)) || get('chop');
+}
+async function rcBriefHtml() {
+  await kbLoad(); if (!KB.trim) return '<p class="sub">The coach notes could not load. Open the app once with signal.</p>';
+  const w = rcWind(), row = rcBoatRow(), f = S.fix || refPos();
+  if (!w) return '<p class="sub">I need the wind first: enter it below, or wait for the forecast.</p>';
+  const band = rcBand(w.tws), cur = await scCurrentNear(f, Date.now()), sea = rcSea(w.twd, w.tws, cur), loc = rcLocal(w.twd);
+  const up = row && lerp(row.upwind, w.tws), dn = row && lerp(row.downwind, w.tws), twaU = row && lerp(row.twaUp, w.tws);
+  const later = S.weather && S.weather.hours ? [3, 5].map((h) => seriesAt(S.weather.hours, Date.now() + h * 3600000, 'dir')).filter((x) => x != null) : [];
+  const swing = later.length ? rcAng(later[later.length - 1], w.twd) : 0;
+  const li = (t) => '<li>' + esc(t) + '</li>';
+  let h = '<div class="rc-head"><b>' + Math.round(speedOut(w.tws)) + ' ' + SPEED_LBL[S.settings.speedUnit] + ' from ' + compass16(w.twd) + '</b><span>' + esc(w.src) + ' · ' + esc(band.id) + ' air' + (cur ? ' · current ' + cur.kn.toFixed(1) + ' kn ' + (cur.flood ? 'flood' : 'ebb') : '') + '</span></div>';
+  if (row) h += '<div class="rc-tgt"><div><small>TARGET UPWIND</small><b>' + up.toFixed(1) + ' kn</b><span>at ' + Math.round(twaU) + '° true</span></div><div><small>TARGET DOWNWIND</small><b>' + dn.toFixed(1) + ' kn</b><span>' + esc(row.boat) + '</span></div></div>' + (/GENERIC|Catalina 27/.test(row.boat) ? '<p class="hint">Targets for this boat are an estimate; your own logged races will replace them.</p>' : '');
+  h += '<h4>Trim for ' + esc(band.id) + ' air</h4><ul class="rc-list">' + [band.goal, band.main && band.main.coachLine, band.jib && band.jib.coachLine, band.helm && (band.helm.coachLine || band.helm), band.crew && (band.crew.coachLine || band.crew)].filter((x) => typeof x === 'string').map(li).join('') + '</ul>';
+  if (sea) h += '<h4>Waves: ' + esc(sea.id) + '</h4><ul class="rc-list">' + li(sea.coachLine || (sea.adjust || [])[0] || '') + (sea.adjust || []).slice(0, 2).map(li).join('') + '</ul>';
+  if (loc) h += '<h4>On the Bay today</h4><ul class="rc-list">' + [loc.waves, loc.handling, loc.strategy].filter(Boolean).map(li).join('') + '</ul><p class="hint">' + (/lore/i.test(loc.basis || '') ? 'Local rule of thumb, not a measurement. ' : '') + 'What you see on the water beats this.</p>';
+  if (Math.abs(swing) >= 15) h += '<h4>Shift in the forecast</h4><ul class="rc-list">' + li('The forecast ' + (swing > 0 ? 'veers' : 'backs') + ' about ' + Math.abs(Math.round(swing)) + '° over the next few hours. Treat it as a persistent shift: favour the ' + (swing > 0 ? 'right' : 'left') + ' side, and do not hit the layline early.') + '</ul>';
+  if (cur && cur.kn > 0.3) h += '<h4>Current</h4><ul class="rc-list">' + li('About ' + cur.kn.toFixed(1) + ' kn ' + (cur.flood ? 'flood' : 'ebb') + ' toward ' + compass16(cur.dir) + (cur.nextSlack ? ', slack about ' + fmtClock(cur.nextSlack.t) : '') + '. In foul current hug the shallows where it is safe; in fair current stay in the channel; overstand marks by the drift.') + '</ul>';
+  return h;
+}
+// the live coach: runs every 15 s while on, speaks rarely
+function rcSay(topic, text, conf, why) {
+  const now = Date.now(), v = RC.vote[topic] || 0, gap = 4 * 60000 * (v < 0 ? 3 : 1), quiet = now < RC.quietUntil || (RC.startAt && now > RC.startAt - 120000 && now < RC.startAt + 30000) || now - RC.tackAt < 25000;
+  const entry = { t: now, topic, text, conf, why };
+  if (quiet || now - RC.lastSay < gap || now - (RC.topicAt[topic] || 0) < 15 * 60000 || (conf === 'low' && v <= 0)) { RC.held.push(entry); return; }
+  RC.lastSay = now; RC.topicAt[topic] = now; RC.log.push(entry);
+  const el = $('rcCard'); if (el) { el.hidden = false; el.innerHTML = '<div class="rc-say"><b>' + esc(text) + '</b><span>' + esc(why) + ' · ' + conf + ' confidence</span></div><div class="rc-btns"><button type="button" data-rcv="1" data-tp="' + topic + '" aria-label="Useful">👍</button><button type="button" data-rcv="-1" data-tp="' + topic + '" aria-label="Not useful">👎</button><button type="button" data-rcq aria-label="Quiet for 10 minutes">Quiet</button><button type="button" data-rcx aria-label="Close">×</button></div>'; clearTimeout(RC.cardT); RC.cardT = setTimeout(() => { el.hidden = true; }, 25000); }
+  if ((S.settings.coachMode || 'off') === 'voice' || S.settings.rcVoice !== false) { try { const keep = S.settings.voice; S.settings.voice = true; speak(text); S.settings.voice = keep; } catch (e) { /* */ } } else chime();
+}
+function rcTick() {
+  if (!RC.on || !S.fix || !KB.trim) return;
+  const now = Date.now(), sog = S.sog || 0, cog = S.cog;
+  RC.hist.push({ t: now, cog, sog }); RC.hist = RC.hist.filter((x) => now - x.t < 15 * 60000);
+  const prev = RC.hist.length > 4 ? RC.hist[RC.hist.length - 5] : null; if (prev && cog != null && prev.cog != null && Math.abs(rcAng(cog, prev.cog)) > 60) RC.tackAt = now;
+  if (RC.kind === 'fish') return fcTick(now, sog, cog);
+  const w = rcWind(), row = rcBoatRow(); if (cog != null) rcCourseTick(now, w, row, cog); if (!w || !row || cog == null || sog < 1) return;
+  const twa = Math.abs(rcAng(w.twd, cog)), mode = twa < 75 ? 'up' : twa > 110 ? 'down' : 'reach';
+  // performance: boat speed (crew log reading, else SOG with the predicted current taken out) against the polar target
+  const cur = RC.curNow, along = cur ? cur.kn * Math.cos((cur.dir - cog) * Math.PI / 180) : 0;
+  const bs = RC.stw && now - RC.stw.at < 10 * 60000 ? RC.stw.v : sog - along, tgt = mode === 'up' ? lerp(row.upwind, w.tws) : mode === 'down' ? lerp(row.downwind, w.tws) : null;
+  if (tgt && now - RC.tackAt > 60000) { RC.perf.push({ t: now, r: bs / tgt }); RC.perf = RC.perf.filter((x) => now - x.t < 4 * 60000);
+    const avg = RC.perf.reduce((s, x) => s + x.r, 0) / RC.perf.length, conf = RC.stw ? (w.conf === 'high' ? 'high' : 'medium') : w.conf === 'high' ? 'medium' : 'low';
+    if (RC.perf.length >= 12 && avg < 0.88) { const band = rcBand(w.tws), sym = (KB.trim.symptoms || []).find((x) => /slow|sticky/i.test(x.symptom)), fix = band.id === 'light' ? 'Ease for power and foot a little: speed first, then height.' : band.id === 'overpowered' || band.id === 'heavy' ? 'Depower in order: outhaul, cunningham, backstay, then traveler down in the puffs.' : (sym && sym.coachLine) || 'Ease a touch and build speed before you point.';
+      rcSay('perf', 'About ' + Math.round((1 - avg) * 100) + '% under target ' + (mode === 'up' ? 'upwind' : 'downwind') + '. ' + fix, conf, 'target ' + tgt.toFixed(1) + ' kn for a ' + row.boat + ' in ' + Math.round(w.tws) + ' kn; wind from ' + w.src + (RC.stw ? '' : ', speed from GPS less predicted current')); RC.perf = []; } }
+  // shifts upwind: compare this tack's heading now with its own average over the last 10 minutes
+  if (mode === 'up' && now - RC.tackAt > 90000) {
+    const side = Math.sign(rcAng(w.twd, cog)), same = RC.hist.filter((x) => x.cog != null && now - x.t < 10 * 60000 && Math.sign(rcAng(w.twd, x.cog)) === side && now - x.t > 60000);
+    if (same.length >= 12) { const mean = Math.atan2(same.reduce((s, x) => s + Math.sin(x.cog * Math.PI / 180), 0), same.reduce((s, x) => s + Math.cos(x.cog * Math.PI / 180), 0)) * 180 / Math.PI, last = RC.hist.slice(-4), now4 = Math.atan2(last.reduce((s, x) => s + Math.sin(x.cog * Math.PI / 180), 0), last.reduce((s, x) => s + Math.cos(x.cog * Math.PI / 180), 0)) * 180 / Math.PI;
+      const d = rcAng(now4, mean) * -side; // positive = lifted, negative = headed
+      if (d <= -9) rcSay('shift', 'Headed about ' + Math.round(-d) + '° on this tack. If the wind is oscillating, this is the time to tack.', 'medium', 'your course compared with your average on this tack over 10 minutes');
+    } }
+}
+// fishing: tide timing and trolling speed for what you are after, nothing else unless it matters
+function fcTick(now, sog) {
+  const tn = tideNow(); if (tn && tn.next) { const m = (tn.next.t - now) / 60000; if (m > 25 && m < 45) rcSay('tide', 'The tide turns in about ' + Math.round(m) + ' minutes. Be on your spot for the last of this ' + (tn.rising ? 'flood' : 'ebb') + ' and the start of the next.', 'medium', 'NOAA tide prediction'); }
+  const sp = RC.species && (KB.fish.trolling.speedsBySpecies || []).find((x) => x.species.toLowerCase().includes(RC.species.split(' ')[0].toLowerCase()));
+  if (sp && sog > 1.2) { const m = String(sp.knots).match(/([\d.]+)\s*[-–]\s*([\d.]+)/); if (m) { const lo = +m[1], hi = +m[2]; RC.perf.push({ t: now, r: sog }); RC.perf = RC.perf.filter((x) => now - x.t < 3 * 60000); const avg = RC.perf.reduce((s, x) => s + x.r, 0) / RC.perf.length;
+    if (RC.perf.length >= 10 && (avg < lo * 0.85 || avg > hi * 1.15)) { rcSay('troll', 'Trolling at ' + avg.toFixed(1) + ' kn; for ' + RC.species + ' try ' + lo + ' to ' + hi + ' kn.', 'medium', 'speed over ground; current changes speed through the water'); RC.perf = []; } } }
+}
+// the race course: ping the committee boat and pin ends, then lay the windward mark by bearing and distance (marks are never dropped
+// exactly, so you can drag each one to where you actually see it). Windward-leeward or an Olympic triangle with the wing to port or starboard.
+RC.course = store.get('rcCourse', null); RC.cLayer = L.layerGroup().addTo(map);
+const llAt = (p, brg, nm) => { const R = 3440.065, d = nm / R, b = brg * Math.PI / 180, la = p.lat * Math.PI / 180, lo = p.lon * Math.PI / 180, la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b)), lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2)); return { lat: la2 * 180 / Math.PI, lon: lo2 * 180 / Math.PI }; };
+function rcDrawCourse() {
+  RC.cLayer.clearLayers(); const c = RC.course; if (!c) return;
+  if (c.cb && c.pin) L.polyline([[c.cb.lat, c.cb.lon], [c.pin.lat, c.pin.lon]], { color: '#E8952B', weight: 3, dashArray: '6 5', interactive: false }).addTo(RC.cLayer);
+  [['cb', 'Committee boat'], ['pin', 'Pin']].forEach(([k, l]) => { if (c[k]) L.circleMarker([c[k].lat, c[k].lon], { radius: 6, color: '#fff', weight: 2, fillColor: '#E8952B', fillOpacity: 1 }).bindTooltip(l).addTo(RC.cLayer); });
+  (c.marks || []).forEach((m, i) => { const mk = L.marker([m.lat, m.lon], { draggable: true, icon: L.divIcon({ className: 'rc-mark', iconSize: [26, 26], iconAnchor: [13, 13], html: '<b>' + esc(m.n) + '</b>' }) }).addTo(RC.cLayer);
+    mk.on('dragend', () => { const q = mk.getLatLng(); m.lat = q.lat; m.lon = q.lng; store.set('rcCourse', RC.course); }); });
+}
+function rcLayCourse(shape, brg, nm, wing) {
+  const c = RC.course || {}; const mid = c.cb && c.pin ? { lat: (c.cb.lat + c.pin.lat) / 2, lon: (c.cb.lon + c.pin.lon) / 2 } : (S.fix || refPos());
+  const W = llAt(mid, brg, nm), marks = [{ n: '1', lat: W.lat, lon: W.lon, k: 'windward' }];
+  if (shape === 'tri') { const side = wing === 'stbd' ? 1 : -1, P = llAt(mid, brg + side * 60, nm); marks.push({ n: '2', lat: P.lat, lon: P.lon, k: 'wing' }); }
+  marks.push({ n: shape === 'tri' ? '3' : '2', lat: mid.lat, lon: mid.lon, k: 'leeward' });
+  RC.course = Object.assign(c, { shape, brg, nm, marks, leg: 0 }); store.set('rcCourse', RC.course); rcDrawCourse();
+  try { map.fitBounds(L.latLngBounds(marks.map((m) => [m.lat, m.lon]).concat(c.cb ? [[c.cb.lat, c.cb.lon]] : [])).pad(0.3)); } catch (e) { /* */ }
+}
+rcDrawCourse();
+function rcCourseTick(now, w, row, cog) { // the next mark, its distance, and a single call when you reach the layline
+  const c = RC.course; if (!c || !c.marks || !c.marks.length || !S.fix) return;
+  const m = c.marks[Math.min(c.leg || 0, c.marks.length - 1)], d = distNm(S.fix, m), b = bearing(S.fix, m);
+  if (d < 0.03) { c.leg = Math.min((c.leg || 0) + 1, c.marks.length - 1); store.set('rcCourse', c); return; }
+  if (!w || !row) return; const twaU = lerp(row.twaUp, w.tws) || 42, rel = Math.abs(rcAng(b, w.twd));
+  if (rel < 80 && Math.abs(rel - twaU) < 4 && d > 0.08) rcSay('layline' + c.leg, 'Layline for mark ' + m.n + ', ' + fmtDist(d) + ' away. Overstand a little if the current is pushing you down.', w.conf === 'low' ? 'low' : 'medium', 'bearing to the mark against the ' + Math.round(twaU) + '° upwind angle for your boat');
+}
+function rcStart(kind) {
+  RC.on = true; RC.kind = kind || 'race'; RC.log = []; RC.held = []; RC.perf = []; RC.hist = []; S.settings.rcKind = RC.kind; saveSettings();
+  if (!$('rcCard')) { const el = document.createElement('div'); el.id = 'rcCard'; el.className = 'rc-card'; el.hidden = true; $('app').appendChild(el); }
+  clearInterval(RC.t); RC.t = setInterval(rcTick, 15000);
+  const f = S.fix || refPos(); scCurrentNear(f, Date.now()).then((c) => { RC.curNow = c; }); clearInterval(RC.ct); RC.ct = setInterval(() => scCurrentNear(S.fix || refPos(), Date.now()).then((c) => { RC.curNow = c; }), 10 * 60000);
+  toast((RC.kind === 'race' ? 'Race coach' : 'Fishing coach') + ' on. I will speak up only when something changes and it matters.', 3500);
+}
+function rcStop() { RC.on = false; clearInterval(RC.t); clearInterval(RC.ct); const el = $('rcCard'); if (el) el.hidden = true; }
+function rcDebriefHtml() {
+  const all = RC.log.map((x) => ({ ...x, said: true })).concat(RC.held.map((x) => ({ ...x, said: false }))).sort((a, b) => a.t - b.t);
+  if (!all.length) return '<p class="sub">Nothing to report yet. The coach keeps quiet unless something changes.</p>';
+  return '<ul class="rc-list">' + all.slice(-30).map((x) => '<li><b>' + fmtClock(x.t) + '</b> ' + (x.said ? '' : '<i>(held back)</i> ') + esc(x.text) + ' <span class="hint">' + esc(x.why) + '</span></li>').join('') + '</ul>';
+}
+async function openCoach(kind, tab) {
+  kind = kind || S.settings.rcKind || 'race'; tab = tab || 'brief';
+  openSheet('<h3>' + (kind === 'race' ? 'Race coach' : 'Fishing coach') + '</h3><p class="sub">Loading the coach notes…</p>'); await kbLoad();
+  const tabs = '<div class="seg fw-tabs">' + [['cruise', 'Cruising'], ['race', 'Racing'], ['fish', 'Fishing']].map(([v, l]) => '<button type="button" data-rck="' + v + '" class="' + (kind === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+    '<div class="seg fw-tabs">' + [['brief', 'Today'], ['live', 'Live coach'], ['debrief', 'Debrief']].map(([v, l]) => '<button type="button" data-rct="' + v + '" data-k="' + kind + '" class="' + (tab === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  if (kind === 'cruise') { closeSheet(); openSailCoach(); return; }
+  let h = '<h3>' + (kind === 'race' ? 'Race coach' : 'Fishing coach') + '</h3>' + tabs;
+  if (kind === 'race' && tab === 'brief') {
+    const row = rcBoatRow(); h += '<div class="field"><label>Boat</label><select id="rcBoat">' + RC_BOATS().map((b) => '<option' + (row && row.boat === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select></div>' + (await rcBriefHtml());
+  } else if (kind === 'fish' && tab === 'brief') {
+    const m = new Date().getMonth() + 1, off = (S.fix || refPos()).lon > -75.4, list = (KB.fish.species || []).filter((x) => (off ? /dolphin|tuna|marlin|wahoo|sea_bass|flounder|tautog|bluefish/ : /striped|blue|spanish|cobia|red_drum|trout|perch|flounder/).test(x.id));
+    h += '<div class="field"><label>Fishing for</label><select id="fcSpecies"><option value="">Anything</option>' + list.map((x) => '<option' + (RC.species === x.name ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select></div>';
+    const sp = list.find((x) => x.name === RC.species) || list[0];
+    if (sp) h += '<h4>' + esc(sp.name) + '</h4><ul class="rc-list"><li>' + esc(sp.say || '') + '</li><li><b>When:</b> ' + esc(sp.season || '') + '</li><li><b>Where:</b> ' + esc(sp.where || '') + '</li><li><b>Tide:</b> ' + esc(sp.tide || '') + '</li>' + (sp.methods || []).slice(0, 3).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul><p class="hint"><b>Check current regulations</b> before you keep a fish: ' + (sp.regsLinks || []).slice(0, 2).map((u) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]) + '</a>').join(' · ') + '</p>';
+    const tn = tideNow(); if (tn && tn.next) h += '<p class="sub">Tide turns ' + fmtClock(tn.next.t) + ' (' + (tn.next.type === 'H' ? 'high' : 'low') + '). Fish usually feed best when the water is moving.</p>';
+    h += watchedHtml() + '<p class="hint">Your spots stay private: the coach never shares them.</p>';
+  } else if (tab === 'live') {
+    h += '<p class="sub">Silent by default. At most one spoken tip every 4 minutes, only when something changes, with the reason and how sure it is. Quiet through the start and tacks. Tap 👍 or 👎 on a tip and it learns what you want.</p>' +
+      (kind === 'race' ? '<div class="grid2"><div class="field"><label>True wind now (kn)</label><input id="rcTws" type="number" inputmode="decimal" step="any" min="0" placeholder="from your instruments or the flag"></div><div class="field"><label>From (°)</label><input id="rcTwd" type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="e.g. 200"></div></div><div class="field"><label>Boat speed through the water (kn, optional)</label><input id="rcStw" type="number" inputmode="decimal" step="any" min="0" placeholder="from your log"></div><div class="row-btns"><button class="btn" data-rcset>Use these readings</button><button class="btn" data-rcstart5>Start in 5 min</button></div><h4>The course</h4><div class="row-btns"><button class="btn small" data-rcping="cb">Committee boat end is here</button><button class="btn small" data-rcping="pin">Pin end is here</button></div><div class="grid2"><div class="field"><label>Windward mark bearing (°)</label><input id="rcBrg" type="number" inputmode="decimal" step="any" min="0" max="360" placeholder="' + (rcWind() ? Math.round(rcWind().twd) : '') + '"></div><div class="field"><label>Leg length (nm)</label><input id="rcLeg" type="number" inputmode="decimal" step="any" min="0.1" value="1"></div></div><div class="seg" role="group"><button type="button" data-rclay="wl">Windward-leeward</button><button type="button" data-rclay="tri" data-w="port">Triangle, wing to port</button><button type="button" data-rclay="tri" data-w="stbd">Wing to starboard</button></div><p class="hint">Marks are never dropped exactly: drag any mark on the chart to where you see it. Blank bearing = straight upwind.</p>' + (RC.course && RC.course.marks ? '<div class="row-btns"><button class="btn small" data-rcclear>Clear the course</button></div>' : '') + '<p class="hint">A phone only knows speed over the ground. Readings you enter make the coach more accurate; without them it says so.</p>' : '') +
+      '<div class="row-btns">' + (RC.on && RC.kind === kind ? '<button class="btn" data-rcstop>Stop the coach</button>' : '<button class="btn primary" data-rcgo="' + kind + '">Start the coach</button>') + '</div>';
+  } else h += rcDebriefHtml();
+  openSheet(h + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
+}
+document.addEventListener('change', (e) => { if (e.target.id === 'rcBoat') { S.settings.rcBoat = e.target.value; RC.boat = e.target.value; saveSettings(); openCoach('race', 'brief'); } if (e.target.id === 'fcSpecies') { RC.species = e.target.value || null; openCoach('fish', 'brief'); } });
+document.addEventListener('click', (e) => {
+  const k = e.target.closest('[data-rck]'); if (k) { openCoach(k.dataset.rck, 'brief'); return; }
+  const t = e.target.closest('[data-rct]'); if (t) { openCoach(t.dataset.k, t.dataset.rct); return; }
+  const g = e.target.closest('[data-rcgo]'); if (g) { rcStart(g.dataset.rcgo); openCoach(g.dataset.rcgo, 'live'); return; }
+  if (e.target.closest('[data-rcstop]')) { rcStop(); openCoach(RC.kind, 'debrief'); return; }
+  if (e.target.closest('[data-rcset]')) { const n = (id) => { const v = parseFloat(($(id) || {}).value); return isFinite(v) ? v : null; }; const tws = n('rcTws'), twd = n('rcTwd'), stw = n('rcStw');
+    if (tws != null && twd != null) RC.crew = { tws: S.settings.speedUnit === 'kmh' ? tws / 1.852 : S.settings.speedUnit === 'mph' ? tws / 1.15078 : tws, twd: ((twd % 360) + 360) % 360, at: Date.now() }; if (stw != null) RC.stw = { v: stw, at: Date.now() }; toast('Got it. The coach uses your readings for the next 20 minutes.', 3000); return; }
+  const pg = e.target.closest('[data-rcping]'); if (pg) { if (!S.fix) { toast('Needs a GPS fix: ping it when you are at that end.'); return; } RC.course = RC.course || {}; RC.course[pg.dataset.rcping] = { lat: S.fix.lat, lon: S.fix.lon }; store.set('rcCourse', RC.course); rcDrawCourse(); toast(pg.dataset.rcping === 'cb' ? 'Committee boat end saved.' : 'Pin end saved.', 1800); return; }
+  const ly = e.target.closest('[data-rclay]'); if (ly) { const w = rcWind(), b = parseFloat(($('rcBrg') || {}).value), nm = parseFloat(($('rcLeg') || {}).value) || 1, brg = isFinite(b) ? b : w ? w.twd : null; if (brg == null) { toast('Enter the windward mark bearing (or the wind first).'); return; } rcLayCourse(ly.dataset.rclay, brg, nm, ly.dataset.w); closeSheet(); toast('Course laid. Drag marks to where you see them.', 3000); return; }
+  if (e.target.closest('[data-rcclear]')) { RC.course = null; store.set('rcCourse', null); rcDrawCourse(); openCoach('race', 'live'); return; }
+  if (e.target.closest('[data-rcstart5]')) { RC.startAt = Date.now() + 5 * 60000; toast('Start in 5 minutes: the coach stays quiet from 2 minutes before until 30 seconds after.', 4000); return; }
+  const v = e.target.closest('[data-rcv]'); if (v) { const tp = v.dataset.tp; RC.vote[tp] = Math.max(-2, Math.min(2, (RC.vote[tp] || 0) + +v.dataset.rcv)); store.set('coachVotes', RC.vote); $('rcCard').hidden = true; toast(+v.dataset.rcv > 0 ? 'Thanks. More like that.' : 'Got it. Less of that.', 1800); return; }
+  if (e.target.closest('[data-rcq]')) { RC.quietUntil = Date.now() + 10 * 60000; $('rcCard').hidden = true; toast('Coach quiet for 10 minutes.', 1800); return; }
+  if (e.target.closest('[data-rcx]')) { $('rcCard').hidden = true; }
+});
+window.Tideline = { openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
