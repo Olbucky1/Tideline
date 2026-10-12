@@ -2773,7 +2773,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 149. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 150. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5810,7 +5810,7 @@ function buildCockpit() {
   }
   if (ckEdit) grid.classList.add('editing'); else grid.classList.remove('editing');
   const lay = S.settings.ckLayout || 'grid'; grid.className = grid.className.replace(/\blay-\S+/g, '').trim() + ' lay-' + (sl.includes('chart') ? lay : 'grid');
-  const lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>Drag a tile to move it, its corner ◢ to resize</span><button type="button" class="btn small" data-ckrsreset>Reset sizes</button><span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join(''); }
+  const consoleOnL = (S.settings.ckStyle || 'console') === 'console', lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>' + (consoleOnL ? 'Drag a tile to move it · pull any edge to resize · drop a gauge on another to swap' : 'Drag a tile to move it, its corner ◢ to resize') + '</span>' + (consoleOnL ? '<button type="button" class="btn small" data-cktidy>Tidy up</button>' + (ckSlots().length < 9 ? '<button type="button" class="btn small" data-ckadd>+ Add a gauge</button>' : '') : '') + '<button type="button" class="btn small" data-ckrsreset>Reset</button>' + (consoleOnL ? '' : '<span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join('')); }
   { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)), wide = window.innerWidth >= 900, sp = sl.includes('chart') && (lay === 'half' || lay === 'big') && wide;
     grid.style.gridTemplateRows = sp ? 'repeat(' + rows + ', minmax(0, 1fr))' : '';
     const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = sp ? '1 / span ' + rows : ''; }
@@ -5873,24 +5873,89 @@ function ckFreeLayout(grid, sl) {
 }
 (() => {
   let mv = null;
+  const GAP = 1.6; // % of dash width between snapped tiles
+  const save = (grid, rects) => { const G = grid.getBoundingClientRect(), all = S.settings.ckFree && !Array.isArray(S.settings.ckFree.speed) ? S.settings.ckFree : (S.settings.ckFree = {}), key = G.width / G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {});
+    Object.keys(rects).forEach((id) => { own[id] = rects[id].map((v) => Math.round(v * 10) / 10); }); saveSettings(); };
+  const rectOf = (el, G) => { const R = el.getBoundingClientRect(); return [(R.left - G.left) / G.width * 100, (R.top - G.top) / G.height * 100, R.width / G.width * 100, R.height / G.height * 100]; };
+  const place = (el, q) => Object.assign(el.style, { left: q[0] + '%', top: q[1] + '%', width: q[2] + '%', height: q[3] + '%' });
+  const guides = (grid, xs, ys) => { grid.querySelectorAll('.ck-guide').forEach((g) => g.remove()); xs.forEach((x) => grid.insertAdjacentHTML('beforeend', '<i class="ck-guide v" style="left:' + x + '%"></i>')); ys.forEach((y) => grid.insertAdjacentHTML('beforeend', '<i class="ck-guide h" style="top:' + y + '%"></i>')); };
+  const finish = (grid) => { grid.querySelectorAll('.ck-guide').forEach((g) => g.remove()); if (ckMap) setTimeout(() => ckMap.invalidateSize(), 50); try { if (typeof ckHostResize === 'function') ckHostResize(); } catch (e) { /* */ } window.dispatchEvent(new Event('resize')); };
+  // which edges the finger is on: a 26px band round each tile resizes, the middle moves
+  const edgesAt = (R, x, y) => { const b = Math.min(26, R.width / 4, R.height / 4); return { l: x - R.left < b, r: R.right - x < b, t: y - R.top < b, b: R.bottom - y < b }; };
   window.addEventListener('pointerdown', (e) => {
     const grid = e.target.closest('#cockpit .ck-grid.free.editing'); if (!grid) return;
-    const slot = e.target.closest('.ck-slot[data-fid]'); if (!slot || e.target.closest('select, button, .ck-mv, .leaflet-container')) return;
-    const rz = !!e.target.closest('.ck-rs'); e.preventDefault(); e.stopPropagation();
-    const G = grid.getBoundingClientRect(), R = slot.getBoundingClientRect();
-    mv = { slot, grid, rz, x0: e.clientX, y0: e.clientY, G, l: (R.left - G.left) / G.width * 100, t: (R.top - G.top) / G.height * 100, w: R.width / G.width * 100, h: R.height / G.height * 100, sq: !slot.classList.contains('chart') };
-    slot.classList.add('moving');
+    const slot = e.target.closest('.ck-slot[data-fid]'); if (!slot || e.target.closest('select, button, .ck-mv')) return;
+    e.preventDefault(); e.stopPropagation();
+    const G = grid.getBoundingClientRect(), R = slot.getBoundingClientRect(), ed = e.target.closest('.ck-rs') ? { r: true, b: true } : edgesAt(R, e.clientX, e.clientY);
+    const rz = ed.l || ed.r || ed.t || ed.b;
+    const others = [...grid.querySelectorAll('.ck-slot[data-fid]')].filter((x) => x !== slot).map((x) => ({ el: x, q: rectOf(x, G) }));
+    mv = { slot, grid, rz, ed, x0: e.clientX, y0: e.clientY, G, A: G.width / G.height, q0: rectOf(slot, G), sq: !slot.classList.contains('chart'), others };
+    mv.q = mv.q0.slice(); slot.classList.add('moving', rz ? 'sizing' : 'dragging');
+    try { slot.setPointerCapture(e.pointerId); } catch (err) { /* */ }
+    if (navigator.vibrate) try { navigator.vibrate(8); } catch (err) { /* */ }
   }, true);
+  // snap one value to the nearest target within a few px; returns [value, target or null]
+  const near = (v, tg, tol) => { let best = null, bd = tol; tg.forEach((t) => { const d = Math.abs(v - t); if (d < bd) { bd = d; best = t; } }); return best; };
   window.addEventListener('pointermove', (e) => { if (!mv) return; e.preventDefault();
-    const dx = (e.clientX - mv.x0) / mv.G.width * 100, dy = (e.clientY - mv.y0) / mv.G.height * 100, snap = (v) => Math.round(v * 2) / 2;
-    if (mv.rz) { let w = Math.max(8, Math.min(100 - mv.l, mv.w + dx)), h = Math.max(8, Math.min(100 - mv.t, mv.h + dy)); if (mv.sq) { const A = mv.G.width / mv.G.height, s = Math.max(w * A, h); w = Math.min(100 - mv.l, s / A); h = Math.min(100 - mv.t, s); } mv.nw = snap(w); mv.nh = snap(h); mv.slot.style.width = mv.nw + '%'; mv.slot.style.height = mv.nh + '%'; }
-    else { mv.nl = snap(Math.max(0, Math.min(100 - mv.w, mv.l + dx))); mv.nt = snap(Math.max(0, Math.min(100 - mv.h, mv.t + dy))); mv.slot.style.left = mv.nl + '%'; mv.slot.style.top = mv.nt + '%'; }
+    const m = mv, dx = (e.clientX - m.x0) / m.G.width * 100, dy = (e.clientY - m.y0) / m.G.height * 100, tx = 14 / m.G.width * 100, ty = 14 / m.G.height * 100, gy = GAP * m.A;
+    const X = [0, 50, 100, GAP, 100 - GAP], Y = [0, 100, gy, 100 - gy];
+    m.others.forEach(({ q }) => { X.push(q[0], q[0] + q[2], q[0] + q[2] / 2, q[0] - GAP, q[0] + q[2] + GAP); Y.push(q[1], q[1] + q[3], q[1] + q[3] / 2, q[1] - gy, q[1] + q[3] + gy); });
+    let [l, t, w, h] = m.q0; const gx = [], gyl = [];
+    if (!m.rz) {
+      l = Math.max(0, Math.min(100 - w, l + dx)); t = Math.max(0, Math.min(100 - h, t + dy));
+      const sx = [[l, 0], [l + w / 2, w / 2], [l + w, w]].map(([v, off]) => { const n = near(v, X, tx); return n == null ? null : [n - off, Math.abs(n - v), n]; }).filter(Boolean).sort((a, b) => a[1] - b[1])[0];
+      if (sx) { l = sx[0]; gx.push(sx[2]); }
+      const sy = [[t, 0], [t + h / 2, h / 2], [t + h, h]].map(([v, off]) => { const n = near(v, Y, ty); return n == null ? null : [n - off, Math.abs(n - v), n]; }).filter(Boolean).sort((a, b) => a[1] - b[1])[0];
+      if (sy) { t = sy[0]; gyl.push(sy[2]); }
+      // hovering over another gauge: highlight it, letting go swaps the two
+      const ov = (q) => Math.max(0, Math.min(l + w, q[0] + q[2]) - Math.max(l, q[0])) * Math.max(0, Math.min(t + h, q[1] + q[3]) - Math.max(t, q[1])) / Math.min(w * h, q[2] * q[3]);
+      const hit = m.sq ? m.others.filter(({ el, q }) => !el.classList.contains('chart') && ov(q) > 0.35).sort((A2, B2) => ov(B2.q) - ov(A2.q))[0] : null;
+      m.others.forEach(({ el }) => el.classList.toggle('swap-on', !!hit && el === hit.el)); m.swap = hit || null;
+    } else {
+      const E = m.ed; let r = l + w, b = t + h;
+      if (E.r) r = Math.min(100, Math.max(l + 8, r + dx)); if (E.l) l = Math.max(0, Math.min(r - 8, l + dx));
+      if (E.b) b = Math.min(100, Math.max(t + 8, b + dy)); if (E.t) t = Math.max(0, Math.min(b - 8, t + dy));
+      if (E.r) { const n = near(r, X, tx); if (n != null) { r = n; gx.push(n); } } if (E.l) { const n = near(l, X, tx); if (n != null) { l = n; gx.push(n); } }
+      if (E.b) { const n = near(b, Y, ty); if (n != null) { b = n; gyl.push(n); } } if (E.t) { const n = near(t, Y, ty); if (n != null) { t = n; gyl.push(n); } }
+      w = r - l; h = b - t;
+      if (m.sq) { // gauges stay round: the edge you pulled sets the size, the opposite corner stays put
+        const s = (E.l || E.r) && !(E.t || E.b) ? w * m.A : (E.t || E.b) && !(E.l || E.r) ? h : Math.max(w * m.A, h);
+        const sMax = Math.min((E.l ? m.q0[0] + m.q0[2] : 100 - m.q0[0]) * m.A, E.t ? m.q0[1] + m.q0[3] : 100 - m.q0[1]), s2 = Math.max(8, Math.min(s, sMax));
+        w = s2 / m.A; h = s2; l = E.l ? m.q0[0] + m.q0[2] - w : m.q0[0]; t = E.t ? m.q0[1] + m.q0[3] - h : m.q0[1];
+        if (!(E.l || E.r)) { l = m.q0[0] + m.q0[2] / 2 - w / 2; l = Math.max(0, Math.min(100 - w, l)); } if (!(E.t || E.b)) { t = m.q0[1] + m.q0[3] / 2 - h / 2; t = Math.max(0, Math.min(100 - h, t)); }
+      }
+    }
+    m.q = [l, t, w, h]; place(m.slot, m.q); guides(m.grid, gx, gyl);
   }, { capture: true, passive: false });
-  const up = () => { if (!mv) return; const d = mv; mv = null; d.slot.classList.remove('moving'); const all = S.settings.ckFree && !Array.isArray(S.settings.ckFree.speed) ? S.settings.ckFree : (S.settings.ckFree = {}), key = d.G.width / d.G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {});
-    own[d.slot.dataset.fid] = [d.nl != null ? d.nl : d.l, d.nt != null ? d.nt : d.t, d.nw != null ? d.nw : d.w, d.nh != null ? d.nh : d.h].map((v) => Math.round(v * 10) / 10); saveSettings();
-    if (ckMap) setTimeout(() => ckMap.invalidateSize(), 50); try { if (typeof ckHostResize === 'function') ckHostResize(); } catch (e) { /* */ } window.dispatchEvent(new Event('resize')); };
+  window.addEventListener('touchmove', (e) => { if (mv) e.preventDefault(); }, { passive: false, capture: true });
+  const up = () => { if (!mv) return; const d = mv; mv = null; d.slot.classList.remove('moving', 'sizing', 'dragging'); d.others.forEach(({ el }) => el.classList.remove('swap-on'));
+    const rects = {};
+    if (d.swap) { // trade places: each takes the other's spot, keeping the slot sizes so the layout stays tidy
+      const a = d.slot.dataset.fid, b = d.swap.el.dataset.fid, qa = d.q0, qb = d.swap.q;
+      rects[a] = qb; rects[b] = qa; place(d.slot, qb); place(d.swap.el, qa);
+    } else {
+      // a drop that overlaps something slides to the nearest free spot (keeping an even gap)
+      let [l, t, w, h] = d.q; const gy = GAP * d.A, hits = (x, y) => d.others.some(({ q }) => x < q[0] + q[2] + GAP * 0.9 && x + w > q[0] - GAP * 0.9 && y < q[1] + q[3] + gy * 0.9 && y + h > q[1] - gy * 0.9);
+      if (hits(l, t)) { let best = null, bd = 1e9; for (let y = 0; y <= 100 - h; y += 0.5) for (let x = 0; x <= 100 - w; x += 0.5) { const dd = (x - l) ** 2 + ((y - t) / d.A) ** 2; if (dd < bd && !hits(x, y)) { bd = dd; best = [x, y]; } }
+        // snap the free spot flush against its neighbour's gap
+        if (best) { l = best[0]; t = best[1]; } }
+      rects[d.slot.dataset.fid] = [l, t, w, h]; place(d.slot, rects[d.slot.dataset.fid]);
+    }
+    save(d.grid, rects); finish(d.grid); };
   window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
-  document.addEventListener('click', (e) => { if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckFree; saveSettings(); buildCockpit(); } });
+  // Tidy up: keep each tile's size roughly, but line everything up with even gaps round the screen
+  const tidy = (grid) => { const sl = ckSlots(); const G = grid.getBoundingClientRect(), A = G.width / G.height;
+    const def = ckDefaultFree(sl, G.width, G.height), own = ((S.settings.ckFree || {})[A < 1.2 ? 'tall' : 'wide']) || {}, ch = own.chart || def.chart, rects = {};
+    if (ch && A >= 1.2) { // every gauge the same size: columns left and right of a centred screen, the rest in a strip below it
+      const g = sl.filter((x) => x !== 'chart'), gy = GAP * A, perSide = Math.max(1, Math.min(3, Math.ceil(g.length / 3))), rest = Math.max(0, g.length - perSide * 2);
+      let sz = (100 - gy * (perSide + 1)) / perSide; if (rest) sz = Math.min(sz, 100 - 3 * gy - 55); sz = Math.max(10, Math.min(sz, 30 * A));
+      const w = sz / A, cw = Math.max(30, Math.min(ch[2], 100 - 2 * w - 4 * GAP)), chh = rest ? 100 - 3 * gy - sz : Math.min(ch[3], 100 - 2 * gy), c = [50 - cw / 2, gy, cw, chh]; rects.chart = c;
+      const y0 = (100 - (perSide * sz + (perSide - 1) * gy)) / 2; let i = 0;
+      [GAP + (c[0] - 2 * GAP - w) / 2, c[0] + c[2] + GAP + (100 - c[0] - c[2] - 2 * GAP - w) / 2].forEach((x) => { for (let k = 0; k < perSide && i < g.length; k++, i++) rects[g[i]] = [x, y0 + k * (sz + gy), w, sz]; });
+      const B = g.slice(i), tot = B.length * w + (B.length - 1) * GAP; B.forEach((id, k) => { rects[id] = [50 - tot / 2 + k * (w + GAP), c[1] + c[3] + gy, w, sz]; });
+    } else Object.assign(rects, def);
+    const all = S.settings.ckFree || (S.settings.ckFree = {}); all[A < 1.2 ? 'tall' : 'wide'] = {}; save(grid, rects); buildCockpit(); };
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckFree; saveSettings(); buildCockpit(); } if (e.target.closest('[data-cktidy]')) { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g); } });
 })();
 /* Customize: drag the corner handle of a tile to make it as big as you like; it snaps to whole cells */
 (() => {
