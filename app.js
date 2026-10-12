@@ -450,7 +450,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gArt') applyGArt();
   if (k === 'fabLook') applyFabLook();
   if (k === 'gShape') { applyGTheme(); try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
-  if (k === 'ckStyle') document.documentElement.dataset.ck = v;
+  if (k === 'ckStyle') { document.documentElement.dataset.ck = v; try { buildCockpit(); } catch (e) { /* */ } }
   if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-row')) openGaugeLook(); }
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
@@ -2773,7 +2773,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 147. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 148. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5810,13 +5810,17 @@ function buildCockpit() {
   }
   if (ckEdit) grid.classList.add('editing'); else grid.classList.remove('editing');
   const lay = S.settings.ckLayout || 'grid'; grid.className = grid.className.replace(/\blay-\S+/g, '').trim() + ' lay-' + (sl.includes('chart') ? lay : 'grid');
-  const lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join(''); }
+  const lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>Drag a tile\'s corner ◢ to resize it</span><button type="button" class="btn small" data-ckrsreset>Reset sizes</button><span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join(''); }
   { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)), wide = window.innerWidth >= 900, sp = sl.includes('chart') && (lay === 'half' || lay === 'big') && wide;
     grid.style.gridTemplateRows = sp ? 'repeat(' + rows + ', minmax(0, 1fr))' : '';
     const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = sp ? '1 / span ' + rows : ''; }
   if (ckMap) setTimeout(() => ckMap.invalidateSize(), 60);
+  // console style: one big centre instrument (the chart, else the first gauge) with the others around it, like a helm
+  const consoleOn = (S.settings.ckStyle || 'console') === 'console' && !ckEdit; grid.classList.toggle('helm', consoleOn);
+  grid.querySelectorAll('.ck-slot.hero').forEach((x) => x.classList.remove('hero'));
+  if (consoleOn) { const hero = grid.querySelector('.ck-slot.chart') || grid.querySelector('.ck-slot[data-slot]'); if (hero) hero.classList.add('hero'); grid.style.gridTemplateRows = ''; const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = ''; }
   // fill any empty cells so the grid stays even: weather, barometer, warnings, then your boat photo
-  if (!ckEdit) setTimeout(() => {
+  if (!ckEdit && !consoleOn) setTimeout(() => {
     const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length || 1, chart = sl.includes('chart'), wide = window.innerWidth >= 900;
     let free = 0;
     if (chart && wide && (lay === 'half' || lay === 'big')) { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)); free = rows * (cols - 1) - (sl.length - 1); } else free = (cols - (sl.length % cols)) % cols;
@@ -5825,8 +5829,27 @@ function buildCockpit() {
     renderCockpit();
   }, 0);
   grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { el.draggable = ckEdit; });
+  // sizes you dragged: each tile can span several columns and rows
+  const sp = S.settings.ckSpan || {}; grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { const id = sl[+el.dataset.slot], z = sp[id];
+    if (z) { el.style.gridColumn = 'span ' + z[0]; el.style.gridRow = 'span ' + z[1]; el.classList.add('sized'); } else if (!el.classList.contains('hero')) { el.style.gridColumn = ''; if (!el.classList.contains('chart')) el.style.gridRow = ''; }
+  });
+  if (Object.keys(sp).length) grid.style.gridAutoFlow = 'row dense';
   renderCockpit();
 }
+/* Customize: drag the corner handle of a tile to make it as big as you like; it snaps to whole cells */
+(() => {
+  let rs = null;
+  document.addEventListener('dragstart', (e) => { if (rs || (e.target.closest && e.target.closest('.ck-rs'))) e.preventDefault(); }, true);
+  window.addEventListener('pointerdown', (e) => { const h = e.target.closest('.ck-rs'); if (!h) return; e.preventDefault(); e.stopPropagation();
+    const slot = h.closest('.ck-slot'), grid = slot.parentElement, gs = getComputedStyle(grid), cols = gs.gridTemplateColumns.split(' ').filter(Boolean), r = slot.getBoundingClientRect();
+    const cw = r.width / (parseInt(slot.style.gridColumn.replace('span ', '')) || 1), ch = r.height / (parseInt(slot.style.gridRow.replace('span ', '')) || 1);
+    rs = { id: h.dataset.ckrs, slot, x0: e.clientX, y0: e.clientY, w0: r.width, h0: r.height, cw, ch, max: cols.length }; slot.classList.add('resizing'); }, true);
+  window.addEventListener('pointermove', (e) => { if (!rs) return; e.preventDefault();
+    const c = Math.max(1, Math.min(rs.max, Math.round((rs.w0 + e.clientX - rs.x0) / rs.cw))), r = Math.max(1, Math.min(4, Math.round((rs.h0 + e.clientY - rs.y0) / rs.ch)));
+    if (c !== rs.c || r !== rs.r) { rs.c = c; rs.r = r; rs.slot.style.gridColumn = 'span ' + c; rs.slot.style.gridRow = 'span ' + r; rs.slot.parentElement.style.gridAutoFlow = 'row dense'; } }, { capture: true, passive: false });
+  const up = () => { if (!rs) return; const d = rs; rs = null; d.slot.classList.remove('resizing'); if (d.c) { const sp = S.settings.ckSpan || (S.settings.ckSpan = {}); if (d.c === 1 && d.r === 1) delete sp[d.id]; else sp[d.id] = [d.c, d.r]; saveSettings(); } buildCockpit(); };
+  window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
+})();
 // Customize: drag a tile onto another to swap them (arrows do the same on touch screens)
 (() => {
   const g = () => $('cockpit').querySelector('.ck-grid'); let from = null;
@@ -5862,7 +5885,8 @@ function renderCockpit() {
   el.querySelectorAll('.ck-slot[data-slot]').forEach((box) => {
     const i = +box.dataset.slot, id = sl[i];
     const mv = ckEdit ? '<div class="ck-mv"><button type="button" data-ckmove="' + i + ':-1" aria-label="Move earlier">◀</button><span>drag to move</span><button type="button" data-ckmove="' + i + ':1" aria-label="Move later">▶</button></div>' : '';
-    const pick = ckEdit ? mv + '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
+    const rsH = ckEdit ? '<i class="ck-rs" data-ckrs="' + id + '" title="Drag to resize"></i>' : '';
+    const pick = ckEdit ? rsH + mv + '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
     if (id === 'chart') { // add or remove the picker only when Customize changes, so an open menu or a drag is never cut off
       const has = !!box.querySelector('.ck-pick');
       if (ckEdit && !has) box.insertAdjacentHTML('afterbegin', pick);
@@ -5890,6 +5914,7 @@ $('cockpit').addEventListener('change', (e) => {
 $('cockpit').addEventListener('click', (e) => {
   if (e.target.closest('[data-ckadd]')) { const sl = ckSlots().slice(); sl.push(['speed', 'course', 'wind', 'tide', 'position', 'chart'].find((x) => !sl.includes(x)) || 'time'); S.settings.ckSlots = sl; saveSettings(); buildCockpit(); }
   if (e.target.closest('.ck-edit')) { ckEdit = !ckEdit; buildCockpit(); }
+  if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckSpan; saveSettings(); buildCockpit(); }
   const ly = e.target.closest('[data-cklay]'); if (ly) { S.settings.ckLayout = ly.dataset.cklay; let sl = ckSlots().slice(); if (ly.dataset.cklay !== 'grid' && !sl.includes('chart')) { sl.unshift('chart'); S.settings.ckSlots = sl.slice(0, 6); } if (ly.dataset.cklay !== 'grid') { sl = S.settings.ckSlots.filter((x) => x !== 'chart'); S.settings.ckSlots = ['chart'].concat(sl); } saveSettings(); buildCockpit(); }
 });
 function setCockpit(on) {

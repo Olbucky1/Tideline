@@ -2228,3 +2228,34 @@ html:is([data-gtheme="helm"],[data-gtheme="bridge"],[data-gtheme="amber"],[data-
 /* the faint tile oval behind each gauge on wide screens: gone in the console */
 html[data-ck="console"] .cockpit:not(.lt-ck) .gauge::before, html[data-ck="console"] .cockpit:not(.lt-ck) .gauge::after { display: none !important; }
 html[data-ck="console"] .cockpit:not(.lt-ck) .ck-slot, html[data-ck="console"] .cockpit:not(.lt-ck) .gauge { background-image: none !important; box-shadow: none !important; }
+
+/* ---------- helm console layout: a big centre instrument, smaller ones flanking it, on a curved moulded dash under a hood ---------- */
+.ck-grid.helm { grid-auto-flow: row dense !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-auto-rows: minmax(0, 1fr) !important; }
+.ck-grid.helm .ck-slot.hero { grid-column: 1 / -1; grid-row: span 2; }
+@media (min-width: 700px) {
+  .ck-grid.helm { grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr) !important; }
+  .ck-grid.helm .ck-slot.hero { grid-column: 2; grid-row: 1 / span 2; }
+}
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm {
+  border-radius: 48% 48% 34px 34px / 70px 70px 34px 34px !important; padding: 26px 22px 18px !important; gap: 2px 8px !important;
+}
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm::before { border-radius: 46% 46% 28px 28px / 62px 62px 28px 28px; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm::after { /* the hood over the dash: a soft shadow along the top edge */
+  content: ''; position: absolute; left: 6%; right: 6%; top: 0; height: 26px; border-radius: 0 0 50% 50%; background: radial-gradient(ellipse at 50% 0, rgba(0,0,0,.55), transparent 70%); pointer-events: none;
+}
+/* the hero gets a chrome bezel; a chart in the centre reads as the chartplotter screen */
+.ck-grid.helm .ck-slot.hero .gauge > svg { transform: scale(1.04); }
+.ck-grid.helm .ck-slot.hero.chart .gauge { padding: 8px !important; border-radius: 18px !important; background: linear-gradient(180deg, #2A2F35, #0C0F12) !important; box-shadow: inset 0 0 0 2px #8C959E, inset 0 0 0 5px #1A1E22, 0 10px 24px rgba(0,0,0,.6) !important; }
+.ck-grid.helm .ck-slot.hero.chart .ck-map { border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.6); }
+.ck-grid.helm .ck-slot:not(.hero) .g-foot { display: none !important; }
+.ck-grid.helm .ck-slot:not(.hero) .g-lbl { font-size: 9px !important; padding: 1px 8px; }
+/* panel screws in the corners */
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm { background-image:
+  radial-gradient(circle at 18px calc(100% - 18px), #C9CED3 0 3px, #5A626B 3.5px 4.5px, transparent 5px),
+  radial-gradient(circle at calc(100% - 18px) calc(100% - 18px), #C9CED3 0 3px, #5A626B 3.5px 4.5px, transparent 5px),
+  radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,.10), transparent 55%),
+  repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 2px, rgba(0,0,0,.025) 2px 4px),
+  linear-gradient(180deg, color-mix(in srgb, #000 20%, var(--mt-bg, #16283A)), color-mix(in srgb, #000 55%, var(--mt-bg, #16283A))) !important; }
+.ck-rs { -webkit-user-drag: none; position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; z-index: 40; cursor: nwse-resize; touch-action: none; border-radius: 6px;
+  background: linear-gradient(135deg, transparent 0 45%, var(--mt-acc, #7CC0FF) 45% 55%, transparent 55% 65%, var(--mt-acc, #7CC0FF) 65% 75%, transparent 75%); background-color: rgba(0,0,0,.35); }
+.ck-slot.resizing { outline: 2px dashed var(--mt-acc, #7CC0FF); outline-offset: -2px; border-radius: 16px; }
