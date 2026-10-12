@@ -2053,7 +2053,7 @@ html.trip :is(#fabs, #fabsR, .fab-free, #miniInst, .topbar, #gotoRow, #btnMOB, .
 #tripTop .chip-b, #tripCard .chip-b { color: #EEF4FA; border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.06); }
 .g-sq { display: none; }
 
-:is(.gauge, #miniInst) svg, .gl-prev svg { border-radius: 50%; }
+:is(.gauge > svg, #miniInst svg), .gl-prev svg { border-radius: 50%; }
 html.no-instbtn #btnInst { display: none !important; }
 .lt-open { display: block; width: 100%; margin: 6px 0 4px; padding: 12px; border-radius: 14px; border: 1px dashed var(--accent, #7CC0FF); background: transparent; color: var(--accent, #7CC0FF); font: 600 15px var(--f-ui); }
 #lookTry { position: absolute; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 950; padding: 10px 12px 12px; background: color-mix(in srgb, var(--mt-bg, #16283A) 94%, transparent); color: #EEF4FA; border-radius: 20px 20px 0 0; box-shadow: 0 -6px 22px rgba(0,0,0,.35); touch-action: pan-y; user-select: none; -webkit-user-select: none; }
@@ -2152,10 +2152,10 @@ html.briefing #tripTop { visibility: hidden; }
 #briefing .bf-watch { padding-left: 14px; }
 
 /* ---------- square shape for any look (code-drawn rings): the circle parts hide, the rounded-square frame shows ---------- */
-html[data-gshape="sq"] :is(.gauge, #miniInst) .g-rd, html[data-gshape="sq"] i.gl-prev .g-rd { display: none !important; }
-html[data-gshape="sq"] :is(.gauge, #miniInst) .g-sq, html[data-gshape="sq"] i.gl-prev .g-sq { display: inline !important; }
-html[data-gshape="sq"] :is(.gauge, #miniInst) svg { border-radius: 12% !important; }
-html[data-gshape="sq"] .g-faceov { display: none !important; }
+html[data-gshape="sq"] :is(.gauge, #miniInst) .g-rd, i.gl-prev[data-gs="sq"] .g-rd { display: none !important; }
+html[data-gshape="sq"] :is(.gauge, #miniInst) .g-sq, i.gl-prev[data-gs="sq"] .g-sq { display: inline !important; }
+html[data-gshape="sq"] :is(.gauge > svg, #miniInst svg), i.gl-prev[data-gs="sq"] svg { border-radius: 12% !important; }
+html[data-gshape="sq"] :is(.gauge, #miniInst) .g-faceov, i.gl-prev[data-gs="sq"] .g-faceov { display: none !important; }
 
 /* ---------- instrument screen as one console (the default): a single panel in the look's colours, gauges sit in it, thin dividers ---------- */
 html[data-ck="console"] .cockpit:not(.lt-ck) {
@@ -2172,7 +2172,7 @@ html[data-ck="console"] .cockpit:not(.lt-ck) .gauge {
   border-right: 1px solid rgba(255,255,255,.07) !important; border-bottom: 1px solid rgba(255,255,255,.07) !important;
 }
 html[data-ck="console"] .cockpit:not(.lt-ck) .g-lbl { letter-spacing: .14em; color: color-mix(in srgb, var(--mt-acc, #7CC0FF) 80%, #fff) !important; }
-html[data-ck="console"] .cockpit:not(.lt-ck) .gauge svg { filter: drop-shadow(0 6px 10px rgba(0,0,0,.55)); }
+html[data-ck="console"] .cockpit:not(.lt-ck) .gauge > svg { filter: drop-shadow(0 6px 10px rgba(0,0,0,.55)); }
 html[data-ck="console"] #panelSide .gauge { background: transparent !important; border-color: rgba(255,255,255,.08) !important; }
 /* compass rose sits dead centre in its button; the N / BOW badge hangs below without pushing it up */
 .fab.orient { display: grid !important; place-items: center !important; }

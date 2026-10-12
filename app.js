@@ -449,7 +449,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
   if (k === 'gArt') applyGArt();
   if (k === 'fabLook') applyFabLook();
-  if (k === 'gShape') { applyGTheme(); try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
+  if (k === 'gShape') { applyGTheme(); if (!sheet.hidden && sheet.querySelector('.gl-row')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
   if (k === 'ckStyle') { document.documentElement.dataset.ck = v; try { buildCockpit(); } catch (e) { /* */ } }
   if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-row')) openGaugeLook(); }
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
@@ -2773,7 +2773,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 150. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 151. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6369,6 +6369,8 @@ document.documentElement.classList.toggle('lightmenus', S.settings.menuTone === 
    scale, accent and needle, art = artwork in the face, light = a light face (panel text stays light around it) */
 const GT = [
   // high-tech digital: glass-helm style, black glass faces, a thin dark frame and one bright accent, like a modern multifunction display
+  { id: 'gpslcd', l: 'Classic GPS (green screen)', g: 'Tech', plain: 1, sq: 1, lcd: 1, flat: 1, bz: ['#4A4E4A', '#2E312E', '#1A1C1A', '#5A5E5A', '#2A2C2A'], fc: ['#BCCBA4', '#A2B488'], ink: '#0E160A', muted: '#3A4A2C', acc: '#0E160A', n: '#0E160A', art: 'none', light: 1 },
+  { id: 'gpslcdn', l: 'Classic GPS (night)', g: 'Tech', plain: 1, sq: 1, lcd: 1, flat: 1, bz: ['#3A3D3A', '#252725', '#141514', '#454845', '#252725'], fc: ['#081608', '#030903'], ink: '#62FF70', muted: '#2FA03B', acc: '#62FF70', n: '#62FF70', art: 'none' },
   { id: 'helm', l: 'Glass helm', g: 'Tech', plain: 1, tech: 1, bz: ['#2A3440', '#1C242E', '#121820', '#2A3440', '#1C242E'], fc: ['#0B1118', '#03060A'], ink: '#FFFFFF', muted: '#7F93A6', acc: '#00D1FF', n: '#00D1FF', art: 'none' },
   { id: 'bridge', l: 'Glass bridge green', g: 'Tech', plain: 1, tech: 1, bz: ['#2B3330', '#1D2321', '#121614', '#2B3330', '#1D2321'], fc: ['#0A100E', '#030605'], ink: '#FFFFFF', muted: '#7FA192', acc: '#30D158', n: '#30D158', art: 'none' },
   { id: 'amber', l: 'Night amber', g: 'Tech', plain: 1, tech: 1, bz: ['#33291C', '#241C12', '#16110A', '#33291C', '#241C12'], fc: ['#0D0A06', '#050302'], ink: '#FFC266', muted: '#A9803F', acc: '#FF9F0A', n: '#FF9F0A', art: 'none' },
@@ -6476,6 +6478,12 @@ const mtOn = (hex) => { const n = parseInt(hex.slice(1), 16), l = (0.299 * (n >>
 const GTHEMES = GT.map((t) => [t.id, t.l, 'radial-gradient(circle,' + t.fc[0] + ' 55%,' + t.bz[1] + ' 58%)']);
 const gtOf = (id) => GT.find((t) => t.id === id) || GT.find((t) => t.id === 'midnight');
 const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'ga-hzs', swell: 'ga-swells', wood: 'ga-woods', carbon: 'ga-carbons', deep: 'ga-deeps' };
+function sbCss(P0, t, live) { let c = ''; // surfboard under the dial, drawn in this look's own colours (rails, stringer, a soft shadow); the dial sits on it and overlaps its rails
+      const b = t.bz, sh = 'M8 100C8 69 42 55 100 55C150 55 185 77 197 100C185 123 150 145 100 145C42 145 8 131 8 100Z';
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="a" x1="0" x2="1"><stop offset="0" stop-color="' + b[2] + '"/><stop offset=".22" stop-color="' + b[1] + '"/><stop offset=".5" stop-color="' + b[0] + '"/><stop offset=".78" stop-color="' + b[3] + '"/><stop offset="1" stop-color="' + b[4] + '"/></linearGradient><linearGradient id="v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient></defs>' +
+        '<path d="' + sh + '" transform="translate(0 6)" fill="#000" opacity=".35"/><path d="' + sh + '" fill="url(#a)"/><path d="' + sh + '" fill="url(#v)"/><path d="M12 100H193" stroke="#000" stroke-opacity=".35" stroke-width="1.6"/><path d="' + sh + '" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/><path d="' + sh + '" fill="none" stroke="#000" stroke-opacity=".35" stroke-width=".8" transform="translate(100 100) scale(.985) translate(-100 -100)"/><circle cx="18" cy="100" r="2.6" fill="#000" fill-opacity=".45"/></svg>';
+      const sbS = live ? P0 + '[data-gshape="sb"] .gauge > svg' : P0 + '[data-gs="sb"] svg';
+      c += sbS + '{background:' + (t.skin ? 'url(' + t.skin + ') center/' + Math.round(60 * (t.skinPad || 1)) + '% no-repeat,' : '') + 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") center/100% 100% no-repeat!important;border-radius:0!important;overflow:visible!important}'; return c; }
 (function gtCss() { // one stylesheet for every look: live (on <html>) and each preview tile
   const rules = (P0, t, live) => {
     const P = live ? P0 + ' :not(i.gl-prev)>svg' : P0; // live colours never leak into the preview tiles
@@ -6484,10 +6492,16 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
     c += P + ' .g-art>g{display:none!important}'; if (GA_CLASS[t.art]) c += P + ' .' + GA_CLASS[t.art] + '{display:inline!important}';
     c += P + ' .g-glare,' + P + ' .g-seam{opacity:' + (t.flat ? 0 : 1) + '!important}';
     if (t.veil) c += P + ' .g-faceov{display:inline!important;fill:' + (t.light ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.45)') + '!important}';
-    if (t.sq && !t.skin) c += P + ' .g-rd{display:none!important}' + P + ' .g-sq{display:inline!important}' + (live ? P0 + ' :is(.gauge,#miniInst) svg' : P0 + ' svg') + '{border-radius:14%!important}' + (live ? P0 + ' .mini-inst svg{border-radius:16%!important}' : '');
+    if (t.sq && !t.skin) c += P + ' .g-rd{display:none!important}' + P + ' .g-sq{display:inline!important}' + (live ? P0 + ' :is(.gauge>svg,#miniInst svg)' : P0 + ' svg') + '{border-radius:14%!important}' + (live ? P0 + ' .mini-inst svg{border-radius:16%!important}' : '');
+    if (!t.skin) c += P0 + '{--bt-img:none}';
+    if (t.skin) { // the artwork dial shrinks a little onto a square plate, or a lot into a surfboard
+      const sqp = live ? P0 + '[data-gshape="sqp"] :is(.gauge,#miniInst)' : P0 + '[data-gs="sqp"]', sb = live ? P0 + '[data-gshape="sb"] .gauge' : P0 + '[data-gs="sb"]';
+      c += sqp + ' .g-cont{transform:scale(' + (t.k * 0.84).toFixed(3) + ')}' + sb + ' .g-cont{transform:scale(' + (t.k * 0.6).toFixed(3) + ')}'; }
+    c += sbCss(P0, t, live);
+    if (t.lcd) c += P + ' :is(.g-tick,.g-track,.g-danger,.g-ticks,.g-num,.g-fill,.g-max,.g-glare,.g-seam,.g-dec,.g-art,.g-tband){display:none!important}' + P + ' :is(.g-big,.g-val,.g-main){font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace!important;font-weight:800!important;font-style:normal!important;letter-spacing:-.02em}' + P + ' :is(.g-unit,.g-name,text){font-family:ui-monospace,Menlo,Consolas,monospace!important}' + (t.light ? '' : P + ' :is(.g-big,.g-val,.g-main){filter:drop-shadow(0 0 4px ' + t.acc + '88)}');
     if (t.tech) c += P + ' :is(.g-fill,.g-max,.g-lubber){filter:drop-shadow(0 0 3px ' + t.acc + ')}' + P + ' .g-big{letter-spacing:-.01em;filter:drop-shadow(0 0 6px ' + t.acc + '55)}' + P + ' :is(.g-tick,.g-track){opacity:.75}';
     if (t.plain) c += P + ' .g-glare{opacity:0!important}' + P + ' .g-ring2{fill:' + t.fc[0] + '!important}';
-    if (t.skin) { const S0 = live ? P0 + ' :is(.gauge,#miniInst)' : P0; c += S0 + ' svg{background:url(' + t.skin + ') center/contain no-repeat}' + (t.sq ? S0 + ' svg{border-radius:12%!important}' : '') + S0 + ' :is(.g-bezel,.g-ring2,.g-seam,.g-glare,.g-art,.g-dec){display:none!important}' + S0 + ' .g-cont{transform:scale(' + t.k + ');transform-origin:100px 100px}' + (t.noclip ? S0 + ' svg{border-radius:0!important;overflow:visible}' : '') + (t.light ? S0 + ' text:not(.g-num):not(.g-card.n){fill:' + t.ink + '!important}' : '') + S0 + ' svg{--g-face:' + (t.light ? 'rgba(255,250,235,.18)' : 'rgba(0,0,0,.22)') + '!important;--g-bg:transparent!important}' + S0 + ' :is(.g-big,.g-num,.g-unit,.g-card,text){paint-order:stroke;stroke:' + (t.light ? 'rgba(255,248,230,.75)' : 'rgba(0,0,0,.6)') + ';stroke-width:2.5px;stroke-linejoin:round}' + (live ? P0 + ' #miniInst .g-cont{transform-origin:50px 50px}' : '') + P0 + '{--bt-img:url(' + t.skin + ')}'; }
+    if (t.skin) { const S0 = live ? P0 + ' :is(.gauge,#miniInst)' : P0, SV = live ? P0 + ' :is(.gauge>svg,#miniInst svg)' : P0 + ' svg'; c += SV + '{background:url(' + t.skin + ') center/contain no-repeat}' + (t.sq ? SV + '{border-radius:12%!important}' : '') + S0 + ' :is(.g-bezel,.g-ring2,.g-seam,.g-glare,.g-art,.g-dec){display:none!important}' + S0 + ' .g-cont{transform:scale(' + t.k + ');transform-origin:100px 100px}' + (t.noclip ? SV + '{border-radius:0!important;overflow:visible}' : '') + (t.light ? S0 + ' text:not(.g-num):not(.g-card.n){fill:' + t.ink + '!important}' : '') + SV + '{--g-face:' + (t.light ? 'rgba(255,250,235,.18)' : 'rgba(0,0,0,.22)') + '!important;--g-bg:transparent!important}' + S0 + ' :is(.g-big,.g-num,.g-unit,.g-card,text){paint-order:stroke;stroke:' + (t.light ? 'rgba(255,248,230,.75)' : 'rgba(0,0,0,.6)') + ';stroke-width:2.5px;stroke-linejoin:round}' + (live ? P0 + ' #miniInst .g-cont{transform-origin:50px 50px}' : '') + P0 + '{--bt-img:url(' + t.skin + ')}'; }
     if (t.dec) c += P + ' .g-dec-' + t.dec + '{display:inline!important}' + P0 + '{--dec1:' + (t.decC || ['#C9A26B', '#7A5A2E'])[0] + ';--dec2:' + (t.decC || ['#C9A26B', '#7A5A2E'])[1] + '}';
     if (t.light && live) c += P0 + ' :is(.cockpit,#panelSide){--g-ink:#EAF4F8!important;--g-muted:#A9BCCD!important;--g-acc:#2CD3C5!important;--g-line:#3A5670!important}' +
       P0 + ' :is(.cockpit,#panelSide) .gauge svg{--g-ink:var(--gi-ink)!important;--g-muted:var(--gi-muted)!important;--g-acc:var(--gi-acc)!important;--g-acc2:var(--gi-acc)!important;--g-face:color-mix(in srgb,var(--gi-ink) 9%,transparent)!important;--g-bg:transparent!important;--g-line:color-mix(in srgb,var(--gi-ink) 35%,transparent)!important}';
@@ -6495,19 +6509,44 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
   };
   let css0 = GT.map((t) => { const m = MT[t.id] || MT.midnight; return 'html:root[data-gtheme="' + t.id + '"]{--mt-bg:' + m[0] + ';--mt-acc:' + m[1] + ';--mt-on:' + mtOn(m[1]) + '}'; }).join(''), css = css0 + '.gl-prev{--g-ink:var(--gi-ink);--g-muted:var(--gi-muted);--g-acc:var(--gi-acc);--g-acc2:var(--gi-acc);--g-line:color-mix(in srgb,var(--gi-muted) 45%,transparent);--g-face:transparent;--g-bg:transparent}';
   GT.forEach((t) => {
-    if (t.legacy) { css += 'html:root[data-gtheme="' + t.id + '"]{--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}'; return; } // the original looks keep their own app.css styling
+    if (t.legacy) { css += 'html:root[data-gtheme="' + t.id + '"]{--bt-f1:' + t.fc[0] + ';--bt-f2:' + t.fc[1] + ';--bt-ink:' + t.ink + ';' + t.bz.map((v, i) => '--bt-c' + (i + 1) + ':' + v).join(';') + '}' + 'i.gl-prev[data-gt="' + t.id + '"]{--bt-img:none}' + sbCss('html:root[data-gtheme="' + t.id + '"]', t, true) + sbCss('i.gl-prev.gl-prev[data-gt="' + t.id + '"]', t, false); return; } // the original looks keep their own app.css styling
     css += rules('html:root[data-gtheme="' + t.id + '"]:not([data-night])', t, true) + rules('i.gl-prev.gl-prev[data-gt="' + t.id + '"]', t, false); });
   const el = document.createElement('style'); el.id = 'gtStyle'; el.textContent = css; document.head.appendChild(el);
 })();
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
-function glPrev(id, gf) { return '<i class="gl-prev" data-gt="' + id + '"' + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/>' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
+function glPrev(id0, gf, shp) { const id = effLook(id0, shp || 'round'), gs = shapeOf(id0, shp || 'round'); return '<i class="gl-prev" data-gt="' + id + '" data-gs="' + gs + '"' + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/>' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
   const placed = new Set();
-  return ['Tech', 'Bay', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].map((g) => { const items = lookPairs(GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g))).filter((t) => !placed.has(t.id) || (t.sq && g !== 'Square')); items.forEach((t) => placed.add(t.id)); if (!items.length) return ''; return '<div class="mo-h">' + ({ Tech: 'High-tech digital', Bay: 'Chesapeake Bay collection', Square: 'Square artwork', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + items.map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id, S.settings.gFace || '') + t.l + '</button>').join('') + '</div>'; }).join('');
+  return ['Tech', 'Bay', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].map((g) => { const items = lookPairs(GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g))).filter((t) => !placed.has(t.id) || (t.sq && g !== 'Square')); items.forEach((t) => placed.add(t.id)); if (!items.length) return ''; return '<div class="mo-h">' + ({ Tech: 'High-tech digital', Bay: 'Chesapeake Bay collection', Square: 'Square artwork', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + items.map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id, S.settings.gFace || '', S.settings.gShape || 'round') + t.l + '</button>').join('') + '</div>'; }).join('');
 }
 const SQ_PAIR = { cb_annapolis: 'sq_navy', cb_skipjack: 'sq_teak', cb_chart: 'sq_chart', cb_thomas: 'bport', cb_crab: 'bport', cb_oyster: 'bport', wheel1: 'bhelm', wheel2: 'bhelm', brass: 'bport', heritage: 'bport', compass: 'bcompass', navybrass: 'sq_navy', goldnavy: 'sq_navy', goldnavy2: 'sq_navy', navyphoto: 'sq_navy', chromewave: 'sq_chrome', chromewave2: 'sq_chrome', arcticglass: 'sq_chrome', teakbrass: 'sq_teak', teak: 'sq_teak', teaknavy: 'sq_teak', rope: 'sq_rope', ropenavy: 'sq_rope', ropenavy2: 'sq_rope', ropehelm: 'sq_rope', chart1: 'sq_chart', chart2: 'sq_chart', parchbrass: 'sq_chart', parchbrass2: 'sq_chart', vintage: 'sq_chart', polynesian: 'sq_poly', polysimple: 'sq_poly', carbonrefined: 'sq_carbon', titanium: 'sq_carbon', helm: 'helmsq', bridge: 'bridgesq', amber: 'ambersq', daylight: 'daylightsq', horizon: 'sq_surf', lagoon: 'sq_surf' };
-const effLook = (id) => { const t = gtOf(id); if (S.settings.gShape === 'square' && !t.sq) return SQ_PAIR[id] || id; return id; };
-function applyGTheme() { document.documentElement.dataset.gtheme = effLook(S.settings.gTheme || 'midnight'); document.documentElement.dataset.gshape = S.settings.gShape === 'square' && !gtOf(effLook(S.settings.gTheme || 'midnight')).skin ? 'sq' : 'rd'; try { renderMini(); } catch (e) { /* early */ } }
+// a look's square: a designed digital square where one exists (helm → helmsq), otherwise the look itself on a square plate
+const sqTwin = (id) => { const p2 = SQ_PAIR[id], t = p2 && gtOf(p2); return t && !t.skin ? p2 : null; };
+const effLook = (id, shp) => { const t = gtOf(id); if ((shp || S.settings.gShape) === 'square' && !t.sq) return sqTwin(id) || id; return id; };
+// which frame to draw: sq = code ring squared, sqp = artwork on a square plate, sb = surfboard, rd = as designed
+function shapeOf(id, shp) { const t = gtOf(effLook(id, shp)); if (shp === 'board' && !t.sq) return 'sb'; if (shp === 'square' && !t.sq) return t.skin ? 'sqp' : 'sq'; return 'rd'; }
+function applyGTheme() { const id = S.settings.gTheme || 'midnight'; document.documentElement.dataset.gtheme = effLook(id); document.documentElement.dataset.gshape = shapeOf(id, S.settings.gShape); try { renderMini(); } catch (e) { /* early */ } }
+// the chart screen's frame is cut from the look's own square artwork, so teak looks get wood, rope gets rope, Polynesian gets the carving
+(function ckFrameCss() { let c = ''; const FR = { teak: 33, poly: 44, rope: 36, navy: 33, chrome: 33, carbon: 35, chart: 38, surf: 21 };
+  const metal = 'conic-gradient(from 215deg, var(--bt-c1), var(--bt-c2), var(--bt-c3), var(--bt-c4), var(--bt-c1), var(--bt-c5), var(--bt-c2), var(--bt-c1))';
+  GT.forEach((t) => { const f = t.skin && t.sq ? t.skin : (SQ_PAIR[t.id] && gtOf(SQ_PAIR[t.id]).skin), m = f && /sq_(\w+)\.webp/.exec(f); if (!m || !FR[m[1]]) return;
+    c += 'html:root[data-gtheme="' + t.id + '"][data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge{border:clamp(16px,2.4vw,28px) solid transparent!important;border-image:url(skins/fr_' + m[1] + '.webp) ' + FR[m[1]] + ' round!important;padding:4px!important;border-radius:0!important;background:linear-gradient(#05080B,#05080B) content-box,' + metal + ' padding-box!important;box-shadow:0 22px 34px -8px rgba(0,0,0,.8),0 8px 14px rgba(0,0,0,.45)!important}'; });
+  const el = document.createElement('style'); el.id = 'ckFrameCss'; el.textContent = c; document.head.appendChild(el); })();
+(function shapeCss() {
+  // surfboard outline: rounded tail on the left, a finer nose on the right, about 64% as tall as wide
+  const pts = []; for (let i = 0; i <= 48; i++) { const a = Math.PI * i / 48, x = 50 - 50 * Math.cos(a), u = x / 100, th = 32 * Math.pow(Math.sin(Math.PI * Math.pow(u, 0.92)), 0.55) * (u > 0.5 ? 1 : 0.92 + 0.08 * Math.sin(Math.PI * u)); pts.push([x, th]); }
+  const poly = 'polygon(' + pts.map(([x, h]) => x.toFixed(1) + '% ' + (50 - h).toFixed(1) + '%').concat(pts.slice().reverse().map(([x, h]) => x.toFixed(1) + '% ' + (50 + h).toFixed(1) + '%')).join(',') + ')';
+  const L = (k, mini) => 'html[data-gshape="' + k + '"] ' + (mini ? ':is(.gauge>svg,#miniInst svg)' : '.gauge>svg') + ', i.gl-prev[data-gs="' + k + '"] svg';
+  const metal = 'conic-gradient(from 215deg at 50% 50%, var(--bt-c1), var(--bt-c2), var(--bt-c3), var(--bt-c4), var(--bt-c1), var(--bt-c5), var(--bt-c2), var(--bt-c1))';
+  const screws = [['9%', '9%'], ['91%', '9%'], ['9%', '91%'], ['91%', '91%']].map(([x, y]) => 'radial-gradient(circle at ' + x + ' ' + y + ', rgba(255,255,255,.85) 0 1.2%, var(--bt-c3) 1.6% 3.1%, rgba(0,0,0,.45) 3.3% 3.9%, transparent 4.1%)').join(',');
+  const css =
+    // artwork on a square plate in the look's metal (or wood), four screws, bevelled edge
+    L('sqp', 1) + '{background:var(--bt-img) center/84% no-repeat,' + screws + ',linear-gradient(160deg,rgba(255,255,255,.42),rgba(255,255,255,0) 30%,rgba(0,0,0,0) 65%,rgba(0,0,0,.4)),' + metal + '!important;border-radius:14%!important;box-shadow:inset 0 2px 1px rgba(255,255,255,.6),inset 0 -3px 3px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.35)}' +
+    // code-drawn looks: shrink the whole dial into the board
+    'html[data-gshape="sb"] .gauge > svg > :not(defs), i.gl-prev[data-gs="sb"] svg > :not(defs){transform:scale(.6);transform-origin:100px 100px}html[data-gshape="sb"] .gauge > svg, i.gl-prev[data-gs="sb"] svg{box-shadow:none!important;filter:none}' +
+    'html[data-gshape="sb"] .gauge .g-lbl{position:relative;z-index:1}';
+  const el = document.createElement('style'); el.id = 'shapeCss'; el.textContent = css; document.head.appendChild(el);
+})();
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 applyMiSize();
 applyGTheme(); document.documentElement.dataset.gstyle = S.settings.gStyle || 'hybrid'; document.documentElement.dataset.ck = S.settings.ckStyle || 'console';
@@ -7454,7 +7493,7 @@ setTimeout(applyFabLayout, 300);
 function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div><button type="button" class="lt-open" data-looktry="1">◀ ▶ Swipe through every look on the chart</button>' + glPicker(st.gTheme || 'midnight') +
-    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Temperature dial on the chart</label>' + seg('tempBtn', st.tempBtn === false ? 'off' : 'on', [['on', 'Show'], ['off', 'Hide']]) + '</div><div class="field"><label>Button size</label>' + seg('fabSize', st.fabSize || 'm', [['s', 'Small'], ['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']]) + '</div><div class="field"><label>Speed circle size</label>' + seg('miSize', st.miSize || 'l', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large'], ['xxl', 'Huge']]) + '</div><div class="field"><label>Shape</label>' + seg('gShape', st.gShape || 'round', [['round', 'Round'], ['square', 'Square']]) + '<small class="hint">Square uses the matching square artwork where there is one; other looks get a square frame.</small></div><div class="field"><label>Instrument screen</label>' + seg('ckStyle', st.ckStyle || 'console', [['console', 'Console (one panel)'], ['tiles', 'Tiles']]) + '</div><div class="field"><label>Face colour (any look)</label><div class="btheme-row gl-row gl-faces">' + GFACES.map(([k, l]) => '<button type="button" data-ltface="' + k + '" class="' + ((st.gFace || '') === k ? 'on' : '') + '">' + glPrev(st.gTheme || 'midnight', k) + l + '</button>').join('') + '</div></div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
+    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Temperature dial on the chart</label>' + seg('tempBtn', st.tempBtn === false ? 'off' : 'on', [['on', 'Show'], ['off', 'Hide']]) + '</div><div class="field"><label>Button size</label>' + seg('fabSize', st.fabSize || 'm', [['s', 'Small'], ['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']]) + '</div><div class="field"><label>Speed circle size</label>' + seg('miSize', st.miSize || 'l', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large'], ['xxl', 'Huge']]) + '</div><div class="field"><label>Shape</label>' + seg('gShape', st.gShape || 'round', [['round', 'Round'], ['square', 'Square'], ['board', 'Surfboard']]) + '<small class="hint">Every look comes round, square, or set in a surfboard.</small></div><div class="field"><label>Instrument screen</label>' + seg('ckStyle', st.ckStyle || 'console', [['console', 'Console (one panel)'], ['tiles', 'Tiles']]) + '</div><div class="field"><label>Face colour (any look)</label><div class="btheme-row gl-row gl-faces">' + GFACES.map(([k, l]) => '<button type="button" data-ltface="' + k + '" class="' + ((st.gFace || '') === k ? 'on' : '') + '">' + glPrev(st.gTheme || 'midnight', k) + l + '</button>').join('') + '</div></div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
     '<div class="field"><label>Theme the rest of the app with it</label>' + seg('fabLook', st.fabLook || 'theme', [['app', 'Everything'], ['gauge', 'Buttons and tab bar'], ['theme', 'Nothing else']]) + '</div>' +
     '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
@@ -8158,19 +8197,20 @@ document.addEventListener('change', (e) => { if (e.target.id !== 'tripDT') retur
 /* ---------- try looks live: swipe left and right, the whole app (chart buttons, speed circle, tab bar, gauges) changes as you go ---------- */
 const LT = { on: false, i: 0, orig: null, x0: null };
 // every round look is followed by its square twin, so the pair sits side by side when you scroll
-function lookPairs(list) { const out = [], used = new Set(); list.forEach((t) => { if (used.has(t.id)) return; if (t.sq && Object.values(SQ_PAIR).includes(t.id)) return; out.push(t); used.add(t.id); if (SQ_PAIR[t.id]) list.forEach((u) => { if (!used.has(u.id) && SQ_PAIR[u.id] === SQ_PAIR[t.id]) { out.push(u); used.add(u.id); } }); const sq = SQ_PAIR[t.id] && gtOf(SQ_PAIR[t.id]); if (sq) { out.push(sq); used.add(sq.id); } });
-  list.forEach((t) => { if (!used.has(t.id)) { out.push(t); used.add(t.id); } }); return out; }
-const ltOrder = () => lookPairs(['Tech', 'Bay', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].flatMap((g) => GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g))));
+function lookPairs(list) { const twins = new Set(Object.keys(SQ_PAIR).map(sqTwin).filter(Boolean)); return list.filter((t) => !twins.has(t.id)); }
+const SHP_L = { round: '', square: ' · square', board: ' · surfboard' };
+const ltOrder = () => lookPairs(['Tech', 'Bay', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].flatMap((g) => GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g))))
+  .flatMap((t) => (t.sq ? [{ t, shape: 'round' }] : ['round', 'square', 'board'].map((shape) => ({ t, shape })))).map(({ t, shape }) => Object.assign({}, t, { shape, l: t.l + SHP_L[shape] }));
 const LT_G = { Bay: 'Chesapeake Bay collection', Square: 'Square artwork', Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' };
 function openLookTry() {
-  const list = ltOrder(); LT.on = true; LT.orig = S.settings.gTheme || 'midnight'; LT.i = Math.max(0, list.findIndex((t) => t.id === LT.orig));
+  const list = ltOrder(); LT.on = true; LT.orig = S.settings.gTheme || 'midnight'; LT.origS = S.settings.gShape || 'round'; LT.i = Math.max(0, list.findIndex((t) => t.id === LT.orig && t.shape === (gtOf(LT.orig).sq ? 'round' : LT.origS)));
   closeSheet(); setTab('chart'); if ($('cockpit') && !$('cockpit').hidden) setCockpit(false);
   let el = $('lookTry'); if (!el) { el = document.createElement('div'); el.id = 'lookTry'; $('app').appendChild(el); ltSwipe(el); }
   el.hidden = false; document.documentElement.classList.add('looktry'); ltShow();
 }
 function ltApply() { // put the look in the middle of the carousel on the whole app (buttons, speed circle, tab bar, menus)
   const list = ltOrder(), t = list[LT.i]; if (!t) return;
-  document.documentElement.dataset.gtheme = t.id; S.settings.gTheme = t.id; try { renderMini(); } catch (e) { /* */ } try { applyFabLook(); } catch (e) { /* */ }
+  S.settings.gTheme = t.id; if (!t.sq) S.settings.gShape = t.shape; applyGTheme(); try { applyFabLook(); } catch (e) { /* */ } try { if (document.querySelector('#cockpit:not([hidden])')) renderCockpit(); } catch (e) { /* */ }
   const grp = t.legacy ? 'Original' : t.g, el = $('lookTry'); if (!el) return;
   el.querySelector('.lt-name').innerHTML = '<b>' + esc(t.l) + '</b><span>' + esc(LT_G[grp] || grp) + ' · ' + (LT.i + 1) + ' of ' + list.length + '</span>';
   el.querySelector('[data-ltdone="use"]').textContent = 'Use ' + t.l;
@@ -8179,7 +8219,7 @@ function ltApply() { // put the look in the middle of the carousel on the whole 
 function ltShow() { // a sliding row of live previews: drag it and you see the look you're leaving and the one you're coming to
   const list = ltOrder(); LT.i = (LT.i + list.length) % list.length; const f = S.settings.gFace || '';
   $('lookTry').innerHTML = '<div class="lt-head"><button type="button" class="lt-arr" data-ltgo="-1" aria-label="Previous look">‹</button><div class="lt-name"></div><button type="button" class="lt-arr" data-ltgo="1" aria-label="Next look">›</button></div>' +
-    '<div class="lt-strip" id="ltStrip">' + list.map((t, k) => '<div class="lt-card" data-k="' + k + '">' + glPrev(t.id, f) + '<span>' + esc(t.l) + '</span></div>').join('') + '</div>' +
+    '<div class="lt-strip" id="ltStrip">' + list.map((t, k) => '<div class="lt-card" data-k="' + k + '">' + glPrev(t.id, f, t.shape) + '<span>' + esc(t.l) + '</span></div>').join('') + '</div>' +
     '<div class="lt-faces"><span>Face</span>' + GFACES.map(([k, l, c]) => '<button type="button" data-ltface="' + k + '" class="' + (f === k ? 'on' : '') + '" title="' + l + '" style="background:' + (c || 'conic-gradient(#14284A 0 25%,#F2EAD6 0 50%,#0F4C4C 0 75%,#0B0B0B 0)') + '"></button>').join('') + '</div>' +
     '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn primary" data-ltdone="use">Use</button></div>';
   const st = $('ltStrip'), card = () => st.querySelector('.lt-card'), w = () => (card() ? card().offsetWidth + 10 : 140);
@@ -8190,8 +8230,8 @@ function ltShow() { // a sliding row of live previews: drag it and you see the l
 function ltGo(d) { const list = ltOrder(), st = $('ltStrip'); LT.i = (LT.i + d + list.length) % list.length; if (st) { const c = st.querySelector('.lt-card'); st.scrollTo({ left: LT.i * (c.offsetWidth + 10), behavior: 'smooth' }); } ltApply(); }
 function closeLookTry(use) {
   LT.on = false; const el = $('lookTry'); if (el) el.hidden = true; document.documentElement.classList.remove('looktry');
-  if (!use) S.settings.gTheme = LT.orig; saveSettings(); applyGTheme(); try { applyFabLook(); } catch (e) { /* */ }
-  if (use) toast('Look: ' + gtOf(S.settings.gTheme).l, 2000);
+  if (!use) { S.settings.gTheme = LT.orig; S.settings.gShape = LT.origS; } saveSettings(); applyGTheme(); try { applyFabLook(); } catch (e) { /* */ }
+  if (use) toast('Look: ' + gtOf(S.settings.gTheme).l + (SHP_L[S.settings.gShape] || ''), 2000);
 }
 function ltSwipe(el) {
   el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; LT.x0 = e.clientX; LT.y0 = e.clientY; });
@@ -8340,7 +8380,7 @@ function renderTempBtn() {
   const T = (x) => tempTxt(x).replace(/[FC]$/, ''); b.innerHTML = '<b>' + (t == null ? '–' : T(c.temp)) + '</b><small>' + (f == null || f === t ? 'air' : 'feels ' + T(c.feels)) + '</small>';
 }
 setTimeout(renderTempBtn, 400); setInterval(renderTempBtn, 30000);
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+window.Tideline = { glPrev, S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
