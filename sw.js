@@ -1,5 +1,5 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v155';
+const APP = 'tl-app-v156';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
@@ -24,14 +24,28 @@ async function cacheFirst(req, cacheName) {
   const hit = await cache.match(req);
   if (hit) return hit;
   const res = await fetch(req);
-  if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
+  if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone()).catch(() => {});
   return res;
 }
+// chart tiles: the saved tile shows at once; with signal, a tile older than two weeks is quietly fetched again, so chart corrections arrive
+const TILE_DATES = 'tl-tile-dates', TILE_MAX_AGE = 14 * 864e5;
+async function tileFirst(req) {
+  const cache = await caches.open(TILES), hit = await cache.match(req);
+  const stamp = () => caches.open(TILE_DATES).then((d) => d.put(req.url, new Response(String(Date.now())))).catch(() => {});
+  const refresh = () => fetch(req).then((res) => { if (res && (res.ok || res.type === 'opaque')) { cache.put(req, res.clone()).catch(() => {}); stamp(); } return res; });
+  if (hit) {
+    caches.open(TILE_DATES).then((d) => d.match(req.url)).then((r) => (r ? r.text() : '0')).then((t) => { if (Date.now() - Number(t) > TILE_MAX_AGE) refresh().catch(() => {}); }).catch(() => {});
+    return hit;
+  }
+  return refresh();
+}
+// forecasts and lookups: keep the newest 400 answers
+async function trimData() { try { const c = await caches.open(DATA), k = await c.keys(); if (k.length > 400) await Promise.all(k.slice(0, k.length - 400).map((r) => c.delete(r))); } catch (e) { /* */ } }
 async function networkFirst(req, cacheName, fresh) {
   const cache = await caches.open(cacheName);
   try {
     const res = await fetch(fresh ? new Request(req, { cache: 'no-cache' }) : req); // the app's own files skip the browser cache so updates show on reload
-    if (res && res.ok) cache.put(req, res.clone());
+    if (res && res.ok) { cache.put(req, res.clone()).catch(() => {}); if (cacheName === DATA && Math.random() < 0.05) trimData(); }
     return res;
   } catch (err) {
     const hit = await cache.match(req);
@@ -46,13 +60,21 @@ async function staleWhileRevalidate(req) {
   return hit || (await net) || new Response('Offline', { status: 503 });
 }
 
+// the app's own files: the network first so updates show, but on a weak signal the saved copy is used after 3.5 s instead of waiting
+async function appFile(req) {
+  const saved = () => caches.match(req, { ignoreSearch: true });
+  const net = networkFirst(req, APP, true);
+  const slow = new Promise((ok) => setTimeout(() => saved().then((r) => ok(r || null)), 3500));
+  try { const r = await Promise.race([net, slow]); if (r) return r; return await net; } catch (e) { return (await saved()) || new Response('Offline', { status: 503 }); }
+}
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (TILE_HOSTS.includes(url.hostname)) { e.respondWith(cacheFirst(req, TILES)); return; }
+  if (TILE_HOSTS.includes(url.hostname)) { e.respondWith(tileFirst(req)); return; }
   if (FONT_HOSTS.includes(url.hostname)) { e.respondWith(cacheFirst(req, APP)); return; }
   if (DATA_HOSTS.includes(url.hostname)) { e.respondWith(networkFirst(req, DATA)); return; }
   // the app itself: always try the network first so a new version shows on the next reload; the saved copy is only for offline
-  if (url.origin === self.location.origin) { e.respondWith(networkFirst(req, APP, true).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || new Response('Offline', { status: 503 })))); }
+  if (url.origin === self.location.origin && url.searchParams.has('probe')) { e.respondWith(fetch(req)); return; } // "is there a connection?" must ask the network, never the saved copy
+  if (url.origin === self.location.origin) { e.respondWith(appFile(req)); }
 });

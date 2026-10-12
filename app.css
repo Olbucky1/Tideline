@@ -2318,3 +2318,19 @@ svg[data-gsqc] .g-unit, i.gl-prev[data-gsqc] .g-unit { font-size: 15px; }
 svg[data-gsqc] .g-num, .gl-row i.gl-prev[data-gsqc] .g-num { font-size: 15px; }
 html[data-gshape="sqp"] :is(.gauge, #miniInst) circle.g-faceov, i.gl-prev[data-gs="sqp"] circle.g-faceov { display: none !important; }
 html[data-gface][data-gshape="sqp"] .gauge > svg rect.g-fsq, i.gl-prev[data-gf][data-gs="sqp"] rect.g-fsq { display: inline !important; }
+
+/* build 156: offline badge */
+#offPill { position: absolute; z-index: 650; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 62px); background: rgba(120, 40, 20, .92); color: #fff; font: 600 13px/1.2 system-ui, sans-serif; padding: 7px 12px; border-radius: 99px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; max-width: calc(100vw - 140px); text-align: center; }
+#offPill[hidden] { display: none; }
+#toast { pointer-events: auto; cursor: pointer; }
+#toast.mid { top: 42% !important; bottom: auto !important; }
+/* build 156: MOB is always on top, never under another button, and at least 44px */
+#btnMOB.mob { z-index: 720 !important; width: 46px !important; height: 46px !important; font-size: 11px !important; }
+/* build 156: a sheet opened from the instruments screen (Look, gauge pickers) shows on top of it */
+html:has(#cockpit:not([hidden])) #sheet.sheet { z-index: 905 !important; }
+/* build 156: long readouts stay inside their tile in square and LCD looks */
+svg[data-gsqc] .g-big.pos, i.gl-prev[data-gsqc] .g-big.pos { font-size: 24px; }
+svg[data-gsqc] .g-big.cmp { font-size: 40px; }
+html[data-gtheme^="gpslcd"] .gauge > svg .g-big.pos { font-size: 20px !important; letter-spacing: -.04em; }
+html[data-gtheme^="gpslcd"] .gauge > svg .g-unit { font-size: 11.5px !important; }
+html[data-gtheme^="gpslcd"] .gauge > svg .g-big.cmp { font-size: 34px !important; }
