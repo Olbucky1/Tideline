@@ -2774,7 +2774,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 153. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 154. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5478,8 +5478,16 @@ setInterval(checkBridgesAhead, 5000);
 let cockTimer = null;
 /* ---------- instrument gauges: glass-cockpit style, all text inside SVG so nothing is ever cut off ---------- */
 const G = { cx: 100, cy: 100 };
-function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [G.cx + r * Math.cos(a), G.cy + r * Math.sin(a)]; }
-function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
+// square gauges are real square gauges: in square mode the dial's geometry follows a squircle out to the edges of the face
+// (arcs become a track round the square, ticks and numbers sit along it, rings become rounded squares)
+let GSQ_LIVE = false, GSQ_FORCE = null; const gsq = () => (GSQ_FORCE != null ? GSQ_FORCE : GSQ_LIVE);
+function sqK(a) { const c = Math.abs(Math.cos(a)), s2 = Math.abs(Math.sin(a)), p = 5; return 1.0 / Math.pow(Math.pow(c, p) + Math.pow(s2, p), 1 / p); }
+function polar(r, deg) { const a = (deg - 90) * Math.PI / 180, rr = gsq() ? r * sqK(a) : r; return [G.cx + rr * Math.cos(a), G.cy + rr * Math.sin(a)]; }
+function arcPath(r, a0, a1) {
+  if (gsq()) { const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / 3)), pts = []; for (let i = 0; i <= n; i++) { const [x, y] = polar(r, a0 + (a1 - a0) * i / n); pts.push(x.toFixed(1) + ' ' + y.toFixed(1)); } return 'M' + pts.join(' L'); }
+  const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
+// rings drawn as circles become rounded squares in square mode
+const sqRings = (svg) => (gsq() ? svg.replace(/<circle cx="100" cy="100" r="(\d+(?:\.\d+)?)" class="g-ring"\/>/g, (m, r) => { const h = +r * 1.07; return '<rect x="' + (100 - h).toFixed(1) + '" y="' + (100 - h).toFixed(1) + '" width="' + (2 * h).toFixed(1) + '" height="' + (2 * h).toFixed(1) + '" rx="' + (h * 0.24).toFixed(1) + '" class="g-ring"/>'; }) : svg);
 // a real-instrument bezel: polished ring (many-stop gradient reads as chrome, brass or gunmetal by theme), a dark seam, a lit face and a glass glare
 const ringThin = () => S.settings.ringW !== 'classic'; // Andy: most rings were too thick; thin is the default
 const bezelSvg = (id, cx, r) => '<defs><linearGradient id="' + id + 'C" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" class="ch1"/><stop offset="0.18" class="ch2"/><stop offset="0.32" class="ch4"/><stop offset="0.48" class="ch1"/><stop offset="0.62" class="ch3"/><stop offset="0.8" class="ch2"/><stop offset="1" class="ch5"/></linearGradient><linearGradient id="' + id + 'I" x1="0" y1="1" x2="0" y2="0"><stop offset="0" class="ch1"/><stop offset="1" class="ch3"/></linearGradient><radialGradient id="' + id + 'F" cx="0.5" cy="0.32" r="0.78"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient><linearGradient id="' + id + 'G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
@@ -5510,7 +5518,7 @@ function gaugeArt(id, cx, r) {
     '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-woods">' + wood + '</g><g class="ga-carbons">' + weave + '</g><g class="ga-deeps">' + deep + '</g><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
 }
 let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
-function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/><rect x="5.5" y="5.5" width="189" height="189" rx="17" class="g-faceov g-fsq"/>' + svg + '</g></svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
+function gWrap(label, svg, foot, cls, tip) { svg = sqRings(svg); return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true"' + (gsq() ? ' data-gsqc="1"' : '') + '>' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/><rect x="5.5" y="5.5" width="189" height="189" rx="17" class="g-faceov g-fsq"/>' + svg + '</g></svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
   let ticks = '';
@@ -5521,11 +5529,12 @@ function speedGauge(v, max, top) {
     (max ? '<circle cx="' + mx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="3.5" class="g-max"/>' : '') +
     '<text x="100" y="112" class="g-big">' + (val == null ? '–' : fmtSpeed(val)) + '</text><text x="100" y="138" class="g-unit">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
 }
-function compassGauge(cog) {
+function compassGauge(cog) { const f0 = GSQ_FORCE; GSQ_FORCE = false; try { return compassGauge0(cog); } finally { GSQ_FORCE = f0; } }
+function compassGauge0(cog) {
   const rot = cog == null ? 0 : -cog; let card = '';
   for (let d = 0; d < 360; d += 10) { const big = d % 30 === 0, [x0, y0] = polar(big ? 74 : 79, d), [x1, y1] = polar(86, d); card += '<line x1="' + x0.toFixed(1) + '" y1="' + y0.toFixed(1) + '" x2="' + x1.toFixed(1) + '" y2="' + y1.toFixed(1) + '" class="g-tick' + (big ? ' big' : '') + '"/>'; }
   [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(([t, d]) => { const [x, y] = polar(66, d); card += '<text x="' + x.toFixed(1) + '" y="' + (y + 5).toFixed(1) + '" class="g-card' + (t === 'N' ? ' n' : '') + '" transform="rotate(' + (-rot) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + t + '</text>'; });
-  return '<circle cx="100" cy="100" r="88" class="g-ring"/><g transform="rotate(' + rot + ' 100 100)">' + card + '</g><path d="M100 6 L93 20 L107 20 Z" class="g-lubber"/>' +
+  return '<circle cx="100" cy="100" r="88" class="g-ring g-cring"/><g transform="rotate(' + rot + ' 100 100)">' + card + '</g><path d="M100 6 L93 20 L107 20 Z" class="g-lubber"/>' +
     '<circle cx="100" cy="100" r="52" class="g-hub"/><text x="100" y="110" class="g-big cmp">' + (cog == null ? '–' : fmtBrg(cog) + '°') + '</text><text x="100" y="132" class="g-unit">' + (cog == null ? 'not moving' : 'true · ' + compass16(cog)) + '</text>';
 }
 function windGauge(dir, spd, gust, cog) {
@@ -6500,7 +6509,9 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
     if (t.skin) c += (live ? P0 + '[data-gface] :is(.gauge,#miniInst)' : P0 + '[data-gf]') + ' :is(.g-big,.g-num,.g-unit,.g-card,text){stroke-width:0!important}'; // a chosen face is plain enough to read without the halo
     if (t.skin) { // the artwork dial shrinks a little onto a square plate, or a lot into a surfboard
       const sqp = live ? P0 + '[data-gshape="sqp"] :is(.gauge,#miniInst)' : P0 + '[data-gs="sqp"]';
-      c += sqp + ' .g-cont{transform:scale(' + (t.k * 0.84).toFixed(3) + ')}'; }
+      c += sqp + ' .g-cont{transform:scale(.88)}';
+      if (!t.sq) { const nm = /skins\/(\w+)\.webp/.exec(t.skin)[1], sv = live ? P0 + '[data-gshape="sqp"] :is(.gauge>svg,#miniInst svg)' : P0 + '[data-gs="sqp"] svg';
+        c += sv + '{background:url(skins/rim_' + nm + '.webp) 0 0/100% 100% no-repeat,radial-gradient(circle at 50% 34%,' + t.fc[0] + ',' + t.fc[1] + ')!important;border-radius:9%!important;box-shadow:0 3px 0 rgba(0,0,0,.3)}'; } }
     if (t.lcd) c += P + ' :is(.g-tick,.g-track,.g-danger,.g-ticks,.g-num,.g-fill,.g-max,.g-glare,.g-seam,.g-dec,.g-art,.g-tband){display:none!important}' + P + ' :is(.g-big,.g-val,.g-main){font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace!important;font-weight:800!important;font-style:normal!important;letter-spacing:-.02em}' + P + ' :is(.g-unit,.g-name,text){font-family:ui-monospace,Menlo,Consolas,monospace!important}' + (t.light ? '' : P + ' :is(.g-big,.g-val,.g-main){filter:drop-shadow(0 0 4px ' + t.acc + '88)}');
     if (t.mfd) c += P + ' :is(.g-glare,.g-ring2,.g-art,.g-dec,.g-tband){display:none!important}' + P + ' .g-seam{transform-box:fill-box;transform-origin:center;transform:scale(1.045)}' +
       P + ' .g-track{stroke-width:4!important;stroke:' + t.muted + '!important;stroke-opacity:.28!important}' + P + ' .g-fill{stroke-width:4!important;stroke-linecap:round!important}' +
@@ -6523,7 +6534,8 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
   const el = document.createElement('style'); el.id = 'gtStyle'; el.textContent = css; document.head.appendChild(el);
 })();
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
-function glPrev(id0, gf, shp) { const id = effLook(id0, shp || 'round'), gs = shapeOf(id0, shp || 'round'); return '<i class="gl-prev" data-gt="' + id + '" data-gs="' + gs + '"' + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/><rect x="5.5" y="5.5" width="189" height="189" rx="17" class="g-faceov g-fsq"/>' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
+function glPrev(id0, gf, shp) { const id = effLook(id0, shp || 'round'), gs = shapeOf(id0, shp || 'round'), sq = gs !== 'rd' || !!gtOf(id).sq, f0 = GSQ_FORCE; GSQ_FORCE = sq; try { return glPrev0(id, gf, gs, sq); } finally { GSQ_FORCE = f0; } }
+function glPrev0(id, gf, gs, sq) { return '<i class="gl-prev" data-gt="' + id + '" data-gs="' + gs + '"' + (sq ? ' data-gsqc="1"' : '') + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/><rect x="5.5" y="5.5" width="189" height="189" rx="17" class="g-faceov g-fsq"/>' + sqRings(speedGauge(6.4, 8.2, 10)) + '</g></svg></i>'; }
 function glPicker(cur) {
   const placed = new Set();
   return ['Tech', 'Simple', 'Bay', 'Original', 'Photo', 'Square', 'Classic'].map((g) => { const items = lookPairs(GT.filter((t) => !t.hidden && (g === 'Original' ? t.legacy : !t.legacy && t.g === g))).filter((t) => !placed.has(t.id) || (t.sq && g !== 'Square')); items.forEach((t) => placed.add(t.id)); if (!items.length) return ''; return '<div class="mo-h">' + ({ Tech: 'High-tech digital', Bay: 'Chesapeake Bay collection', Square: 'Square artwork', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Modern chartplotter' }[g] || g) + '</div><div class="btheme-row gl-row">' + items.map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id, S.settings.gFace || '', S.settings.gShape || 'round') + t.l + '</button>').join('') + '</div>'; }).join('');
@@ -6534,7 +6546,7 @@ const sqTwin = (id) => { const p2 = SQ_PAIR[id], t = p2 && gtOf(p2); return t &&
 const effLook = (id, shp) => { const t = gtOf(id); if ((shp || S.settings.gShape) === 'square' && !t.sq) return sqTwin(id) || id; return id; };
 // which frame to draw: sq = code ring squared, sqp = artwork on a square plate, sb = surfboard, rd = as designed
 function shapeOf(id, shp) { const t = gtOf(effLook(id, shp)); if (shp === 'square' && !t.sq) return t.skin ? 'sqp' : 'sq'; return 'rd'; }
-function applyGTheme() { const id = S.settings.gTheme || 'midnight'; document.documentElement.dataset.gtheme = effLook(id); document.documentElement.dataset.gshape = shapeOf(id, S.settings.gShape); try { renderMini(); } catch (e) { /* early */ } }
+function applyGTheme() { const id = S.settings.gTheme || 'midnight'; document.documentElement.dataset.gtheme = effLook(id); document.documentElement.dataset.gshape = shapeOf(id, S.settings.gShape); GSQ_LIVE = document.documentElement.dataset.gshape !== 'rd' || !!gtOf(effLook(id)).sq; document.documentElement.dataset.gsqc = GSQ_LIVE ? '1' : ''; try { if (document.querySelector('#cockpit:not([hidden])')) renderCockpit(); renderSide(); } catch (e) { /* early */ } try { renderMini(); } catch (e) { /* early */ } }
 // the chart screen's frame is cut from the look's own square artwork, so teak looks get wood, rope gets rope, Polynesian gets the carving
 // the chart screen's frame matches the gauges' bezel: round artwork → its own bezel ring unwrapped into a strip (skins/rim_*.webp),
 // square artwork → its square frame (skins/fr_*.webp), code-drawn looks → their bezel metal (the rule in app.css)
@@ -6550,7 +6562,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'midnight'; document.do
   const screws = [['9%', '9%'], ['91%', '9%'], ['9%', '91%'], ['91%', '91%']].map(([x, y]) => 'radial-gradient(circle at ' + x + ' ' + y + ', rgba(255,255,255,.85) 0 1.2%, var(--bt-c3) 1.6% 3.1%, rgba(0,0,0,.45) 3.3% 3.9%, transparent 4.1%)').join(',');
   const css =
     // artwork on a square plate in the look's metal (or wood), four screws, bevelled edge
-    L('sqp', 1) + '{background:var(--bt-img) center/84% no-repeat,' + screws + ',linear-gradient(160deg,rgba(255,255,255,.42),rgba(255,255,255,0) 30%,rgba(0,0,0,0) 65%,rgba(0,0,0,.4)),' + metal + '!important;border-radius:14%!important;box-shadow:inset 0 2px 1px rgba(255,255,255,.6),inset 0 -3px 3px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.35)}';
+    '';
   const el = document.createElement('style'); el.id = 'shapeCss'; el.textContent = css; document.head.appendChild(el);
 })();
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }

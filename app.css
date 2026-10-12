@@ -2310,3 +2310,11 @@ html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot:not(.chart) 
 /* build 152: face colours and shape at the top of the look list too */
 .gl-opts { position: sticky; top: 0; z-index: 3; background: inherit; padding: 6px 0 2px; margin-bottom: 4px; background: var(--mt-bg, #13202E); border-bottom: 1px solid rgba(255,255,255,.08); }
 .gl-opts .gl-shape { margin: 4px 0 4px; display: flex; align-items: center; gap: 10px; } .gl-opts .gl-shape label { margin: 0; font-size: 12px; }
+/* build 154: real square gauges — the dial fills the square, bigger numbers */
+svg[data-gsqc] .g-big, i.gl-prev[data-gsqc] .g-big, .gl-row i.gl-prev[data-gsqc] .g-big { font-size: 66px; }
+svg[data-gsqc] .g-big.sm, i.gl-prev[data-gsqc] .g-big.sm { font-size: 60px; }
+svg[data-gsqc] .g-big.xs, i.gl-prev[data-gsqc] .g-big.xs { font-size: 40px; }
+svg[data-gsqc] .g-unit, i.gl-prev[data-gsqc] .g-unit { font-size: 15px; }
+svg[data-gsqc] .g-num, .gl-row i.gl-prev[data-gsqc] .g-num { font-size: 15px; }
+html[data-gshape="sqp"] :is(.gauge, #miniInst) circle.g-faceov, i.gl-prev[data-gs="sqp"] circle.g-faceov { display: none !important; }
+html[data-gface][data-gshape="sqp"] .gauge > svg rect.g-fsq, i.gl-prev[data-gf][data-gs="sqp"] rect.g-fsq { display: inline !important; }
