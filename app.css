@@ -2259,3 +2259,13 @@ html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm { background-image:
 .ck-rs { -webkit-user-drag: none; position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; z-index: 40; cursor: nwse-resize; touch-action: none; border-radius: 6px;
   background: linear-gradient(135deg, transparent 0 45%, var(--mt-acc, #7CC0FF) 45% 55%, transparent 55% 65%, var(--mt-acc, #7CC0FF) 65% 75%, transparent 75%); background-color: rgba(0,0,0,.35); }
 .ck-slot.resizing { outline: 2px dashed var(--mt-acc, #7CC0FF); outline-offset: -2px; border-radius: 16px; }
+/* free-placed console */
+.ck-grid.helm.free { display: block !important; position: relative; }
+.ck-grid.helm.free > .ck-slot { position: absolute !important; margin: 0 !important; }
+.ck-grid.helm.free > .ck-slot .gauge { height: 100%; }
+.ck-grid.helm.free > .ck-slot .gauge > svg { flex: 1; min-height: 0; width: 100%; }
+.ck-grid.helm.free.editing > .ck-slot[data-fid] { cursor: grab; outline: 1.5px dashed color-mix(in srgb, var(--mt-acc, #7CC0FF) 60%, transparent); outline-offset: -1px; border-radius: 14px; }
+.ck-grid.helm.free > .ck-slot.moving { z-index: 30; cursor: grabbing; outline-style: solid !important; }
+.ck-grid.helm.free.editing > .ck-slot .ck-pick { position: relative; z-index: 6; max-width: 92%; margin: 0 auto; display: block; font-size: 12px; }
+.ck-grid.helm.free.editing > .ck-slot .ck-mv { display: none !important; }
+.ck-grid.helm.free.editing .gauge { opacity: 1 !important; }

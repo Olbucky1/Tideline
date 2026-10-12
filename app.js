@@ -2773,7 +2773,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 148. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 149. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5810,13 +5810,13 @@ function buildCockpit() {
   }
   if (ckEdit) grid.classList.add('editing'); else grid.classList.remove('editing');
   const lay = S.settings.ckLayout || 'grid'; grid.className = grid.className.replace(/\blay-\S+/g, '').trim() + ' lay-' + (sl.includes('chart') ? lay : 'grid');
-  const lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>Drag a tile\'s corner ◢ to resize it</span><button type="button" class="btn small" data-ckrsreset>Reset sizes</button><span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join(''); }
+  const lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>Drag a tile to move it, its corner ◢ to resize</span><button type="button" class="btn small" data-ckrsreset>Reset sizes</button><span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join(''); }
   { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)), wide = window.innerWidth >= 900, sp = sl.includes('chart') && (lay === 'half' || lay === 'big') && wide;
     grid.style.gridTemplateRows = sp ? 'repeat(' + rows + ', minmax(0, 1fr))' : '';
     const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = sp ? '1 / span ' + rows : ''; }
   if (ckMap) setTimeout(() => ckMap.invalidateSize(), 60);
   // console style: one big centre instrument (the chart, else the first gauge) with the others around it, like a helm
-  const consoleOn = (S.settings.ckStyle || 'console') === 'console' && !ckEdit; grid.classList.toggle('helm', consoleOn);
+  const consoleOn = (S.settings.ckStyle || 'console') === 'console'; grid.classList.toggle('helm', consoleOn);
   grid.querySelectorAll('.ck-slot.hero').forEach((x) => x.classList.remove('hero'));
   if (consoleOn) { const hero = grid.querySelector('.ck-slot.chart') || grid.querySelector('.ck-slot[data-slot]'); if (hero) hero.classList.add('hero'); grid.style.gridTemplateRows = ''; const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = ''; }
   // fill any empty cells so the grid stays even: weather, barometer, warnings, then your boat photo
@@ -5828,7 +5828,8 @@ function buildCockpit() {
     for (let i = 0; i < free && i < pool.length; i++) grid.insertAdjacentHTML('beforeend', '<div class="ck-slot filler" data-filler="' + pool[i] + '"></div>');
     renderCockpit();
   }, 0);
-  grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { el.draggable = ckEdit; });
+  grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { el.draggable = ckEdit && !consoleOn; });
+  if (consoleOn) ckFreeLayout(grid, sl);
   // sizes you dragged: each tile can span several columns and rows
   const sp = S.settings.ckSpan || {}; grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { const id = sl[+el.dataset.slot], z = sp[id];
     if (z) { el.style.gridColumn = 'span ' + z[0]; el.style.gridRow = 'span ' + z[1]; el.classList.add('sized'); } else if (!el.classList.contains('hero')) { el.style.gridColumn = ''; if (!el.classList.contains('chart')) el.style.gridRow = ''; }
@@ -5836,6 +5837,61 @@ function buildCockpit() {
   if (Object.keys(sp).length) grid.style.gridAutoFlow = 'row dense';
   renderCockpit();
 }
+/* helm console: every instrument sits where you put it. Positions are % of the dash; the default puts the screen in the centre
+   and shares the gauges out left, right and below. In Customize: drag a tile to move it, drag its corner to resize it. */
+function ckDefaultFree(sl, W, H) {
+  const out = {}, chart = sl.includes('chart'), g = sl.filter((x) => x !== 'chart'), A = W / H; // aspect of the dash
+  if (A < 1.2) { // phone, upright: the screen (or first gauge) across the top, gauges two by two below
+    const top = chart ? 'chart' : g[0], rest = sl.filter((x) => x !== top), topH = chart ? 34 : 30; out[top] = chart ? [2, 1, 96, topH] : [50 - topH / A / 2, 1, topH / A, topH];
+    const rows = Math.ceil(rest.length / 2), rh = Math.min((98 - topH - 2) / Math.max(rows, 1), 46 * A), w = Math.min(rh / A, 47);
+    rest.forEach((id, i) => { const c = i % 2, r2 = Math.floor(i / 2); out[id] = [c ? 75 - w / 2 : 25 - w / 2, topH + 2 + r2 * ((98 - topH - 2) / Math.max(rows, 1)), w, w * A]; });
+    return out; }
+  if (chart) {
+    out.chart = [26, 4, 48, 66];
+    const sq = (hp) => [hp / A, hp]; // a square tile hp % tall
+    const nL = Math.ceil(Math.min(g.length, 6) / 3), nR = nL, side = g.slice(0, nL + nR), below = g.slice(nL + nR);
+    const hs = Math.min(30, 92 / Math.max(1, Math.max(nL, Math.ceil(side.length / 2))));
+    side.forEach((id, i) => { const left = i % 2 === 0, row = Math.floor(i / 2), n = left ? Math.ceil(side.length / 2) : Math.floor(side.length / 2) || 1; const [w, h] = sq(hs * 0.95);
+      const y = 4 + row * (92 / Math.max(n, 1)) + (92 / Math.max(n, 1) - h) / 2; out[id] = [left ? (13 - w / 2) : (87 - w / 2), y, w, h]; });
+    const hb = Math.min(26, 28), [wb] = sq(hb), gap = 2, tot = below.length * wb + (below.length - 1) * gap;
+    below.forEach((id, i) => { out[id] = [50 - tot / 2 + i * (wb + gap), 72, wb, hb]; });
+  } else {
+    const [hero, ...rest] = g; const hh = 62; out[hero] = [50 - hh / A / 2, 3, hh / A, hh];
+    const nL = Math.ceil(rest.length / 3), nR = Math.ceil((rest.length - nL) / 2), L1 = rest.slice(0, nL), R1 = rest.slice(nL, nL + nR), B = rest.slice(nL + nR), hs = 30;
+    [L1, R1].forEach((col, ci) => col.forEach((id, i) => { const w = hs / A, y = 4 + i * (92 / col.length) + (92 / col.length - hs) / 2; out[id] = [ci ? 87 - w / 2 : 13 - w / 2, y, w, hs]; }));
+    const wb = 26 / A, tot = B.length * wb + (B.length - 1) * 2; B.forEach((id, i) => { out[id] = [50 - tot / 2 + i * (wb + 2), 70, wb, 26]; });
+  }
+  return out;
+}
+function ckFreeLayout(grid, sl) {
+  const r = grid.getBoundingClientRect(); if (r.width < 50) { setTimeout(() => ckFreeLayout(grid, sl), 80); return; }
+  const def = ckDefaultFree(sl, r.width, r.height), own = (S.settings.ckFree || {})[r.width / r.height < 1.2 ? 'tall' : 'wide'] || {};
+  grid.classList.add('free');
+  grid.querySelectorAll('.ck-slot[data-slot]').forEach((el) => { const id = sl[+el.dataset.slot], q = own[id] || def[id] || [40, 40, 20, 20];
+    Object.assign(el.style, { left: q[0] + '%', top: q[1] + '%', width: q[2] + '%', height: q[3] + '%', gridColumn: '', gridRow: '' }); el.dataset.fid = id; });
+  grid.querySelectorAll('.ck-slot.add').forEach((el) => Object.assign(el.style, { left: '2%', top: '86%', width: '18%', height: '12%' }));
+}
+(() => {
+  let mv = null;
+  window.addEventListener('pointerdown', (e) => {
+    const grid = e.target.closest('#cockpit .ck-grid.free.editing'); if (!grid) return;
+    const slot = e.target.closest('.ck-slot[data-fid]'); if (!slot || e.target.closest('select, button, .ck-mv, .leaflet-container')) return;
+    const rz = !!e.target.closest('.ck-rs'); e.preventDefault(); e.stopPropagation();
+    const G = grid.getBoundingClientRect(), R = slot.getBoundingClientRect();
+    mv = { slot, grid, rz, x0: e.clientX, y0: e.clientY, G, l: (R.left - G.left) / G.width * 100, t: (R.top - G.top) / G.height * 100, w: R.width / G.width * 100, h: R.height / G.height * 100, sq: !slot.classList.contains('chart') };
+    slot.classList.add('moving');
+  }, true);
+  window.addEventListener('pointermove', (e) => { if (!mv) return; e.preventDefault();
+    const dx = (e.clientX - mv.x0) / mv.G.width * 100, dy = (e.clientY - mv.y0) / mv.G.height * 100, snap = (v) => Math.round(v * 2) / 2;
+    if (mv.rz) { let w = Math.max(8, Math.min(100 - mv.l, mv.w + dx)), h = Math.max(8, Math.min(100 - mv.t, mv.h + dy)); if (mv.sq) { const A = mv.G.width / mv.G.height, s = Math.max(w * A, h); w = Math.min(100 - mv.l, s / A); h = Math.min(100 - mv.t, s); } mv.nw = snap(w); mv.nh = snap(h); mv.slot.style.width = mv.nw + '%'; mv.slot.style.height = mv.nh + '%'; }
+    else { mv.nl = snap(Math.max(0, Math.min(100 - mv.w, mv.l + dx))); mv.nt = snap(Math.max(0, Math.min(100 - mv.h, mv.t + dy))); mv.slot.style.left = mv.nl + '%'; mv.slot.style.top = mv.nt + '%'; }
+  }, { capture: true, passive: false });
+  const up = () => { if (!mv) return; const d = mv; mv = null; d.slot.classList.remove('moving'); const all = S.settings.ckFree && !Array.isArray(S.settings.ckFree.speed) ? S.settings.ckFree : (S.settings.ckFree = {}), key = d.G.width / d.G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {});
+    own[d.slot.dataset.fid] = [d.nl != null ? d.nl : d.l, d.nt != null ? d.nt : d.t, d.nw != null ? d.nw : d.w, d.nh != null ? d.nh : d.h].map((v) => Math.round(v * 10) / 10); saveSettings();
+    if (ckMap) setTimeout(() => ckMap.invalidateSize(), 50); try { if (typeof ckHostResize === 'function') ckHostResize(); } catch (e) { /* */ } window.dispatchEvent(new Event('resize')); };
+  window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckFree; saveSettings(); buildCockpit(); } });
+})();
 /* Customize: drag the corner handle of a tile to make it as big as you like; it snaps to whole cells */
 (() => {
   let rs = null;
