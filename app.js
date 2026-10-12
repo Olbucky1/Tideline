@@ -445,20 +445,20 @@ sheet.addEventListener('click', (e) => {
   if (k === 'miSize') applyMiSize();
   if (k === 'tempBtn') { S.settings.tempBtn = v === 'on'; saveSettings(); renderTempBtn(); }
   if (k === 'fabSize') { document.documentElement.dataset.fs = v; try { if (ARR.on) arrGrips(); } catch (e) { /* */ } }
-  if ((k === 'fabSize' || k === 'miSize') && !sheet.hidden && sheet.querySelector('.gl-row')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; }
+  if ((k === 'fabSize' || k === 'miSize') && !sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; }
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
   if (k === 'gArt') applyGArt();
   if (k === 'fabLook') applyFabLook();
-  if (k === 'gShape') { applyGTheme(); if (!sheet.hidden && sheet.querySelector('.gl-row')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
+  if (k === 'gShape') { applyGTheme(); if (!sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
   if (k === 'ckStyle') { document.documentElement.dataset.ck = v; try { buildCockpit(); } catch (e) { /* */ } }
-  if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-row')) openGaugeLook(); }
+  if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-opts')) openGaugeLook(); }
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
   if (k === 'spotTap') { S.settings.spotTap = v === 'true'; saveSettings(); }
   if (k === 'navaids') { NV.key = ''; drawNavaids(); }
   if (k === 'shallowStyle' || k === 'shallowLevel') { SH.drawnKey = ''; drawShallow(); }
   if (k === 'theme') { applyNight(); updateBoat(); }
-  if (sheet.querySelector('.gl-row')) { const bd = sheet.querySelector('.sheet-body') || sheet, sc = bd.scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; return; } // stay on the look list
+  if (sheet.querySelector('.gl-opts')) { const bd = sheet.querySelector('.sheet-body') || sheet, sc = bd.scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; return; } // stay on the look list
   openLayersSheet();
 });
 sheet.addEventListener('input', (e) => {
@@ -2774,7 +2774,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 154. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 155. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
