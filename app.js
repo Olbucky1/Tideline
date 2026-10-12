@@ -443,6 +443,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
   if (k === 'gArt') applyGArt();
   if (k === 'fabLook') applyFabLook();
+  if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-row')) openGaugeLook(); }
   if (k === 'menuTone') document.documentElement.classList.toggle('lightmenus', v === 'light');
   if (k === 'learnTips') S.settings.learnTips = v === 'true';
   if (k === 'spotTap') { S.settings.spotTap = v === 'true'; saveSettings(); }
@@ -2736,7 +2737,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 131. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 132. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5443,8 +5444,9 @@ const G = { cx: 100, cy: 100 };
 function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [G.cx + r * Math.cos(a), G.cy + r * Math.sin(a)]; }
 function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
 // a real-instrument bezel: polished ring (many-stop gradient reads as chrome, brass or gunmetal by theme), a dark seam, a lit face and a glass glare
+const ringThin = () => S.settings.ringW !== 'classic'; // Andy: most rings were too thick; thin is the default
 const bezelSvg = (id, cx, r) => '<defs><linearGradient id="' + id + 'C" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" class="ch1"/><stop offset="0.18" class="ch2"/><stop offset="0.32" class="ch4"/><stop offset="0.48" class="ch1"/><stop offset="0.62" class="ch3"/><stop offset="0.8" class="ch2"/><stop offset="1" class="ch5"/></linearGradient><linearGradient id="' + id + 'I" x1="0" y1="1" x2="0" y2="0"><stop offset="0" class="ch1"/><stop offset="1" class="ch3"/></linearGradient><radialGradient id="' + id + 'F" cx="0.5" cy="0.32" r="0.78"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient><linearGradient id="' + id + 'G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
-  '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.945) + '" class="g-ring2" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.925) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
+  '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * (ringThin() ? 0.972 : 0.945)) + '" class="g-ring2" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * (ringThin() ? 0.96 : 0.925)) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
   bezelDec(cx, r) +
   gaugeArt(id, cx, r) +
   '<path d="M' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + ' A' + (r * 0.92) + ' ' + (r * 0.92) + ' 0 0 1 ' + (cx + r * 0.8) + ' ' + (cx - r * 0.2) + ' Q' + cx + ' ' + (cx - r * 0.42) + ' ' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + 'z" fill="url(#' + id + 'G)" class="g-glare"/>';
@@ -6197,7 +6199,7 @@ const GT = [
   { id: 'pewter', l: 'Pewter and slate', g: 'Classic', bz: ['#E4E6E8', '#9AA1A6', '#4F565B', '#C4C9CD', '#6E757A'], fc: ['#3A434B', '#1C2126'], ink: '#EEF1F3', muted: '#A7B0B7', acc: '#D7DDE2', n: '#E8B84A', art: 'none' },
   // photo looks: the ring and face are ChatGPT artwork (skins/*.webp, cut from Andy's boards); numbers, ticks and needle are drawn live on top.
   // k = how far the live dial is shrunk so it sits inside the artwork's face
-  { id: 'navyphoto', l: 'Navy and brass (photo)', g: 'Photo', skin: 'skins/navyphoto.webp', k: 0.76, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1B3358', '#0A1428'], ink: '#FFF6E0', muted: '#D9C08A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
+  { id: 'navyphoto', l: 'Navy and brass artwork', g: 'Photo', skin: 'skins/navyphoto.webp', k: 0.76, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1B3358', '#0A1428'], ink: '#FFF6E0', muted: '#D9C08A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
   { id: 'goldaccent', l: 'Gold accent', g: 'Photo', skin: 'skins/goldaccent.webp', k: 0.72, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#1A2840', '#070C16'], ink: '#FFF2D6', muted: '#D4B77A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
   { id: 'teakbrass', l: 'Teak and brass', g: 'Photo', skin: 'skins/teakbrass.webp', k: 0.79, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#7A3A1C', '#3B1A0A'], ink: '#FFF4E0', muted: '#F0D2A8', acc: '#FFE2A8', n: '#FFF4E0', art: 'none' },
   { id: 'rope', l: 'Rope edition', g: 'Photo', skin: 'skins/rope.webp', k: 0.62, bz: ['#E8CF9E', '#B8955E', '#6E5428', '#D6B77E', '#8A6A36'], fc: ['#1D2F4F', '#0B1630'], ink: '#FFF6E0', muted: '#D9C08A', acc: '#E8C36A', n: '#E53935', art: 'none' },
@@ -6255,7 +6257,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
 function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont">' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
-  return ['Photo', 'Classic', 'Simple', 'Modern'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
+  return ['Original', 'Photo', 'Classic', 'Simple'].map((g) => '<div class="mo-h">' + ({ Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
 }
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
@@ -7198,7 +7200,7 @@ setTimeout(applyFabLayout, 300);
 function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div>' + glPicker(st.gTheme || 'midnight') +
-    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
+    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
     '<div class="field"><label>Theme the rest of the app with it</label>' + seg('fabLook', st.fabLook || 'theme', [['app', 'Everything'], ['gauge', 'Buttons and tab bar'], ['theme', 'Nothing else']]) + '</div>' +
     '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
