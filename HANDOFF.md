@@ -116,3 +116,4 @@ Still open from the review: service-worker caching of data (stale offline data s
 - Build 141: looks listed in families: each round look, its variants that share a square twin, then the square twin (`lookPairs`), in the picker and the swipe carousel.
 - Build 142: Brass and Brushed brass face colours (SVG gradients #gfBrass/#gfBrush; dark ink and navy accents on them).
 - Build 143: Button size (fabSize s/m/l/xl, html[data-fs]) and speed circle size up to Huge (miSize xxl), in Gauge look and Map options.
+- Build 144: brass specialty squares (Brass porthole, Brass compass rose, Brass helm wheel) paired with Brass/Heritage, Captain's compass and Ship's wheel. Surfboard/longboard/wide dashboard shapes not done (need non-square gauge layouts).
