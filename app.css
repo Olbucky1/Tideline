@@ -2320,7 +2320,7 @@ html[data-gshape="sqp"] :is(.gauge, #miniInst) circle.g-faceov, i.gl-prev[data-g
 html[data-gface][data-gshape="sqp"] .gauge > svg rect.g-fsq, i.gl-prev[data-gf][data-gs="sqp"] rect.g-fsq { display: inline !important; }
 
 /* build 156: offline badge */
-#offPill { position: absolute; z-index: 650; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 62px); background: rgba(120, 40, 20, .92); color: #fff; font: 600 13px/1.2 system-ui, sans-serif; padding: 7px 12px; border-radius: 99px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; max-width: calc(100vw - 140px); text-align: center; }
+#offPill { white-space: nowrap; position: absolute; z-index: 650; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 62px); background: rgba(120, 40, 20, .92); color: #fff; font: 600 13px/1.2 system-ui, sans-serif; padding: 7px 12px; border-radius: 99px; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: none; max-width: calc(100vw - 140px); text-align: center; }
 #offPill[hidden] { display: none; }
 #toast { pointer-events: auto; cursor: pointer; }
 #toast.mid { top: 42% !important; bottom: auto !important; }
@@ -2334,3 +2334,14 @@ svg[data-gsqc] .g-big.cmp { font-size: 40px; }
 html[data-gtheme^="gpslcd"] .gauge > svg .g-big.pos { font-size: 20px !important; letter-spacing: -.04em; }
 html[data-gtheme^="gpslcd"] .gauge > svg .g-unit { font-size: 11.5px !important; }
 html[data-gtheme^="gpslcd"] .gauge > svg .g-big.cmp { font-size: 34px !important; }
+/* build 157: clean data tiles on the chart (the default), like a chartplotter's data bar */
+.mini-inst.as-bar { width: 86px !important; height: auto !important; margin: 0 0 8px 0 !important; align-self: flex-end !important; display: flex; flex-direction: column; gap: 4px; background: none !important; }
+.mini-inst.as-bar .mb-t { display: grid; grid-template-columns: 1fr; text-align: left; padding: 5px 9px 6px; border-radius: 10px; background: rgba(10, 16, 24, .84); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 2px 6px rgba(0,0,0,.28); color: #F4F7FA; line-height: 1.05; }
+.mini-inst.as-bar .mb-t small { font: 600 9.5px/1.2 -apple-system, "Inter", "Helvetica Neue", Arial, sans-serif; letter-spacing: .09em; color: #8FA2B4; }
+.mini-inst.as-bar .mb-t b { font: 500 22px/1.1 -apple-system, "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.mini-inst.as-bar .mb-t i { font: 500 10px/1.2 -apple-system, "Inter", Arial, sans-serif; font-style: normal; color: #8FA2B4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-inst.as-bar .mb-t.bad { background: rgba(150, 24, 24, .9); }
+.mini-inst.as-bar .mb-t.bad small, .mini-inst.as-bar .mb-t.bad i { color: #FFD3D3; }
+html[data-night] .mini-inst.as-bar .mb-t { color: #FF6A5A; } html[data-night] .mini-inst.as-bar .mb-t :is(small, i) { color: #A8453B; }
+details.gl-more { margin: 10px 0 4px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 8px; }
+details.gl-more > summary { cursor: pointer; font-weight: 600; color: var(--mt-acc, #7CC0FF); padding: 6px 0; }
