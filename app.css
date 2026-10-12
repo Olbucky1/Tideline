@@ -2462,3 +2462,7 @@ html.looktry-ck #lookTry { z-index: 1300; }
 .ft-btns { position: absolute; top: 6px; right: 6px; flex-direction: row; gap: 4px; } .ft-btns button { width: 30px; height: 30px; font-size: 14px; }
 .ft-body { padding-right: 100px; min-height: 40px; } .ft-reply, .ft-res { margin-right: -100px; }
 .ft-reply { font-size: 14px; max-height: 22vh; }
+/* the tour card stays clear of MOB and of the buttons down the right side */
+#tourCard.tg-card { left: 84px !important; right: 10px !important; transform: none !important; width: auto !important; max-width: 440px; }
+#tourCard .tg-txt { max-height: 30vh !important; } #tourCard .tg-img { max-height: 96px; }
+.lk-grid span { white-space: normal; line-height: 1.15; max-height: 2.3em; overflow: hidden; text-overflow: clip; }
