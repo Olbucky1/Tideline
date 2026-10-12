@@ -2186,3 +2186,42 @@ html[data-fs="xl"] .fab.fab.fab { width: 60px !important; height: 60px !importan
 html[data-fs="l"] .fab.orient svg.rose3d { width: 36px !important; height: 36px !important; } html[data-fs="xl"] .fab.orient svg.rose3d { width: 44px !important; height: 44px !important; }
 html[data-fs="s"] .fab.orient svg.rose3d { width: 24px !important; height: 24px !important; }
 html[data-mi="xxl"] #fabsR .mini-inst { margin-left: calc(40px - var(--mi)) !important; margin-right: 0 !important; }
+/* temperature dial on the chart */
+.fab.tempbtn { display: flex !important; flex-direction: column; align-items: center; justify-content: center; line-height: 1; padding: 0 !important; }
+.fab.tempbtn b { font: 700 14px var(--f-num, var(--f-ui)); } .fab.tempbtn small { font: 600 7.5px var(--f-ui); opacity: .85; margin-top: 2px; white-space: nowrap; }
+.fab.tempbtn[hidden] { display: none !important; }
+html[data-fs="l"] .fab.tempbtn b { font-size: 17px; } html[data-fs="xl"] .fab.tempbtn b { font-size: 20px; } html[data-fs="xl"] .fab.tempbtn small { font-size: 9.5px; }
+.g-tband { fill: none; stroke-width: 6; opacity: .75; } .g-feelmk { fill: #FFB74D; stroke: rgba(0,0,0,.4); stroke-width: .8; }
+.g-needle { stroke: var(--gi-n, #FF5A4F); stroke-width: 3.5; stroke-linecap: round; } .g-hubdot { fill: var(--gi-ink, #fff); }
+
+/* ---------- console: a real helm dash. One moulded panel, each instrument sunk into its own cut-out, engraved name plates ---------- */
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid {
+  padding: 14px !important; border-radius: 28px !important; gap: 4px !important;
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,.10), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 2px, rgba(0,0,0,.025) 2px 4px),
+    linear-gradient(180deg, color-mix(in srgb, #000 20%, var(--mt-bg, #16283A)), color-mix(in srgb, #000 55%, var(--mt-bg, #16283A))) !important;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mt-acc, #7CC0FF) 55%, #000), inset 0 0 0 5px rgba(0,0,0,.35), inset 0 10px 24px rgba(0,0,0,.6), 0 8px 24px rgba(0,0,0,.5) !important;
+  position: relative;
+}
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid::before { /* stitched edge, like a leather-wrapped dash */
+  content: ''; position: absolute; inset: 7px; border-radius: 22px; border: 1.5px dashed color-mix(in srgb, var(--mt-acc, #7CC0FF) 35%, transparent); pointer-events: none;
+}
+html[data-ck="console"] .cockpit:not(.lt-ck) .gauge { border: 0 !important; background: transparent !important; position: relative; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .gauge > svg { border-radius: 50%; box-shadow: 0 0 0 5px rgba(0,0,0,.45), 0 0 0 7px rgba(255,255,255,.05), 0 10px 18px rgba(0,0,0,.6) !important; filter: none !important; }
+html[data-gshape="sq"][data-ck="console"] .cockpit:not(.lt-ck) .gauge > svg { border-radius: 14%; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .g-lbl {
+  display: inline-block; align-self: center; padding: 2px 10px; margin-bottom: 6px; border-radius: 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--mt-acc, #7CC0FF) 85%, #fff), color-mix(in srgb, var(--mt-acc, #7CC0FF) 70%, #000));
+  color: var(--mt-on, #10202E) !important; font-size: 10px !important; letter-spacing: .16em; box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 1px 2px rgba(0,0,0,.5);
+}
+html[data-ck="console"] .cockpit:not(.lt-ck) .g-foot { opacity: .75; font-size: 11px !important; }
+/* wood looks get a teak dash */
+html:is([data-gtheme="teak"],[data-gtheme="teakbrass"],[data-gtheme="teaknavy"],[data-gtheme="teakivory"],[data-gtheme="sq_teak"],[data-gtheme="cb_skipjack"],[data-gtheme="islandteak"],[data-gtheme="mahogany"],[data-gtheme="bport"],[data-gtheme="polynesian"],[data-gtheme="polysimple"],[data-gtheme="sq_poly"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid {
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 38px), repeating-linear-gradient(90deg, rgba(255,220,170,.05) 0 3px, rgba(0,0,0,.06) 3px 7px), linear-gradient(180deg, #7A4424, #4A2512) !important;
+}
+/* tech looks get a black glass dash */
+html:is([data-gtheme="helm"],[data-gtheme="bridge"],[data-gtheme="amber"],[data-gtheme="aqua"],[data-gtheme="daylight"],[data-gtheme="helmsq"],[data-gtheme="bridgesq"],[data-gtheme="ambersq"],[data-gtheme="daylightsq"],[data-gtheme="carbon"],[data-gtheme="sq_carbon"],[data-gtheme="carbonrefined"],[data-gtheme="titanium"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid {
+  background: radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,.08), transparent 55%), linear-gradient(180deg, #0B0F14, #020406) !important;
+}
+html:is([data-gtheme="helm"],[data-gtheme="bridge"],[data-gtheme="amber"],[data-gtheme="aqua"],[data-gtheme="helmsq"],[data-gtheme="bridgesq"],[data-gtheme="ambersq"],[data-gtheme="carbon"],[data-gtheme="sq_carbon"],[data-gtheme="carbonrefined"],[data-gtheme="titanium"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid::before { display: none; }
