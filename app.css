@@ -2067,3 +2067,12 @@ html.no-instbtn #btnInst { display: none !important; }
 .lt-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; } .lt-dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.25); } .lt-dots i.on { background: var(--mt-acc, #7CC0FF); width: 14px; border-radius: 3px; }
 .lt-btns { display: flex; gap: 8px; } .lt-btns .btn { flex: 1; }
 html.looktry :is(#gotoRow, .topbar .chips) { visibility: hidden; }
+.lt-faces { display: flex; align-items: center; gap: 7px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
+.lt-faces span { font-size: 12px; color: #A9BCCD; margin-right: 2px; flex: none; }
+.lt-faces button { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); padding: 0; }
+.lt-faces button.on { border-color: #fff; box-shadow: 0 0 0 2px var(--mt-acc, #7CC0FF); }
+.ship-flag { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; } .ship-flag img { width: 52px; height: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.ship-flag small { display: block; font-size: 10.5px; letter-spacing: .08em; color: var(--ink2); } .ship-flag b { font-size: 17px; }
+.ship-photo { margin: 0 0 12px; border-radius: 14px; overflow: hidden; background: var(--surface2); border: 1px solid var(--line); }
+.ship-photo img { display: block; width: 100%; max-height: 240px; object-fit: cover; } .ship-photo .sp-c { margin: 0; padding: 6px 10px; font-size: 11px; color: var(--ink2); }
+.sp-ph { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 12px; font-size: 13px; color: var(--ink2); text-align: center; } .sp-ph svg { width: 150px; height: 50px; opacity: .85; }

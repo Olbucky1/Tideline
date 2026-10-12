@@ -2737,7 +2737,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 134. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 135. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -3794,7 +3794,7 @@ function openAisSheet(t) {
     } else h += '<p class="sub">No close pass predicted from the current AIS reports. Keep a lookout; reports may be incomplete.</p>';
   }
   h += '<div class="row-btns" style="margin-top:6px"><button class="btn ghost" data-act="close">Close</button></div><p class="disclaim">' + DISCLAIMER + '</p>';
-  openSheet(h); S.aisSheetId = t.id; shipWiki(t);
+  openSheet(h); S.aisSheetId = t.id; shipWiki(t); shipPhoto(t);
 }
 sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-rule]'); if (b) openRuleSheet(b.dataset.rule); });
 $('coachCard').addEventListener('click', (e) => {
@@ -5473,7 +5473,7 @@ function gaugeArt(id, cx, r) {
     '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-woods">' + wood + '</g><g class="ga-carbons">' + weave + '</g><g class="ga-deeps">' + deep + '</g><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
 }
 let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
-function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + '<g class="g-cont">' + svg + '</g></svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
+function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/>' + svg + '</g></svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
   let ticks = '';
@@ -5899,7 +5899,7 @@ function renderMini() {
   let ticks = ''; for (let d = 0; d < 360; d += 10) { const major = d % 30 === 0, a = (d - 90) * Math.PI / 180, r0 = major ? 38.5 : 41.5; ticks += '<line x1="' + (50 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + 44.5 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + 44.5 * Math.sin(a)).toFixed(1) + '"' + (major ? ' class="mj"' : '') + '/>'; }
   const card = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([t, d]) => { const a = (d - 90) * Math.PI / 180, x = 50 + 34 * Math.cos(a), y = 50 + 34 * Math.sin(a); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5).toFixed(1) + '" class="mi-c' + (t === 'N' ? ' n' : '') + '" transform="rotate(' + (-mr).toFixed(1) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + t + '</text>'; }).join('');
   const gs = S.settings.gStyle || 'hybrid';
-  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true" class="mi-' + gs + '">' + bezelSvg('mb', 50, 50) + '<g class="g-cont">' + (gs === 'digital' ? '' : '<g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>') +
+  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true" class="mi-' + gs + '">' + bezelSvg('mb', 50, 50) + '<g class="g-cont"><circle cx="50" cy="50" r="47.5" class="g-faceov"/>' + (gs === 'digital' ? '' : '<g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>') +
     (cog != null ? '<g transform="rotate(' + (cog + mr).toFixed(0) + ' 50 50)"><path d="M50 1.5 L56 13 L50 10 L44 13 Z" class="mi-arrow"/></g>' : '') +
     '<text x="50" y="31" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '° ' + compass16(cog) : 'COURSE –') + '</text>' +
     '<text x="50" y="54" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="50" y="61" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
@@ -6217,6 +6217,14 @@ const GT = [
   { id: 'polynesian', l: 'Polynesian carved', g: 'Photo', skin: 'skins/polynesian.webp', k: 0.71, bz: ['#C88A55', '#7E4420', '#3A1C0A', '#A8683A', '#5C2E12'], fc: ['#7A3E1E', '#3A1A08'], ink: '#FFF6E6', muted: '#F2D6B0', acc: '#7FE3E8', n: '#FFF6E6', art: 'none' },
   { id: 'vintage', l: 'Vintage navigator', g: 'Photo', skin: 'skins/vintage.webp', k: 0.84, bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F2E4C2', '#DCC79A'], ink: '#1C2A44', muted: '#5A4A30', acc: '#1C2A44', n: '#1C2A44', art: 'none', light: 1 },
   { id: 'horizon', l: 'Ocean horizon', g: 'Photo', skin: 'skins/horizon.webp', k: 0.83, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A6FA8', '#0F3E6E'], ink: '#FFFFFF', muted: '#D6E8F5', acc: '#FFFFFF', n: '#FFFFFF', art: 'none' },
+  { id: 'ropehelm', l: 'Rope helm', g: 'Photo', skin: 'skins/ropehelm.webp', k: 0.66, bz: ['#E8CF9E', '#B8955E', '#6E5428', '#D6B77E', '#8A6A36'], fc: ['#1B2A44', '#0B1630'], ink: '#F3E8C8', muted: '#C9B488', acc: '#E8C36A', n: '#F3E8C8', art: 'none' },
+  { id: 'titanium', l: 'Smoked titanium', g: 'Photo', skin: 'skins/titanium.webp', k: 0.7, bz: ['#C9CED2', '#6E767C', '#2A2F33', '#9AA2A8', '#454C51'], fc: ['#12161A', '#050607'], ink: '#FFFFFF', muted: '#9AB6CC', acc: '#3FA9F5', n: '#3FA9F5', art: 'none' },
+  { id: 'midteal', l: 'Midnight teal', g: 'Photo', skin: 'skins/midteal.webp', k: 0.88, bz: ['#E4E6E8', '#A7ADB5', '#5A6068', '#C9CED2', '#7C838A'], fc: ['#0B2D45', '#06182A'], ink: '#FFFFFF', muted: '#9CC7CF', acc: '#14C8C6', n: '#14C8C6', art: 'none' },
+  { id: 'lagoon', l: 'Lagoon minimal', g: 'Photo', skin: 'skins/lagoon.webp', k: 0.88, bz: ['#F0DDB4', '#D4B895', '#9A7E54', '#E6CFA2', '#B8986A'], fc: ['#FAF9F4', '#E6F2EE'], ink: '#123B3A', muted: '#4D7A76', acc: '#2E7D7A', n: '#2E7D7A', art: 'none', light: 1 },
+  { id: 'coral', l: 'Coral sand', g: 'Photo', skin: 'skins/coral.webp', k: 0.88, bz: ['#F0DDB4', '#D4B895', '#9A7E54', '#E6CFA2', '#B8986A'], fc: ['#FBF8F1', '#F3E1C7'], ink: '#203040', muted: '#6A6A62', acc: '#E9967A', n: '#E9967A', art: 'none', light: 1 },
+  { id: 'slate', l: 'Slate horizon', g: 'Photo', skin: 'skins/slate.webp', k: 0.88, bz: ['#E4E8EC', '#A7B0B8', '#5A6268', '#C9D0D6', '#7C858C'], fc: ['#F6F9FB', '#D9E4EC'], ink: '#1E2E44', muted: '#5A6A7E', acc: '#445E74', n: '#445E74', art: 'none', light: 1 },
+  { id: 'arcticglass', l: 'Arctic white glass', g: 'Photo', skin: 'skins/arcticglass.webp', k: 0.84, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#FFFFFF', '#EEF2F5'], ink: '#14223A', muted: '#5C6B78', acc: '#5AA9E6', n: '#14223A', art: 'none', light: 1 },
+  { id: 'conch', l: 'Conch and coral', g: 'Photo', skin: 'skins/conch.webp', k: 0.86, bz: ['#F3D9B0', '#D4A26E', '#8A5A2E', '#E6C090', '#A87A48'], fc: ['#F6EDE2', '#E8D6C0'], ink: '#1E3448', muted: '#6A5A4A', acc: '#E8907A', n: '#1E3448', art: 'none', light: 1 },
   { id: 'carbonrefined', l: 'Carbon refined', g: 'Photo', skin: 'skins/carbonrefined.webp', k: 0.74, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A2C2F', '#0C0D0E'], ink: '#FFFFFF', muted: '#A6CBEA', acc: '#3FA9F5', n: '#3FA9F5', art: 'none' },
   // simple: flat faces, a thin plain ring, no glass shine or artwork (the classic colours, quieter)
   { id: 'snavy', l: 'Simple navy and gold', g: 'Simple', plain: 1, bz: ['#D4AF5A', '#C9A04E', '#B8913F', '#D4AF5A', '#C9A04E'], fc: ['#14284A', '#14284A'], ink: '#FFFFFF', muted: '#B9C4D4', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
@@ -6238,6 +6246,7 @@ const MT = { navybrass: ['#14243F', '#C9A04E'], heritage: ['#1E2A3A', '#C9A04E']
   yachtchrono: ['#14213D', '#8FA6C9'], compass: ['#13233F', '#C9A04E'], teak: ['#2A1A10', '#C68350'], regatta: ['#18191C', '#D9A066'], chart: ['#2B241A', '#B88A3E'], admiralty: ['#121314', '#C9A04E'],
   racinggreen: ['#12291E', '#C9A04E'], burgundy: ['#2A0E13', '#C9A04E'], mahogany: ['#14243F', '#B8673C'], pewter: ['#262C32', '#9AA1A6'],
   helm: ['#0E141B', '#00D1FF'], bridge: ['#0C1311', '#30D158'], amber: ['#120E08', '#FF9F0A'], aqua: ['#071A22', '#2CF2D6'], daylight: ['#16202A', '#0A84FF'], helmsq: ['#0E141B', '#00D1FF'], bridgesq: ['#0C1311', '#30D158'], ambersq: ['#120E08', '#FF9F0A'], daylightsq: ['#16202A', '#0A84FF'], navysq: ['#13233F', '#E8C36A'],
+  ropehelm: ['#13233F', '#D7B47A'], titanium: ['#111519', '#3FA9F5'], midteal: ['#0B2235', '#14C8C6'], lagoon: ['#123B3A', '#7FCABD'], coral: ['#2A2A2E', '#E9967A'], slate: ['#1E2E44', '#AFCED8'], arcticglass: ['#16202A', '#9FD3FF'], conch: ['#1E3448', '#E8907A'],
   snavy: ['#14284A', '#E8C36A'], sblack: ['#121212', '#E0E0E0'], swhite: ['#1B2026', '#7CC0FF'], scream: ['#22262E', '#C9A04E'], sslate: ['#1E2A34', '#5AC8FA'], smarine: ['#0E2E52', '#7FD3FF'], sgreen: ['#12291E', '#E8C36A'],
   navyphoto: ['#13233F', '#E8C36A'], teakbrass: ['#2A1A10', '#C9A04E'], woodmin: ['#24150C', '#C9A07A'], islandteak: ['#2E1C10', '#E0A060'], rope: ['#13233F', '#D7B47A'], polynesian: ['#1B140E', '#C88A55'], vintage: ['#2B241A', '#B88A3E'], surf: ['#0E2E36', '#5FD3CF'], horizon: ['#0E2A44', '#9BC8E8'], compassrose: ['#14284A', '#C9D3E2'],
   modernclassic: ['#101C30', '#C9D3E2'], goldaccent: ['#141414', '#D4AF5A'], carbonrefined: ['#18191B', '#C9CED2'], smoked: ['#161B20', '#3FA9F5'], ceramic: ['#0B1428', '#4FB3FF'],
@@ -6269,7 +6278,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
   const el = document.createElement('style'); el.id = 'gtStyle'; el.textContent = css; document.head.appendChild(el);
 })();
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
-function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont">' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
+function glPrev(id, gf) { return '<i class="gl-prev" data-gt="' + id + '"' + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/>' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
   return ['Tech', 'Original', 'Photo', 'Classic', 'Simple'].map((g) => '<div class="mo-h">' + ({ Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
 }
@@ -6902,7 +6911,7 @@ setTimeout(() => applyOrient(true), 800);
     const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse' || ARR.on) return;
     holdBtn = b; shown = false; clearTimeout(t);
     if (b.id === 'btnMOB' || b.id === 'curChip' || b.id === 'btnOrient') return; // these use press and hold for their own job
-    t = setTimeout(() => { show(b); t = setTimeout(() => { if (holdBtn === b && b.closest('#fabs, #fabsR, .fab-free')) { hide(); shown = true; arrangeMode(true); toast('Arrange mode: drag buttons anywhere. Tap Done when finished.', 3500); } }, 800); }, 450);
+    t = setTimeout(() => { show(b); t = setTimeout(() => { if (holdBtn === b && b.id === 'miniInst') { hide(); shown = true; openLookTry(); return; } if (holdBtn === b && b.closest('#fabs, #fabsR, .fab-free')) { hide(); shown = true; arrangeMode(true); toast('Arrange mode: drag buttons anywhere. Tap Done when finished.', 3500); } }, 800); }, 450);
   }, true);
   document.addEventListener('pointerup', () => { clearTimeout(t); if (shown) setTimeout(hide, 1100); }, true);
   document.addEventListener('pointercancel', () => { clearTimeout(t); hide(); }, true);
@@ -7214,7 +7223,7 @@ setTimeout(applyFabLayout, 300);
 function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div><button type="button" class="lt-open" data-looktry="1">◀ ▶ Swipe through every look on the chart</button>' + glPicker(st.gTheme || 'midnight') +
-    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
+    '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Face colour (any look)</label><div class="btheme-row gl-row gl-faces">' + GFACES.map(([k, l]) => '<button type="button" data-ltface="' + k + '" class="' + ((st.gFace || '') === k ? 'on' : '') + '">' + glPrev(st.gTheme || 'midnight', k) + l + '</button>').join('') + '</div></div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
     '<div class="field"><label>Theme the rest of the app with it</label>' + seg('fabLook', st.fabLook || 'theme', [['app', 'Everything'], ['gauge', 'Buttons and tab bar'], ['theme', 'Nothing else']]) + '</div>' +
     '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
@@ -7648,6 +7657,8 @@ function shipSheetTop(t) {
   const status = SHIP_STATUS[t.status] || '';
   let h = '<div class="ship-hd"><span class="ship-sw" style="--c:' + SHIP_CAT[cat][0] + '"></span><div><h3>' + esc(t.name || 'AIS target') + '</h3><div class="sub">' + esc(shipTypeText(t)) +
     (fl ? ' · ' + (fl.emoji ? fl.emoji + ' ' : '') + esc(fl.name || fl.note) : '') + (t.demo ? ' · demo target' : '') + '</div></div></div>';
+  if (fl && fl.cc) h += '<div class="ship-flag"><img src="https://flagcdn.com/w80/' + fl.cc.toLowerCase() + '.png" alt="" onerror="this.remove()"><span><small>FLAG</small><b>' + esc(fl.name || fl.cc) + '</b></span></div>';
+  h += '<div class="ship-photo" id="shipPhoto" data-id="' + esc(t.id) + '"><div class="sp-ph" style="--c:' + SHIP_CAT[cat][0] + '"><svg viewBox="0 0 120 40"><path d="M6 24 L100 24 L114 18 L110 30 Q60 36 12 32 Z" fill="var(--c)"/><rect x="40" y="12" width="34" height="12" rx="2" fill="var(--c)" opacity=".75"/><rect x="62" y="5" width="8" height="8" fill="var(--c)" opacity=".6"/></svg><span>Looking for a public photo…</span></div></div>'
   h += '<div class="ship-wiki" id="shipWiki" data-id="' + esc(t.id) + '" hidden></div>';
   const go = t.dest ? '<div class="ship-dest"><span class="lbl">BOUND FOR</span><b>' + esc(t.dest) + '</b>' + (t.eta ? '<span>ETA ' + esc(t.eta) + '</span>' : '') + '</div>' : '';
   h += go;
@@ -7928,7 +7939,7 @@ function ltShow() {
   const grp = t.legacy ? 'Original' : t.g, ids = ['speed', 'depth', 'wind', 'tide'];
   let g = ''; try { g = ids.map((id) => ckGauge(id)).join(''); } catch (e) { g = ''; }
   $('lookTry').innerHTML = '<div class="lt-head"><button type="button" class="lt-arr" data-ltgo="-1" aria-label="Previous look">‹</button><div class="lt-name"><b>' + esc(t.l) + '</b><span>' + esc(LT_G[grp] || grp) + ' · ' + (LT.i + 1) + ' of ' + list.length + '</span></div><button type="button" class="lt-arr" data-ltgo="1" aria-label="Next look">›</button></div>' +
-    '<div class="cockpit lt-ck">' + g + '</div><div class="lt-dots">' + list.map((x, k) => '<i class="' + (k === LT.i ? 'on' : '') + '"></i>').join('') + '</div>' +
+    '<div class="cockpit lt-ck">' + g + '</div><div class="lt-faces"><span>Face</span>' + GFACES.map(([k, l, c]) => '<button type="button" data-ltface="' + k + '" class="' + ((S.settings.gFace || '') === k ? 'on' : '') + '" title="' + l + '" style="background:' + (c || 'conic-gradient(#14284A 0 25%,#F2EAD6 0 50%,#0F4C4C 0 75%,#0B0B0B 0)') + '"></button>').join('') + '</div><div class="lt-dots">' + list.map((x, k) => '<i class="' + (k === LT.i ? 'on' : '') + '"></i>').join('') + '</div>' +
     '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn primary" data-ltdone="use">Use ' + esc(t.l) + '</button></div>';
 }
 function closeLookTry(use) {
@@ -7944,12 +7955,48 @@ function ltSwipe(el) {
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-looktry]')) { e.stopPropagation(); openLookTry(); return; }
   const g = e.target.closest('#lookTry [data-ltgo]'); if (g) { LT.i += +g.dataset.ltgo; ltShow(); return; }
+  const fb = e.target.closest('[data-ltface]'); if (fb) { S.settings.gFace = fb.dataset.ltface; saveSettings(); applyGFace(); if (LT.on) ltShow(); else if (!sheet.hidden) openGaugeLook(); return; }
   const d = e.target.closest('#lookTry [data-ltdone]'); if (d) closeLookTry(d.dataset.ltdone === 'use');
 });
 document.addEventListener('keydown', (e) => { if (!LT.on) return; if (e.key === 'ArrowRight') { LT.i++; ltShow(); } if (e.key === 'ArrowLeft') { LT.i--; ltShow(); } if (e.key === 'Escape') closeLookTry(false); });
 // the instruments button is not needed: tapping the speed circle opens the instruments (Andy). Arrange can still bring it back.
 if (!S.settings.instBtnSeeded) { S.settings.instBtnHidden = true; S.settings.instBtnSeeded = 1; saveSettings(); }
 document.documentElement.classList.toggle('no-instbtn', S.settings.instBtnHidden === true);
+/* ---------- face colours: any look in ivory, navy, teal, sand, black… (like the colour boards). A disc under the numbers, inside the ring ---------- */
+const GFACES = [['', 'As designed', ''], ['ivory', 'Ivory', '#F2EAD6'], ['navy', 'Navy', '#14284A'], ['teal', 'Teal', '#0F4C4C'], ['seaglass', 'Sea glass', '#3E7F78'], ['sand', 'Sand', '#E3D2AE'], ['black', 'Black', '#0B0B0B'], ['blue', 'Ocean blue', '#1E3F7A'], ['red', 'Red', '#6E1A20'], ['olive', 'Olive', '#4E5A32'], ['white', 'White', '#FAFAF7']];
+const GF_INK = { ivory: ['#1B1B1B', '#5C5244'], sand: ['#2A2418', '#6A5A3E'], white: ['#111417', '#5C646C'] };
+(function gfCss() {
+  let c = '.g-faceov{display:none}';
+  GFACES.forEach(([k, , col]) => { if (!k) return; const ink = GF_INK[k] || ['#F6EEDA', '#C9BC9A'];
+    ['html[data-gface="' + k + '"][data-gface] :is(.gauge,#miniInst) svg', 'i.gl-prev.gl-prev[data-gf="' + k + '"] svg'].forEach((S0) => {
+      c += S0 + ' .g-faceov{display:inline;fill:' + col + '}' + S0 + '{--g-ink:' + ink[0] + '!important;--g-muted:' + ink[1] + '!important;--gi-ink:' + ink[0] + '!important;--gi-muted:' + ink[1] + '!important;--g-face:transparent!important;--g-bg:transparent!important}' + S0 + ' :is(.g-big,.g-num,.g-unit,.g-card,text){stroke:none!important}' + S0 + ' .g-art{display:none!important}'; });
+  });
+  const el = document.createElement('style'); el.textContent = c; document.head.appendChild(el);
+})();
+function applyGFace() { const f = S.settings.gFace || ''; if (f) document.documentElement.dataset.gface = f; else delete document.documentElement.dataset.gface; try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
+applyGFace();
+/* ---------- ship photo: openly licensed photos from Wikimedia Commons (by IMO number, then by name); otherwise links to the ship's photo pages ---------- */
+const SHIPPHOTO = { mem: store.get('aisCachePhoto', {}) };
+async function shipPhoto(t) {
+  const el = () => { const e = $('shipPhoto'); return e && e.dataset.id === t.id ? e : null; };
+  const key = (t.imo ? 'i' + t.imo : '') || (t.name ? 'n' + wikiNorm(t.name) : ''); let hit = key ? SHIPPHOTO.mem[key] : null;
+  const show = (h) => { const e = el(); if (!e) return; const mm = t.mmsi && /^\d{9}$/.test(String(t.mmsi)) ? String(t.mmsi) : null;
+    if (h && h.url) e.innerHTML = '<img src="' + esc(h.url) + '" alt="' + esc(t.name || 'Ship') + '"><p class="sp-c">' + esc(h.credit || 'Wikimedia Commons') + (h.page ? ' · <a href="' + esc(h.page) + '" target="_blank" rel="noopener">source</a>' : '') + '</p>';
+    else e.innerHTML = '<div class="sp-ph none" style="--c:' + SHIP_CAT[shipCat(t)][0] + '"><svg viewBox="0 0 120 40"><path d="M6 24 L100 24 L114 18 L110 30 Q60 36 12 32 Z" fill="var(--c)"/><rect x="40" y="12" width="34" height="12" rx="2" fill="var(--c)" opacity=".75"/></svg><span>No free photo found.' + (mm ? ' <a href="https://www.marinetraffic.com/en/photos/of/ships/shipid:0/mmsi:' + mm + '" target="_blank" rel="noopener">Photos on MarineTraffic</a>' : '') + '</span></div>'; };
+  if (t.demo) { show(null); return; }
+  if (hit !== undefined && hit !== null) { show(hit); return; }
+  const C = 'https://commons.wikimedia.org/w/api.php?origin=*&format=json&action=query&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=640&';
+  const pick = (j) => { const pg = Object.values((j.query || {}).pages || {}).filter((p) => p.imageinfo && /\.(jpe?g|png|webp)$/i.test(p.title)).sort((a, b) => (a.index || 0) - (b.index || 0))[0]; if (!pg) return null; const ii = pg.imageinfo[0], md = ii.extmetadata || {};
+    const who = String((md.Artist || {}).value || '').replace(/<[^>]+>/g, '').trim(), lic = String((md.LicenseShortName || {}).value || '').trim();
+    return { url: ii.thumburl || ii.url, page: ii.descriptionurl, credit: [who, lic].filter(Boolean).join(' · ') || 'Wikimedia Commons' }; };
+  try {
+    if (t.imo) { const j = await (await fetch(C + 'generator=categorymembers&gcmtype=file&gcmlimit=5&gcmtitle=' + encodeURIComponent('Category:IMO ' + t.imo))).json(); hit = pick(j); }
+    if (!hit && t.name && wikiNorm(t.name).length >= 3 && !/^MMSI/.test(t.name)) { const j = await (await fetch(C + 'generator=search&gsrnamespace=6&gsrlimit=6&gsrsearch=' + encodeURIComponent('"' + t.name.trim() + '" ' + (t.imo ? t.imo : 'ship')))).json();
+      const pages = (j.query || {}).pages || {}; Object.keys(pages).forEach((k) => { if (wikiNorm(pages[k].title.replace(/^File:/, '').replace(/\.[a-z]+$/i, '')).indexOf(wikiNorm(t.name)) < 0) delete pages[k]; }); hit = pick(j); }
+    if (key) { SHIPPHOTO.mem[key] = hit; const ks = Object.keys(SHIPPHOTO.mem); if (ks.length > 300) delete SHIPPHOTO.mem[ks[0]]; store.set('aisCachePhoto', SHIPPHOTO.mem); }
+  } catch (e) { hit = null; }
+  show(hit);
+}
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
