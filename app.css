@@ -2208,7 +2208,7 @@ html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid::before { /* stitched edge
   content: ''; position: absolute; inset: 7px; border-radius: 22px; border: 1.5px dashed color-mix(in srgb, var(--mt-acc, #7CC0FF) 35%, transparent); pointer-events: none;
 }
 html[data-ck="console"] .cockpit:not(.lt-ck) .gauge { border: 0 !important; background: transparent !important; position: relative; }
-html[data-ck="console"] .cockpit:not(.lt-ck) .gauge > svg { border-radius: 50%; box-shadow: 0 0 0 5px rgba(0,0,0,.45), 0 0 0 7px rgba(255,255,255,.05), 0 10px 18px rgba(0,0,0,.6) !important; filter: none !important; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .gauge > svg { box-shadow: none !important; filter: drop-shadow(0 0 4px rgba(0,0,0,.7)) drop-shadow(0 8px 10px rgba(0,0,0,.55)) !important; }
 html[data-gshape="sq"][data-ck="console"] .cockpit:not(.lt-ck) .gauge > svg { border-radius: 14%; }
 html[data-ck="console"] .cockpit:not(.lt-ck) .g-lbl {
   display: inline-block; align-self: center; padding: 2px 10px; margin-bottom: 6px; border-radius: 4px;
@@ -2225,3 +2225,6 @@ html:is([data-gtheme="helm"],[data-gtheme="bridge"],[data-gtheme="amber"],[data-
   background: radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,.08), transparent 55%), linear-gradient(180deg, #0B0F14, #020406) !important;
 }
 html:is([data-gtheme="helm"],[data-gtheme="bridge"],[data-gtheme="amber"],[data-gtheme="aqua"],[data-gtheme="helmsq"],[data-gtheme="bridgesq"],[data-gtheme="ambersq"],[data-gtheme="carbon"],[data-gtheme="sq_carbon"],[data-gtheme="carbonrefined"],[data-gtheme="titanium"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid::before { display: none; }
+/* the faint tile oval behind each gauge on wide screens: gone in the console */
+html[data-ck="console"] .cockpit:not(.lt-ck) .gauge::before, html[data-ck="console"] .cockpit:not(.lt-ck) .gauge::after { display: none !important; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-slot, html[data-ck="console"] .cockpit:not(.lt-ck) .gauge { background-image: none !important; box-shadow: none !important; }
