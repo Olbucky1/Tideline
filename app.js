@@ -2736,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 129. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 130. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5441,7 +5441,7 @@ function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [G.cx + r 
 function arcPath(r, a0, a1) { const [x0, y0] = polar(r, a0), [x1, y1] = polar(r, a1), large = a1 - a0 > 180 ? 1 : 0; return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); }
 // a real-instrument bezel: polished ring (many-stop gradient reads as chrome, brass or gunmetal by theme), a dark seam, a lit face and a glass glare
 const bezelSvg = (id, cx, r) => '<defs><linearGradient id="' + id + 'C" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" class="ch1"/><stop offset="0.18" class="ch2"/><stop offset="0.32" class="ch4"/><stop offset="0.48" class="ch1"/><stop offset="0.62" class="ch3"/><stop offset="0.8" class="ch2"/><stop offset="1" class="ch5"/></linearGradient><linearGradient id="' + id + 'I" x1="0" y1="1" x2="0" y2="0"><stop offset="0" class="ch1"/><stop offset="1" class="ch3"/></linearGradient><radialGradient id="' + id + 'F" cx="0.5" cy="0.32" r="0.78"><stop offset="0" class="fc1"/><stop offset="1" class="fc2"/></radialGradient><linearGradient id="' + id + 'G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
-  '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.945) + '" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.925) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
+  '<circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.99) + '" fill="url(#' + id + 'C)" class="g-bezel"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.945) + '" class="g-ring2" fill="url(#' + id + 'I)"/><circle cx="' + cx + '" cy="' + cx + '" r="' + (r * 0.925) + '" fill="url(#' + id + 'F)" class="g-seam"/>' +
   bezelDec(cx, r) +
   gaugeArt(id, cx, r) +
   '<path d="M' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + ' A' + (r * 0.92) + ' ' + (r * 0.92) + ' 0 0 1 ' + (cx + r * 0.8) + ' ' + (cx - r * 0.2) + ' Q' + cx + ' ' + (cx - r * 0.42) + ' ' + (cx - r * 0.8) + ' ' + (cx - r * 0.2) + 'z" fill="url(#' + id + 'G)" class="g-glare"/>';
@@ -5468,7 +5468,7 @@ function gaugeArt(id, cx, r) {
     '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-woods">' + wood + '</g><g class="ga-carbons">' + weave + '</g><g class="ga-deeps">' + deep + '</g><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
 }
 let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
-function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + svg + '</svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
+function gWrap(label, svg, foot, cls, tip) { return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true">' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + '<g class="g-cont">' + svg + '</g></svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
   let ticks = '';
@@ -5894,7 +5894,7 @@ function renderMini() {
   let ticks = ''; for (let d = 0; d < 360; d += 10) { const major = d % 30 === 0, a = (d - 90) * Math.PI / 180, r0 = major ? 38.5 : 41.5; ticks += '<line x1="' + (50 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + 44.5 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + 44.5 * Math.sin(a)).toFixed(1) + '"' + (major ? ' class="mj"' : '') + '/>'; }
   const card = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([t, d]) => { const a = (d - 90) * Math.PI / 180, x = 50 + 34 * Math.cos(a), y = 50 + 34 * Math.sin(a); return '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5).toFixed(1) + '" class="mi-c' + (t === 'N' ? ' n' : '') + '" transform="rotate(' + (-mr).toFixed(1) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + t + '</text>'; }).join('');
   const gs = S.settings.gStyle || 'hybrid';
-  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true" class="mi-' + gs + '">' + bezelSvg('mb', 50, 50) + (gs === 'digital' ? '' : '<g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>') +
+  let svg = '<svg viewBox="0 0 100 100" aria-hidden="true" class="mi-' + gs + '">' + bezelSvg('mb', 50, 50) + '<g class="g-cont">' + (gs === 'digital' ? '' : '<g transform="rotate(' + mr.toFixed(1) + ' 50 50)"><g class="mi-ticks">' + ticks + '</g>' + card + '</g>') +
     (cog != null ? '<g transform="rotate(' + (cog + mr).toFixed(0) + ' 50 50)"><path d="M50 1.5 L56 13 L50 10 L44 13 Z" class="mi-arrow"/></g>' : '') +
     '<text x="50" y="31" class="mi-cog">' + (cog != null ? fmtBrg(cog) + '° ' + compass16(cog) : 'COURSE –') + '</text>' +
     '<text x="50" y="54" class="mi-spd">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="50" y="61" class="mi-u">' + SPEED_LBL[S.settings.speedUnit] + '</text>';
@@ -5902,7 +5902,7 @@ function renderMini() {
   const d = DEP.v, validDepth = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000;
   const need = S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null, dft = validDepth ? d.d1 / 0.3048 : null, shallow = need && dft != null && dft < need;
   const depthText = validDepth ? Math.round(ftToLen(dft)) + '<tspan class="mi-du"> ' + lenUnit() + '</tspan>' : '–<tspan class="mi-du"> ' + lenUnit() + '</tspan>';
-  el.innerHTML = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></svg>';
+  el.innerHTML = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></g></svg>';
   el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
   el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : ' · charted depth when NOAA chart data loads') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
 }
@@ -6192,22 +6192,16 @@ const GT = [
   { id: 'burgundy', l: 'Burgundy and brass', g: 'Classic', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#5A1A24', '#240509'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
   { id: 'mahogany', l: 'Mahogany and gold', g: 'Classic', bz: ['#D99A6C', '#8A3F1E', '#3E140A', '#B8673C', '#5E2412'], fc: ['#1B2E52', '#0A1428'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
   { id: 'pewter', l: 'Pewter and slate', g: 'Classic', bz: ['#E4E6E8', '#9AA1A6', '#4F565B', '#C4C9CD', '#6E757A'], fc: ['#3A434B', '#1C2126'], ink: '#EEF1F3', muted: '#A7B0B7', acc: '#D7DDE2', n: '#E8B84A', art: 'none' },
-  // from Andy's second set of boards: wood, rope, island and coastal
-  { id: 'teakbrass', l: 'Teak and brass', g: 'Wood and rope', bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#7A4424', '#3B1E0E'], ink: '#F6E7CC', muted: '#D9B98C', acc: '#F2C94C', n: '#F6E7CC', art: 'wood' },
-  { id: 'woodmin', l: 'Walnut', g: 'Wood and rope', bz: ['#B87A4E', '#6E3F1F', '#2E160A', '#9A5E36', '#4A2512'], fc: ['#5A3420', '#26140A'], ink: '#FFFFFF', muted: '#D2B598', acc: '#FFFFFF', n: '#FFFFFF', art: 'wood' },
-  { id: 'islandteak', l: 'Island teak', g: 'Wood and rope', bz: ['#E9B98A', '#A8642E', '#4E2810', '#CF8E55', '#7A4218'], fc: ['#A8683A', '#5C3216'], ink: '#FFF4E2', muted: '#F0D2A8', acc: '#FFE0A8', n: '#FFF4E2', art: 'wood' },
-  { id: 'rope', l: 'Rope', g: 'Wood and rope', bz: ['#E8CF9E', '#B8955E', '#6E5428', '#D6B77E', '#8A6A36'], fc: ['#1D2F4F', '#0B1630'], ink: '#F3E3B5', muted: '#BFA36A', acc: '#E8C36A', n: '#E53935', art: 'none', dec: 'rope', decC: ['#D7B47A', '#8C6A36'] },
-  { id: 'polynesian', l: 'Polynesian', g: 'Wood and rope', bz: ['#C88A55', '#7E4420', '#3A1C0A', '#A8683A', '#5C2E12'], fc: ['#1B2A44', '#0A1222'], ink: '#F6E7CC', muted: '#C9A877', acc: '#F2B25C', n: '#F2B25C', art: 'none', dec: 'carved', decC: ['#8A4E26', '#3E1C08'] },
-  { id: 'vintage', l: 'Vintage navigator', g: 'Wood and rope', bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F2E4C2', '#DCC79A'], ink: '#2A2418', muted: '#6F5E3E', acc: '#2A2418', n: '#2A2418', art: 'rose', light: 1 },
-  { id: 'surf', l: 'Surf coastal', g: 'Wood and rope', bz: ['#F3E2C0', '#C9A877', '#7E6440', '#E6CFA2', '#9A7E54'], fc: ['#8FE0DC', '#2C9FAE'], ink: '#0B3440', muted: '#2F6670', acc: '#FFFFFF', n: '#0B3440', art: 'swell', light: 1 },
-  { id: 'horizon', l: 'Ocean horizon', g: 'Wood and rope', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#9BC8E8', '#0F3E6E'], ink: '#FFFFFF', muted: '#D6E8F5', acc: '#FFFFFF', n: '#FFFFFF', art: 'deep' },
-  { id: 'compassrose', l: 'Compass rose', g: 'Wood and rope', bz: ['#E4E8EE', '#1E3A6A', '#0C1E3E', '#5A78A8', '#18305A'], fc: ['#FBF5E6', '#E9DDC0'], ink: '#14284A', muted: '#5A6475', acc: '#1E3A6A', n: '#14284A', art: 'rose', light: 1 },
-  // refined modern, from the third board
-  { id: 'modernclassic', l: 'Modern classic', g: 'Refined', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#13284A', '#04080F'], ink: '#FFFFFF', muted: '#9FB0C4', acc: '#FFFFFF', n: '#FFFFFF', art: 'none' },
-  { id: 'goldaccent', l: 'Gold accent', g: 'Refined', bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#1E1E20', '#050505'], ink: '#F3D88E', muted: '#B89A5A', acc: '#E8C36A', n: '#F3D88E', art: 'none' },
-  { id: 'carbonrefined', l: 'Carbon refined', g: 'Refined', bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A2C2F', '#0C0D0E'], ink: '#FFFFFF', muted: '#A6ABB0', acc: '#FFFFFF', n: '#FFFFFF', art: 'carbon' },
-  { id: 'smoked', l: 'Smoked titanium', g: 'Refined', bz: ['#C9CED2', '#6E767C', '#2A2F33', '#9AA2A8', '#454C51'], fc: ['#1C2228', '#07090B'], ink: '#FFFFFF', muted: '#9AA6B0', acc: '#3FA9F5', n: '#3FA9F5', art: 'deep' },
-  { id: 'ceramic', l: 'Midnight ceramic', g: 'Refined', bz: ['#5A6A86', '#1C2A44', '#070D1A', '#34466A', '#101A2E'], fc: ['#0E1A33', '#03060D'], ink: '#FFFFFF', muted: '#8EA2C2', acc: '#4FB3FF', n: '#4FB3FF', art: 'deep' },
+  // photo looks: the ring and face are ChatGPT artwork (skins/*.webp, cut from Andy's boards); numbers, ticks and needle are drawn live on top.
+  // k = how far the live dial is shrunk so it sits inside the artwork's face
+  { id: 'navyphoto', l: 'Navy and brass (photo)', g: 'Photo', skin: 'skins/navyphoto.webp', k: 0.76, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1B3358', '#0A1428'], ink: '#FFF6E0', muted: '#D9C08A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
+  { id: 'goldaccent', l: 'Gold accent', g: 'Photo', skin: 'skins/goldaccent.webp', k: 0.72, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#1A2840', '#070C16'], ink: '#FFF2D6', muted: '#D4B77A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
+  { id: 'teakbrass', l: 'Teak and brass', g: 'Photo', skin: 'skins/teakbrass.webp', k: 0.79, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#7A3A1C', '#3B1A0A'], ink: '#FFF4E0', muted: '#F0D2A8', acc: '#FFE2A8', n: '#FFF4E0', art: 'none' },
+  { id: 'rope', l: 'Rope edition', g: 'Photo', skin: 'skins/rope.webp', k: 0.62, bz: ['#E8CF9E', '#B8955E', '#6E5428', '#D6B77E', '#8A6A36'], fc: ['#1D2F4F', '#0B1630'], ink: '#FFF6E0', muted: '#D9C08A', acc: '#E8C36A', n: '#E53935', art: 'none' },
+  { id: 'polynesian', l: 'Polynesian carved', g: 'Photo', skin: 'skins/polynesian.webp', k: 0.71, bz: ['#C88A55', '#7E4420', '#3A1C0A', '#A8683A', '#5C2E12'], fc: ['#7A3E1E', '#3A1A08'], ink: '#FFF6E6', muted: '#F2D6B0', acc: '#7FE3E8', n: '#FFF6E6', art: 'none' },
+  { id: 'vintage', l: 'Vintage navigator', g: 'Photo', skin: 'skins/vintage.webp', k: 0.84, bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F2E4C2', '#DCC79A'], ink: '#1C2A44', muted: '#5A4A30', acc: '#1C2A44', n: '#1C2A44', art: 'none', light: 1 },
+  { id: 'horizon', l: 'Ocean horizon', g: 'Photo', skin: 'skins/horizon.webp', k: 0.83, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A6FA8', '#0F3E6E'], ink: '#FFFFFF', muted: '#D6E8F5', acc: '#FFFFFF', n: '#FFFFFF', art: 'none' },
+  { id: 'carbonrefined', l: 'Carbon refined', g: 'Photo', skin: 'skins/carbonrefined.webp', k: 0.74, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A2C2F', '#0C0D0E'], ink: '#FFFFFF', muted: '#A6CBEA', acc: '#3FA9F5', n: '#3FA9F5', art: 'none' },
   // modern (the original looks, unchanged)
   { id: 'midnight', l: 'Midnight chrome', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8' },
   { id: 'arctic', l: 'Arctic white', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A' },
@@ -6219,7 +6213,7 @@ const GT = [
 const MT = { navybrass: ['#14243F', '#C9A04E'], heritage: ['#1E2A3A', '#C9A04E'], brass: ['#23201A', '#C9A04E'], bronze: ['#221B13', '#C08A45'], classic: ['#17191C', '#A7B2BC'], whiteface: ['#1B2026', '#A7B2BC'],
   yachtchrono: ['#14213D', '#8FA6C9'], compass: ['#13233F', '#C9A04E'], teak: ['#2A1A10', '#C68350'], regatta: ['#18191C', '#D9A066'], chart: ['#2B241A', '#B88A3E'], admiralty: ['#121314', '#C9A04E'],
   racinggreen: ['#12291E', '#C9A04E'], burgundy: ['#2A0E13', '#C9A04E'], mahogany: ['#14243F', '#B8673C'], pewter: ['#262C32', '#9AA1A6'],
-  teakbrass: ['#2A1A10', '#C9A04E'], woodmin: ['#24150C', '#C9A07A'], islandteak: ['#2E1C10', '#E0A060'], rope: ['#13233F', '#D7B47A'], polynesian: ['#1B140E', '#C88A55'], vintage: ['#2B241A', '#B88A3E'], surf: ['#0E2E36', '#5FD3CF'], horizon: ['#0E2A44', '#9BC8E8'], compassrose: ['#14284A', '#C9D3E2'],
+  navyphoto: ['#13233F', '#E8C36A'], teakbrass: ['#2A1A10', '#C9A04E'], woodmin: ['#24150C', '#C9A07A'], islandteak: ['#2E1C10', '#E0A060'], rope: ['#13233F', '#D7B47A'], polynesian: ['#1B140E', '#C88A55'], vintage: ['#2B241A', '#B88A3E'], surf: ['#0E2E36', '#5FD3CF'], horizon: ['#0E2A44', '#9BC8E8'], compassrose: ['#14284A', '#C9D3E2'],
   modernclassic: ['#101C30', '#C9D3E2'], goldaccent: ['#141414', '#D4AF5A'], carbonrefined: ['#18191B', '#C9CED2'], smoked: ['#161B20', '#3FA9F5'], ceramic: ['#0B1428', '#4FB3FF'],
   midnight: ['#16283A', '#5AE3FF'], arctic: ['#16283A', '#7CC0FF'], glass: ['#0E2A44', '#5EE6FF'], expedition: ['#1A1D20', '#FF7A1A'], carbon: ['#151515', '#30D158'], simple: ['#15212D', '#5AC8FA'] };
 const mtOn = (hex) => { const n = parseInt(hex.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.55 ? '#14161A' : '#FFFFFF'; };
@@ -6233,6 +6227,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
     t.bz.forEach((v, i) => { c += P + ' .ch' + (i + 1) + '{stop-color:' + v + '!important}'; }); c += P + ' .fc1{stop-color:' + t.fc[0] + '!important}' + P + ' .fc2{stop-color:' + t.fc[1] + '!important}';
     c += P + ' .g-art>g{display:none!important}'; if (GA_CLASS[t.art]) c += P + ' .' + GA_CLASS[t.art] + '{display:inline!important}';
     c += P + ' .g-glare,' + P + ' .g-seam{opacity:' + (t.flat ? 0 : 1) + '!important}';
+    if (t.skin) { const S0 = live ? P0 + ' :is(.gauge,#miniInst)' : P0; c += S0 + ' svg{background:url(' + t.skin + ') center/contain no-repeat}' + S0 + ' :is(.g-bezel,.g-ring2,.g-seam,.g-glare,.g-art,.g-dec){display:none!important}' + S0 + ' .g-cont{transform:scale(' + t.k + ');transform-origin:100px 100px}' + S0 + ' svg{--g-face:' + (t.light ? 'rgba(255,250,235,.18)' : 'rgba(0,0,0,.22)') + '!important;--g-bg:transparent!important}' + S0 + ' :is(.g-big,.g-num,.g-unit,.g-card,text){paint-order:stroke;stroke:' + (t.light ? 'rgba(255,248,230,.75)' : 'rgba(0,0,0,.6)') + ';stroke-width:2.5px;stroke-linejoin:round}' + (live ? P0 + ' #miniInst .g-cont{transform-origin:50px 50px}' : '') + P0 + '{--bt-img:url(' + t.skin + ')}'; }
     if (t.dec) c += P + ' .g-dec-' + t.dec + '{display:inline!important}' + P0 + '{--dec1:' + (t.decC || ['#C9A26B', '#7A5A2E'])[0] + ';--dec2:' + (t.decC || ['#C9A26B', '#7A5A2E'])[1] + '}';
     if (t.light && live) c += P0 + ' :is(.cockpit,#panelSide){--g-ink:#EAF4F8!important;--g-muted:#A9BCCD!important;--g-acc:#2CD3C5!important;--g-line:#3A5670!important}' +
       P0 + ' :is(.cockpit,#panelSide) .gauge svg{--g-ink:var(--gi-ink)!important;--g-muted:var(--gi-muted)!important;--g-acc:var(--gi-acc)!important;--g-acc2:var(--gi-acc)!important;--g-face:color-mix(in srgb,var(--gi-ink) 9%,transparent)!important;--g-bg:transparent!important;--g-line:color-mix(in srgb,var(--gi-ink) 35%,transparent)!important}';
@@ -6245,9 +6240,9 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
   const el = document.createElement('style'); el.id = 'gtStyle'; el.textContent = css; document.head.appendChild(el);
 })();
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
-function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + speedGauge(6.4, 8.2, 10) + '</svg></i>'; }
+function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont">' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
-  return ['Classic', 'Wood and rope', 'Modern', 'Refined'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
+  return ['Photo', 'Classic', 'Modern'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
 }
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
@@ -7687,8 +7682,8 @@ function applyFabLook() {
   document.documentElement.dataset.fablook = S.settings.fabLook || 'theme';
   const each = S.settings.fabEach || {};
   document.querySelectorAll('.fab[id], .mini-depth[id]').forEach((el) => {
-    const id = each[el.id]; if (!id) { delete el.dataset.gl; ['--bt-f1', '--bt-f2', '--bt-ink', '--bt-c1', '--bt-c2', '--bt-c3', '--bt-c4', '--bt-c5'].forEach((k) => el.style.removeProperty(k)); return; }
-    const t = gtOf(id); el.dataset.gl = t.id; el.style.setProperty('--bt-f1', t.fc[0]); el.style.setProperty('--bt-f2', t.fc[1]); el.style.setProperty('--bt-ink', t.ink); t.bz.forEach((v, i) => el.style.setProperty('--bt-c' + (i + 1), v));
+    const id = each[el.id]; if (!id) { delete el.dataset.gl; ['--bt-img', '--bt-f1', '--bt-f2', '--bt-ink', '--bt-c1', '--bt-c2', '--bt-c3', '--bt-c4', '--bt-c5'].forEach((k) => el.style.removeProperty(k)); return; }
+    const t = gtOf(id); el.dataset.gl = t.id; el.style.setProperty('--bt-f1', t.fc[0]); el.style.setProperty('--bt-f2', t.fc[1]); el.style.setProperty('--bt-ink', t.ink); t.bz.forEach((v, i) => el.style.setProperty('--bt-c' + (i + 1), v)); if (t.skin) el.style.setProperty('--bt-img', 'url(' + t.skin + ')'); else el.style.removeProperty('--bt-img');
   });
 }
 function openFabLookFor(el) {
