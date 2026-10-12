@@ -2770,7 +2770,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 140. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 141. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6337,7 +6337,8 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
 function glPrev(id, gf) { return '<i class="gl-prev" data-gt="' + id + '"' + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/>' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
-  return ['Tech', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].map((g) => '<div class="mo-h">' + ({ Tech: 'High-tech digital', Square: 'Square artwork', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id, S.settings.gFace || '') + t.l + '</button>').join('') + '</div>').join('');
+  const placed = new Set();
+  return ['Tech', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].map((g) => { const items = lookPairs(GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g))).filter((t) => !placed.has(t.id) || (t.sq && g !== 'Square')); items.forEach((t) => placed.add(t.id)); if (!items.length) return ''; return '<div class="mo-h">' + ({ Tech: 'High-tech digital', Square: 'Square artwork', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + items.map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id, S.settings.gFace || '') + t.l + '</button>').join('') + '</div>'; }).join('');
 }
 const SQ_PAIR = { navybrass: 'sq_navy', goldnavy: 'sq_navy', goldnavy2: 'sq_navy', navyphoto: 'sq_navy', chromewave: 'sq_chrome', chromewave2: 'sq_chrome', arcticglass: 'sq_chrome', teakbrass: 'sq_teak', teak: 'sq_teak', teaknavy: 'sq_teak', rope: 'sq_rope', ropenavy: 'sq_rope', ropenavy2: 'sq_rope', ropehelm: 'sq_rope', chart1: 'sq_chart', chart2: 'sq_chart', parchbrass: 'sq_chart', parchbrass2: 'sq_chart', vintage: 'sq_chart', polynesian: 'sq_poly', polysimple: 'sq_poly', carbonrefined: 'sq_carbon', titanium: 'sq_carbon', helm: 'helmsq', bridge: 'bridgesq', amber: 'ambersq', daylight: 'daylightsq', horizon: 'sq_surf', lagoon: 'sq_surf' };
 const effLook = (id) => { const t = gtOf(id); if (S.settings.gShape === 'square' && !t.sq) return SQ_PAIR[id] || id; return id; };
@@ -7991,7 +7992,10 @@ document.addEventListener('keydown', (e) => { if (e.target.id === 'tripQ' && e.k
 document.addEventListener('change', (e) => { if (e.target.id !== 'tripDT') return; const t = Date.parse(e.target.value); if (t) { S.plan.depart = t; RT.depart = t; savePlan(); tripCardRender(); } });
 /* ---------- try looks live: swipe left and right, the whole app (chart buttons, speed circle, tab bar, gauges) changes as you go ---------- */
 const LT = { on: false, i: 0, orig: null, x0: null };
-const ltOrder = () => ['Tech', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].flatMap((g) => GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)));
+// every round look is followed by its square twin, so the pair sits side by side when you scroll
+function lookPairs(list) { const out = [], used = new Set(); list.forEach((t) => { if (used.has(t.id)) return; if (t.sq && Object.values(SQ_PAIR).includes(t.id)) return; out.push(t); used.add(t.id); if (SQ_PAIR[t.id]) list.forEach((u) => { if (!used.has(u.id) && SQ_PAIR[u.id] === SQ_PAIR[t.id]) { out.push(u); used.add(u.id); } }); const sq = SQ_PAIR[t.id] && gtOf(SQ_PAIR[t.id]); if (sq) { out.push(sq); used.add(sq.id); } });
+  list.forEach((t) => { if (!used.has(t.id)) { out.push(t); used.add(t.id); } }); return out; }
+const ltOrder = () => lookPairs(['Tech', 'Original', 'Photo', 'Square', 'Classic', 'Simple'].flatMap((g) => GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g))));
 const LT_G = { Square: 'Square artwork', Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' };
 function openLookTry() {
   const list = ltOrder(); LT.on = true; LT.orig = S.settings.gTheme || 'midnight'; LT.i = Math.max(0, list.findIndex((t) => t.id === LT.orig));
