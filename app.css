@@ -2155,7 +2155,9 @@ html.briefing #tripTop { visibility: hidden; }
 html[data-gshape="sq"] :is(.gauge, #miniInst) .g-rd, i.gl-prev[data-gs="sq"] .g-rd { display: none !important; }
 html[data-gshape="sq"] :is(.gauge, #miniInst) .g-sq, i.gl-prev[data-gs="sq"] .g-sq { display: inline !important; }
 html[data-gshape="sq"] :is(.gauge > svg, #miniInst svg), i.gl-prev[data-gs="sq"] svg { border-radius: 12% !important; }
-html[data-gshape="sq"] :is(.gauge, #miniInst) .g-faceov, i.gl-prev[data-gs="sq"] .g-faceov { display: none !important; }
+html[data-gshape="sq"] :is(.gauge, #miniInst) circle.g-faceov, i.gl-prev[data-gs="sq"] circle.g-faceov { display: none !important; }
+rect.g-fsq { display: none !important; }
+html[data-gface][data-gshape="sq"] .gauge > svg rect.g-fsq, i.gl-prev[data-gf][data-gs="sq"] rect.g-fsq { display: inline !important; }
 
 /* ---------- instrument screen as one console (the default): a single panel in the look's colours, gauges sit in it, thin dividers ---------- */
 html[data-ck="console"] .cockpit:not(.lt-ck) {
@@ -2305,3 +2307,6 @@ html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .
 }
 /* gauges sit proud of the dash too */
 html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot:not(.chart) .gauge > svg { filter: drop-shadow(0 3px 0 rgba(0,0,0,.35)) drop-shadow(0 14px 16px rgba(0,0,0,.6)) !important; }
+/* build 152: face colours and shape at the top of the look list too */
+.gl-opts { position: sticky; top: 0; z-index: 3; background: inherit; padding: 6px 0 2px; margin-bottom: 4px; background: var(--mt-bg, #13202E); border-bottom: 1px solid rgba(255,255,255,.08); }
+.gl-opts .gl-shape { margin: 4px 0 4px; display: flex; align-items: center; gap: 10px; } .gl-opts .gl-shape label { margin: 0; font-size: 12px; }
