@@ -739,7 +739,7 @@ function openRouteMenu() {
 }
 function drawRoute() {
   RT.marks.clearLayers();
-  const show = RT.edit || (S.goto && S.goto.route);
+  const show = RT.edit || RT.trip || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
   const anyBad = show && RT.pts.some((p) => p.unchecked); RT.line.setStyle({ dashArray: anyBad ? '10 8' : null, color: anyBad ? '#E8952B' : '#C2185B' }); // a route that is not fully checked never looks like a normal one
   if (!RT.bad) RT.bad = L.layerGroup().addTo(map); RT.bad.clearLayers();
@@ -2736,7 +2736,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 130. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 131. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2779,7 +2779,8 @@ function renderNav() {
   const g = S.goto, st = S.settings;
   let h = '<div class="p-head"><div><div class="eyebrow">Navigate</div><h2>Where to?</h2></div></div>';
   if (g) h += '<div class="card nav-active"><div class="li"><div class="li-main"><b>Navigating to ' + esc(g.name) + '</b><span class="tnum">' + (S.fix ? fmtDist(distNm(S.fix, g)) + ' · ' + fmtBrg(bearing(S.fix, g)) + '°T' : 'Waiting for GPS') + '</span></div><div class="li-btns"><button class="btn small" data-act="navshow">Show</button><button class="btn small danger" data-act="navend">End</button></div></div></div>';
-  h += planCard();
+  h += '<button type="button" class="trip-entry" data-tripopen="1"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span><b>Where to?</b><small>From ' + esc((planFrom() || { name: 'your boat' }).name) + '</small></span></button>';
+  if (S.plan.to) h += '<button type="button" class="btn" style="width:100%;margin:-4px 0 12px" data-tripopen="1">Back to: ' + esc(S.plan.to.name) + '</button>';
   h += '<div class="card"><h4>My trips</h4>' +
     (S.routes.length ? S.routes.slice().reverse().map((r) => { const d = r.pts.reduce((a, p, i) => (i ? a + distNm(r.pts[i - 1], p) : 0), 0);
       return '<div class="li"><div class="li-main"><b>' + esc(r.name) + '</b><span class="tnum">' + (r.pts.some((p) => p.name) ? esc(r.pts.map((p) => p.name || '·').join(' → ')) : r.pts.length + ' waypoints') + ' · ' + fmtDist(d) + '</span></div><div class="li-btns"><button class="btn small primary" data-act="navtrip" data-id="' + r.id + '">Plan</button><button class="btn small" data-act="navroute" data-id="' + r.id + '">Chart</button></div></div>'; }).join('') :
@@ -4990,6 +4991,8 @@ if (!S.settings.spotHoldSeeded) { S.settings.spotTap = false; S.settings.spotHol
 map.on('contextmenu', (e) => { if (RT.edit || S.measure.on) return; if (!spotOnTap()) { closeSheet(); openSpotCard(e.latlng); } else openPointSheet(e.latlng); });
 map.on('click', (e) => {
   if (Date.now() - (S.aisTapAt || 0) < 600) return; // that tap was on a ship: its sheet is open, not the spot card
+  if (TRIP.on && TRIP.pick) { tripPickAt(e.latlng); return; }
+  if (TRIP.on) return; // the trip preview stays put; tap and hold still shows a spot's conditions
   if (S.measure.on) { measureTap(e.latlng); return; }
   if (RT.edit) { routeAdd(e.latlng); return; }
   if (!sheet.hidden) { closeSheet(); return; }
@@ -6202,6 +6205,14 @@ const GT = [
   { id: 'vintage', l: 'Vintage navigator', g: 'Photo', skin: 'skins/vintage.webp', k: 0.84, bz: ['#F6DFA4', '#B88A3E', '#5C410F', '#DDBB72', '#7E5B1D'], fc: ['#F2E4C2', '#DCC79A'], ink: '#1C2A44', muted: '#5A4A30', acc: '#1C2A44', n: '#1C2A44', art: 'none', light: 1 },
   { id: 'horizon', l: 'Ocean horizon', g: 'Photo', skin: 'skins/horizon.webp', k: 0.83, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A6FA8', '#0F3E6E'], ink: '#FFFFFF', muted: '#D6E8F5', acc: '#FFFFFF', n: '#FFFFFF', art: 'none' },
   { id: 'carbonrefined', l: 'Carbon refined', g: 'Photo', skin: 'skins/carbonrefined.webp', k: 0.74, bz: ['#FFFFFF', '#B8C0C8', '#5E6872', '#E6EBEF', '#7C8792'], fc: ['#2A2C2F', '#0C0D0E'], ink: '#FFFFFF', muted: '#A6CBEA', acc: '#3FA9F5', n: '#3FA9F5', art: 'none' },
+  // simple: flat faces, a thin plain ring, no glass shine or artwork (the classic colours, quieter)
+  { id: 'snavy', l: 'Simple navy and gold', g: 'Simple', plain: 1, bz: ['#D4AF5A', '#C9A04E', '#B8913F', '#D4AF5A', '#C9A04E'], fc: ['#14284A', '#14284A'], ink: '#FFFFFF', muted: '#B9C4D4', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
+  { id: 'sblack', l: 'Simple black', g: 'Simple', plain: 1, bz: ['#4A4A4A', '#3A3A3A', '#2A2A2A', '#4A4A4A', '#3A3A3A'], fc: ['#050505', '#050505'], ink: '#FFFFFF', muted: '#9A9A9A', acc: '#FFFFFF', n: '#FF453A', art: 'none' },
+  { id: 'swhite', l: 'Simple white', g: 'Simple', plain: 1, bz: ['#C8CDD2', '#BCC2C8', '#AEB5BC', '#C8CDD2', '#BCC2C8'], fc: ['#FFFFFF', '#FFFFFF'], ink: '#111417', muted: '#5C646C', acc: '#1565C0', n: '#D32F2F', art: 'none', light: 1 },
+  { id: 'scream', l: 'Simple cream and brass', g: 'Simple', plain: 1, bz: ['#C9A04E', '#B88A3E', '#A67A30', '#C9A04E', '#B88A3E'], fc: ['#F6F0E2', '#F6F0E2'], ink: '#1C2A44', muted: '#6A5E48', acc: '#1C2A44', n: '#B3261E', art: 'none', light: 1 },
+  { id: 'sslate', l: 'Simple slate', g: 'Simple', plain: 1, bz: ['#5A6B7A', '#52626F', '#4A5A66', '#5A6B7A', '#52626F'], fc: ['#22303C', '#22303C'], ink: '#FFFFFF', muted: '#A9B7C3', acc: '#5AC8FA', n: '#5AC8FA', art: 'none' },
+  { id: 'smarine', l: 'Simple marine blue', g: 'Simple', plain: 1, bz: ['#2E6CB0', '#2A64A4', '#245A96', '#2E6CB0', '#2A64A4'], fc: ['#0E3A66', '#0E3A66'], ink: '#FFFFFF', muted: '#A8C8E8', acc: '#7FD3FF', n: '#FFFFFF', art: 'none' },
+  { id: 'sgreen', l: 'Simple green and gold', g: 'Simple', plain: 1, bz: ['#C9A04E', '#B8913F', '#A68236', '#C9A04E', '#B8913F'], fc: ['#173D2B', '#173D2B'], ink: '#FFFFFF', muted: '#B9CDBF', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
   // modern (the original looks, unchanged)
   { id: 'midnight', l: 'Midnight chrome', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8' },
   { id: 'arctic', l: 'Arctic white', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A' },
@@ -6213,6 +6224,7 @@ const GT = [
 const MT = { navybrass: ['#14243F', '#C9A04E'], heritage: ['#1E2A3A', '#C9A04E'], brass: ['#23201A', '#C9A04E'], bronze: ['#221B13', '#C08A45'], classic: ['#17191C', '#A7B2BC'], whiteface: ['#1B2026', '#A7B2BC'],
   yachtchrono: ['#14213D', '#8FA6C9'], compass: ['#13233F', '#C9A04E'], teak: ['#2A1A10', '#C68350'], regatta: ['#18191C', '#D9A066'], chart: ['#2B241A', '#B88A3E'], admiralty: ['#121314', '#C9A04E'],
   racinggreen: ['#12291E', '#C9A04E'], burgundy: ['#2A0E13', '#C9A04E'], mahogany: ['#14243F', '#B8673C'], pewter: ['#262C32', '#9AA1A6'],
+  snavy: ['#14284A', '#E8C36A'], sblack: ['#121212', '#E0E0E0'], swhite: ['#1B2026', '#7CC0FF'], scream: ['#22262E', '#C9A04E'], sslate: ['#1E2A34', '#5AC8FA'], smarine: ['#0E2E52', '#7FD3FF'], sgreen: ['#12291E', '#E8C36A'],
   navyphoto: ['#13233F', '#E8C36A'], teakbrass: ['#2A1A10', '#C9A04E'], woodmin: ['#24150C', '#C9A07A'], islandteak: ['#2E1C10', '#E0A060'], rope: ['#13233F', '#D7B47A'], polynesian: ['#1B140E', '#C88A55'], vintage: ['#2B241A', '#B88A3E'], surf: ['#0E2E36', '#5FD3CF'], horizon: ['#0E2A44', '#9BC8E8'], compassrose: ['#14284A', '#C9D3E2'],
   modernclassic: ['#101C30', '#C9D3E2'], goldaccent: ['#141414', '#D4AF5A'], carbonrefined: ['#18191B', '#C9CED2'], smoked: ['#161B20', '#3FA9F5'], ceramic: ['#0B1428', '#4FB3FF'],
   midnight: ['#16283A', '#5AE3FF'], arctic: ['#16283A', '#7CC0FF'], glass: ['#0E2A44', '#5EE6FF'], expedition: ['#1A1D20', '#FF7A1A'], carbon: ['#151515', '#30D158'], simple: ['#15212D', '#5AC8FA'] };
@@ -6227,6 +6239,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
     t.bz.forEach((v, i) => { c += P + ' .ch' + (i + 1) + '{stop-color:' + v + '!important}'; }); c += P + ' .fc1{stop-color:' + t.fc[0] + '!important}' + P + ' .fc2{stop-color:' + t.fc[1] + '!important}';
     c += P + ' .g-art>g{display:none!important}'; if (GA_CLASS[t.art]) c += P + ' .' + GA_CLASS[t.art] + '{display:inline!important}';
     c += P + ' .g-glare,' + P + ' .g-seam{opacity:' + (t.flat ? 0 : 1) + '!important}';
+    if (t.plain) c += P + ' .g-glare{opacity:0!important}' + P + ' .g-ring2{fill:' + t.fc[0] + '!important}';
     if (t.skin) { const S0 = live ? P0 + ' :is(.gauge,#miniInst)' : P0; c += S0 + ' svg{background:url(' + t.skin + ') center/contain no-repeat}' + S0 + ' :is(.g-bezel,.g-ring2,.g-seam,.g-glare,.g-art,.g-dec){display:none!important}' + S0 + ' .g-cont{transform:scale(' + t.k + ');transform-origin:100px 100px}' + S0 + ' svg{--g-face:' + (t.light ? 'rgba(255,250,235,.18)' : 'rgba(0,0,0,.22)') + '!important;--g-bg:transparent!important}' + S0 + ' :is(.g-big,.g-num,.g-unit,.g-card,text){paint-order:stroke;stroke:' + (t.light ? 'rgba(255,248,230,.75)' : 'rgba(0,0,0,.6)') + ';stroke-width:2.5px;stroke-linejoin:round}' + (live ? P0 + ' #miniInst .g-cont{transform-origin:50px 50px}' : '') + P0 + '{--bt-img:url(' + t.skin + ')}'; }
     if (t.dec) c += P + ' .g-dec-' + t.dec + '{display:inline!important}' + P0 + '{--dec1:' + (t.decC || ['#C9A26B', '#7A5A2E'])[0] + ';--dec2:' + (t.decC || ['#C9A26B', '#7A5A2E'])[1] + '}';
     if (t.light && live) c += P0 + ' :is(.cockpit,#panelSide){--g-ink:#EAF4F8!important;--g-muted:#A9BCCD!important;--g-acc:#2CD3C5!important;--g-line:#3A5670!important}' +
@@ -6242,7 +6255,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
 function glPrev(id) { return '<i class="gl-prev" data-gt="' + id + '"><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont">' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
-  return ['Photo', 'Classic', 'Modern'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
+  return ['Photo', 'Classic', 'Simple', 'Modern'].map((g) => '<div class="mo-h">' + g + '</div><div class="btheme-row gl-row">' + GT.filter((t) => t.g === g).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
 }
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
@@ -7763,6 +7776,126 @@ function fabPreset(kind) {
   toast(kind === 'bottom2' ? 'All the buttons are along the bottom. Hold any button to fine-tune.' : 'The left buttons are along the bottom. Hold any button to fine-tune.', 3500);
 }
 sheet.addEventListener('click', (e) => { const b = e.target.closest('button[data-fabpre]'); if (!b) return; closeSheet(); setTimeout(() => fabPreset(b.dataset.fabpre), 80); });
+/* ---------- trip planner on the chart, Google Maps style: type where to, the water route draws itself, press Go.
+   Top: From / stops / To. Bottom: distance, time, arrival, fuel, the weather verdict and when to leave. ---------- */
+const TRIP = { on: false, edit: null, pick: null, seq: 0, busy: false, list: [] };
+function tripStops() { const f = planFrom(); return f && S.plan.to ? [f].concat(S.plan.via, [S.plan.to]) : null; }
+function openTrip(edit) {
+  TRIP.on = true; TRIP.edit = edit || (S.plan.to ? null : 'to'); document.documentElement.classList.add('trip');
+  setTab('chart'); closeSheet(); if (typeof closeSpot === 'function') closeSpot();
+  tripRender(); if (S.plan.to && !(RT.trip && RT.pts.length > 1)) tripRoute(); else if (RT.trip) tripFit();
+  if (TRIP.edit) setTimeout(() => { const i = $('tripQ'); if (i) i.focus(); }, 80);
+}
+function closeTrip(keepRoute) {
+  TRIP.on = false; TRIP.edit = TRIP.pick = null; document.documentElement.classList.remove('trip');
+  ['tripTop', 'tripCard'].forEach((id) => { const el = $(id); if (el) el.hidden = true; });
+  if (!keepRoute) { RT.trip = false; drawRoute(); }
+}
+function tripRender() {
+  let top = $('tripTop'), card = $('tripCard');
+  if (!top) { top = document.createElement('div'); top.id = 'tripTop'; $('app').appendChild(top); card = document.createElement('div'); card.id = 'tripCard'; $('app').appendChild(card); }
+  top.hidden = card.hidden = false;
+  const f = planFrom(), t = S.plan.to, ed = TRIP.edit;
+  const row = (k, dot, val, ph) => '<div class="tt-row"><span class="tt-dot ' + dot + '"></span>' + (ed === k ? '<input id="tripQ" type="search" autocomplete="off" enterkeyhint="search" data-for="' + k + '" placeholder="' + ph + '">' : '<button type="button" class="tt-val" data-tedit="' + k + '">' + (val ? esc(val) : '<span class="pl-ph">' + ph + '</span>') + '</button>') + '</div>';
+  let h = '<button type="button" class="tt-back" data-tclose="1" aria-label="Close trip">‹</button><div class="tt-fields">';
+  h += row('from', 'from', f ? f.name + (f.live ? ' (GPS)' : '') : '', 'Choose a start');
+  S.plan.via.forEach((v, i) => { h += '<div class="tt-row"><span class="tt-dot via">' + (i + 1) + '</span><span class="tt-val static">' + esc(v.name) + '</span><button type="button" class="tt-x" data-tvx="' + i + '" aria-label="Remove stop">×</button></div>'; });
+  if (ed === 'via') h += row('via', 'via', '', 'Add a stop on the way');
+  h += row('to', 'to', t && t.name, 'Where to? Marina, creek, anchorage…');
+  h += '</div><div class="tt-side"><button type="button" class="tt-ic" data-tswap="1" aria-label="Swap start and destination">⇅</button>' + (t && ed !== 'via' ? '<button type="button" class="tt-ic" data-tedit="via" aria-label="Add a stop">+</button>' : '') + '</div>';
+  if (ed) h += '<div class="tt-chips">' + (S.fix ? '<button type="button" class="chip-b" data-tq="boat">⦿ ' + esc(boatLabel()) + '</button>' : '') + (homePort() ? '<button type="button" class="chip-b" data-tq="home">⌂ ' + esc(homePort().name.length > 22 ? 'Home port' : homePort().name) + '</button>' : '') + '<button type="button" class="chip-b" data-tq="map">◎ Pick on the chart</button>' + S.waypoints.slice(-3).reverse().map((w) => '<button type="button" class="chip-b" data-twp="' + w.id + '">' + esc(w.name) + '</button>').join('') + '</div><div id="tripSugs" class="sugs" hidden></div>';
+  if (TRIP.pick) h += '<div class="tt-pick">Tap the chart where you want ' + (TRIP.pick === 'from' ? 'to start' : TRIP.pick === 'to' ? 'to go' : 'to stop') + '. <button type="button" data-tpickx="1">Cancel</button></div>';
+  top.innerHTML = h;
+  tripCardRender();
+}
+function tripCardRender() {
+  const card = $('tripCard'); if (!card) return; const stops = tripStops();
+  if (!stops || TRIP.edit || TRIP.pick) { card.hidden = true; return; } card.hidden = false;
+  if (TRIP.busy) { card.innerHTML = '<div class="tc-busy"><span class="tc-spin"></span>Finding the water route…</div>'; return; }
+  if (!RT.trip || RT.pts.length < 2) { card.innerHTML = '<div class="tc-busy">Couldn\'t plan that yet. <button type="button" class="btn small" data-tgo="retry">Try again</button></div>'; return; }
+  RT.depart = S.plan.depart && S.plan.depart > Date.now() - 600000 ? S.plan.depart : null;
+  const st = routeStats(), dep = RT.depart || Date.now(), bad = RT.pts.filter((p) => p.unchecked).length;
+  const wx = typeof tripWx === 'function' ? tripWx(stops, dep, st.total) : null;
+  const vcls = !wx || wx.beyond ? '' : wx.level, vtxt = !wx ? 'Weather loads in a moment' : wx.beyond ? 'Too far ahead for the forecast' : (wx.level === 'no' ? 'Don\'t go then' : wx.level === 'care' ? 'Go with care' : 'Good weather window') + ' · wind ' + Math.round(speedOut(wx.maxW)) + ', gusts ' + Math.round(speedOut(wx.maxG)) + (wx.words.filter((w) => !/^gusts/.test(w)).length ? ' · ' + wx.words.filter((w) => !/^gusts/.test(w)).join(' · ') : '');
+  const day = (t) => { const d = new Date(t), n = new Date(); return d.toDateString() === n.toDateString() ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' '; };
+  const now = Date.now(), r30 = (t) => Math.ceil(t / 1800000) * 1800000, tom = new Date(); tom.setDate(tom.getDate() + 1); tom.setHours(8, 0, 0, 0);
+  const opts = [['now', 'Leave now', null], ['1', 'In 1 h', r30(now + 3600000)], ['3', 'In 3 h', r30(now + 3 * 3600000)], ['tom', 'Tomorrow 8 AM', +tom]];
+  const best = wx && !wx.beyond && wx.level !== 'go' ? tripBest(stops, st.total) : null;
+  let h = '<div class="tc-top"><div class="tc-main"><b class="tnum">' + fmtDur(st.hrs) + '</b><span class="tnum">' + fmtDist(st.total) + ' · arrive ' + day(st.arrive) + fmtClock(st.arrive) + (st.fuel != null ? ' · ' + (Math.round(st.fuel * 10) / 10) + ' gal' : '') + '</span></div>' +
+    '<button type="button" class="tc-go" data-tgo="go">' + (RT.depart && RT.depart > now + 300000 ? 'Save trip' : 'Go') + '</button></div>';
+  h += '<div class="tc-wx ' + vcls + '">' + esc(vtxt) + '</div>';
+  if (bad) h += '<div class="tc-warn">⚠ ' + bad + ' leg' + (bad > 1 ? 's' : '') + ' not checked against the chart (dashed). ' + esc(wrWhy(RT.pts.find((p) => p.unchecked).unchecked)) + '</div>';
+  else if (RT.pts.some((p) => p.caution)) h += '<div class="tc-note">Follows charted water. Watch the depth where the chart only gives a range.</div>';
+  h += '<div class="tc-when">' + opts.map(([k, l, t]) => '<button type="button" class="chip-b' + ((k === 'now' && !RT.depart) || (t && RT.depart && Math.abs(t - RT.depart) < 60000) ? ' on' : '') + '" data-twhen="' + k + '"' + (t ? ' data-t="' + t + '"' : '') + '>' + l + '</button>').join('') +
+    (best ? '<button type="button" class="chip-b best" data-twhen="best" data-t="' + best.t + '">Better: ' + day(best.t) + fmtClock(best.t) + '</button>' : '') +
+    '<label class="chip-b pick">' + (RT.depart && !opts.some(([, , t]) => t && Math.abs(t - RT.depart) < 60000) && !(best && Math.abs(best.t - RT.depart) < 60000) ? 'Leave ' + day(RT.depart) + fmtClock(RT.depart) : 'Pick a time…') + '<input type="datetime-local" id="tripDT" value="' + toLocalInput(RT.depart || r30(now)) + '"></label></div>';
+  h += '<div class="tc-foot"><button type="button" data-tgo="save">Save route</button><button type="button" data-tgo="edit">Edit on chart</button><button type="button" data-tgo="direct">Straight line</button></div>';
+  card.innerHTML = h;
+}
+function tripBest(stops, dNm) {
+  const score = (x) => !x || x.beyond ? 999 : (x.level === 'no' ? 100 : x.level === 'care' ? 30 : 0) + x.maxG + (x.dark ? 15 : 0);
+  let best = null, bs = Infinity;
+  for (let k = 1; k <= 48; k++) { const t = Math.ceil(Date.now() / 3600000) * 3600000 + k * 3600000; if (typeof sunElev === 'function' && sunElev(stops[0].lat, stops[0].lon, t) < 3) continue; const x = tripWx(stops, t, dNm), sc = score(x); if (sc < bs) { bs = sc; best = { t, x }; } }
+  return best && best.x.level === 'go' ? best : null;
+}
+async function tripRoute() {
+  const stops = tripStops(); if (!stops) return; const seq = ++TRIP.seq; TRIP.busy = true; RT.trip = true; tripCardRender();
+  RT.depart = S.plan.depart && S.plan.depart > Date.now() ? S.plan.depart : null;
+  let pts; try { pts = await routeByWater(stops.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name }))); } catch (e) { pts = stops.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, stop: true })); }
+  if (seq !== TRIP.seq || !TRIP.on) return;
+  TRIP.busy = false; RT.pts = pts; store.set('routeDraft', RT.pts); drawRoute(); tripCardRender(); tripFit();
+}
+function tripFit() {
+  if (!RT.pts || RT.pts.length < 2) return; const tp = $('tripTop'), tc = $('tripCard');
+  const ht = tp ? tp.getBoundingClientRect().bottom : 0, hb = tc && !tc.hidden ? innerHeight - tc.getBoundingClientRect().top : 0;
+  map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])), { paddingTopLeft: [24, ht + 16], paddingBottomRight: [24, hb + 16] });
+}
+function tripSet(k, o) {
+  if (k === 'from') S.plan.from = o; else if (k === 'to') S.plan.to = o; else if (o) S.plan.via.push(o);
+  TRIP.edit = TRIP.pick = null; savePlan(); tripRender(); if (tripStops()) tripRoute();
+}
+function tripPickAt(ll) { const k = TRIP.pick; TRIP.pick = null; tripSet(k, { name: 'Point ' + ddm(ll.lat, true).replace(/\s/g, ''), lat: ll.lat, lon: ll.lng }); }
+document.addEventListener('click', async (e) => {
+  if (e.target.closest('[data-tripopen]')) { openTrip(); return; }
+  const top = e.target.closest('#tripTop'), card = e.target.closest('#tripCard'); if (!top && !card) return;
+  const q = (sel) => e.target.closest(sel);
+  if (q('[data-tclose]')) { if (TRIP.edit && tripStops()) { TRIP.edit = null; tripRender(); } else closeTrip(); return; }
+  let b;
+  if ((b = q('[data-tedit]'))) { TRIP.edit = b.dataset.tedit; tripRender(); setTimeout(() => { const i = $('tripQ'); if (i) i.focus(); }, 40); return; }
+  if (q('[data-tswap]')) { const f = planFrom(), t = S.plan.to; if (!f || !t) return; S.plan.from = t; S.plan.to = { name: f.name, lat: f.lat, lon: f.lon }; S.plan.via.reverse(); savePlan(); tripRender(); tripRoute(); return; }
+  if ((b = q('[data-tvx]'))) { S.plan.via.splice(+b.dataset.tvx, 1); savePlan(); tripRender(); tripRoute(); return; }
+  if ((b = q('[data-tsug]'))) { const o = TRIP.list[+b.dataset.tsug]; if (o) tripSet($('tripQ').dataset.for, { name: o.name.replace(/\s*\(sample spot\)/, ''), lat: o.lat, lon: o.lon }); return; }
+  if ((b = q('[data-tq]'))) { const k = TRIP.edit, w = b.dataset.tq;
+    if (w === 'boat') { if (k === 'from') { S.plan.from = null; TRIP.edit = null; savePlan(); tripRender(); if (tripStops()) tripRoute(); } else tripSet(k, { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon }); }
+    if (w === 'home') tripSet(k, Object.assign({ home: true }, homePort()));
+    if (w === 'map') { TRIP.pick = k; TRIP.edit = null; tripRender(); }
+    return; }
+  if ((b = q('[data-twp]'))) { const wp = S.waypoints.find((x) => String(x.id) === b.dataset.twp); if (wp) tripSet(TRIP.edit, { name: wp.name, lat: wp.lat, lon: wp.lon }); return; }
+  if (q('[data-tpickx]')) { TRIP.pick = null; tripRender(); return; }
+  if ((b = q('[data-twhen]'))) { const k = b.dataset.twhen; S.plan.depart = k === 'now' ? null : +b.dataset.t; savePlan(); const z0 = avoidZonesFor(RT.depart || Date.now()).length; RT.depart = S.plan.depart; if (avoidZonesFor(RT.depart || Date.now()).length !== z0) tripRoute(); else tripCardRender(); return; }
+  if ((b = q('[data-tgo]'))) { const a = b.dataset.tgo;
+    if (a === 'retry') { tripRoute(); return; }
+    if (a === 'direct') { const t = S.plan.to; closeTrip(); setGoto(t.name, t.lat, t.lon); return; }
+    if (a === 'edit') { closeTrip(true); RT.trip = false; routeMode(true); return; }
+    if (a === 'save' || (a === 'go' && RT.depart && RT.depart > Date.now() + 300000)) { const f = planFrom(), t = S.plan.to; S.routes.push({ id: Date.now(), name: f.name + ' to ' + t.name, depart: RT.depart || null, pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn, stop: p.stop, unchecked: p.unchecked })) }); store.set('routes', S.routes); toast(RT.depart ? 'Saved for ' + new Date(RT.depart).toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtClock(RT.depart) + ', in Navigate → My trips.' : 'Saved in Navigate → My trips.', 3500); return; }
+    if (a === 'go') {
+      const nBad = RT.pts.filter((p) => p.unchecked).length;
+      if (nBad && !TRIP.badOk) { TRIP.badOk = true; b.textContent = 'Go anyway'; toast('Part of this route is NOT checked against the chart and may cross land or shoals. Tap Go anyway to start.', 7000); return; }
+      TRIP.badOk = false; let i = 0; if (S.fix && distNm(S.fix, RT.pts[0]) < 0.15) i = 1;
+      const pts = RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn, stop: p.stop, unchecked: p.unchecked }));
+      closeTrip(true); RT.trip = false; drawRoute(); routeLeg(pts, i); return; }
+  }
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'tripQ') return; const q = e.target.value.trim(), box = $('tripSugs'); clearTimeout(TRIP.t);
+  if (q.length < 2) { box.hidden = true; return; } box.hidden = false; box.innerHTML = '<div class="sug-empty">Searching…</div>';
+  TRIP.t = setTimeout(async () => { const seq = ++TRIP.sseq || (TRIP.sseq = 1); let list = []; try { list = await suggestPlaces(q, planFrom() || searchCenter(), {}); } catch (err) { list = []; }
+    const kn = FM_KNOWN.filter(([re]) => re.test(q.toLowerCase())).map(([, n, la, lo]) => ({ name: n, lat: la, lon: lo, sub: 'Chesapeake', d: planFrom() ? distNm(planFrom(), { lat: la, lon: lo }) : null }));
+    list = kn.concat(list.filter((x) => !kn.some((k) => k.name === x.name))); if (seq !== TRIP.sseq || !$('tripSugs')) return; TRIP.list = list;
+    $('tripSugs').innerHTML = list.length ? placeSugHtml(list, 'data-tsug') : '<div class="sug-empty">No water destinations found. Try a marina, creek or town, or pick on the chart.</div>'; }, 250);
+});
+document.addEventListener('keydown', (e) => { if (e.target.id === 'tripQ' && e.key === 'Enter' && TRIP.list[0]) { e.preventDefault(); const o = TRIP.list[0]; tripSet(e.target.dataset.for, { name: o.name, lat: o.lat, lon: o.lon }); } });
+document.addEventListener('change', (e) => { if (e.target.id !== 'tripDT') return; const t = Date.parse(e.target.value); if (t) { S.plan.depart = t; RT.depart = t; savePlan(); tripCardRender(); } });
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
