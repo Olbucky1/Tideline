@@ -1,5 +1,5 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v161';
+const APP = 'tl-app-v162';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
@@ -34,6 +34,7 @@ async function tileFirst(req) {
   const cache = await caches.open(TILES), hit = await cache.match(req);
   const stamp = () => caches.open(TILE_DATES).then((d) => d.put(req.url, new Response(String(Date.now())))).catch(() => {});
   const refresh = () => fetch(req).then((res) => { if (res && (res.ok || res.type === 'opaque')) { cache.put(req, res.clone()).catch(() => {}); stamp(); } return res; });
+  if (hit && hit.type === 'opaque' && req.mode === 'cors') { try { const r = await refresh(); if (r && r.ok) return r; } catch (e) { /* offline: the page falls back to a plain image */ } return Response.error(); }
   if (hit) {
     caches.open(TILE_DATES).then((d) => d.match(req.url)).then((r) => (r ? r.text() : '0')).then((t) => { if (Date.now() - Number(t) > TILE_MAX_AGE) refresh().catch(() => {}); }).catch(() => {});
     return hit;

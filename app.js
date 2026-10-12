@@ -198,11 +198,34 @@ function noaaDisplay(z) {
   return '&display_params=' + encodeURIComponent(JSON.stringify(dp));
 }
 function redrawNoaa() { ['noaa', 'noaaOver'].forEach((k) => LAYERS[k].redraw()); }
+const TINT_MX = {"ivory": [0.0057, 0.7338, -0.0101, 0.0, 0.2275, -0.3957, 1.0011, 0.128, 0.0, 0.2, -0.3938, 0.3457, 0.7579, 0.0, 0.1569, 0.0, 0.0, 0.0, 1.0, 0.0], "navyp": [-2.6865, 6.1666, -4.3271, 0.0, 0.9412, -2.2348, 4.7825, -3.2497, 0.0, 0.902, -1.4574, 2.6503, -1.6674, 0.0, 0.8, 0.0, 0.0, 0.0, 1.0, 0.0], "driftwood": [0.4349, -0.1795, 0.3917, 0.0, 0.2902, -0.1255, 0.251, 0.5373, 0.0, 0.2275, -0.4097, 0.1711, 0.8661, 0.0, 0.1569, 0.0, 0.0, 0.0, 1.0, 0.0], "slate": [1.4711, -2.4293, 1.7033, 0.0, 0.1176, 1.149, -1.998, 1.5745, 0.0, 0.1647, 0.9394, -1.724, 1.4826, 0.0, 0.2118, 0.0, 0.0, 0.0, 1.0, 0.0], "linen": [-0.1879, 0.8854, 0.0319, 0.0, 0.2314, -0.4067, 0.8424, 0.2741, 0.0, 0.2275, -0.1255, -0.249, 1.0373, 0.0, 0.2275, 0.0, 0.0, 0.0, 1.0, 0.0], "atlas": [0.2794, 0.3669, 0.0752, 0.0, 0.1804, -0.1393, 0.8269, -0.0406, 0.0, 0.2902, -0.3514, 0.9416, -0.0725, 0.0, 0.4471, 0.0, 0.0, 0.0, 1.0, 0.0]};
+// chart print styles are baked into each tile once, on a canvas, instead of an SVG filter over the whole chart: SVG filters are redrawn in
+// software on phones, which made panning and zooming sluggish
+function tintNow() { const t = S.settings.chartTint || 'blue', r = document.documentElement; return r.hasAttribute('data-night') || r.hasAttribute('data-dusk') || !(t === 'blue' || TINT_MX[t]) ? null : t; }
+function tintPixels(d, t) {
+  const n = d.length;
+  if (t === 'blue') { for (let i = 0; i < n; i += 4) { const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255; let bm = 12 * (b - r) - 0.35; if (bm <= 0) continue; let lm = 10 * g - 6.5; if (lm <= 0) continue; let ng = 20 * (b - g) - 0.25; if (ng <= 0) continue;
+    const m = Math.min(1, bm) * Math.min(1, lm) * Math.min(1, ng), k = 1 - m; d[i] = d[i] * (k + m * 0.651); d[i + 1] = d[i + 1] * (k + m * 0.831); } return; }
+  const M = TINT_MX[t]; if (!M) return;
+  for (let i = 0; i < n; i += 4) { const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255, a = d[i + 3] / 255;
+    d[i] = 255 * (M[0] * r + M[1] * g + M[2] * b + M[3] * a + M[4]); d[i + 1] = 255 * (M[5] * r + M[6] * g + M[7] * b + M[8] * a + M[9]); d[i + 2] = 255 * (M[10] * r + M[11] * g + M[12] * b + M[13] * a + M[14]); }
+}
+let tintKey = null;
+function retintCheck() { const k = tintNow(); if (k !== tintKey) { tintKey = k; try { redrawNoaa(); } catch (e) { /* not ready */ } } }
 const NoaaLayer = L.TileLayer.extend({
   getTileUrl(c) { return noaaUrl(c.x, c.y, c.z, this.options.transparentChart); },
+  createTile(coords, done) {
+    const t = this.options.transparentChart ? null : tintNow(); if (!t) return L.TileLayer.prototype.createTile.call(this, coords, done);
+    const url = this.getTileUrl(coords), cv = document.createElement('canvas'); cv.width = cv.height = TILE_PX; cv.src = url; cv.setAttribute('role', 'presentation');
+    const ctx = cv.getContext('2d', { willReadFrequently: true }), img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { try { ctx.drawImage(img, 0, 0, TILE_PX, TILE_PX); const id = ctx.getImageData(0, 0, TILE_PX, TILE_PX); tintPixels(id.data, t); ctx.putImageData(id, 0, 0); } catch (e) { ctx.drawImage(img, 0, 0, TILE_PX, TILE_PX); } done(null, cv); };
+    img.onerror = () => { const im2 = new Image(); im2.onload = () => { ctx.drawImage(im2, 0, 0, TILE_PX, TILE_PX); done(null, cv); }; im2.onerror = (e) => done(e, cv); im2.src = url; }; // no CORS reply: show it untinted
+    img.src = url; return cv;
+  },
 });
 const LAYERS = {
-  noaa: new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA Office of Coast Survey' }),
+  noaa: new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18, updateWhenZooming: false, keepBuffer: 2, attribution: 'Chart: NOAA Office of Coast Survey' }),
   // a fast, cached ocean basemap under the NOAA chart, so the screen is never blank while NOAA draws its tiles
   ocean: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 13, attribution: 'Base: Esri, GEBCO, NOAA' }),
   noaaOver: new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA' }),
@@ -227,7 +250,7 @@ const CHARTS = {
   noaa: { name: 'NOAA chart', note: 'Official US charts: depths, buoys, lights', layers: ['noaa'] },
   street: { name: 'Street map', note: 'Roads, marinas and shoreline, worldwide', layers: ['street'] },
   satellite: { name: 'Satellite only', note: 'Aerial photo, worldwide', layers: ['satellite'] },
-  clean: { name: 'Simple', note: 'Clean and uncluttered: land, depth shades, buoys. Drawn from NOAA data', layers: ['cleanBase'] },
+  clean: { name: 'Clean', note: 'Just water, land and buoys as small dots; more appears as you zoom in. Drawn from NOAA data', layers: ['cleanBase'] },
 };
 if (S.settings.chart === 'hybrid') { S.settings.chart = 'noaa'; S.settings.satOver = true; }
 function chartLayerKeys() {
@@ -456,6 +479,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gArt') applyGArt();
   if (k === 'chartGauges') { try { renderMini(); } catch (e) { /* */ } }
   if (k === 'fabLook' || k === 'fabArt') applyFabLook();
+  if (!sheet.hidden && sheet.querySelector('.lk') && ['gShape', 'miSize', 'fabLook'].includes(k)) { if (k === 'gShape') { applyGTheme(); try { applyFabLook(); if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ } } if (k === 'miSize') applyMiSize(); if (k === 'fabLook') { try { applyFabLook(); } catch (err) { /* */ } } const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openLooks(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; return; }
   if (k === 'gShape') { applyGTheme(); if (!sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
   if (k === 'ckStyle') { document.documentElement.dataset.ck = v; try { buildCockpit(); } catch (e) { /* */ } }
   if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-opts')) openGaugeLook(); }
@@ -552,7 +576,7 @@ document.addEventListener('click', (e) => {
 });
 map.on('moveend', () => { if (S.settings.rings && !S.fix && S.settings.ringCenter === 'chart') drawRings(); });
 map.on('zoomend', drawRings);
-map.on('zoomend', () => { clearTimeout(window.__aisZ); window.__aisZ = setTimeout(() => { try { updateAis(); } catch (e) { /* later */ } }, 200); });
+
 sheet.addEventListener('change', (e) => {
   if (e.target.name === 'chart') { S.settings.chart = e.target.value; saveSettings(); applyChart(); }
   if (e.target.id === 'shallowBox') { S.settings.shallowTint = e.target.checked; saveSettings(); SH.drawnKey = ''; drawShallow(); }
@@ -611,13 +635,13 @@ const handleIcon = (cls) => L.divIcon({ className: '', iconSize: [48, 48], iconA
 function setMeasure(on, from) {
   S.measure.on = on; measureLayer.clearLayers(); M.a = M.b = null;
   $('btnMeasure').classList.toggle('on', on);
-  closeSheet();
+  closeSheet(); try { closeSpot(); } catch (e) { /* */ } { const ch = $('mChip'); if (ch) ch.hidden = true; }
   if (!on) return;
   const c = map.getCenter(), sz = map.getSize();
   const useBoat = S.fix && map.getBounds().contains([S.fix.lat, S.fix.lon]);
   const start = from || (useBoat ? L.latLng(S.fix.lat, S.fix.lon) : map.containerPointToLatLng([sz.x * 0.4, sz.y * 0.55]));
   const sp = map.latLngToContainerPoint(start);
-  const end = map.containerPointToLatLng([Math.min(sz.x - 70, sp.x + sz.x * 0.3), Math.max(130, sp.y - sz.y * 0.22)]);
+  const end = map.containerPointToLatLng([Math.max(90, Math.min(sz.x - 130, sp.x + sz.x * 0.22)), Math.min(sz.y - 200, Math.max(300, sp.y + sz.y * 0.18))]); // down and in, clear of the gauges and buttons
   void c;
   M.line = L.polyline([], { color: C.navy, weight: 3, dashArray: '8 6', interactive: false }).addTo(measureLayer);
   M.circle = L.circle(start, { radius: 1, color: C.navy, weight: 1.5, dashArray: '4 6', fill: false, interactive: false }).addTo(measureLayer);
@@ -627,7 +651,7 @@ function setMeasure(on, from) {
   M.b.bindTooltip(M.label);
   [M.a, M.b].forEach((mk) => wireHandle(mk));
   updateMeasure();
-  toast('Drag either circle to measure. Drag to the edge and the chart zooms out.', 4000);
+  if (!store.get('mTipSeen', false)) { store.set('mTipSeen', true); toast('Drag either end. Drag to the edge and the chart zooms out.', 3000); }
 }
 function wireHandle(mk) {
   const el = mk.getElement(); if (!el) return;
@@ -658,12 +682,12 @@ function updateMeasure(settled) {
   M.circle.setLatLng(a).setRadius(info.d * M_PER_NM).setStyle({ opacity: M.ring ? 0.7 : 0 });
   M.label.setContent('<b>' + fmtDist(info.d) + '</b><span>Bearing ' + fmtBrg(info.b) + '°T</span>');
   M.b.openTooltip();
-  if (settled || sheet.hidden || !sheet.querySelector('.m-sheet')) {
-    openSheet('<div class="m-sheet"><h3>Measure</h3><div class="sub">Drag the circles. The dashed ring shows the same distance in every direction.</div>' + trio(info) +
-      '<div class="row-btns">' + (S.fix ? '<button class="btn" data-act="mfromboat">From my boat</button>' : '') + '<button class="btn" data-act="mring">' + (M.ring ? 'Hide ring' : 'Show ring') + '</button><button class="btn" data-act="mgoto">Go to end</button><button class="btn primary" data-act="mdone">Done</button></div></div>');
-  } else {
-    const t = sheet.querySelector('.trio'); if (t) t.outerHTML = trio(info);
-  }
+  // no sheet: one small chip at the top, so the chart and the handles stay in view
+  let ch = $('mChip'); if (!ch) { ch = document.createElement('div'); ch.id = 'mChip'; ch.className = 'm-chip'; $('app').appendChild(ch);
+    ch.addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b || !M.a) return; const k = b.dataset.m;
+      if (k === 'boat' && S.fix) { M.a.setLatLng([S.fix.lat, S.fix.lon]); updateMeasure(true); } if (k === 'go') { const ll = M.b.getLatLng(); setMeasure(false); setGoto('Measured point', ll.lat, ll.lng); } if (k === 'x') setMeasure(false); }); }
+  ch.hidden = false; void settled;
+  ch.innerHTML = '<b>' + fmtDist(info.d) + '</b><span>' + fmtBrg(info.b) + '°T · ' + fmtDur(info.hrs).replace(' min', 'm') + '</span>' + (S.fix ? '<button type="button" data-m="boat" aria-label="Measure from my boat">From me</button>' : '') + '<button type="button" data-m="go" aria-label="Go to the end point">Go</button><button type="button" data-m="x" aria-label="Done">✕</button>';
 }
 function measureTap(ll) { if (M.b) { M.b.setLatLng(ll); updateMeasure(true); } }
 sheet.addEventListener('click', (e) => {
@@ -1208,7 +1232,7 @@ function navaidInfo(p) {
   const label = ({ red: 'R', green: 'G', yellow: 'Y', white: 'W' }[col] || '') + (num ? ' ' + num : '');
   return { col, cols, num, shape, name, rhythm: rhythm.trim(), label: label.trim() };
 }
-function navaidOn() { return S.settings.navaids === 'always' || (S.settings.navaids !== 'off' && document.documentElement.hasAttribute('data-night')); }
+function navaidOn() { return S.settings.navaids === 'always' || (S.settings.navaids !== 'off' && (document.documentElement.hasAttribute('data-night') || S.settings.chart === 'clean')); }
 async function drawNavaids() {
   if (!NV.layer) NV.layer = L.layerGroup().addTo(map);
   const z = map.getZoom();
@@ -1507,7 +1531,7 @@ function onFix(f) {
 
   updateBoat(); updateGoto(); checkAnchor(f); updateMob();
   if (S.settings.sim) simAis();
-  updateAis(); renderStrip(); renderLive();
+  if (Date.now() - (S.aisFixAt || 0) > 2000) { S.aisFixAt = Date.now(); updateAis(); } renderStrip(); renderLive();
   maybeWeather(); maybeTide(); maybeObsWind();
 }
 
@@ -1912,6 +1936,7 @@ function applyWx() {
   if (wxOn('rain')) { if (!map.hasLayer(radarLayer)) radarLayer.addTo(map); if (radarLayer.redraw) radarLayer.redraw(); } else if (map.hasLayer(radarLayer)) map.removeLayer(radarLayer);
   if (wxOn('wind') || wxOn('waves') || wxOn('rain')) { if (!map.hasLayer(wxGrid)) wxGrid.addTo(map); loadGrids(); } else { wxGrid.clearLayers(); if (map.hasLayer(wxGrid)) map.removeLayer(wxGrid); }
   if (!wxOn('wind')) { wsStop(); document.documentElement.classList.remove('wlines'); }
+  try { wfPaint(); } catch (e) { /* not ready */ }
   try { renderChips(); } catch (e) { /* early */ }
   renderWxBar();
 }
@@ -1984,23 +2009,63 @@ function wsField() {
     const uv = (i) => { const sp = p.a && p.a[i], d = p.b && p.b[i]; if (sp == null || d == null) return null; const to = (d + 180 + rot) * Math.PI / 180; return [Math.sin(to) * sp, -Math.cos(to) * sp, sp]; };
     const a = uv(i0), b = uv(i1) || a; if (!a) return null; const u = a[0] + (b[0] - a[0]) * f, v = a[1] + (b[1] - a[1]) * f, spd = a[2] + (b[2] - a[2]) * f;
     const pt = map.latLngToContainerPoint([p.lat, p.lon]); return { x: pt.x, y: pt.y, u, v, s: spd }; }).filter(Boolean);
-  const n = Math.min(1400, Math.round(sz.x * sz.y / 1500));
+  const n = Math.min(900, Math.round(sz.x * sz.y / 2200));
   if (!WS.parts.length || !WS.sz || WS.sz.x !== sz.x || WS.sz.y !== sz.y) WS.parts = Array.from({ length: n }, () => wsSeed(sz)); // keep the lines flowing while the time slider moves
   WS.ref = map.getCenter(); WS.refPt = map.latLngToContainerPoint(WS.ref);
   WS.sz = sz;
 }
+// a colour field under the lines, like PredictWind: wind speed (or wave height) painted as soft colour across the chart, so you can see
+// at a glance it is on and where it blows hardest. Computed once per view on a coarse grid, then scaled up smoothly.
+const WF = { cv: null, ctx: null, lut: null, cell: 18, dx: 0, dy: 0 };
+function wfSetup() { if (WF.cv) return; WF.cv = document.createElement('canvas'); WF.cv.className = 'wx-fill'; map.getContainer().appendChild(WF.cv); WF.ctx = WF.cv.getContext('2d');
+  map.on('move', () => { if (!WF.on || !WF.ref) return; const pt = map.latLngToContainerPoint(WF.ref); WF.cv.style.transform = 'translate(' + (pt.x - WF.refPt.x) + 'px,' + (pt.y - WF.refPt.y) + 'px)'; });
+  map.on('zoomstart', () => { if (WF.cv) WF.cv.style.opacity = '0'; });
+  map.on('moveend zoomend resize', () => { if (WF.on) { clearTimeout(WF.t); WF.t = setTimeout(() => { wfPaint(); if (WS.run) wsField(); }, 60); } }); }
+function wfField(kind) { // points in screen space with value and direction for the current forecast hour
+  const g = WX.grids[kind]; if (!g) return null; const want = Date.now() + WX.hour * 3600000, rot = mapRot();
+  return g.pts.filter((p) => p.t.length).map((p) => { let i0 = 0; for (let i = 0; i < p.t.length; i++) if (p.t[i] <= want) i0 = i; const v = p.a && p.a[i0], d = p.b && p.b[i0]; if (v == null) return null;
+    const pt = map.latLngToContainerPoint([p.lat, p.lon]), to = ((d || 0) + 180 + rot) * Math.PI / 180; return { x: pt.x, y: pt.y, v, u: Math.sin(to) * v, w: -Math.cos(to) * v }; }).filter(Boolean);
+}
+function wfIdw(F, x, y) { let su = 0, sv = 0, ss = 0, sw = 0; for (const f of F) { const d2 = (f.x - x) ** 2 + (f.y - y) ** 2 + 400, w = 1 / (d2 * d2); su += f.u * w; sv += f.w * w; ss += f.v * w; sw += w; } return sw ? [su / sw, sv / sw, ss / sw] : [0, 0, 0]; }
+function wfRgb(tbl, v) { const hex = colFor(tbl, v), n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function wfLerpRgb(tbl, v) { // smooth colour between the scale steps: each colour sits mid-way through its band
+  const mids = tbl.map((t, k) => { const lo = k ? tbl[k - 1][0] : 0, hi = isFinite(t[0]) ? t[0] : lo + (lo - (k > 1 ? tbl[k - 2][0] : 0)); return [(lo + hi) / 2, wfRgb(tbl, (lo + hi) / 2)]; });
+  if (v <= mids[0][0]) return mids[0][1]; for (let k = 1; k < mids.length; k++) if (v < mids[k][0]) { const f = (v - mids[k - 1][0]) / (mids[k][0] - mids[k - 1][0]); return mids[k - 1][1].map((c, n) => Math.round(c + (mids[k][1][n] - c) * f)); }
+  return mids[mids.length - 1][1]; }
+function wfPaint() {
+  const kind = wxOn('wind') && WX.grids.wind ? 'wind' : wxOn('waves') && WX.grids.waves ? 'waves' : null;
+  WF.on = !!kind && S.settings.wxFill !== false; wfSetup(); const cv = WF.cv;
+  if (!WF.on) { cv.hidden = true; WF.lut = null; return; }
+  const F = wfField(kind); if (!F || !F.length) { cv.hidden = true; return; }
+  const sz = map.getSize(), c = WF.cell, cols = Math.ceil(sz.x / c) + 1, rows = Math.ceil(sz.y / c) + 1, night = document.documentElement.hasAttribute('data-night');
+  cv.width = cols; cv.height = rows; cv.style.width = (cols * c) + 'px'; cv.style.height = (rows * c) + 'px'; cv.style.transform = ''; cv.style.opacity = ''; cv.hidden = false;
+  const img = WF.ctx.createImageData(cols, rows), d = img.data, tbl = kind === 'wind' ? WIND_COL : WAVE_COL, a = Math.round((night ? 0.22 : kind === 'wind' ? 0.34 : 0.4) * 255);
+  const lut = new Float32Array(cols * rows * 3);
+  for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) { const [u, v, s2] = wfIdw(F, q * c, r * c), i = r * cols + q, rgb = wfLerpRgb(tbl, s2); lut[i * 3] = u; lut[i * 3 + 1] = v; lut[i * 3 + 2] = s2; d[i * 4] = rgb[0]; d[i * 4 + 1] = rgb[1]; d[i * 4 + 2] = rgb[2]; d[i * 4 + 3] = a; }
+  WF.ctx.putImageData(img, 0, 0); WF.lut = kind === 'wind' ? { lut, cols, rows, c } : null; WF.kind = kind;
+  WF.ref = map.getCenter(); WF.refPt = map.latLngToContainerPoint(WF.ref); renderWxLegend(kind);
+}
+function renderWxLegend(kind) {
+  let el = $('wxLegend'); if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'wxLegend'; el.className = 'wx-legend'; $('app').appendChild(el); el.addEventListener('click', () => { if (wxOn('wind')) setWxL('wind', false); else if (wxOn('waves')) setWxL('waves', false); el.hidden = true; }); }
+  if (!kind || !WF.on) { el.hidden = true; return; } el.hidden = false;
+  requestAnimationFrame(() => { const wb = $('wxBar'), ar = $('app').getBoundingClientRect(); el.style.bottom = wb && !wb.hidden && wb.offsetHeight ? (ar.bottom - wb.getBoundingClientRect().top + 8) + 'px' : ''; });
+  const tbl = kind === 'wind' ? WIND_COL : WAVE_COL, stops = kind === 'wind' ? [0, 5, 10, 15, 20, 25] : [0, 1, 2, 3, 5];
+  el.innerHTML = '<b>' + (kind === 'wind' ? 'Wind ' + SPEED_LBL[S.settings.speedUnit] : 'Waves ' + lenUnit()) + '</b>' + stops.map((v) => '<span style="background:' + colFor(tbl, v + 0.01) + '">' + (kind === 'wind' ? Math.round(speedOut(v)) : lenUnit() === 'm' ? (v * 0.3048).toFixed(1) : v) + (v === stops[stops.length - 1] ? '+' : '') + '</span>').join('') + '<i aria-hidden="true">×</i>';
+  el.setAttribute('aria-label', (kind === 'wind' ? 'Wind' : 'Waves') + ' on. Tap to turn off.');
+}
 function wsSeed(sz) { return { x: Math.random() * sz.x, y: Math.random() * sz.y, age: Math.floor(Math.random() * 80), max: 60 + Math.random() * 60 }; }
 function wsAt(x, y) { // inverse-distance blend of the nearby forecast points
+  const L0 = WF.lut; if (L0 && WF.kind === 'wind' && !WF.cv.style.transform) { const q = Math.max(0, Math.min(L0.cols - 1, Math.round(x / L0.c))), r = Math.max(0, Math.min(L0.rows - 1, Math.round(y / L0.c))), i = (r * L0.cols + q) * 3; return [L0.lut[i], L0.lut[i + 1], L0.lut[i + 2]]; }
   let su = 0, sv = 0, ss = 0, sw = 0;
   for (const f of WS.field) { const d2 = (f.x - x) ** 2 + (f.y - y) ** 2 + 400, w = 1 / (d2 * d2); su += f.u * w; sv += f.v * w; ss += f.s * w; sw += w; }
   return sw ? [su / sw, sv / sw, ss / sw] : [0, 0, 0];
 }
 const WS_RGBA = {};
 function wsColor(s) { // same colour scale as the wind markers and the forecast bar
-  const hex = colFor(WIND_COL, s), night = document.documentElement.hasAttribute('data-night');
-  const k = hex + night; if (WS_RGBA[k]) return WS_RGBA[k];
+  const hex = colFor(WIND_COL, s), night = document.documentElement.hasAttribute('data-night'), dark = night || document.documentElement.hasAttribute('data-dusk') || document.documentElement.classList.contains('sat');
+  const k = hex + night + dark; if (WS_RGBA[k]) return WS_RGBA[k];
   const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b2 = n & 255;
-  return (WS_RGBA[k] = 'rgba(' + r + ',' + g + ',' + b2 + ',' + (night ? 0.5 : 0.62) + ')');
+  return (WS_RGBA[k] = night ? 'rgba(' + r + ',' + g + ',' + b2 + ',0.55)' : dark ? 'rgba(' + Math.min(255, r + 60) + ',' + Math.min(255, g + 60) + ',' + Math.min(255, b2 + 60) + ',0.9)' : 'rgba(' + Math.round(r * 0.55) + ',' + Math.round(g * 0.55) + ',' + Math.round(b2 * 0.55) + ',0.9)');
 }
 function wsFrame() {
   if (!WS.run) return;
@@ -2008,7 +2073,7 @@ function wsFrame() {
   if (WS.moving || !WS.field || !WS.field.length) return;
   const c = WS.ctx, sz = WS.sz, k = 0.09; // pixels per frame per knot: light air barely drifts, a breeze streams
   c.globalCompositeOperation = 'destination-out'; c.fillStyle = 'rgba(0,0,0,0.085)'; c.fillRect(0, 0, sz.x, sz.y);
-  c.globalCompositeOperation = 'source-over'; c.lineWidth = 1.4; c.lineCap = 'round';
+  c.globalCompositeOperation = 'source-over'; c.lineWidth = 2.1; c.lineCap = 'round';
   for (const p of WS.parts) {
     const [u, v, s] = wsAt(p.x, p.y), nx = p.x + u * k, ny = p.y + v * k;
     if (p.age > 2) { c.strokeStyle = wsColor(s); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(nx, ny); c.stroke(); }
@@ -2035,7 +2100,7 @@ function drawRainForecast() { // future hours: model rain as soft blue patches; 
     rainGrid.addLayer(L.circle([p.lat, p.lon], { renderer: ren, radius: map.distance([p.lat, p.lon], ll), stroke: false, fillColor: col, fillOpacity: Math.min(0.45, 0.18 + v / 20), interactive: false })); });
 }
 function drawGrid() {
-  drawRainForecast();
+  drawRainForecast(); try { wfPaint(); } catch (e) { /* not ready */ }
   if (wxOn('wind') && WX.grids.wind && S.settings.windLines !== false) { wsStart(); document.documentElement.classList.add('wlines'); } else { wsStop(); document.documentElement.classList.remove('wlines'); }
   wxGrid.clearLayers();
   const gw = wxOn('wind') && WX.grids.wind, gv = wxOn('waves') && WX.grids.waves; if (!gw && !gv) return;
@@ -2050,7 +2115,7 @@ function drawGrid() {
       html = '<div class="wx-pt" style="--c:' + col + '"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><g transform="rotate(' + ((w.dir + 180 + mapRot()) % 360) + ' 12 12)"><path d="M12 2v18M12 2l-5.5 6.5M12 2l5.5 6.5" /></g></svg><b>' + Math.round(speedOut(w.v)) + (w.g != null ? '<small>' + Math.round(speedOut(w.g)) + '</small>' : '') + '</b>' +
         (v ? '<span class="wx-wave" style="--w:' + colFor(WAVE_COL, v.v) + '">' + waveLen(v.v).replace(' ', '&#8202;') + '</span>' : '') + '</div>';
     } else {
-      html = '<div class="wv-pt" style="--c:' + colFor(WAVE_COL, v.v) + '" title="Waves ' + waveLen(v.v) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1M2 16c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/></svg><b>' + waveLen(v.v).replace(' ', '&#8202;') + '</b></div>';
+      html = '<div class="wv-pt" style="--c:' + colFor(WAVE_COL, v.v) + '" title="Waves ' + waveLen(v.v) + '">' + (v.dir != null ? '<svg viewBox="0 0 24 24" aria-hidden="true" class="wv-dir"><g transform="rotate(' + ((v.dir + 180 + mapRot()) % 360).toFixed(0) + ' 12 12)"><path d="M12 3v17M12 3l-5 6M12 3l5 6"/></g></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1M2 16c2.5-3 5-3 7.5 0s5 3 7.5 0 3.5-2 5-1"/></svg>') + '<b>' + waveLen(v.v).replace(' ', '&#8202;') + '</b></div>';
     }
     wxGrid.addLayer(L.marker([q.lat, q.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [56, w && v ? 62 : 46], iconAnchor: [28, 23], html }) }));
   });
@@ -2787,7 +2852,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 161. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 162. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2821,7 +2886,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'fishcoach') { openCoach('fish'); return; }
   if (a === 'loop') { openLoop(); return; }
   if (a === 'tour') { startTour(0); return; }
-  if (a === 'gaugelook') { setTab('chart'); openGaugeLook(); return; }
+  if (a === 'gaugelook') { setTab('chart'); openLooks(); return; }
   if (a === 'arrange') { setTab('chart'); setTimeout(() => arrangeMode(true), 150); return; }
   if (a === 'month') { openThisMonth(); return; }
   setTab(a);
@@ -3478,7 +3543,7 @@ function applyNight() {
   const th = themeNow(), root = document.documentElement;
   S.settings.night = th === 'night';
   root.toggleAttribute('data-night', th === 'night'); root.toggleAttribute('data-dusk', th === 'dusk'); if (typeof SH !== 'undefined') { SH.drawnKey = ''; setTimeout(drawShallow, 50); } if (typeof NV !== 'undefined') { NV.key = ''; setTimeout(drawNavaids, 60); }
-  renderThemeBtn(th);
+  renderThemeBtn(th); retintCheck();
   document.querySelector('meta[name=theme-color]').setAttribute('content', th === 'night' ? '#0A0202' : th === 'dusk' ? '#0F1A25' : '#0B1824');
 }
 setInterval(() => { if ((S.settings.theme || 'auto') === 'auto') applyNight(); }, 60000);
@@ -3498,9 +3563,9 @@ function renderThemeBtn(th) {
 $('btnTheme').addEventListener('click', () => {
   const cur = S.settings.theme || 'auto', now = themeNow();
   // cycle Day -> Dusk -> Night -> Auto, starting from what is on screen now
-  const next = cur === 'auto' ? ({ day: 'dusk', dusk: 'night', night: 'day' })[now] : cur === 'day' ? 'dusk' : cur === 'dusk' ? 'night' : 'auto';
+  const next = ({ day: 'dusk', dusk: 'night', night: 'day' })[now] || 'day'; void cur;
   S.settings.theme = next; saveSettings(); applyNight(); updateBoat();
-  toast(next === 'auto' ? 'Colors: automatic (switches at twilight, now ' + themeNow() + ')' : 'Colors: ' + next + '. Tap again to change.', 2200);
+  toast(next[0].toUpperCase() + next.slice(1) + ' colors. Automatic is in Map options.', 1800);
 });
 
 
@@ -3773,25 +3838,40 @@ function aisIcon(t, level) {
     return L.divIcon({ className: 'ais-icon', iconSize: [14, 14], iconAnchor: [7, 7], html: '<svg width="14" height="14" viewBox="0 0 14 14" style="opacity:' + op + '"><circle cx="7" cy="7" r="5" fill="' + col + '" stroke="#fff" stroke-width="1.6"/></svg>' });
   return L.divIcon({ className: 'ais-icon', iconSize: [24, 26], iconAnchor: [12, 13], html: '<svg width="24" height="26" viewBox="0 0 24 26"><g transform="rotate(' + ((t.cog || 0) + mapRot()) + ' 12 13)"><path d="' + path + '" fill="' + col + '" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></g></svg>' });
 }
+// AIS on the chart: markers are kept and moved, not rebuilt; only boats on screen (or a danger) are drawn, and nothing redraws while
+// a finger is moving the chart. Rebuilding hundreds of markers every second was what made the chart and buttons feel slow.
+const AISM = new Map(), aisLines = L.layerGroup().addTo(map);
+let aisMoving = false, aisPend = false;
+map.on('movestart zoomstart', () => { aisMoving = true; }); map.on('moveend zoomend', () => { aisMoving = false; if (aisPend) { aisPend = false; updateAis(); } else updateAisSoon(); });
+function updateAisSoon() { clearTimeout(window.__aisU); window.__aisU = setTimeout(() => updateAis(), 250); }
 function updateAis() {
-  aisLayer.clearLayers();
-  if (S.settings.aisShow === false || (!S.fix && !ais.size)) { $('coachCard').hidden = true; return; }
-  let worst = null;
+  if (aisMoving) { aisPend = true; return; }
+  if (S.settings.aisShow === false || (!S.fix && !ais.size)) { AISM.forEach((m) => aisLayer.removeLayer(m.mk)); AISM.clear(); aisLines.clearLayers(); $('coachCard').hidden = true; return; }
+  let worst = null; const z = map.getZoom(), vb = map.getBounds().pad(0.15), keep = new Set(); aisLines.clearLayers();
+  const vis = [];
   ais.forEach((t) => {
     const r = S.fix ? evaluate(t) : null; t.eval = r;
     if (r && r.level !== 'none') { const score = (r.level === 'danger' ? 0 : 10) + r.tcpa * 10; if (!worst || score < worst.score) worst = { r, score }; }
-    const ic = aisIcon(t, r ? r.level : 'none'), m = L.marker([t.lat, t.lon], { icon: ic, zIndexOffset: 800 + (r && r.level !== 'none' ? 300 : 0) + (S.aisFollow === t.id ? 200 : 0), keyboard: false, bubblingMouseEvents: false });
-    const z = map.getZoom(), named = t.name && !/^MMSI /.test(t.name), showName = S.settings.aisNames === true && (z >= 14 || (z >= 12 && ((t.sog || 0) >= 1 || t.type === 'ship' || (t.len || 0) >= 60)) || (r && r.level !== 'none'));
-    if (showName) m.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [ic.options.labelDx != null ? ic.options.labelDx : 10, 0], className: 'ais-label' + (named ? '' : ' unnamed'), interactive: false });
-    m.on('click', (ev) => { S.aisTapAt = Date.now(); if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent); openAisSheet(t); }); // a tap on a ship opens the ship, never the spot card
-    aisLayer.addLayer(m);
-    if (r && r.level !== 'none' && r.tcpa > 0) {
+    if (t.lat == null) return; const hot = r && r.level !== 'none';
+    if (hot || S.aisFollow === t.id || vb.contains([t.lat, t.lon])) vis.push({ t, r, hot, d: S.fix ? distNm(S.fix, t) : 0 });
+  });
+  const cap = z < 10 ? 120 : 260; if (vis.length > cap) { vis.sort((a, b) => (b.hot - a.hot) || a.d - b.d); vis.length = cap; }
+  vis.forEach(({ t, r, hot }) => {
+    keep.add(t.id); const lvl = r ? r.level : 'none', wl = S.settings.aisWatch || {};
+    const named = t.name && !/^MMSI /.test(t.name), showName = S.settings.aisNames === true && (z >= 14 || (z >= 12 && ((t.sog || 0) >= 1 || t.type === 'ship' || (t.len || 0) >= 60)) || hot);
+    const key = lvl + '|' + Math.round((t.hdg != null ? t.hdg : t.cog || 0) / 4) + '|' + t.type + '|' + Math.round(z) + '|' + ((t.sog || 0) >= 0.5) + '|' + (t.len || 0) + '|' + !!(t.mmsi && wl[t.mmsi]) + '|' + showName + '|' + (S.aisFollow === t.id) + '|' + (z >= 11.5 ? Math.round(z * 2) : 0) + '|' + Math.min(3, Math.floor((Date.now() - (t.seen || Date.now())) / 600000)) + '|' + (t.hdg != null) + '|' + t.status;
+    let m = AISM.get(t.id);
+    if (!m) { const mk = L.marker([t.lat, t.lon], { icon: aisIcon(t, lvl), keyboard: false, bubblingMouseEvents: false }); mk.on('click', (ev) => { S.aisTapAt = Date.now(); if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent); const tt = ais.get(t.id); if (tt) openAisSheet(tt); }); m = { mk, key: '' }; AISM.set(t.id, m); aisLayer.addLayer(mk); }
+    const ll = m.mk.getLatLng(); if (ll.lat !== t.lat || ll.lng !== t.lon) m.mk.setLatLng([t.lat, t.lon]);
+    if (m.key !== key) { m.key = key; const ic = aisIcon(t, lvl); m.mk.setIcon(ic); m.mk.setZIndexOffset(800 + (hot ? 300 : 0) + (S.aisFollow === t.id ? 200 : 0)); m.mk.unbindTooltip(); if (showName) m.mk.bindTooltip(esc(t.name || 'AIS target'), { permanent: true, direction: 'right', offset: [ic.options.labelDx != null ? ic.options.labelDx : 10, 0], className: 'ais-label' + (named ? '' : ' unnamed'), interactive: false }); }
+    if (hot && r.tcpa > 0) {
       const ahead = (pos, cog, sog) => destination(pos, cog, sog * r.tcpa);
       const a = ahead(t, t.cog, t.sog), b = ahead(S.fix, S.cog || 0, S.sog || 0);
-      aisLayer.addLayer(L.polyline([[t.lat, t.lon], [a.lat, a.lon]], { color: r.level === 'danger' ? C.red : C.amber, weight: 2, dashArray: '4 5', interactive: false }));
-      aisLayer.addLayer(L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { color: r.level === 'danger' ? C.red : C.amber, weight: 1.5, opacity: 0.7, interactive: false }));
+      aisLines.addLayer(L.polyline([[t.lat, t.lon], [a.lat, a.lon]], { color: r.level === 'danger' ? C.red : C.amber, weight: 2, dashArray: '4 5', interactive: false }));
+      aisLines.addLayer(L.polyline([[a.lat, a.lon], [b.lat, b.lon]], { color: r.level === 'danger' ? C.red : C.amber, weight: 1.5, opacity: 0.7, interactive: false }));
     }
   });
+  AISM.forEach((m, id) => { if (!keep.has(id)) { aisLayer.removeLayer(m.mk); AISM.delete(id); } });
   coachTarget = worst && S.settings.aisCoach ? worst.r : null;
   renderCoach();
   if (S.aisFollow && typeof aisFollowTick === 'function') aisFollowTick();
@@ -3915,7 +3995,7 @@ function aissConnect(force) {
     if (!t.type) t.type = 'other';
     if (position) { aisUpsert(t); AISS.n++; }
     else ais.set(id, t); // Static details must not refresh an old vessel position.
-    if (!AISS.timer) AISS.timer = setTimeout(() => { AISS.timer = null; updateAis(); }, 700);
+    if (!AISS.timer) AISS.timer = setTimeout(() => { AISS.timer = null; updateAis(); }, 1500);
   };
   ws.onerror = () => { AISS.err = 'Could not connect to the AIS relay. Check the network or feed connection limit.'; };
   ws.onclose = () => { if (AISS.ws !== ws) return; AISS.ws = null; if ((S.settings.aisRelay || '') && AISS.retry < 6) setTimeout(() => aissConnect(true), Math.min(60000, 3000 * 2 ** AISS.retry++)); };
@@ -6066,11 +6146,15 @@ function ckSwap(a, b) {
   const sl = ckSlots().filter((x) => x !== 'off').slice(); if (a === b || a < 0 || b < 0 || a >= sl.length || b >= sl.length) return;
   [sl[a], sl[b]] = [sl[b], sl[a]]; S.settings.ckSlots = sl; saveSettings(); buildCockpit();
 }
+// a tap that lands while the gauges redraw was being lost (the button under the finger was replaced), so hold redraws while touching
+let ckPress = 0;
+['pointerdown', 'touchstart'].forEach((ev) => document.addEventListener(ev, (e) => { if (e.target.closest && e.target.closest('#cockpit')) ckPress = Date.now() + 1500; }, { passive: true, capture: true }));
+['pointerup', 'pointercancel', 'touchend'].forEach((ev) => document.addEventListener(ev, () => { if (ckPress) ckPress = Date.now() + 350; }, { passive: true, capture: true }));
 function renderCockpit() {
-  const el = $('cockpit'); if (!el || el.hidden) return;
+  const el = $('cockpit'); if (!el || el.hidden) return; if (Date.now() < ckPress) return;
   const sl = ckSlots().filter((x) => x !== 'off');
   CK_FALL.clear();
-  el.querySelectorAll('.ck-slot.filler').forEach((box) => { box.innerHTML = ckGauge(box.dataset.filler); });
+  el.querySelectorAll('.ck-slot.filler').forEach((box) => { const nh = ckGauge(box.dataset.filler); if (box.__h !== nh) { box.__h = nh; box.innerHTML = nh; } });
   el.querySelectorAll('.ck-slot[data-slot]').forEach((box) => {
     const i = +box.dataset.slot, id = sl[i];
     const mv = ckEdit ? '<div class="ck-mv"><button type="button" data-ckmove="' + i + ':-1" aria-label="Move earlier">◀</button><span>drag to move</span><button type="button" data-ckmove="' + i + ':1" aria-label="Move later">▶</button></div>' : '';
@@ -6083,7 +6167,7 @@ function renderCockpit() {
       return; }
     if (box.querySelector('select:focus') || (ckEdit && box.dataset.drawn)) return; // while customizing, keep tiles still so taps land
     box.dataset.drawn = ckEdit ? '1' : '';
-    box.innerHTML = pick + ckGauge(id);
+    const nh = pick + ckGauge(id); if (box.__h !== nh) { box.__h = nh; box.innerHTML = nh; }
   });
   const acc = S.fix && S.fix.acc != null ? '±' + Math.round(ftToLen(S.fix.acc * 3.28084)) + ' ' + lenUnit() : '';
   const age = S.lastFixAt ? Math.round((Date.now() - S.lastFixAt) / 1000) : null;
@@ -6149,6 +6233,12 @@ setTab('chart');
 startGPS();
 wake();
 // always-on speed and course dial at the top right of the chart
+// a small compass card for the data tiles: the card turns so your course sits under the lubber line, like a real compass
+function miniRose(cog) {
+  let ch = 0; try { ch = compassHeading || 0; } catch (e) { /* not yet */ } const r = cog != null ? -cog : -ch; let t = "";
+  for (let d = 0; d < 360; d += 30) { const a = (d - 90) * Math.PI / 180, r0 = d % 90 ? 15 : 13; t += '<line x1="' + (20 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (20 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (20 + 18 * Math.cos(a)).toFixed(1) + '" y2="' + (20 + 18 * Math.sin(a)).toFixed(1) + '"/>'; }
+  return '<svg class="mb-rose" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18.5" class="mr-o"/><g transform="rotate(' + r.toFixed(0) + ' 20 20)"><g class="mr-t">' + t + '</g><path d="M20 4 L23 13 L20 11.5 L17 13 Z" class="mr-n"/><text x="20" y="22.5" class="mr-l">N</text></g><path d="M20 0.5 V5" class="mr-lub"/></svg>';
+}
 function renderMini() {
   const el = $('miniInst'); if (!el) return;
   const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, mr = mapRot();
@@ -6167,7 +6257,7 @@ function renderMini() {
   if ((S.settings.chartGauges || 'dial') === 'bar') { // flat data tiles, like a chartplotter's data bar; tap opens the instruments
     el.classList.add('as-bar'); el.setAttribute('aria-label', 'Speed, course and depth. Tap for the instruments.');
     el.innerHTML = '<span class="mb-t"><small>SPEED</small><b>' + (f ? fmtSpeed(S.sog || 0) : '–') + '</b><i>' + SPEED_LBL[S.settings.speedUnit] + '</i></span>' +
-      '<span class="mb-t"><small>COURSE</small><b>' + (cog != null ? fmtBrg(cog) + '°' : '–') + '</b><i>' + (cog != null ? compass16(cog) : 'not moving') + '</i></span>' +
+      '<span class="mb-t mb-cmp"><small>COURSE</small><span class="mb-row">' + miniRose(cog) + '<b>' + (cog != null ? fmtBrg(cog) + '°' : '–') + '</b></span><i>' + (cog != null ? compass16(cog) : 'not moving') + '</i></span>' +
       '<span class="mb-t' + (shallow ? ' bad' : '') + '"><small>DEPTH</small><b>' + (validDepth ? Math.round(ftToLen(dft)) : '–') + '</b><i>' + lenUnit() + (validDepth ? ' charted' : '') + '</i></span>';
     return; }
   el.classList.remove('as-bar');
@@ -6432,12 +6522,12 @@ sheet.addEventListener('click', e => {
   if (b.dataset.fm === 'setup') { try { const url = new URL($('firstMateEndpoint').value.trim()); if (url.protocol !== 'https:' || url.username || url.password) throw new Error(); S.settings.assistantUrl = url.href; saveSettings(); firstMateMessage('Connection saved. Sign in and try a request.'); } catch (e) { firstMateMessage('Enter the HTTPS backend URL, not an API key.'); } }
 });
 sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' && e.key === 'Enter') { e.preventDefault(); askFirstMate(); } });
-document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) openFirstMate(); if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
+document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) { if (S.settings.mateTalk === false) openFirstMate(); else ftStart(); } if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
 // the AI sparkle, with a small anchor at its heart
 const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path class="ai-star" d="M11.6 2.2c.7 5.3 3.9 8.5 9.2 9.2-5.3.7-8.5 3.9-9.2 9.2-.7-5.3-3.9-8.5-9.2-9.2 5.3-.7 8.5-3.9 9.2-9.2z"/><path class="ai-star" d="M19.6 1.6c.25 1.6 1.1 2.45 2.7 2.7-1.6.25-2.45 1.1-2.7 2.7-.25-1.6-1.1-2.45-2.7-2.7 1.6-.25 2.45-1.1 2.7-2.7z"/><g class="ai-anc"><circle cx="11.6" cy="8.7" r=".95"/><path d="M11.6 9.65v5.6M10.1 10.9h3M9.1 13.3a2.5 2.5 0 0 0 5 0"/></g></svg>';
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.id = 'btnFM'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
-function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; }
+function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; retintCheck(); }
 document.documentElement.classList.toggle('lightmenus', S.settings.menuTone === 'light');
 /* gauge looks, as data: one table drives the live gauges, the speed circle, the previews in the picker and (optionally) the buttons,
    so a preview always shows exactly what you will get. bz = bezel ring stops (5), fc = face (2), ink/muted/acc/n = numbers,
@@ -6543,6 +6633,7 @@ const GT = [
   { id: 'sgreen', hidden: 1, l: 'Simple green and gold', g: 'Simple', plain: 1, bz: ['#C9A04E', '#B8913F', '#A68236', '#C9A04E', '#B8913F'], fc: ['#173D2B', '#173D2B'], ink: '#FFFFFF', muted: '#B9CDBF', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
   // modern (the original looks, unchanged)
   { id: 'midnight', l: 'Midnight chrome', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#1C3A52', '#07111A'], ink: '#EAF4F8' },
+  { id: 'chromenight', l: 'Chrome night', g: 'Modern', legacy: 1, bz: ['#FFFFFF', '#B7C0C8', '#4A545E', '#E9EEF2', '#717C86'], fc: ['#1B2633', '#04070B'], ink: '#F2F6FA' },
   { id: 'arctic', l: 'Arctic white', g: 'Modern', legacy: 1, bz: ['#F7FAFC', '#A7B2BC', '#4E5963', '#E2E8ED', '#6D7882'], fc: ['#FFFFFF', '#D9E2EA'], ink: '#12283A' },
   { id: 'glass', l: 'Glass ocean', g: 'Modern', legacy: 1, bz: ['#F2FBFF', '#8FD3F5', '#2C6E99', '#CDEFFF', '#4C93BF'], fc: ['#11507E', '#041628'], ink: '#E8F7FF' },
   { id: 'expedition', l: 'Expedition tech', g: 'Modern', legacy: 1, bz: ['#A8AEB4', '#4A4F55', '#16191C', '#7A8087', '#2B2F34'], fc: ['#23272B', '#0A0B0D'], ink: '#F2F2F2' },
@@ -6641,6 +6732,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
 })();
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
+if (!S.settings.bigDial4) { S.settings.bigDial4 = 1; if (!S.settings.miSize || S.settings.miSize === 'l' || S.settings.miSize === 'm') S.settings.miSize = 'xl'; try { saveSettings(); } catch (e) { /* */ } }
 if (!S.settings.cleanDefault3) { S.settings.cleanDefault3 = 1; S.settings.cleanDefault2 = 1; S.settings.cleanDefault1 = 1; S.settings.fabLookSeeded = 2; S.settings.gTheme = 'clean'; S.settings.gShape = 'round'; S.settings.gFace = ''; S.settings.chartGauges = 'dial'; S.settings.fabLook = 'theme'; S.settings.fabArt = 'simple'; S.settings.btheme = 'white'; try { saveSettings(); } catch (e) { /* early */ } } // Andy: Argo-like default — white round buttons, one round speed/course/depth gauge, clean white look
 if (!S.settings.cleanDefault2) { S.settings.cleanDefault2 = 1; S.settings.fabLookSeeded = 2; S.settings.fabLook = 'theme'; S.settings.fabArt = 'simple'; try { saveSettings(); } catch (e) { /* early */ } } // buttons start plain; matching them to the look is a choice
 if (!S.settings.cleanDefault1) { S.settings.cleanDefault1 = 1; S.settings.chartGauges = 'bar'; S.settings.gTheme = 'mfdnight'; S.settings.gShape = 'round'; S.settings.gFace = ''; try { saveSettings(); } catch (e) { /* early */ } } // Andy: a clean, Argo-like default; the dials and artwork looks are opt-in
@@ -7513,7 +7605,7 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-usesedit]')) { e.preventDefault(); openUses(false); }
 });
 // a gentle get-ready nudge, at most once per event, a week out
-setTimeout(() => { const seen = store.get('evSeen', {}); const e = upcoming(8).find((x) => !seen[x.n + x.a] && x.a > Date.now()); if (!e) return; seen[e.n + e.a] = 1; store.set('evSeen', seen); toast('Coming up: ' + e.n + ' (' + new Date(e.a).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '). Menu → This month for details.', 7000); }, 9000);
+setTimeout(() => { const seen = store.get('evSeen', {}); const e = upcoming(8).find((x) => !seen[x.n + x.a] && x.a > Date.now()); if (!e) return; seen[e.n + e.a] = 1; store.set('evSeen', seen); toast(e.n + ', ' + new Date(e.a).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }), 4000); }, 9000);
 /* ---------- arrange the buttons: drag them up and down a column or across to the other side; they snap into line ---------- */
 const ARR = { on: false, drag: null };
 const ARR_SKIP = new Set(['alertBar']);
@@ -7597,7 +7689,37 @@ function openGaugeLook() {
     '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
     '<div class="row-btns"><button class="btn" data-looktry="1">Try them on the chart (swipe)</button><button class="btn primary" data-act="close">Done</button></div>');
-}document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
+}
+// the quick picker: ready-made looks as thumbnails, several at once; tap one and it is on (the speed circle above shows it live).
+// Size, shape and the buttons sit on top; building your own bezel and face is one level down (Customize).
+const LK_CATS = [
+  ['feat', 'Favorites', () => ['clean', 'mfdnight', 'chromenight', 'midnight', 'glass', 'helm', 'aqua', 'arctic', 'titanium', 'midteal', 'carbonrefined', 'arcticglass', 'goldnavy', 'navyphoto', 'horizon', 'cb_annapolis', 'sailrope', 'teak', 'brass', 'expedition', 'carbon']],
+  ['modern', 'Modern', () => GT.filter((t) => !t.hidden && (t.g === 'Simple' || t.g === 'Modern')).map((t) => t.id)],
+  ['tech', 'Displays', () => GT.filter((t) => !t.hidden && t.g === 'Tech').map((t) => t.id)],
+  ['classic', 'Classic', () => GT.filter((t) => !t.hidden && t.g === 'Classic').map((t) => t.id)],
+  ['art', 'Artwork', () => GT.filter((t) => !t.hidden && t.g === 'Photo').map((t) => t.id)],
+  ['bay', 'Chesapeake', () => GT.filter((t) => !t.hidden && t.g === 'Bay').map((t) => t.id)],
+  ['sq', 'Square art', () => GT.filter((t) => !t.hidden && t.g === 'Square').map((t) => t.id)],
+];
+function openLooks(cat) {
+  const st = S.settings; cat = cat || st.lkCat || 'feat'; st.lkCat = cat;
+  const cur = st.gTheme || 'clean', sh = st.gShape || 'round', f = st.gFace || '', c = LK_CATS.find((x) => x[0] === cat) || LK_CATS[0];
+  const ids = [...new Set(c[2]())].filter((id) => gtOf(id) && gtOf(id).id === id);
+  const seg = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+  openSheet('<div class="lk"><div class="lk-top"><h3>Gauge look</h3></div>' +
+    '<div class="lk-ctl"><span>Size</span>' + seg('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + seg('gShape', sh, [['round', 'Round'], ['square', 'Square']]) + '</div>' +
+    '<div class="lk-ctl"><span>Buttons</span>' + seg('fabLook', (st.fabLook || 'theme') === 'theme' ? 'theme' : 'gauge', [['theme', 'Plain'], ['gauge', 'Match the look']]) + '</div>' +
+    '<div class="lk-cats">' + LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+    '<div class="lk-grid">' + ids.map((id) => { const t = gtOf(id); return '<button type="button" data-lkpick="' + id + '" class="' + (cur === id ? 'on' : '') + '">' + glPrev(id, f, t.sq ? 'round' : sh) + '<span>' + esc(t.l) + '</span></button>'; }).join('') + '</div>' +
+    '<div class="row-btns lk-more"><button type="button" class="btn" data-lkcustom>Customize bezel and face</button><button type="button" class="btn" data-looktry="1">Swipe through on the chart</button></div></div>');
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openLooks(); return; }
+  const c = e.target.closest('[data-lkcat]'); if (c) { const sb = sheet.querySelector('.sheet-body') || sheet; openLooks(c.dataset.lkcat); (sheet.querySelector('.sheet-body') || sheet).scrollTop = Math.min(sb.scrollTop, 180); return; }
+  const p = e.target.closest('[data-lkpick]'); if (p) { S.settings.gTheme = p.dataset.lkpick; saveSettings(); applyGTheme(); try { applyFabLook(); } catch (err) { /* */ } try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ }
+    sheet.querySelectorAll('[data-lkpick]').forEach((b) => b.classList.toggle('on', b === p)); return; }
+  if (e.target.closest('[data-lkcustom]')) { openGaugeLook(); }
+});
 function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
 applyGArt();
 /* ---------- first mate, one assistant: the sparkle button and Menu → First mate open the same thing. It has a name you choose
@@ -7699,6 +7821,18 @@ async function fmUnderstand(text) {
   const off = has(/\b(hide|remove|turn off|switch off|clear|get rid of|no more|stop showing|take away|close|kill|lose)\b/);
   if (has(/\b(man|person|crew|someone|somebody|child|kid|dog|guy|woman|girl|boy) (is |went |fell )?overboard\b|^mob$|\bman overboard\b/)) { closeSheet(); triggerMob(); return { say: S.mob ? 'Man overboard marked. Steering back to the spot. Keep pointing at them and call the Coast Guard on channel 16.' : 'No GPS position, so I could not mark the spot. Keep pointing at them.' }; }
   if (has(/\b(stop|quit|pause) listening\b|\bgo to sleep\b/)) { wakeStop(); return { say: 'Stopped listening.' }; }
+  // tour guide: on, off, read aloud, and "what's that island" / "tell me about Poplar Island"
+  if (has(/\btour( guide)?\b/) && has(/\b(on|start|turn on|switch on)\b/) && !off) { S.settings.tourMode = has(/\b(aloud|out loud|talk|voice|read)\b/) ? 'voice' : 'cards'; saveSettings(); tgDraw(); TG.lastAt = 0; return { say: 'Tour guide on. I will tell you about places as we pass them.' }; }
+  if (has(/\btour( guide)?\b/) && off) { S.settings.tourMode = 'off'; saveSettings(); tgDraw(); return { say: 'Tour guide off.' }; }
+  if (has(/\b(what'?s|what is|whats|tell me about|what am i looking at|tell me the history of|history of|story of|what do you know about)\b/) && !has(/\b(wind|weather|tide|depth|current|forecast|waves?)\b/)) {
+    await tgLoad(); const at = S.fix || refPos(); try { await Promise.race([tgWikiNear(at.lat, at.lon), new Promise((r) => setTimeout(r, 3500))]); } catch (e) { /* offline */ }
+    const all = tgAll(), q = f.replace(/^.*?\b(about|of|is|whats|what'?s)\s+/, '').replace(/^(the|that|this)\s+/, '').trim();
+    const deictic = !q || /^(that|this|it|here|there|around( here)?|nearby|(that|this|the) (island|lighthouse|light|point|place|town|river|bridge))$/.test(q) || /\b(looking at|around here|near here|that island|that lighthouse|this place)\b/.test(f);
+    let st = !deictic ? all.find((x) => x.name.toLowerCase().includes(q)) || all.find((x) => q.split(' ').filter((w2) => w2.length > 3).some((w2) => x.name.toLowerCase().includes(w2))) : null;
+    if (!st && deictic) { const kindW = (f.match(/\b(island|lighthouse|light|point|town|river|bridge)\b/) || [])[1]; st = all.filter((x) => !kindW || x.name.toLowerCase().includes(kindW === 'light' ? 'light' : kindW) || (x.kind || '').includes(kindW)).map((x) => ({ x, d: distNm(at, x) })).filter((o2) => o2.d < 8).sort((a2, b2) => a2.d - b2.d).map((o2) => o2.x)[0]; }
+    if (st) { const sm = await tgSummary(st); const txt = (tgDepth() === 'full' || has(/\b(history|story|tell me about)\b/) ? sm.full || sm.brief : sm.brief || sm.full); if (txt) { if (!FT.on) tgShow(st); return { say: (txt.toLowerCase().startsWith(st.name.toLowerCase().slice(0, 8)) ? '' : st.name + '. ') + txt + tgEventsLine(st) }; } }
+  }
+  if (has(/\b(what'?s|what is|whats|anything) (going on|happening|on)\b|\bevents?\b|\bthis weekend\b|\bboat show\b/)) { const ev = upcoming(21); return { say: ev.length ? 'Coming up: ' + ev.slice(0, 3).map((e) => e.n + ', ' + new Date(e.a).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) + (e.where ? ' at ' + e.where : '')).join('; ') + '.' + (SEASON.fish && SEASON.fish[new Date().getMonth() + 1] ? ' On the water: ' + SEASON.fish[new Date().getMonth() + 1] : '') : 'Nothing on my events list for the next three weeks.' }; }
   if (has(/^(start|go|let'?s go|start (the )?(route|navigation|navigating|guidance|course)|begin( navigation)?|start navigating|follow (the|this) (route|course))$/)) { const r = fmRouteGo(); if (r) return { say: r, close: true }; }
   if (has(/^(stop|end|cancel)( the)? (navigation|navigating|route|course|guidance)$/)) { endGoto(); return { say: 'Navigation ended.' }; }
   // questions with a spoken answer
@@ -7774,7 +7908,7 @@ function fmSay(text) {
   if (!text || S.settings.mateVoice === false || !('speechSynthesis' in window)) return;
   const CW = { N: 'north', NNE: 'north-northeast', NE: 'northeast', ENE: 'east-northeast', E: 'east', ESE: 'east-southeast', SE: 'southeast', SSE: 'south-southeast', S: 'south', SSW: 'south-southwest', SW: 'southwest', WSW: 'west-southwest', W: 'west', WNW: 'west-northwest', NW: 'northwest', NNW: 'north-northwest' };
   text = String(text).replace(/[“”]/g, '').replace(/\b(\d+(?:\.\d+)?) kn\b/g, '$1 knots').replace(/\b(\d+(?:\.\d+)?) nm\b/g, '$1 nautical miles').replace(/\b(\d+(?:\.\d+)?) ft\b/g, '$1 feet').replace(/\b(\d+(?:\.\d+)?) m\b/g, '$1 meters').replace(/°T\b/g, ' degrees true').replace(/\b([NSEW]{1,3})\b/g, (k) => CW[k] || k);
-  try { const u = new SpeechSynthesisUtterance(text.slice(0, 300)); u.rate = 0.97; u.lang = 'en-US'; const v = bestVoice(); if (v) { u.voice = v; u.lang = v.lang; } speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* no speech */ }
+  try { if (text.length > 900) { const cut = text.lastIndexOf('. ', 900); text = text.slice(0, cut > 200 ? cut + 1 : 900); } const u = new SpeechSynthesisUtterance(text); u.rate = 0.97; u.lang = 'en-US'; const v = bestVoice(); if (v) { u.voice = v; u.lang = v.lang; } speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* no speech */ }
 }
 function fmReply(r) { if (!r || !r.say) return; firstMateMessage(r.say); if (!$('firstMateReply')) return; if (r.close) setTimeout(() => { if ($('firstMateReply')) closeSheet(); toast(r.say, 4500); }, 900); }
 async function fmRelay(request) {
@@ -7798,7 +7932,7 @@ async function askFirstMate(voice) {
   try { const r = await fmUnderstand(request); if (r) { if (r.say) fmReply(r); handled = true; } else handled = await fmLocal(request); }
   catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); handled = true; } finally { FM.busy = false; }
   if (!handled && S.settings.assistantUrl) { FM.busy = true; try { await fmRelay(request); } finally { FM.busy = false; } handled = true; }
-  if (!handled) firstMateMessage('I did not understand “' + request + '” yet. The full AI first mate is not switched on in this test version, so I understand set phrases for now. Try “take me home”, “show me the rain”, “what’s the wind”, “when is high tide”, “mark this spot”. Once the AI is connected I can take anything.');
+  if (!handled) firstMateMessage(FM.voiceTurn ? 'I did not catch that one yet. Try: take me home, what’s the wind, when is high tide, or tell me about that island.' : 'I did not understand “' + request + '” yet. The full AI is not switched on in this test version, so I understand everyday boating requests: “take me home”, “what’s the wind”, “when is high tide”, “mark this spot”, “tell me about that island”, “what’s going on this weekend”.');
   if (FM.voiceTurn && FM.last && !(window.speechSynthesis && speechSynthesis.speaking)) fmSay(FM.last);
 }
 function openFirstMate() {
@@ -8314,7 +8448,7 @@ const ltOrder = () => lookPairs(['Tech', 'Simple', 'Bay', 'Original', 'Photo', '
 const LT_G = { Bay: 'Chesapeake Bay collection', Square: 'Square artwork', Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Modern chartplotter' };
 function openLookTry() {
   const list = ltOrder(); LT.on = true; LT.orig = S.settings.gTheme || 'clean'; LT.origS = S.settings.gShape || 'round'; LT.i = Math.max(0, list.findIndex((t) => t.id === LT.orig && t.shape === (gtOf(LT.orig).sq ? 'round' : LT.origS)));
-  closeSheet(); setTab('chart'); if ($('cockpit') && !$('cockpit').hidden) setCockpit(false);
+  closeSheet(); const onCk = $('cockpit') && !$('cockpit').hidden; if (!onCk) setTab('chart'); document.documentElement.classList.toggle('looktry-ck', !!onCk);
   let el = $('lookTry'); if (!el) { el = document.createElement('div'); el.id = 'lookTry'; $('app').appendChild(el); ltSwipe(el); }
   el.hidden = false; document.documentElement.classList.add('looktry'); ltShow();
 }
@@ -8331,7 +8465,7 @@ function ltShow() { // a sliding row of live previews: drag it and you see the l
   $('lookTry').innerHTML = '<div class="lt-head"><button type="button" class="lt-arr" data-ltgo="-1" aria-label="Previous look">‹</button><div class="lt-name"></div><button type="button" class="lt-arr" data-ltgo="1" aria-label="Next look">›</button></div>' +
     '<div class="lt-strip" id="ltStrip">' + list.map((t, k) => '<div class="lt-card" data-k="' + k + '">' + glPrev(t.id, f, t.shape) + '<span>' + esc(t.l) + '</span></div>').join('') + '</div>' +
     '<div class="lt-faces"><span>Face</span>' + GFACES.map(([k, l, c]) => '<button type="button" data-ltface="' + k + '" class="' + (f === k ? 'on' : '') + '" title="' + l + '" style="background:' + (c || 'conic-gradient(#14284A 0 25%,#F2EAD6 0 50%,#0F4C4C 0 75%,#0B0B0B 0)') + '"></button>').join('') + '</div>' +
-    '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn primary" data-ltdone="use">Use</button></div>';
+    '<div class="lt-fabs"><span>Buttons</span>' + [['theme', 'Plain'], ['gauge', 'Match this look']].map(([v, l]) => '<button type="button" data-ltfab="' + v + '" class="' + (((S.settings.fabLook || 'theme') === 'theme' ? 'theme' : 'gauge') === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' + '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn" data-ltmore>More options</button><button type="button" class="btn primary" data-ltdone="use">Use</button></div>';
   const st = $('ltStrip'), card = () => st.querySelector('.lt-card'), w = () => (card() ? card().offsetWidth + 10 : 140);
   requestAnimationFrame(() => { st.scrollLeft = LT.i * w(); ltApply(); });
   st.addEventListener('scroll', () => { clearTimeout(LT.st); LT.st = setTimeout(() => { if (LT.hold && Date.now() < LT.hold) return; const k = Math.max(0, Math.min(list.length - 1, Math.round(st.scrollLeft / w()))); if (k !== LT.i) { LT.i = k; ltApply(); } }, 90); }, { passive: true });
@@ -8353,6 +8487,8 @@ document.addEventListener('click', (e) => {
   const g = e.target.closest('#lookTry [data-ltgo]'); if (g) { ltGo(+g.dataset.ltgo); return; }
   const fb = e.target.closest('[data-ltface]'); if (fb) { S.settings.gFace = fb.dataset.ltface; saveSettings(); applyGFace(); if (LT.on) { const k = LT.i; ltShow(); LT.i = k; } else if (!sheet.hidden) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } toast('Face: ' + (GFACES.find((x) => x[0] === S.settings.gFace) || GFACES[0])[1], 1500); return; }
   const d = e.target.closest('#lookTry [data-ltdone]'); if (d) closeLookTry(d.dataset.ltdone === 'use');
+  const lf = e.target.closest('#lookTry [data-ltfab]'); if (lf) { S.settings.fabLook = lf.dataset.ltfab; saveSettings(); try { applyFabLook(); } catch (err) { /* */ } document.querySelectorAll('#lookTry [data-ltfab]').forEach((x) => x.classList.toggle('on', x === lf)); return; }
+  if (e.target.closest('#lookTry [data-ltmore]')) { closeLookTry(true); openLooks(); }
 });
 document.addEventListener('keydown', (e) => { if (!LT.on) return; if (e.key === 'ArrowRight') ltGo(1); if (e.key === 'ArrowLeft') ltGo(-1); if (e.key === 'Escape') closeLookTry(false); });
 // the instruments button is not needed: tapping the speed circle opens the instruments (Andy). Arrange can still bring it back.
@@ -8747,7 +8883,7 @@ async function tgSummary(st) { // text and photo for a stop: hand-written text w
 function tgCardHtml(st, sm, depth) {
   const full = depth === 'full';
   return (sm.img ? '<img class="tg-img" src="' + esc(sm.img) + '" alt="" loading="lazy">' : '') + '<div class="tg-txt"><small>' + (st.from === 'guide' ? 'ALONG THE WAY' : 'NEARBY · WIKIPEDIA') + (S.fix ? ' · ' + fmtDist(distNm(S.fix, st)) + ' ' + compass16(bearing(S.fix, st)) : '') + '</small><b>' + esc(st.name) + '</b><p>' + esc(full ? sm.full || sm.brief : sm.brief || sm.full) + '</p>' +
-    (full && st.photo ? '<p class="tg-note">📷 ' + esc(st.photo) + '</p>' : '') + (st.watch ? '<p class="tg-note">⚓ ' + esc(st.watch) + '</p>' : '') + (full && st.song ? '<p class="tg-note">♪ ' + esc(st.song) + '</p>' : '') + '</div>';
+    (full && st.photo ? '<p class="tg-note">📷 ' + esc(st.photo) + '</p>' : '') + (st.watch ? '<p class="tg-note">⚓ ' + esc(st.watch) + '</p>' : '') + (full && st.song ? '<p class="tg-note">♪ ' + esc(st.song) + '</p>' : '') + (tgEventsLine(st) ? '<p class="tg-note">📅' + esc(tgEventsLine(st).replace(' Coming up here:', '')) + '</p>' : '') + '</div>';
 }
 async function tgShow(st) {
   const sm = await tgSummary(st); if (!sm.brief && !sm.full) return false;
@@ -8759,7 +8895,7 @@ async function tgShow(st) {
   return true;
 }
 function tgDraw() {
-  TG.layer.clearLayers(); if (tgMode() === 'off' || !TG.stops) return; const z = map.getZoom(), b = map.getBounds().pad(0.2);
+  TG.layer.clearLayers(); if (tgMode() !== 'pins' || !TG.stops) return; const z = map.getZoom(), b = map.getBounds().pad(0.2);
   tgAll().forEach((st) => { if (!b.contains([st.lat, st.lon]) || (st.from === 'wiki' ? z < 13 : z < 10)) return;
     L.marker([st.lat, st.lon], { keyboard: false, zIndexOffset: 300, icon: L.divIcon({ className: 'tg-pin' + (st.from === 'wiki' ? ' w' : ''), iconSize: [22, 22], iconAnchor: [11, 11], html: '<i></i>' }) }).bindTooltip(esc(st.name), { direction: 'top', offset: [0, -10] }).on('click', (e) => { if (e.originalEvent) L.DomEvent.stop(e.originalEvent); tgSheet(st); }).addTo(TG.layer); });
 }
@@ -8804,7 +8940,49 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-tgq]')) { TG.quietUntil = Date.now() + 30 * 60000; $('tourCard').hidden = true; toast('Tour guide quiet for 30 minutes.', 1800); return; }
   if (e.target.closest('[data-tgx]')) { $('tourCard').hidden = true; }
 });
-window.Tideline = { openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+// events near a tour stop: the Sailboat Show when you pass Annapolis, the season on the water
+function tgEventsLine(st) {
+  try { const ev = upcoming(21).filter((e) => e.where && st.name && (e.where + ' ' + (e.stay || '')).toLowerCase().includes(st.name.toLowerCase().split(/[\s&]/)[0])); if (!ev.length) return '';
+    return ' Coming up here: ' + ev.slice(0, 2).map((e) => e.n + ', ' + new Date(e.a).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })).join('; ') + '.'; } catch (e) { return ''; }
+}
+// first mate talk mode: tap the sparkle and it listens at once (no big sheet), shows your words as you speak, answers in a small
+// bubble and out loud, then listens again for a follow-up. The keyboard button opens the full sheet.
+const FT = { on: false, rec: null, turns: 0, fin: '' };
+function ftEl() {
+  let el = $('fmTalk'); if (el) return el; el = document.createElement('div'); el.id = 'fmTalk'; el.className = 'fm-talk';
+  el.innerHTML = '<div class="ft-orb" aria-hidden="true"><i></i><i></i><b>' + AI_ICON + '</b></div><div class="ft-body"><small class="ft-st"></small><p class="ft-heard"></p><p id="firstMateReply" class="ft-reply" role="status" aria-live="polite"></p><div id="firstMateResults" class="ft-res"></div><input id="firstMateRequest" type="hidden"></div>' +
+    '<div class="ft-btns"><button type="button" data-ft="again" aria-label="Talk again">🎙</button><button type="button" data-ft="kbd" aria-label="Type instead">⌨</button><button type="button" data-ft="x" aria-label="Stop">×</button></div>';
+  $('app').appendChild(el); return el;
+}
+function ftState(st, txt) { const el = $('fmTalk'); if (!el) return; el.dataset.st = st; el.querySelector('.ft-st').textContent = txt; }
+function ftStart() {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition; if (!R) { openFirstMate(); return; }
+  closeSheet(); if (WAKE.rec) { WAKE.pause = true; try { WAKE.rec.stop(); } catch (e) { /* stopped */ } }
+  ftEl(); FT.on = true; FT.turns = 0; try { speechSynthesis.cancel(); } catch (e) { /* none */ } ftListen();
+}
+function ftListen() {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition, el = $('fmTalk'); if (!FT.on || !el || !R) return;
+  if (FT.rec) { try { FT.rec.abort(); } catch (e) { /* */ } }
+  const r = new R(); FT.rec = r; FT.fin = ''; r.lang = navigator.language || 'en-US'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+  el.querySelector('.ft-heard').textContent = ''; ftState('listen', 'Listening…');
+  r.onresult = (e) => { let t = ''; for (let i = 0; i < e.results.length; i++) { t += e.results[i][0].transcript; if (e.results[i].isFinal) FT.fin = t; } el.querySelector('.ft-heard').textContent = '“' + t.trim() + '”'; };
+  r.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') ftState('idle', 'The microphone is off. Allow it for this site in Settings, or tap ⌨ to type.'); };
+  r.onend = () => { FT.rec = null; if (!FT.on) return; const said = (FT.fin || el.querySelector('.ft-heard').textContent.replace(/[“”]/g, '')).trim();
+    if (said) ftRun(said); else { ftState('idle', FT.turns ? 'Tap 🎙 to ask something else.' : 'I did not hear anything. Tap 🎙 and try again.'); clearTimeout(FT.hide); FT.hide = setTimeout(() => { if (FT.on && $('fmTalk') && $('fmTalk').dataset.st === 'idle') ftStop(); }, 12000); } };
+  try { r.start(); } catch (e) { FT.rec = null; ftState('idle', 'Tap 🎙 to talk.'); }
+}
+async function ftRun(said) {
+  const el = $('fmTalk'); if (!el) return; FT.turns++; ftState('think', 'Thinking…'); el.querySelector('.ft-heard').textContent = '“' + said + '”';
+  const inp = $('firstMateRequest'); inp.value = fmWakeSplit(said) || said; FM.heard = inp.value; $('firstMateReply').textContent = ''; $('firstMateResults').innerHTML = '';
+  try { await askFirstMate(true); } catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); }
+  if (!FT.on || !$('fmTalk')) return;
+  ftState('speak', 'Tap 🎙 to ask a follow-up'); const wait = () => { if (!FT.on) return; if (window.speechSynthesis && speechSynthesis.speaking) { setTimeout(wait, 300); return; } if (FT.turns < 4 && !$('firstMateResults').innerHTML) setTimeout(ftListen, 350); else ftState('idle', 'Tap 🎙 to ask something else.'); };
+  setTimeout(wait, 600);
+}
+function ftStop() { FT.on = false; clearTimeout(FT.hide); if (FT.rec) { try { FT.rec.abort(); } catch (e) { /* */ } FT.rec = null; } try { speechSynthesis.cancel(); } catch (e) { /* */ } const el = $('fmTalk'); if (el) el.remove(); if (WAKE.pause) { WAKE.pause = false; WAKE.rec = null; if (S.settings.wakeOn) setTimeout(wakeStart, 300); } }
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-ft]'); if (!b) return; const k = b.dataset.ft;
+  if (k === 'x') ftStop(); if (k === 'again') { FT.on = true; FT.turns = 0; try { speechSynthesis.cancel(); } catch (err) { /* */ } ftListen(); } if (k === 'kbd') { ftStop(); openFirstMate(); setTimeout(() => { const i = $('firstMateRequest'); if (i) i.focus(); }, 80); } });
+window.Tideline = { ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
