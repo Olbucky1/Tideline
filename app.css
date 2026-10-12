@@ -2054,3 +2054,16 @@ html.trip :is(#fabs, #fabsR, .fab-free, #miniInst, .topbar, #gotoRow, #btnMOB, .
 .g-sq { display: none; }
 
 :is(.gauge, #miniInst) svg, .gl-prev svg { border-radius: 50%; }
+html.no-instbtn #btnInst { display: none !important; }
+.lt-open { display: block; width: 100%; margin: 6px 0 4px; padding: 12px; border-radius: 14px; border: 1px dashed var(--accent, #7CC0FF); background: transparent; color: var(--accent, #7CC0FF); font: 600 15px var(--f-ui); }
+#lookTry { position: absolute; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 950; padding: 10px 12px 12px; background: color-mix(in srgb, var(--mt-bg, #16283A) 94%, transparent); color: #EEF4FA; border-radius: 20px 20px 0 0; box-shadow: 0 -6px 22px rgba(0,0,0,.35); touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+#lookTry[hidden] { display: none !important; }
+.lt-head { display: flex; align-items: center; gap: 8px; }
+.lt-arr { flex: none; width: 46px; height: 46px; border-radius: 50%; border: 0; background: rgba(255,255,255,.12); color: #fff; font: 400 32px/44px var(--f-ui); padding: 0; }
+.lt-name { flex: 1; text-align: center; min-width: 0; } .lt-name b { display: block; font-size: 18px; } .lt-name span { display: block; font-size: 12.5px; color: #A9BCCD; }
+.cockpit.lt-ck { position: static !important; inset: auto !important; z-index: auto !important; display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 !important; margin: 10px 0 6px; background: transparent !important; height: auto; }
+.cockpit.lt-ck .gauge { padding: 4px 2px !important; border-radius: 12px; }
+.cockpit.lt-ck .g-lbl { font-size: 9px !important; } .cockpit.lt-ck .g-foot { display: none !important; }
+.lt-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; } .lt-dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.25); } .lt-dots i.on { background: var(--mt-acc, #7CC0FF); width: 14px; border-radius: 3px; }
+.lt-btns { display: flex; gap: 8px; } .lt-btns .btn { flex: 1; }
+html.looktry :is(#gotoRow, .topbar .chips) { visibility: hidden; }

@@ -2737,7 +2737,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 133. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 134. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -7213,12 +7213,12 @@ setTimeout(applyFabLayout, 300);
 })();
 function openGaugeLook() {
   const st = S.settings, seg = (k, cur, opts) => '<div class="seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(cur) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
-  openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div>' + glPicker(st.gTheme || 'midnight') +
+  openSheet('<h3>Gauge look</h3><div class="sub">For the speed circle, the instruments and, if you like, the buttons</div><button type="button" class="lt-open" data-looktry="1">◀ ▶ Swipe through every look on the chart</button>' + glPicker(st.gTheme || 'midnight') +
     '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
     '<div class="field"><label>Theme the rest of the app with it</label>' + seg('fabLook', st.fabLook || 'theme', [['app', 'Everything'], ['gauge', 'Buttons and tab bar'], ['theme', 'Nothing else']]) + '</div>' +
     '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
-    '<div class="row-btns"><button class="btn primary" data-act="close">Done</button></div>');
+    '<div class="row-btns"><button class="btn" data-looktry="1">Try them on the chart (swipe)</button><button class="btn primary" data-act="close">Done</button></div>');
 }document.addEventListener('click', (e) => { if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openGaugeLook(); } });
 function applyGArt() { document.documentElement.dataset.gart = S.settings.gArt || 'on'; }
 applyGArt();
@@ -7912,6 +7912,44 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.target.id === 'tripQ' && e.key === 'Enter' && TRIP.list[0]) { e.preventDefault(); const o = TRIP.list[0]; tripSet(e.target.dataset.for, { name: o.name, lat: o.lat, lon: o.lon }); } });
 document.addEventListener('change', (e) => { if (e.target.id !== 'tripDT') return; const t = Date.parse(e.target.value); if (t) { S.plan.depart = t; RT.depart = t; savePlan(); tripCardRender(); } });
+/* ---------- try looks live: swipe left and right, the whole app (chart buttons, speed circle, tab bar, gauges) changes as you go ---------- */
+const LT = { on: false, i: 0, orig: null, x0: null };
+const ltOrder = () => ['Tech', 'Original', 'Photo', 'Classic', 'Simple'].flatMap((g) => GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)));
+const LT_G = { Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' };
+function openLookTry() {
+  const list = ltOrder(); LT.on = true; LT.orig = S.settings.gTheme || 'midnight'; LT.i = Math.max(0, list.findIndex((t) => t.id === LT.orig));
+  closeSheet(); setTab('chart'); if ($('cockpit') && !$('cockpit').hidden) setCockpit(false);
+  let el = $('lookTry'); if (!el) { el = document.createElement('div'); el.id = 'lookTry'; $('app').appendChild(el); ltSwipe(el); }
+  el.hidden = false; document.documentElement.classList.add('looktry'); ltShow();
+}
+function ltShow() {
+  const list = ltOrder(), t = list[(LT.i + list.length) % list.length]; LT.i = (LT.i + list.length) % list.length;
+  document.documentElement.dataset.gtheme = t.id; S.settings.gTheme = t.id; try { renderMini(); } catch (e) { /* */ } try { applyFabLook(); } catch (e) { /* */ }
+  const grp = t.legacy ? 'Original' : t.g, ids = ['speed', 'depth', 'wind', 'tide'];
+  let g = ''; try { g = ids.map((id) => ckGauge(id)).join(''); } catch (e) { g = ''; }
+  $('lookTry').innerHTML = '<div class="lt-head"><button type="button" class="lt-arr" data-ltgo="-1" aria-label="Previous look">‹</button><div class="lt-name"><b>' + esc(t.l) + '</b><span>' + esc(LT_G[grp] || grp) + ' · ' + (LT.i + 1) + ' of ' + list.length + '</span></div><button type="button" class="lt-arr" data-ltgo="1" aria-label="Next look">›</button></div>' +
+    '<div class="cockpit lt-ck">' + g + '</div><div class="lt-dots">' + list.map((x, k) => '<i class="' + (k === LT.i ? 'on' : '') + '"></i>').join('') + '</div>' +
+    '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn primary" data-ltdone="use">Use ' + esc(t.l) + '</button></div>';
+}
+function closeLookTry(use) {
+  LT.on = false; const el = $('lookTry'); if (el) el.hidden = true; document.documentElement.classList.remove('looktry');
+  if (!use) S.settings.gTheme = LT.orig; saveSettings(); applyGTheme(); try { applyFabLook(); } catch (e) { /* */ }
+  if (use) toast('Look: ' + gtOf(S.settings.gTheme).l, 2000);
+}
+function ltSwipe(el) {
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; LT.x0 = e.clientX; LT.y0 = e.clientY; });
+  el.addEventListener('pointerup', (e) => { if (LT.x0 == null) return; const dx = e.clientX - LT.x0, dy = e.clientY - LT.y0; LT.x0 = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { LT.i += dx < 0 ? 1 : -1; ltShow(); } });
+  el.addEventListener('pointercancel', () => { LT.x0 = null; });
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-looktry]')) { e.stopPropagation(); openLookTry(); return; }
+  const g = e.target.closest('#lookTry [data-ltgo]'); if (g) { LT.i += +g.dataset.ltgo; ltShow(); return; }
+  const d = e.target.closest('#lookTry [data-ltdone]'); if (d) closeLookTry(d.dataset.ltdone === 'use');
+});
+document.addEventListener('keydown', (e) => { if (!LT.on) return; if (e.key === 'ArrowRight') { LT.i++; ltShow(); } if (e.key === 'ArrowLeft') { LT.i--; ltShow(); } if (e.key === 'Escape') closeLookTry(false); });
+// the instruments button is not needed: tapping the speed circle opens the instruments (Andy). Arrange can still bring it back.
+if (!S.settings.instBtnSeeded) { S.settings.instBtnHidden = true; S.settings.instBtnSeeded = 1; saveSettings(); }
+document.documentElement.classList.toggle('no-instbtn', S.settings.instBtnHidden === true);
 window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
