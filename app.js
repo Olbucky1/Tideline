@@ -205,6 +205,7 @@ const LAYERS = {
   places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.99, maxNativeZoom: 13, minZoom: 5, opacity: 0.8, zIndex: 3, attribution: 'Labels: Esri' }), // quiet grey town names, gone before street names appear
   roads: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.49, maxNativeZoom: 12, opacity: 0.4, zIndex: 2, attribution: 'Roads: Esri' }), // main roads only: the layer fades out before neighbourhood streets appear
   street: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }),
+  cleanBase: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { className: 'clean-base', maxZoom: 19, maxNativeZoom: 16, attribution: 'Base: Esri · Depths: NOAA ENC' }),
   seamarks: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Seamarks: OpenSeaMap' }),
 };
 (() => { let ok = 0, probing = 0; // if NOAA refuses the display settings, step down: fewer settings, then its plain chart
@@ -220,12 +221,13 @@ const CHARTS = {
   noaa: { name: 'NOAA chart', note: 'Official US charts: depths, buoys, lights', layers: ['noaa'] },
   street: { name: 'Street map', note: 'Roads, marinas and shoreline, worldwide', layers: ['street'] },
   satellite: { name: 'Satellite only', note: 'Aerial photo, worldwide', layers: ['satellite'] },
+  clean: { name: 'Simple', note: 'Clean and uncluttered: land, depth shades, buoys. Drawn from NOAA data', layers: ['cleanBase'] },
 };
 if (S.settings.chart === 'hybrid') { S.settings.chart = 'noaa'; S.settings.satOver = true; }
 function chartLayerKeys() {
   const ch = CHARTS[S.settings.chart] ? S.settings.chart : 'noaa';
   let keys;
-  if (ch !== 'satellite' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
+  if (ch !== 'satellite' && ch !== 'clean' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
   else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : ch === 'noaa' ? ['ocean', 'noaa'] : CHARTS[ch].layers.slice();
   if (S.settings.seamarks && ch !== 'noaa') keys.push('seamarks');
   // town and point names are drawn by Tideline itself as plain text (see PLB), not as outlined tile labels
@@ -236,6 +238,7 @@ let demoChart = null;
 function applyChart() {
   document.documentElement.classList.toggle('sat', S.settings.chart === 'satellite' || !!S.settings.satOver);
   setTimeout(() => { try { SH.drawnKey = ''; drawShallow(); } catch (e) { /* not ready yet */ } }, 50);
+  document.documentElement.classList.toggle('cleanchart', S.settings.chart === 'clean'); setTimeout(() => { try { CLN.key = ''; drawClean(); } catch (e) { /* not ready yet */ } }, 60);
   Object.values(LAYERS).forEach((l) => { if (map.hasLayer(l)) map.removeLayer(l); });
   if (window.TL_DEMO) { // hosted demo: a sample chart image instead of live chart tiles
     if (!demoChart) demoChart = L.imageOverlay(window.TL_DEMO.chart, window.TL_DEMO.bounds, { zIndex: 1, attribution: 'Sample chart for demonstration only' });
@@ -749,9 +752,10 @@ function drawRoute() {
   if (!show) return;
   let sn = 0;
   RT.pts.forEach((p, i) => {
-    const turn = (p.turn || p.via) && !RT.edit; if (!p.turn && !p.via) sn++;
+    const turn = (p.turn || p.via) && !RT.edit && !(RT.trip && TRIP.on); if (!p.turn && !p.via) sn++;
     const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: turn ? 1000 : 1100, icon: turn ? L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6], html: '<div class="rt-turn"></div>' }) : L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + (p.turn || p.via ? ' turn' : '') + '">' + (p.turn || p.via ? '' : sn) + '</div>' }) }).addTo(RT.marks);
     if (!RT.edit) mk.on('click', () => openRouteMenu());
+    if (RT.trip && !RT.edit && TRIP.on) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); tripCardRender(); rtRerouteAround(p); setTimeout(() => { const w = () => { if (RT.busy) return setTimeout(w, 400); drawRoute(); tripCardRender(); }; w(); }, 300); });
     if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtRerouteAround(p); });
   });
 }
@@ -1290,6 +1294,33 @@ async function drawShallow() {
   }));
 }
 map.on('moveend', () => { clearTimeout(SH.t); SH.t = setTimeout(drawShallow, 400); });
+/* the Simple chart (savvy-navvy style): our own drawing of NOAA ENC depth areas in four calm blues and land in sand, nothing else.
+   Buoys, lights and place names come from the usual Tideline layers on top. */
+const CLN = { layer: null, tiles: new Map(), key: '' };
+async function drawClean() {
+  if (!CLN.layer) CLN.layer = L.layerGroup().addTo(map);
+  if (S.settings.chart !== 'clean') { CLN.layer.clearLayers(); CLN.key = ''; return; }
+  const z = map.getZoom(); if (z < 8) { CLN.layer.clearLayers(); CLN.key = ''; return; }
+  // paint coarse to fine: the coastal chart everywhere, then the more detailed charts where they exist
+  const svcs = z >= 13.5 ? ['enc_coastal', 'enc_approach', 'enc_harbour'] : z >= 11 ? ['enc_coastal', 'enc_approach'] : ['enc_coastal'], b = map.getBounds().pad(0.1), STEP = { enc_harbour: 0.04, enc_approach: 0.15, enc_coastal: 0.5 };
+  const keys = []; svcs.forEach((svc) => { const step = STEP[svc]; for (let la = Math.floor(b.getSouth() / step) * step; la < b.getNorth(); la += step) for (let lo = Math.floor(b.getWest() / step) * step; lo < b.getEast(); lo += step) keys.push(svc + ':' + la.toFixed(3) + ':' + lo.toFixed(3) + ':' + step); });
+  if (keys.length > 60) return;
+  await Promise.all(keys.filter((k) => !CLN.tiles.has(k)).map(async (k) => { CLN.tiles.set(k, null); const [svc, la0, lo0, st0] = k.split(':'), la = +la0, lo = +lo0, step = +st0; const bb = [lo, la, lo + step, la + step];
+    try { const [d, l] = await Promise.all([encQuery(svc, 'depth', bb), encQuery(svc, 'land', bb).catch(() => [])]); CLN.tiles.set(k, { d, l }); } catch (e) { CLN.tiles.delete(k); } }));
+  const night = document.documentElement.hasAttribute('data-night'), need = wrNeedM(), dk = keys.join('|') + night + need;
+  if (dk === CLN.key || S.settings.chart !== 'clean') return; CLN.key = dk;
+  const rend = CLN.rend || (CLN.rend = L.canvas({ padding: 0.25 })); CLN.layer.clearLayers(); const seen = new Set();
+  const shade = (d1) => night ? (d1 < need ? '#3A2422' : d1 < 5 ? '#2A2626' : '#1B1A1C') : d1 < need ? '#A3CFEC' : d1 < 5.5 ? '#BEDFF4' : d1 < 10 ? '#D2E9F8' : '#ECF6FD';
+  const poly = (f, col) => { const id = f.id != null ? f.id : f.rings[0].length + ':' + f.rings[0][0].join(','); if (seen.has(id)) return; seen.add(id);
+    CLN.layer.addLayer(L.polygon(f.rings.map((r) => r.map(([lo2, la2]) => [la2, lo2])), { renderer: rend, stroke: false, fillColor: col, fillOpacity: 1, interactive: false })); };
+  const all = []; keys.forEach((k) => { const t = CLN.tiles.get(k); if (t) all.push(t); });
+  svcs.forEach((svc) => keys.filter((k) => k.startsWith(svc + ':')).forEach((k) => { const t = CLN.tiles.get(k); if (!t) return;
+    t.d.filter((f) => f.d1 != null && f.rings).sort((a, b2) => b2.d1 - a.d1).forEach((f) => poly(f, shade(f.d1))); t.l.filter((f) => f.rings).forEach((f) => poly(f, night ? '#262321' : '#F1E6CC')); }));
+  // a thin safety contour where water gets too shallow for your boat
+  all.forEach((t) => t.d.filter((f) => f.d1 != null && f.d1 < need && f.rings).forEach((f) => CLN.layer.addLayer(L.polygon(f.rings.map((r) => r.map(([lo2, la2]) => [la2, lo2])), { renderer: rend, fill: false, color: night ? '#7A3A33' : '#3C86C4', weight: 0.7, opacity: 0.55, interactive: false }))));
+}
+map.on('moveend', () => { if (S.settings.chart !== 'clean') return; clearTimeout(CLN.t); CLN.t = setTimeout(drawClean, 300); });
+setInterval(() => { if (S.settings.chart === 'clean' && !CLN.busy) { CLN.busy = true; drawClean().catch(() => {}).finally(() => { CLN.busy = false; }); } }, 5000); // tiles that arrive late get drawn
 setTimeout(drawShallow, 3000);
 
 /* ---------- go to / navigation ---------- */
@@ -2737,7 +2768,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 138. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 139. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6285,7 +6316,7 @@ const GA_CLASS = { swirl: 'ga-swirl', topo: 'ga-topos', rose: 'ga-roses', hz: 'g
 // a preview that is the real thing: the theme's bezel and face with a speed dial on it
 function glPrev(id, gf) { return '<i class="gl-prev" data-gt="' + id + '"' + (gf ? ' data-gf="' + gf + '"' : '') + '><svg viewBox="0 0 200 200">' + bezelSvg('gp' + id + (++BZN % 1000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/>' + speedGauge(6.4, 8.2, 10) + '</g></svg></i>'; }
 function glPicker(cur) {
-  return ['Tech', 'Original', 'Photo', 'Classic', 'Simple'].map((g) => '<div class="mo-h">' + ({ Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id) + t.l + '</button>').join('') + '</div>').join('');
+  return ['Tech', 'Original', 'Photo', 'Classic', 'Simple'].map((g) => '<div class="mo-h">' + ({ Tech: 'High-tech digital', Original: 'The originals', Photo: 'Artwork', Classic: 'More classic', Simple: 'Simple' }[g] || g) + '</div><div class="btheme-row gl-row">' + GT.filter((t) => (g === 'Original' ? t.legacy : !t.legacy && t.g === g)).map((t) => '<button type="button" data-gtheme="' + t.id + '" class="' + (cur === t.id ? 'on' : '') + '">' + glPrev(t.id, S.settings.gFace || '') + t.l + '</button>').join('') + '</div>').join('');
 }
 function applyGTheme() { document.documentElement.dataset.gtheme = S.settings.gTheme || 'midnight'; try { renderMini(); } catch (e) { /* early */ } }
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; }
@@ -6852,7 +6883,13 @@ document.addEventListener('click', (e) => { const b = e.target.closest('[data-to
 setTimeout(() => { if (!showWelcome() && !store.get('toured', false) && !store.get('welcomed', false)) { /* signed in already */ } }, 600);
 /* ---------- chart orientation: north up or course up (bow forward), and a flat 2D or tilted 3D view ---------- */
 const ORI = { last: 0, t: null };
-function roseSvg() { return '<svg viewBox="0 0 24 24" aria-hidden="true" class="rose"><g transform="rotate(' + mapRot().toFixed(1) + ' 12 12)"><path class="rose-n" d="M12 2.2 14 12h-4z"/><path class="rose-s" d="M12 21.8 10 12h4z"/><path class="rose-ew" d="M2.2 12 12 10v4zM21.8 12 12 14v-4z"/><circle cx="12" cy="12" r="1.6" class="rose-c"/></g></svg>'; }
+function roseSvg() { // a real-looking compass rose: every point is two bevelled halves (lit and shaded), red north, minor points behind
+  const pt = (deg, len, w, cls) => { const r = (d) => (d - 90) * Math.PI / 180, P = (d, l) => (12 + Math.cos(r(d)) * l).toFixed(2) + ' ' + (12 + Math.sin(r(d)) * l).toFixed(2);
+    return '<path class="' + cls + '1" d="M' + P(deg, len) + ' L' + P(deg - 90, w) + ' L12 12Z"/><path class="' + cls + '2" d="M' + P(deg, len) + ' L' + P(deg + 90, w) + ' L12 12Z"/>'; };
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" class="rose rose3d"><g transform="rotate(' + mapRot().toFixed(1) + ' 12 12)">' +
+    '<circle cx="12" cy="12" r="7.2" class="rose-ring"/>' + [45, 135, 225, 315].map((d) => pt(d, 6.6, 1.5, 'rose-m')).join('') +
+    [90, 180, 270].map((d) => pt(d, 10.2, 2.1, 'rose-w')).join('') + pt(0, 10.6, 2.2, 'rose-n') +
+    '<circle cx="12" cy="12" r="1.5" class="rose-c"/></g></svg>'; }
 function renderOrientBtn() {
   const b = $('btnOrient'); if (!b) return; const o = S.settings.orient || 'north', d3 = !!S.settings.view3d;
   b.innerHTML = roseSvg() + '<span class="or-lbl">' + (o === 'course' ? 'BOW' : 'N') + (d3 ? '·3D' : '') + '</span>';
@@ -7861,7 +7898,7 @@ function tripCardRender() {
   h += '<div class="tc-when">' + opts.map(([k, l, t]) => '<button type="button" class="chip-b' + ((k === 'now' && !RT.depart) || (t && RT.depart && Math.abs(t - RT.depart) < 60000) ? ' on' : '') + '" data-twhen="' + k + '"' + (t ? ' data-t="' + t + '"' : '') + '>' + l + '</button>').join('') +
     (best ? '<button type="button" class="chip-b best" data-twhen="best" data-t="' + best.t + '">Better: ' + day(best.t) + fmtClock(best.t) + '</button>' : '') +
     '<label class="chip-b pick">' + (RT.depart && !opts.some(([, , t]) => t && Math.abs(t - RT.depart) < 60000) && !(best && Math.abs(best.t - RT.depart) < 60000) ? 'Leave ' + day(RT.depart) + fmtClock(RT.depart) : 'Pick a time…') + '<input type="datetime-local" id="tripDT" value="' + toLocalInput(RT.depart || r30(now)) + '"></label></div>';
-  h += '<div class="tc-foot"><button type="button" data-tgo="save">Save route</button><button type="button" data-tgo="edit">Edit on chart</button><button type="button" data-tgo="direct">Straight line</button></div>';
+  h += '<button type="button" class="tc-brief" data-tgo="brief">▶ Preview the trip: briefing and flyby</button><div class="tc-hint">Drag any point on the route to reshape it.</div>' + '<div class="tc-foot"><button type="button" data-tgo="save">Save route</button><button type="button" data-tgo="edit">Edit on chart</button><button type="button" data-tgo="direct">Straight line</button></div>';
   card.innerHTML = h;
 }
 function tripBest(stops, dNm) {
@@ -7907,6 +7944,7 @@ document.addEventListener('click', async (e) => {
   if ((b = q('[data-twhen]'))) { const k = b.dataset.twhen; S.plan.depart = k === 'now' ? null : +b.dataset.t; savePlan(); const z0 = avoidZonesFor(RT.depart || Date.now()).length; RT.depart = S.plan.depart; if (avoidZonesFor(RT.depart || Date.now()).length !== z0) tripRoute(); else tripCardRender(); return; }
   if ((b = q('[data-tgo]'))) { const a = b.dataset.tgo;
     if (a === 'retry') { tripRoute(); return; }
+    if (a === 'brief') { openBriefing(); return; }
     if (a === 'direct') { const t = S.plan.to; closeTrip(); setGoto(t.name, t.lat, t.lon); return; }
     if (a === 'edit') { closeTrip(true); RT.trip = false; routeMode(true); return; }
     if (a === 'save' || (a === 'go' && RT.depart && RT.depart > Date.now() + 300000)) { const f = planFrom(), t = S.plan.to; S.routes.push({ id: Date.now(), name: f.name + ' to ' + t.name, depart: RT.depart || null, pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn, stop: p.stop, unchecked: p.unchecked })) }); store.set('routes', S.routes); toast(RT.depart ? 'Saved for ' + new Date(RT.depart).toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtClock(RT.depart) + ', in Navigate → My trips.' : 'Saved in Navigate → My trips.', 3500); return; }
@@ -7938,15 +7976,26 @@ function openLookTry() {
   let el = $('lookTry'); if (!el) { el = document.createElement('div'); el.id = 'lookTry'; $('app').appendChild(el); ltSwipe(el); }
   el.hidden = false; document.documentElement.classList.add('looktry'); ltShow();
 }
-function ltShow() {
-  const list = ltOrder(), t = list[(LT.i + list.length) % list.length]; LT.i = (LT.i + list.length) % list.length;
+function ltApply() { // put the look in the middle of the carousel on the whole app (buttons, speed circle, tab bar, menus)
+  const list = ltOrder(), t = list[LT.i]; if (!t) return;
   document.documentElement.dataset.gtheme = t.id; S.settings.gTheme = t.id; try { renderMini(); } catch (e) { /* */ } try { applyFabLook(); } catch (e) { /* */ }
-  const grp = t.legacy ? 'Original' : t.g, ids = ['speed', 'depth', 'wind', 'tide'];
-  let g = ''; try { g = ids.map((id) => ckGauge(id)).join(''); } catch (e) { g = ''; }
-  $('lookTry').innerHTML = '<div class="lt-head"><button type="button" class="lt-arr" data-ltgo="-1" aria-label="Previous look">‹</button><div class="lt-name"><b>' + esc(t.l) + '</b><span>' + esc(LT_G[grp] || grp) + ' · ' + (LT.i + 1) + ' of ' + list.length + '</span></div><button type="button" class="lt-arr" data-ltgo="1" aria-label="Next look">›</button></div>' +
-    '<div class="cockpit lt-ck">' + g + '</div><div class="lt-faces"><span>Face</span>' + GFACES.map(([k, l, c]) => '<button type="button" data-ltface="' + k + '" class="' + ((S.settings.gFace || '') === k ? 'on' : '') + '" title="' + l + '" style="background:' + (c || 'conic-gradient(#14284A 0 25%,#F2EAD6 0 50%,#0F4C4C 0 75%,#0B0B0B 0)') + '"></button>').join('') + '</div><div class="lt-dots">' + list.map((x, k) => '<i class="' + (k === LT.i ? 'on' : '') + '"></i>').join('') + '</div>' +
-    '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn primary" data-ltdone="use">Use ' + esc(t.l) + '</button></div>';
+  const grp = t.legacy ? 'Original' : t.g, el = $('lookTry'); if (!el) return;
+  el.querySelector('.lt-name').innerHTML = '<b>' + esc(t.l) + '</b><span>' + esc(LT_G[grp] || grp) + ' · ' + (LT.i + 1) + ' of ' + list.length + '</span>';
+  el.querySelector('[data-ltdone="use"]').textContent = 'Use ' + t.l;
+  el.querySelectorAll('.lt-card').forEach((c, k) => c.classList.toggle('on', k === LT.i));
 }
+function ltShow() { // a sliding row of live previews: drag it and you see the look you're leaving and the one you're coming to
+  const list = ltOrder(); LT.i = (LT.i + list.length) % list.length; const f = S.settings.gFace || '';
+  $('lookTry').innerHTML = '<div class="lt-head"><button type="button" class="lt-arr" data-ltgo="-1" aria-label="Previous look">‹</button><div class="lt-name"></div><button type="button" class="lt-arr" data-ltgo="1" aria-label="Next look">›</button></div>' +
+    '<div class="lt-strip" id="ltStrip">' + list.map((t, k) => '<div class="lt-card" data-k="' + k + '">' + glPrev(t.id, f) + '<span>' + esc(t.l) + '</span></div>').join('') + '</div>' +
+    '<div class="lt-faces"><span>Face</span>' + GFACES.map(([k, l, c]) => '<button type="button" data-ltface="' + k + '" class="' + (f === k ? 'on' : '') + '" title="' + l + '" style="background:' + (c || 'conic-gradient(#14284A 0 25%,#F2EAD6 0 50%,#0F4C4C 0 75%,#0B0B0B 0)') + '"></button>').join('') + '</div>' +
+    '<div class="lt-btns"><button type="button" class="btn" data-ltdone="cancel">Keep my old look</button><button type="button" class="btn primary" data-ltdone="use">Use</button></div>';
+  const st = $('ltStrip'), card = () => st.querySelector('.lt-card'), w = () => (card() ? card().offsetWidth + 10 : 140);
+  requestAnimationFrame(() => { st.scrollLeft = LT.i * w(); ltApply(); });
+  st.addEventListener('scroll', () => { clearTimeout(LT.st); LT.st = setTimeout(() => { const k = Math.max(0, Math.min(list.length - 1, Math.round(st.scrollLeft / w()))); if (k !== LT.i) { LT.i = k; ltApply(); } }, 90); }, { passive: true });
+  st.addEventListener('click', (e) => { const c = e.target.closest('.lt-card'); if (!c) return; LT.i = +c.dataset.k; st.scrollTo({ left: LT.i * w(), behavior: 'smooth' }); ltApply(); });
+}
+function ltGo(d) { const list = ltOrder(), st = $('ltStrip'); LT.i = (LT.i + d + list.length) % list.length; if (st) { const c = st.querySelector('.lt-card'); st.scrollTo({ left: LT.i * (c.offsetWidth + 10), behavior: 'smooth' }); } ltApply(); }
 function closeLookTry(use) {
   LT.on = false; const el = $('lookTry'); if (el) el.hidden = true; document.documentElement.classList.remove('looktry');
   if (!use) S.settings.gTheme = LT.orig; saveSettings(); applyGTheme(); try { applyFabLook(); } catch (e) { /* */ }
@@ -7954,16 +8003,16 @@ function closeLookTry(use) {
 }
 function ltSwipe(el) {
   el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; LT.x0 = e.clientX; LT.y0 = e.clientY; });
-  el.addEventListener('pointerup', (e) => { if (LT.x0 == null) return; const dx = e.clientX - LT.x0, dy = e.clientY - LT.y0; LT.x0 = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { LT.i += dx < 0 ? 1 : -1; ltShow(); } });
+  el.addEventListener('pointerup', (e) => { if (LT.x0 == null || e.target.closest('#ltStrip')) { LT.x0 = null; return; } const dx = e.clientX - LT.x0, dy = e.clientY - LT.y0; LT.x0 = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { LT.i += dx < 0 ? 1 : -1; ltShow(); } });
   el.addEventListener('pointercancel', () => { LT.x0 = null; });
 }
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-looktry]')) { e.stopPropagation(); openLookTry(); return; }
-  const g = e.target.closest('#lookTry [data-ltgo]'); if (g) { LT.i += +g.dataset.ltgo; ltShow(); return; }
-  const fb = e.target.closest('[data-ltface]'); if (fb) { S.settings.gFace = fb.dataset.ltface; saveSettings(); applyGFace(); if (LT.on) ltShow(); else if (!sheet.hidden) openGaugeLook(); return; }
+  const g = e.target.closest('#lookTry [data-ltgo]'); if (g) { ltGo(+g.dataset.ltgo); return; }
+  const fb = e.target.closest('[data-ltface]'); if (fb) { S.settings.gFace = fb.dataset.ltface; saveSettings(); applyGFace(); if (LT.on) { const k = LT.i; ltShow(); LT.i = k; } else if (!sheet.hidden) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } toast('Face: ' + (GFACES.find((x) => x[0] === S.settings.gFace) || GFACES[0])[1], 1500); return; }
   const d = e.target.closest('#lookTry [data-ltdone]'); if (d) closeLookTry(d.dataset.ltdone === 'use');
 });
-document.addEventListener('keydown', (e) => { if (!LT.on) return; if (e.key === 'ArrowRight') { LT.i++; ltShow(); } if (e.key === 'ArrowLeft') { LT.i--; ltShow(); } if (e.key === 'Escape') closeLookTry(false); });
+document.addEventListener('keydown', (e) => { if (!LT.on) return; if (e.key === 'ArrowRight') ltGo(1); if (e.key === 'ArrowLeft') ltGo(-1); if (e.key === 'Escape') closeLookTry(false); });
 // the instruments button is not needed: tapping the speed circle opens the instruments (Andy). Arrange can still bring it back.
 if (!S.settings.instBtnSeeded) { S.settings.instBtnHidden = true; S.settings.instBtnSeeded = 1; saveSettings(); }
 document.documentElement.classList.toggle('no-instbtn', S.settings.instBtnHidden === true);
@@ -8002,7 +8051,90 @@ async function shipPhoto(t) {
   } catch (e) { hit = null; }
   show(hit);
 }
-window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+/* ---------- pre-trip briefing and flyby: the whole route leg by leg, what to steer, what you'll pass, what to watch for ---------- */
+const BRF = { on: false, i: -1, legs: [], play: null };
+const REGION_NOTES = [
+  { box: [36.8, -77.4, 39.7, -75.5], notes: ['Crab-pot floats are thick in the shallows and creeks from spring to late fall: keep a lookout and steer around them, especially at night.', 'Big ships and tugs with barges use the main shipping channel; they cannot stop or turn quickly. Cross at right angles and stay out of their way.', 'Summer afternoons bring fast thunderstorms from the west: check the radar before you leave and know where you would duck in.', 'Wind against tide off points (Thomas Point, the Bay Bridge, river mouths) makes short, steep chop.', 'The Bay Bridge spans have strong current between the piers; keep well clear of the pier bases.'] },
+  { box: [24.0, -83.5, 25.9, -79.8], notes: ['Coral heads and patch reefs rise suddenly: read the water colour and keep to marked channels.', 'Lobster and stone-crab traps are everywhere in season.'] },
+  { box: [30.0, -6.0, 46.0, 36.5], notes: ['Iberian orcas have been interacting with sailboat rudders off Spain and Portugal: check the latest reports before you go.'] },
+];
+async function legBrief(a, b) { // what is near this leg: buoys and lights, wrecks and obstructions, charted shallows, bridges
+  const pad = 0.004, bb = [Math.min(a.lon, b.lon) - pad, Math.min(a.lat, b.lat) - pad, Math.max(a.lon, b.lon) + pad, Math.max(a.lat, b.lat) + pad];
+  const d = distNm(a, b), near = (p, nm) => { const t = Math.max(0, Math.min(1, ((p.lon - a.lon) * (b.lon - a.lon) + (p.lat - a.lat) * (b.lat - a.lat)) / (((b.lon - a.lon) ** 2 + (b.lat - a.lat) ** 2) || 1e-12))); return distNm(p, { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t }) < nm; };
+  const out = { marks: [], haz: [], minD: null, bridges: [] };
+  const svc = d < 3 ? 'enc_harbour' : 'enc_approach';
+  try { const [bu, be, li] = await Promise.all(['buoy', 'beacon', 'light'].map((l) => encPoints(svc, l, bb).catch(() => []))); out.marks = bu.concat(be, li).filter((p) => near(p, 0.12)).slice(0, 8).map((p) => { const n = navaidInfo(p); return { p, n, side: ((b.lon - a.lon) * (p.lat - a.lat) - (b.lat - a.lat) * (p.lon - a.lon)) > 0 ? 'left' : 'right' }; }); } catch (e) { /* */ }
+  try { const [w, o] = await Promise.all(['wreck', 'obstr'].map((l) => encPoints(svc, l, bb).catch(() => []))); out.haz = w.concat(o).filter((p) => near(p, 0.15)).slice(0, 5); } catch (e) { /* */ }
+  try { const dep = await encQuery(svc, 'depth', bb); for (let k = 2; k < 19; k++) { const f = k / 20, x = a.lon + (b.lon - a.lon) * f, y = a.lat + (b.lat - a.lat) * f; dep.forEach((g) => { if (g.d1 != null && g.rings && encInside(g.rings, x, y) && (out.minD == null || g.d1 < out.minD)) out.minD = g.d1; }); } } catch (e) { /* */ }
+  try { out.bridges = bridgesOnLeg(a, b); } catch (e) { /* */ }
+  return out;
+}
+async function openBriefing() {
+  const stops = tripStops(); if (!stops || !RT.pts || RT.pts.length < 2) return;
+  BRF.on = true; BRF.i = -1; BRF.legs = []; let el = $('briefing'); if (!el) { el = document.createElement('div'); el.id = 'briefing'; $('app').appendChild(el); }
+  el.hidden = false; document.documentElement.classList.add('briefing'); $('tripCard').hidden = true;
+  el.innerHTML = '<div class="bf-busy"><span class="tc-spin"></span>Preparing your trip briefing…</div>';
+  const st = routeStats(), dep = RT.depart || Date.now(), wx = typeof tripWx === 'function' ? tripWx(stops, dep, st.total) : null;
+  // legs between turns
+  // merge the router's small wiggles into real legs: a new leg only at a stop or where the course changes by 15° or more
+  // merge the router's small wiggles into real legs: a new leg only at a stop or where the course changes by 25° or more;
+  // the details (marks, wrecks, depths) still come from the true path under each leg
+  const raw = RT.pts.filter((p, i) => !i || distNm(RT.pts[i - 1], p) >= 0.02); let cur = [raw[0]], t = dep;
+  const flush = () => { if (cur.length < 2) return; const a = cur[0], b = cur[cur.length - 1], d = cur.reduce((m, p, k) => k ? m + distNm(cur[k - 1], p) : 0, 0), hrs = d / st.spd; BRF.legs.push({ a, b, d, brg: bearing(a, b), hrs, t0: t, sub: cur.slice(), info: null }); t += hrs * 3600000; };
+  for (let i = 1; i < raw.length; i++) { const p = raw[i]; cur.push(p); const nx = raw[i + 1]; if (!nx) break;
+    const b0 = bearing(cur[0], p), b1 = bearing(p, nx); if (p.stop || Math.abs(((b1 - b0 + 540) % 360) - 180) >= 25) { flush(); cur = [p]; } }
+  flush();
+  await Promise.all(BRF.legs.map(async (L0) => { const parts = await Promise.all(L0.sub.slice(1).map((p, k) => legBrief(L0.sub[k], p)));
+    const seen = new Set(), uniq = (arr, key) => arr.filter((x) => { const k2 = key(x); if (seen.has(k2)) return false; seen.add(k2); return true; });
+    L0.info = { marks: uniq(parts.flatMap((x) => x.marks), (m) => 'm' + m.p.lat.toFixed(5) + m.p.lon.toFixed(5)).slice(0, 8), haz: uniq(parts.flatMap((x) => x.haz), (h) => 'h' + h.lat.toFixed(5) + h.lon.toFixed(5)).slice(0, 6),
+      minD: parts.reduce((m, x) => x.minD == null ? m : m == null ? x.minD : Math.min(m, x.minD), null), bridges: uniq(parts.flatMap((x) => x.bridges), (x) => 'b' + x.br.id) }; }));
+  if (!BRF.on) return;
+  BRF.legs.forEach((L0, k) => { if ((k === 0 || k === BRF.legs.length - 1) && L0.info.minD != null && L0.info.minD < 0.5) L0.info.minD = null; }); // the dock ends
+  const c = stops[0], reg = REGION_NOTES.filter((r) => c.lat > r.box[0] && c.lat < r.box[2] && c.lon > r.box[1] && c.lon < r.box[3]).flatMap((r) => r.notes);
+  const need = wrNeedM(), shoal = BRF.legs.filter((L0) => L0.info.minD != null && L0.info.minD < need + 0.6), haz = BRF.legs.reduce((n, L0) => n + L0.info.haz.length, 0), brs = BRF.legs.flatMap((L0) => L0.info.bridges);
+  const al = (typeof ALR !== 'undefined' ? ALR.list : []).filter((x) => !/^(Special Weather Statement)$/i.test(x.event)).slice(0, 3);
+  let h = '<div class="bf-top"><b>Trip briefing</b><span>' + esc(stops[0].name) + ' → ' + esc(stops[stops.length - 1].name) + '</span><button type="button" class="bf-x" data-bf="close" aria-label="Close">×</button></div><div class="bf-body">';
+  h += '<div class="bf-sum tnum"><div><b>' + fmtDist(st.total) + '</b><span>distance</span></div><div><b>' + fmtDur(st.hrs) + '</b><span>underway</span></div><div><b>' + fmtClock(st.arrive) + '</b><span>arrive</span></div><div><b>' + BRF.legs.length + '</b><span>legs</span></div></div>';
+  const watch = [];
+  if (wx && !wx.beyond) watch.push((wx.level === 'no' ? '⛔ ' : wx.level === 'care' ? '⚠ ' : '✓ ') + 'Weather: wind up to ' + Math.round(speedOut(wx.maxW)) + ', gusts ' + Math.round(speedOut(wx.maxG)) + ' ' + SPEED_LBL[S.settings.speedUnit] + (wx.words.filter((w) => !/^gusts|after dark/.test(w)).length ? ' · ' + wx.words.filter((w) => !/^gusts|after dark/.test(w)).join(' · ') : '') + '.');
+  al.forEach((x) => watch.push('⚠ ' + x.event + ' in effect.'));
+  if (shoal.length) watch.push('⚠ Shallow water: the chart shows as little as ' + fmtLen(Math.min(...shoal.map((L0) => L0.info.minD)) / 0.3048) + ' on ' + shoal.length + ' leg' + (shoal.length > 1 ? 's' : '') + ' (you need ' + fmtLen(need / 0.3048) + '). Slow down and watch the depth there.');
+  if (haz) watch.push('⚠ ' + haz + ' charted wreck' + (haz > 1 ? 's or obstructions' : ' or obstruction') + ' close to the route. They are marked on the legs below.');
+  brs.forEach((x) => watch.push('🌉 ' + x.br.name + ': ' + x.j.text));
+  if (RT.pts.some((p) => p.unchecked)) watch.push('⛔ Part of the route is not checked against the chart (dashed). Re-route or check it yourself before you go.');
+  if (wx && wx.dark) watch.push('🌙 You arrive after dark: lights on, slower speed, and know the lit marks on the way in.');
+  reg.forEach((n) => watch.push('ℹ ' + n));
+  watch.push('ℹ Charted depths are at low water (MLLW); the tide adds to them. Keep a lookout and check the official chart.');
+  h += '<div class="bf-h">Watch for</div><ul class="bf-watch">' + watch.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>';
+  h += '<div class="bf-h">Leg by leg</div><div class="bf-legs">' + BRF.legs.map((L0, k) => '<button type="button" class="bf-leg" data-bfleg="' + k + '"><b>' + (k + 1) + '</b><span>Steer <b>' + fmtBrg(L0.brg) + '°T</b> for ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + (L0.info.marks.length ? ' · ' + L0.info.marks.length + ' mark' + (L0.info.marks.length > 1 ? 's' : '') : '') + (L0.info.haz.length || (L0.info.minD != null && L0.info.minD < need + 0.6) ? ' · <em>⚠ watch</em>' : '') + '</span></button>').join('') + '</div></div>';
+  h += '<div class="bf-btns"><button type="button" class="btn" data-bf="close">Back to the route</button><button type="button" class="btn primary" data-bf="play">▶ Fly the route</button></div>';
+  el.innerHTML = h;
+}
+function brLeg(k) {
+  const L0 = BRF.legs[k], el = $('briefing'); if (!L0 || !el) return; BRF.i = k;
+  map.flyToBounds(L.latLngBounds([[L0.a.lat, L0.a.lon], [L0.b.lat, L0.b.lon]]), { paddingTopLeft: [30, 60], paddingBottomRight: [30, 300], maxZoom: 15, duration: 1.4 });
+  if (BRF.mk) map.removeLayer(BRF.mk); BRF.mk = L.polyline([[L0.a.lat, L0.a.lon], [L0.b.lat, L0.b.lon]], { color: '#FFD54F', weight: 8, opacity: 0.7, interactive: false }).addTo(map);
+  const need = wrNeedM(), nxt = BRF.legs[k + 1], turn = nxt ? Math.round(((nxt.brg - L0.brg + 540) % 360) - 180) : null;
+  const lines = [];
+  L0.info.marks.forEach((m) => { const lat = m.n.col === 'red' ? 'red' : m.n.col === 'green' ? 'green' : ''; lines.push('Pass ' + (m.n.name || ('a ' + (lat ? lat + ' ' : '') + m.n.shape)) + ' on your ' + m.side + (lat ? (m.side === (lat === 'red' ? 'right' : 'left') ? ' ✓' : ' (check: red right returning)') : '') + '.'); });
+  L0.info.haz.forEach((p) => lines.push('⚠ Charted ' + (p.kind === 'wreck' ? 'wreck' : 'obstruction') + (p.a.VALSOU != null ? ' (' + fmtLen(+p.a.VALSOU / 0.3048) + ' over it)' : '') + ' close by. Give it room.'));
+  if (L0.info.minD != null) lines.push((L0.info.minD < need + 0.6 ? '⚠ Shallowest charted water on this leg: ' : 'Least charted depth: ') + fmtLen(L0.info.minD / 0.3048) + '.');
+  L0.info.bridges.forEach((x) => lines.push('🌉 ' + x.br.name + ': ' + x.j.text));
+  el.innerHTML = '<div class="bf-top"><b>Leg ' + (k + 1) + ' of ' + BRF.legs.length + '</b><span>' + fmtClock(L0.t0) + ' · ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + '</span><button type="button" class="bf-x" data-bf="close" aria-label="Close">×</button></div>' +
+    '<div class="bf-steer"><span class="bf-arrow" style="transform:rotate(' + Math.round(L0.brg + mapRot()) + 'deg)">▲</span><div><b class="tnum">' + fmtBrg(L0.brg) + '°T</b><span>' + compass16(L0.brg) + (nxt ? ' · then turn ' + (Math.abs(turn) < 8 ? 'and hold course' : Math.abs(turn) + '° ' + (turn > 0 ? 'to starboard' : 'to port') + ' onto ' + fmtBrg(nxt.brg) + '°') : ' · arrive') + '</span></div></div>' +
+    (lines.length ? '<ul class="bf-watch">' + lines.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '<p class="bf-quiet">Open water on this leg. Nothing charted close to the line.</p>') +
+    '<div class="bf-btns"><button type="button" class="btn" data-bf="prev"' + (k ? '' : ' disabled') + '>‹ Back</button><button type="button" class="btn" data-bf="' + (BRF.play ? 'pause' : 'play') + '">' + (BRF.play ? '❚❚ Pause' : '▶ Play') + '</button><button type="button" class="btn primary" data-bf="' + (nxt ? 'next' : 'end') + '">' + (nxt ? 'Next ›' : 'Done') + '</button></div>';
+}
+function closeBriefing() { BRF.on = false; clearInterval(BRF.play); BRF.play = null; if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } const el = $('briefing'); if (el) el.hidden = true; document.documentElement.classList.remove('briefing'); if (TRIP.on) { tripCardRender(); tripFit(); } }
+document.addEventListener('click', (e) => {
+  const lg = e.target.closest('#briefing [data-bfleg]'); if (lg) { brLeg(+lg.dataset.bfleg); return; }
+  const b = e.target.closest('#briefing [data-bf]'); if (!b) return; const a = b.dataset.bf;
+  if (a === 'close' || a === 'end') { if (a === 'end' || BRF.i >= 0) { clearInterval(BRF.play); BRF.play = null; if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } if (a === 'end') { closeBriefing(); return; } openBriefing(); return; } closeBriefing(); return; }
+  if (a === 'next') brLeg(BRF.i + 1); if (a === 'prev') brLeg(Math.max(0, BRF.i - 1));
+  if (a === 'play') { if (BRF.i < 0) brLeg(0); clearInterval(BRF.play); BRF.play = setInterval(() => { if (BRF.i >= BRF.legs.length - 1) { clearInterval(BRF.play); BRF.play = null; brLeg(BRF.i); return; } brLeg(BRF.i + 1); }, 4500); brLeg(BRF.i); }
+  if (a === 'pause') { clearInterval(BRF.play); BRF.play = null; brLeg(BRF.i); }
+});
+window.Tideline = { S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
