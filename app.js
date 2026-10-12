@@ -455,7 +455,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
   if (k === 'gArt') applyGArt();
   if (k === 'chartGauges') { try { renderMini(); } catch (e) { /* */ } }
-  if (k === 'fabLook') applyFabLook();
+  if (k === 'fabLook' || k === 'fabArt') applyFabLook();
   if (k === 'gShape') { applyGTheme(); if (!sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
   if (k === 'ckStyle') { document.documentElement.dataset.ck = v; try { buildCockpit(); } catch (e) { /* */ } }
   if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-opts')) openGaugeLook(); }
@@ -2784,7 +2784,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 157. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 158. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6610,6 +6610,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'mfdnight'; document.do
 })();
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
+if (!S.settings.cleanDefault2) { S.settings.cleanDefault2 = 1; S.settings.fabLookSeeded = 2; S.settings.fabLook = 'theme'; S.settings.fabArt = 'simple'; try { saveSettings(); } catch (e) { /* early */ } } // buttons start plain; matching them to the look is a choice
 if (!S.settings.cleanDefault1) { S.settings.cleanDefault1 = 1; S.settings.chartGauges = 'bar'; S.settings.gTheme = 'mfdnight'; S.settings.gShape = 'round'; S.settings.gFace = ''; try { saveSettings(); } catch (e) { /* early */ } } // Andy: a clean, Argo-like default; the dials and artwork looks are opt-in
 applyMiSize();
 applyGTheme(); document.documentElement.dataset.gstyle = S.settings.gStyle || 'hybrid'; document.documentElement.dataset.ck = S.settings.ckStyle || 'console';
@@ -7560,7 +7561,7 @@ function openGaugeLook() {
     '<div class="gl-opts"><div class="lt-faces"><span>Face</span>' + GFACES.map(([k, l, c]) => '<button type="button" data-ltface="' + k + '" class="' + ((st.gFace || '') === k ? 'on' : '') + '" title="' + l + '" aria-label="Face: ' + l + '" style="background:' + (c || 'conic-gradient(#14284A 0 25%,#F2EAD6 0 50%,#0F4C4C 0 75%,#0B0B0B 0)') + '"></button>').join('') + '</div>' +
     '<div class="field gl-shape"><label>Shape</label>' + seg('gShape', st.gShape || 'round', [['round', 'Round'], ['square', 'Square']]) + '</div><div class="field gl-shape"><label>On the chart</label>' + seg('chartGauges', st.chartGauges || 'bar', [['bar', 'Data tiles'], ['dial', 'Speed dial']]) + '</div></div>' + glPicker(st.gTheme || 'midnight') +
     '<div class="field"><label>Style</label>' + seg('gStyle', st.gStyle || 'hybrid', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']]) + '</div><div class="field"><label>Temperature dial on the chart</label>' + seg('tempBtn', st.tempBtn === false ? 'off' : 'on', [['on', 'Show'], ['off', 'Hide']]) + '</div><div class="field"><label>Button size</label>' + seg('fabSize', st.fabSize || 'm', [['s', 'Small'], ['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']]) + '</div><div class="field"><label>Speed circle size</label>' + seg('miSize', st.miSize || 'l', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large'], ['xxl', 'Huge']]) + '</div><div class="field"><label>Instrument screen</label>' + seg('ckStyle', st.ckStyle || 'console', [['console', 'Console (one panel)'], ['tiles', 'Tiles']]) + '</div><div class="field"><label>Face colour (any look)</label><div class="btheme-row gl-row gl-faces">' + GFACES.map(([k, l]) => '<button type="button" data-ltface="' + k + '" class="' + ((st.gFace || '') === k ? 'on' : '') + '">' + glPrev(st.gTheme || 'midnight', k) + l + '</button>').join('') + '</div></div><div class="field"><label>Ring</label>' + seg('ringW', st.ringW || 'thin', [['thin', 'Thin'], ['classic', 'Classic (thicker)']]) + '</div><div class="field"><label>Artwork in the face</label>' + seg('gArt', st.gArt || 'on', [['on', 'On'], ['off', 'Plain']]) + '</div>' +
-    '<div class="field"><label>Theme the rest of the app with it</label>' + seg('fabLook', st.fabLook || 'theme', [['app', 'Everything'], ['gauge', 'Buttons and tab bar'], ['theme', 'Nothing else']]) + '</div>' +
+    '<div class="field"><label>Chart buttons, tab bar and menus</label>' + seg('fabLook', st.fabLook || 'theme', [['theme', 'Keep them plain'], ['gauge', 'Buttons and tab bar match'], ['app', 'Everything matches']]) + '</div>' + ((st.fabLook || 'theme') !== 'theme' ? '<div class="field"><label>Matching buttons use</label>' + seg('fabArt', st.fabArt || 'simple', [['simple', 'The look\'s colours only'], ['art', 'Its full artwork']]) + '<small class="hint">Busy artwork like Polynesian gets cluttered on small buttons; colours only keeps them clean.</small></div>' : '') +
     '<p class="hint" style="margin:-4px 0 8px">Everything = buttons, tab bar, menus and sheets. To give one button its own look: Menu → Arrange buttons, then tap the button.</p>' +
     '<div class="field"><label>Where the buttons sit</label><div class="seg" role="group"><button type="button" data-fabpre="sides">Down the sides</button><button type="button" data-fabpre="bottom">Left ones along the bottom</button><button type="button" data-fabpre="bottom2">All along the bottom</button></div></div>' +
     '<div class="row-btns"><button class="btn" data-looktry="1">Try them on the chart (swipe)</button><button class="btn primary" data-act="close">Done</button></div>');
@@ -8066,7 +8067,7 @@ map.on('dragstart', () => { if (S.aisFollow) { S.aisFollow = null; try { updateA
 
 /* ---------- buttons in the gauge look: all of them (Gauge look → Buttons: Match this look) or one at a time (arrange, tap a button) ---------- */
 function applyFabLook() {
-  document.documentElement.dataset.fablook = S.settings.fabLook || 'theme';
+  document.documentElement.dataset.fablook = S.settings.fabLook || 'theme'; document.documentElement.dataset.fabart = S.settings.fabArt || 'simple';
   const each = S.settings.fabEach || {};
   document.querySelectorAll('.fab[id], .mini-depth[id]').forEach((el) => {
     const id = each[el.id]; if (!id) { delete el.dataset.gl; ['--bt-img', '--bt-f1', '--bt-f2', '--bt-ink', '--bt-c1', '--bt-c2', '--bt-c3', '--bt-c4', '--bt-c5'].forEach((k) => el.style.removeProperty(k)); return; }

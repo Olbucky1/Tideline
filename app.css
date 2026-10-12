@@ -2345,3 +2345,5 @@ html[data-gtheme^="gpslcd"] .gauge > svg .g-big.cmp { font-size: 34px !important
 html[data-night] .mini-inst.as-bar .mb-t { color: #FF6A5A; } html[data-night] .mini-inst.as-bar .mb-t :is(small, i) { color: #A8453B; }
 details.gl-more { margin: 10px 0 4px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 8px; }
 details.gl-more > summary { cursor: pointer; font-weight: 600; color: var(--mt-acc, #7CC0FF); padding: 6px 0; }
+/* build 158: matching buttons can take only the look's colours, without its artwork */
+html[data-fabart="simple"] :is(.fab, .mini-depth, .tabbar) { --bt-img: initial !important; }
