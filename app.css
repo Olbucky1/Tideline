@@ -2526,3 +2526,19 @@ html:not([data-side="third"]):not([data-side="half"]) #app.wide:has(#panelSide:n
 html.mi-edit #miniInst { outline: 2px dashed #2E86DE; outline-offset: 4px; border-radius: 50%; }
 #miBar { bottom: auto !important; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50% !important; transform: translateX(-50%) !important; }
 #app #fabsR .mini-inst.pc-on { margin-right: 0 !important; }
+/* build 167: console uses the whole screen — slim header, flat dash, handles on every corner and edge */
+#cockpit.cockpit { padding: calc(4px + env(safe-area-inset-top, 0px)) 8px 8px !important; gap: 4px !important; }
+#cockpit .ck-head { min-height: 34px; gap: 8px; font-size: 12.5px; } #cockpit .ck-head b { font-size: 14px !important; }
+#cockpit .ck-head button { padding: 5px 10px !important; min-height: 30px; font-size: 13px; }
+#cockpit .ck-lay:not([hidden]) { position: absolute; z-index: 60; left: 50%; transform: translateX(-50%); top: calc(42px + env(safe-area-inset-top, 0px)); display: flex; gap: 6px; align-items: center; padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(8,16,26,.92); box-shadow: 0 4px 14px rgba(0,0,0,.4); font-size: 12px; white-space: nowrap; }
+#cockpit .ck-lay button { padding: 5px 10px !important; min-height: 28px; font-size: 12.5px; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm { border-radius: 14px !important; padding: 6px !important; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm::before { border-radius: 12px !important; }
+html[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm::after { display: none !important; }
+html:root[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge { border-width: 6px !important; padding: 0 !important; }
+.ck-grid.helm.free.editing > .ck-slot .ck-rs { display: none !important; }
+.ck-h { display: none; }
+.ck-grid.free.editing > .ck-slot .ck-h { display: block; position: absolute; z-index: 45; width: 18px; height: 18px; border-radius: 50%; background: #5fd7ff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5); touch-action: none; }
+.ck-h-tl { left: -9px; top: -9px; cursor: nwse-resize; } .ck-h-tr { right: -9px; top: -9px; cursor: nesw-resize; } .ck-h-br { right: -9px; bottom: -9px; cursor: nwse-resize; } .ck-h-bl { left: -9px; bottom: -9px; cursor: nesw-resize; }
+.ck-h-t { left: calc(50% - 9px); top: -9px; cursor: ns-resize; } .ck-h-b { left: calc(50% - 9px); bottom: -9px; cursor: ns-resize; } .ck-h-l { top: calc(50% - 9px); left: -9px; cursor: ew-resize; } .ck-h-r { top: calc(50% - 9px); right: -9px; cursor: ew-resize; }
+.ck-grid.free.editing > .ck-slot .ck-h-t, .ck-grid.free.editing > .ck-slot .ck-h-b { width: 34px; left: calc(50% - 17px); border-radius: 9px; } .ck-grid.free.editing > .ck-slot .ck-h-l, .ck-grid.free.editing > .ck-slot .ck-h-r { height: 34px; top: calc(50% - 17px); border-radius: 9px; }

@@ -2870,7 +2870,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 166. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 167. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6074,12 +6074,12 @@ function ckFreeLayout(grid, sl) {
   const guides = (grid, xs, ys) => { grid.querySelectorAll('.ck-guide').forEach((g) => g.remove()); xs.forEach((x) => grid.insertAdjacentHTML('beforeend', '<i class="ck-guide v" style="left:' + x + '%"></i>')); ys.forEach((y) => grid.insertAdjacentHTML('beforeend', '<i class="ck-guide h" style="top:' + y + '%"></i>')); };
   const finish = (grid) => { grid.querySelectorAll('.ck-guide').forEach((g) => g.remove()); if (ckMap) setTimeout(() => ckMap.invalidateSize(), 50); try { if (typeof ckHostResize === 'function') ckHostResize(); } catch (e) { /* */ } window.dispatchEvent(new Event('resize')); };
   // which edges the finger is on: a 26px band round each tile resizes, the middle moves
-  const edgesAt = (R, x, y) => { const b = Math.min(26, R.width / 4, R.height / 4); return { l: x - R.left < b, r: R.right - x < b, t: y - R.top < b, b: R.bottom - y < b }; };
+  const edgesAt = (R, x, y) => { const b = Math.min(34, R.width / 4, R.height / 4); return { l: x - R.left < b, r: R.right - x < b, t: y - R.top < b, b: R.bottom - y < b }; };
   window.addEventListener('pointerdown', (e) => {
     const grid = e.target.closest('#cockpit .ck-grid.free.editing'); if (!grid) return;
     const slot = e.target.closest('.ck-slot[data-fid]'); if (!slot || e.target.closest('select, button, .ck-mv')) return;
     e.preventDefault(); e.stopPropagation();
-    const G = grid.getBoundingClientRect(), R = slot.getBoundingClientRect(), ed = e.target.closest('.ck-rs') ? { r: true, b: true } : edgesAt(R, e.clientX, e.clientY);
+    const G = grid.getBoundingClientRect(), R = slot.getBoundingClientRect(); const hh = e.target.closest('.ck-h'), ed = hh ? { l: /l/.test(hh.dataset.h), r: /r/.test(hh.dataset.h), t: /t/.test(hh.dataset.h), b: /b/.test(hh.dataset.h) } : e.target.closest('.ck-rs') ? { r: true, b: true } : edgesAt(R, e.clientX, e.clientY);
     const rz = ed.l || ed.r || ed.t || ed.b;
     const others = [...grid.querySelectorAll('.ck-slot[data-fid]')].filter((x) => x !== slot).map((x) => ({ el: x, q: rectOf(x, G) }));
     mv = { slot, grid, rz, ed, x0: e.clientX, y0: e.clientY, G, A: G.width / G.height, q0: rectOf(slot, G), sq: !slot.classList.contains('chart'), others };
@@ -6208,7 +6208,7 @@ function renderCockpit(why) {
   el.querySelectorAll('.ck-slot[data-slot]').forEach((box) => {
     const i = +box.dataset.slot, id = sl[i];
     const mv = ckEdit ? '<div class="ck-mv"><button type="button" data-ckmove="' + i + ':-1" aria-label="Move earlier">◀</button><span>drag to move</span><button type="button" data-ckmove="' + i + ':1" aria-label="Move later">▶</button></div>' : '';
-    const rsH = ckEdit ? '<i class="ck-rs" data-ckrs="' + id + '" title="Drag to resize"></i>' : '';
+    const rsH = ckEdit ? ['tl', 't', 'tr', 'r', 'br', 'b', 'bl', 'l'].map((k) => '<i class="ck-h ck-h-' + k + '" data-h="' + k + '" title="Drag to resize"></i>').join('') : '';
     const pick = ckEdit ? rsH + mv + '<select class="ck-pick" data-ckpick="' + i + '" aria-label="Choose gauge">' + CK_OPTS.concat([['auto', 'Tide, or destination when navigating']]).map(([v, l]) => '<option value="' + v + '"' + (v === id ? ' selected' : '') + '>' + (v === 'off' ? 'Remove this gauge' : l) + '</option>').join('') + '</select>' : '';
     if (id === 'chart') { // add or remove the picker only when Customize changes, so an open menu or a drag is never cut off
       const has = !!box.querySelector('.ck-pick');
