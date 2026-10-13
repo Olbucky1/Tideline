@@ -86,9 +86,9 @@ Current build: 181 (13 Oct 2026). History, file layout and data sources are in H
     - AIS alert when a large ship or tug and barge will meet you in a canal or narrow channel.
 21. **Route undo/redo:** multi-level undo for route edits (e.g. a line moved by accident snaps back), small curved arrows shown only while plotting.
 22. **Known-good route test set** of about 30 trips, run before every ship (Annapolis–St. Michaels, the C&D, both Cape May options, Sandy Hook–Liberty Landing, the East River, San Diego Harbor). Ask Andy for GPX tracks. Show route confidence and "not yet tested in this area".
-22. **San Diego check:** Navy security zones, power-boat routing, graceful fallbacks outside the Chesapeake–NY corridor.
-23. **Boater types:** Great Looper, delivery captain, working and towing.
-24. **Board-sports track recording.**
+23. **San Diego check:** Navy security zones, power-boat routing, graceful fallbacks outside the Chesapeake–NY corridor.
+24. **Boater types:** Great Looper, delivery captain, working and towing.
+25. **Board-sports track recording.**
 
 ### Backlog
 - Account sign-in, crew sharing.
