@@ -2884,7 +2884,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 177. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 178. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -7722,10 +7722,15 @@ function fabItems(col) { return [...col.children].filter((x) => x.id && !ARR_SKI
 function applyFabLayout() {
   const lay = S.settings.fabLayout; if (!lay) return; const L0 = $('fabs'), R0 = $('fabsR'); if (!L0 || !R0) return;
   [['left', L0], ['right', R0]].forEach(([k, col]) => (lay[k] || []).forEach((id) => { const el = $(id); if (el) { el.classList.remove('fab-free'); el.style.left = el.style.top = ''; col.appendChild(el); } }));
-  Object.entries(lay.free || {}).forEach(([id, q]) => { const el = $(id); if (!el) return; $('app').appendChild(el); el.classList.add('fab-free'); el.style.left = (q.x * 100).toFixed(2) + '%'; el.style.top = (q.y * 100).toFixed(2) + '%'; });
+  Object.entries(lay.free || {}).forEach(([id, q]) => { const el = $(id); if (!el) return; $('app').appendChild(el); el.classList.add('fab-free'); el.style.left = (q.x * 100).toFixed(2) + '%'; el.style.top = (q.y * 100).toFixed(2) + '%'; }); setTimeout(fabFreePlace, 0);
   const al = $('alertBar'); if (al && al.parentNode === L0) L0.appendChild(al);
 }
-function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .fab-free[id]').forEach((el) => { const r = el.getBoundingClientRect(); free[el.id] = { x: +(r.left / innerWidth).toFixed(4), y: +(r.top / innerHeight).toFixed(4) }; }); S.settings.fabLayout = { left: fabItems($('fabs')).map((x) => x.id), right: fabItems($('fabsR')).map((x) => x.id), free }; saveSettings(); }
+// buttons you placed freely stay the same distance from the chart's nearer edge, so they move with the chart when the gauge panel opens, closes or resizes
+function fabFreePlace() { const lay = S.settings.fabLayout; if (!lay || !lay.free || ARR.on) return; const M = $('map').getBoundingClientRect();
+  Object.entries(lay.free).forEach(([id, q]) => { const el = $(id); if (!el || !el.classList.contains('fab-free')) return; const w = el.offsetWidth || 40;
+    if (q.rx != null) el.style.left = Math.round(M.right - q.rx - w) + 'px'; else if (q.lx != null) el.style.left = Math.round(M.left + q.lx) + 'px'; }); }
+if (window.ResizeObserver) new ResizeObserver(() => fabFreePlace()).observe($('map')); window.addEventListener('resize', () => setTimeout(fabFreePlace, 60));
+function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .fab-free[id]').forEach((el) => { const r = el.getBoundingClientRect(); const M = $('map').getBoundingClientRect(), right = r.left + r.width / 2 > M.left + M.width / 2; free[el.id] = { x: +(r.left / innerWidth).toFixed(4), y: +(r.top / innerHeight).toFixed(4), [right ? 'rx' : 'lx']: Math.round(right ? M.right - r.right : r.left - M.left) }; }); S.settings.fabLayout = { left: fabItems($('fabs')).map((x) => x.id), right: fabItems($('fabsR')).map((x) => x.id), free }; saveSettings(); }
 function arrangeMode(on) {
   ARR.on = on; document.documentElement.classList.toggle('arrange', on); closeSheet(); closeSpot && closeSpot();
   let bar = $('arrBar'); if (!bar) { bar = document.createElement('div'); bar.id = 'arrBar'; bar.className = 'arr-bar'; document.body.appendChild(bar); }
@@ -8774,7 +8779,7 @@ function renderTempBtn() {
   let b = $('btnTemp'); if (!b) { b = document.createElement('button'); b.type = 'button'; b.id = 'btnTemp'; b.className = 'fab tempbtn'; b.setAttribute('aria-label', 'Air temperature and feels like. Tap for the weather.'); const col = $('fabsR'); col.insertBefore(b, col.firstChild.nextSibling); b.addEventListener('click', () => { if (!ARR.on) setTab('weather'); }); }
   b.hidden = S.settings.tempBtn === false;
   const c = S.weather && S.weather.cur; const t = c && c.temp != null ? Math.round(c.temp) : null, f = c && c.feels != null ? Math.round(c.feels) : t;
-  const T = (x) => tempTxt(x).replace(/[FC]$/, ''); b.innerHTML = '<b>' + (t == null ? '–' : T(c.temp)) + '</b><small>' + (f == null || f === t ? 'air' : 'feels ' + T(c.feels)) + '</small>';
+  const T = (x) => tempTxt(x).replace(/[FC]$/, ''); const wt = S.waterObs ? S.waterObs.f : S.weather && S.weather.sst; b.innerHTML = '<b>' + (t == null ? '–' : T(c.temp)) + '</b><small>' + (wt != null ? 'water ' + T(wt) : f == null || f === t ? 'air' : 'feels ' + T(c.feels)) + '</small>';
 }
 setTimeout(() => { const first = !$('btnTemp'); renderTempBtn(); if (first) try { applyFabLayout(); } catch (e) { /* */ } }, 400); setInterval(renderTempBtn, 30000); // put the dial back where you arranged it once it exists
 // short screens (a phone on its side): the left button column wraps into a second column instead of running under the tab bar,

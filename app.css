@@ -2642,3 +2642,5 @@ html:root[data-night] #map { background: #05080C !important; }
 #app #fabsR .fab { margin: 0 !important; }
 /* Find me: same colours as every other button; when the chart is not following you, a small dot says "tap to come back" */
 #btnFollow.nofollow { position: relative; } #btnFollow.nofollow::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #FFC233; box-shadow: 0 0 0 1.5px #fff; }
+/* the air/water dial only when no gauges are on screen (they already show it) */
+#app.wide:has(#panelSide:not([hidden])) #btnTemp, #app:has(#cockpit:not([hidden])) #btnTemp { display: none !important; }
