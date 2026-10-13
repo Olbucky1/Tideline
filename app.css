@@ -2515,3 +2515,14 @@ html:not([data-side="third"]):not([data-side="half"]) #app.wide:has(#panelSide:n
 .g-binnacle .bn-c { font: 700 15px Georgia, serif; fill: #1E1A14; text-anchor: middle; } .g-binnacle .bn-c.n { fill: #A7261C; }
 .g-binnacle .bn-r1 { fill: #1E2C44; } .g-binnacle .bn-r2 { fill: #C9B98E; stroke: #1E2C44; stroke-width: .5; }
 .g-binnacle .bn-card { transition: transform 1s ease; }
+
+/* ChatGPT compass designs, live */
+#miniInst.pc-on > svg.pc-svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); border-radius: 14%; }
+.pc-hd { font-family: var(--f-num, system-ui); font-weight: 700; } .pc-l2 { font-family: var(--f-ui, system-ui); font-weight: 600; opacity: .9; }
+.pc-bug.classic { fill: #FFB020; stroke: #3A2600; stroke-width: .6; } .pc-bug.tech { fill: #3DF5FF; stroke: #00303A; stroke-width: .6; filter: drop-shadow(0 0 1.5px #3DF5FF); }
+.gauge.g-pc > svg { width: 100%; height: auto; max-height: 100%; aspect-ratio: 1; border-radius: 10%; }
+.lk-grid img { width: 66px; height: 66px; border-radius: 12px; object-fit: cover; } .lk-std { display: grid; place-items: center; width: 66px; height: 66px; font-size: 34px; font-style: normal; }
+#miGrip { position: fixed; z-index: 3000; width: 30px; height: 30px; border-radius: 50%; background: #2E86DE; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.4); cursor: nesw-resize; touch-action: none; }
+html.mi-edit #miniInst { outline: 2px dashed #2E86DE; outline-offset: 4px; border-radius: 50%; }
+#miBar { bottom: auto !important; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50% !important; transform: translateX(-50%) !important; }
+#app #fabsR .mini-inst.pc-on { margin-right: 0 !important; }

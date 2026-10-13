@@ -471,7 +471,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'chart' || k === 'satSrc') { S.satFailed = false; applyChart(); }
   if (k === 'wx') applyWx();
   if (k === 'chartTint') applyTint();
-  if (k === 'miSize') applyMiSize();
+  if (k === 'miSize') { S.settings.miPx = 0; applyMiSize(); }
   if (k === 'tempBtn') { S.settings.tempBtn = v === 'on'; saveSettings(); renderTempBtn(); }
   if (k === 'fabSize') { document.documentElement.dataset.fs = v; try { if (ARR.on) arrGrips(); } catch (e) { /* */ } }
   if ((k === 'fabSize' || k === 'miSize') && !sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; }
@@ -2480,7 +2480,7 @@ function setTab(t) {
   const vis = visiblePanel();
   Object.entries(PANELS).forEach(([k, id]) => { $(id).hidden = k !== vis; });
   // every full screen has a way back to the chart: a small × in the top corner
-  if (vis && PANELS[vis] && !isWide()) { const pe = $(PANELS[vis]); if (pe && !pe.querySelector(':scope > .p-close')) pe.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-pclose aria-label="Back to the chart">×</button>'); }
+  if (vis && vis !== 'side' && PANELS[vis]) { const pe = $(PANELS[vis]); if (pe && !pe.querySelector(':scope > .p-close')) pe.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-pclose aria-label="Back to the chart">×</button>'); }
   if (!isWide() && t !== 'chart') closeSheet();
   if (vis === 'dash') renderDash();
   if (vis === 'anchor') renderAnchor();
@@ -2870,7 +2870,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 165. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 166. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5925,7 +5925,7 @@ function ckGauge(id) {
   }
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'depth') { maybeDepth(); return depthGauge(); }
-  if (id === 'combo') return comboGauge();
+  if (id === 'combo') return S.settings.miComp && pcOf(S.settings.miComp) ? '<div class="gauge g-pc"><div class="g-lbl">COMPASS</div>' + pcHtml(S.settings.miComp, pcData()) + '<div class="g-foot">' + (S.fix && (S.sog || 0) > 0.6 ? 'Course over ground' : 'Not moving') + '</div></div>' : comboGauge();
   if (id === 'binnacle') return binnacleGauge();
   if (id === 'baro') { const b = baroTrend(), bm = baroMeaning(b); return b ? gWrap('BAROMETER', baroGauge(b), '<b class="' + (b.warn ? 'warn-t' : '') + '">' + esc(bm.short || 'Sea-level pressure') + '</b> · model, Open-Meteo', b.warn ? 'g-alarm' : '', bm.long) : gWrap('BAROMETER', '<text x="100" y="108" class="g-unit">Waiting for pressure data</text>', ''); }
   if (id === 'weather') {
@@ -6289,6 +6289,21 @@ function miniRose(cog) {
   for (let d = 0; d < 360; d += 30) { const a = (d - 90) * Math.PI / 180, r0 = d % 90 ? 15 : 13; t += '<line x1="' + (20 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (20 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (20 + 18 * Math.cos(a)).toFixed(1) + '" y2="' + (20 + 18 * Math.sin(a)).toFixed(1) + '"/>'; }
   return '<svg class="mb-rose" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18.5" class="mr-o"/><g transform="rotate(' + r.toFixed(0) + ' 20 20)"><g class="mr-t">' + t + '</g><path d="M20 4 L23 13 L20 11.5 L17 13 Z" class="mr-n"/><text x="20" y="22.5" class="mr-l">N</text></g><path d="M20 0.5 V5" class="mr-lub"/></svg>';
 }
+const PCOMP = [["p1_0", "Captain's porthole", "classic", 0.5, 0.505, 0.426, [0.37, 0.705, 0.63, 0.855], "box", "#FFFFFF"], ["p1_1", "Ship wheel navigator", "classic", 0.494, 0.496, 0.426, [0.38, 0.74, 0.64, 0.87], "box", "#FFFFFF"], ["p1_2", "Mariner's chart", "classic", 0.496, 0.505, 0.377, [0.38, 0.745, 0.62, 0.885], "box", "#FFFFFF"], ["p1_3", "Binnacle classic", "classic", 0.503, 0.494, 0.436, [0.36, 0.61, 0.62, 0.75], "box", "#FFFFFF"], ["p1_4", "Yacht heritage", "classic", 0.496, 0.458, 0.4, [0.37, 0.66, 0.63, 0.8], "box", "#FFFFFF"], ["p1_5", "Heirloom mariner", "classic", 0.5, 0.464, 0.373, [0.38, 0.645, 0.62, 0.78], "box", "#FFFFFF"], ["p2_0", "Traditional brass", "classic", 0.505, 0.5, 0.426, [0.35, 0.655, 0.655, 0.835], "box", "#F2D58A"], ["p2_1", "Chrome yacht helm", "classic", 0.5, 0.494, 0.403, [0.345, 0.615, 0.655, 0.835], "box", "#F2D58A"], ["p2_2", "Teak and brass", "classic", 0.485, 0.49, 0.416, [0.355, 0.655, 0.665, 0.845], "box", "#FFFFFF"], ["p2_3", "Console module", "classic", 0.511, 0.5, 0.403, [0.33, 0.575, 0.67, 0.78], "box", "#FFFFFF"], ["p2_4", "Navy classic", "classic", 0.496, 0.466, 0.436, [0.325, 0.59, 0.675, 0.795], "box", "#F2D58A"], ["p2_5", "Chesapeake coastal", "classic", 0.511, 0.485, 0.406, [0.38, 0.655, 0.64, 0.8], "box", "#FFFFFF"], ["c2_4", "Military brass", "classic", 0.494, 0.479, 0.418, [0.345, 0.55, 0.64, 0.71], "box", "#F2D58A"], ["p3_0", "Apex digital", "tech", 0.5, 0.485, 0.403, [0.33, 0.525, 0.69, 0.72], "box", "#FFFFFF"], ["p3_2", "Carbon tech", "tech", 0.494, 0.487, 0.422, [0.4, 0.45, 0.61, 0.625], "txt", "#FFFFFF"], ["p3_4", "Horizon glass", "tech", 0.503, 0.47, 0.419, [0.37, 0.4, 0.65, 0.57], "txt", "#FFFFFF"], ["c1_0", "Glossy glass", "tech", 0.52, 0.481, 0.429, [0.375, 0.365, 0.64, 0.57], "txt", "#FFFFFF"], ["c1_2", "Carbon performance", "tech", 0.515, 0.481, 0.436, [0.38, 0.39, 0.65, 0.58], "txt", "#FFFFFF"], ["c1_3", "Surf coastal", "tech", 0.526, 0.535, 0.4, [0.405, 0.39, 0.665, 0.535], "txt", "#FFFFFF"], ["c1_4", "Teak and brass glow", "classic", 0.5, 0.466, 0.393, [0.39, 0.425, 0.605, 0.6], "txt", "#F2D58A"]];
+// the ChatGPT compass designs, live: the artwork stays north-up (like the chart), a bug on the rim shows your course,
+// and the heading box shows your heading, speed and depth
+const pcOf = (id) => PCOMP.find((x) => x[0] === id);
+function pcHtml(id, d) {
+  const c = pcOf(id); if (!c) return ''; const [, , g, cx, cy, r, b, kind, ink] = c, X = cx * 100, Y = cy * 100, R = r * 100;
+  const bx = (b[0] + b[2]) * 50, by0 = b[1] * 100, bh = (b[3] - b[1]) * 100, bw = (b[2] - b[0]) * 100, big = Math.min(bh * 0.52, bw * 0.3);
+  const bug = d.cog != null ? '<g transform="rotate(' + (d.cog + (d.mr || 0)).toFixed(0) + ' ' + X + ' ' + Y + ')"><path d="M' + X + ' ' + (Y - R * 0.97) + ' l' + (R * 0.075) + ' ' + (-R * 0.14) + ' h' + (-R * 0.15) + ' z" transform="rotate(180 ' + X + ' ' + (Y - R * 1.04) + ')" class="pc-bug ' + g + '"/></g>' : '';
+  const line2 = (d.spd != null ? d.spd + ' ' + d.su : '') + (d.dep ? ' · ' + d.dep : '');
+  return '<svg viewBox="0 0 100 100" class="pc-svg" aria-hidden="true"><image href="skins/pc_' + id + '.webp" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice"/>' + bug +
+    '<text x="' + bx + '" y="' + (by0 + bh * (line2 ? 0.56 : 0.66)).toFixed(1) + '" text-anchor="middle" class="pc-hd" style="fill:' + ink + ';font-size:' + big.toFixed(1) + 'px">' + (d.cog != null ? fmtBrg(d.cog) + '°' : '–') + '</text>' +
+    (line2 ? '<text x="' + bx + '" y="' + (by0 + bh * 0.86).toFixed(1) + '" text-anchor="middle" class="pc-l2" style="fill:' + ink + ';font-size:' + Math.min(bh * 0.2, bw * 0.12).toFixed(1) + 'px">' + esc(line2) + '</text>' : '') + '</svg>';
+}
+function pcData() { const f = S.fix, mv = (S.sog || 0) > 0.6; let dep = ''; try { const d = DEP.v; if (f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000) dep = Math.round(ftToLen(d.d1 / 0.3048)) + ' ' + lenUnit(); } catch (e) { /* */ }
+  return { cog: mv ? S.cog : null, spd: f ? fmtSpeed(S.sog || 0) : null, su: SPEED_LBL[S.settings.speedUnit], dep, mr: 0 }; }
 function renderMini() {
   const el = $('miniInst'); if (!el) return;
   const f = S.fix, moving = (S.sog || 0) > 0.6, cog = moving ? S.cog : null, mr = mapRot();
@@ -6312,11 +6327,12 @@ function renderMini() {
       '<span class="mb-t' + (shallow ? ' bad' : '') + '"><small>DEPTH</small><b>' + (validDepth ? Math.round(ftToLen(dft)) : '–') + '</b><i>' + lenUnit() + (validDepth ? ' charted' : '') + '</i></span>';
     return; }
   el.classList.remove('as-bar');
+  if (S.settings.miComp && pcOf(S.settings.miComp)) { el.classList.add('pc-on'); el.innerHTML = pcHtml(S.settings.miComp, pcData()); el.setAttribute('aria-label', 'Compass with speed and depth. Tap for instruments, press and hold to resize.'); return; } el.classList.remove('pc-on');
   el.innerHTML = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></g></svg>';
   el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
   el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : ' · charted depth when NOAA chart data loads') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
 }
-$('miniInst').addEventListener('click', () => setCockpit(true));
+$('miniInst').addEventListener('click', () => { if (document.documentElement.classList.contains('mi-edit')) return; setCockpit(true); });
 setInterval(renderMini, 1000); renderMini();
 /* ---------- account and sync (Supabase): sign in with your email, and your boats, routes and logs follow you to any browser or phone ---------- */
 const TL_ACCOUNTS = null; // { url: 'https://xxxx.supabase.co', key: 'anon public key' }: once set here, everyone just signs in with their email
@@ -6783,7 +6799,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
     '';
   const el = document.createElement('style'); el.id = 'shapeCss'; el.textContent = css; document.head.appendChild(el);
 })();
-function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
+function applyMiSize() { const R0 = document.documentElement; R0.dataset.mi = S.settings.miPx ? 'xl' : S.settings.miSize || 'l'; if (S.settings.miPx) R0.style.setProperty('--mi', S.settings.miPx + 'px'); else R0.style.removeProperty('--mi'); document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
 if (!S.settings.noTemp5) { S.settings.noTemp5 = 1; S.settings.tempBtn = false; try { saveSettings(); } catch (e) { /* */ } } // the air-temperature dial sat on top of the speed/compass dial: off by default (Map options brings it back)
 if (!S.settings.bigDial4) { S.settings.bigDial4 = 1; if (!S.settings.miSize || S.settings.miSize === 'l' || S.settings.miSize === 'm') S.settings.miSize = 'xl'; try { saveSettings(); } catch (e) { /* */ } }
@@ -7423,7 +7439,7 @@ setTimeout(() => applyOrient(true), 800);
     const b = e.target.closest('.fab, .tab, #btnMOB, .alert-bar, .mini-inst'); if (!b || e.pointerType === 'mouse' || ARR.on) return;
     holdBtn = b; shown = false; clearTimeout(t);
     if (b.id === 'btnMOB' || b.id === 'curChip' || b.id === 'btnOrient') return; // these use press and hold for their own job
-    t = setTimeout(() => { show(b); t = setTimeout(() => { if (holdBtn === b && b.id === 'miniInst') { hide(); shown = true; openLookTry(); return; } if (holdBtn === b && b.closest('#fabs, #fabsR, .fab-free')) { hide(); shown = true; arrangeMode(true); toast('Arrange mode: drag buttons anywhere. Tap Done when finished.', 3500); } }, 800); }, 450);
+    t = setTimeout(() => { show(b); t = setTimeout(() => { if (holdBtn === b && b.id === 'miniInst') { hide(); shown = true; miResize(true); return; } if (holdBtn === b && b.closest('#fabs, #fabsR, .fab-free')) { hide(); shown = true; arrangeMode(true); toast('Arrange mode: drag buttons anywhere. Tap Done when finished.', 3500); } }, 800); }, 450);
   }, true);
   document.addEventListener('pointerup', () => { clearTimeout(t); if (shown) setTimeout(hide, 1100); }, true);
   document.addEventListener('pointercancel', () => { clearTimeout(t); hide(); }, true);
@@ -7747,6 +7763,7 @@ function openGaugeLook() {
 // the quick picker: ready-made looks as thumbnails, several at once; tap one and it is on (the speed circle above shows it live).
 // Size, shape and the buttons sit on top; building your own bezel and face is one level down (Customize).
 const LK_CATS = [
+  ['comp', 'Compasses', () => []],
   ['feat', 'Favorites', () => ['clean', 'mfdnight', 'chromenight', 'midnight', 'glass', 'helm', 'aqua', 'arctic', 'titanium', 'midteal', 'carbonrefined', 'arcticglass', 'goldnavy', 'navyphoto', 'horizon', 'cb_annapolis', 'sailrope', 'teak', 'brass', 'expedition', 'carbon']],
   ['modern', 'Modern', () => GT.filter((t) => !t.hidden && (t.g === 'Simple' || t.g === 'Modern')).map((t) => t.id)],
   ['tech', 'Displays', () => GT.filter((t) => !t.hidden && t.g === 'Tech').map((t) => t.id)],
@@ -7759,6 +7776,11 @@ function openLooks(cat) {
   const st = S.settings; cat = cat || st.lkCat || 'feat'; st.lkCat = cat;
   const cur = st.gTheme || 'clean', sh = st.gShape || 'round', f = st.gFace || '', c = LK_CATS.find((x) => x[0] === cat) || LK_CATS[0];
   const ids = [...new Set(c[2]())].filter((id) => gtOf(id) && gtOf(id).id === id);
+  if (cat === 'comp') { const seg0 = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
+    openSheet('<div class="lk"><div class="lk-top"><h3>Chart compass</h3></div><div class="lk-ctl"><span>Size</span>' + seg0('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + '</div><p class="hint" style="margin:-2px 0 6px">Any size: press and hold the compass on the chart, then drag its corner.</p>' +
+      '<div class="lk-cats">' + LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
+      '<div class="lk-grid"><button type="button" data-lkcomp="" class="' + (!st.miComp ? 'on' : '') + '"><i class="lk-std">◎</i><span>Standard dial</span></button>' + PCOMP.map((x) => '<button type="button" data-lkcomp="' + x[0] + '" class="' + (st.miComp === x[0] ? 'on' : '') + '"><img src="skins/pc_' + x[0] + '.webp" alt="" loading="lazy"><span>' + esc(x[1]) + '</span></button>').join('') + '</div>' +
+      '<p class="hint">These show on the chart and as the Speed, course and depth gauge in Instruments. The card stays north-up like the chart; the gold or blue marker on the rim is your course.</p></div>'); return; }
   const seg = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<div class="lk"><div class="lk-top"><h3>Gauge look</h3></div>' +
     '<div class="lk-ctl"><span>Size</span>' + seg('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + seg('gShape', sh, [['round', 'Round'], ['square', 'Square']]) + '</div>' +
@@ -7770,6 +7792,7 @@ function openLooks(cat) {
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openLooks(); return; }
   const c = e.target.closest('[data-lkcat]'); if (c) { const sb = sheet.querySelector('.sheet-body') || sheet; openLooks(c.dataset.lkcat); (sheet.querySelector('.sheet-body') || sheet).scrollTop = Math.min(sb.scrollTop, 180); return; }
+  const pk = e.target.closest('[data-lkcomp]'); if (pk) { S.settings.miComp = pk.dataset.lkcomp || ''; saveSettings(); try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* */ } sheet.querySelectorAll('[data-lkcomp]').forEach((b) => b.classList.toggle('on', b === pk)); return; }
   const p = e.target.closest('[data-lkpick]'); if (p) { S.settings.gTheme = p.dataset.lkpick; saveSettings(); applyGTheme(); try { applyFabLook(); } catch (err) { /* */ } try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ }
     sheet.querySelectorAll('[data-lkpick]').forEach((b) => b.classList.toggle('on', b === p)); return; }
   if (e.target.closest('[data-lkcustom]')) { openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = 0; sheet.scrollTop = 0; }
@@ -9127,7 +9150,19 @@ async function fmDo(a) {
 document.addEventListener('click', (e) => { const im = e.target.closest('img[data-zoomimg]'); if (!im) return; e.stopPropagation();
   const big = im.src.replace(/\/(\d{2,4})px-/, '/1280px-'), o = document.createElement('div'); o.className = 'img-zoom'; o.innerHTML = '<img src="' + esc(big) + '" alt=""><b>' + esc(im.alt || '') + '</b><button type="button" aria-label="Close">×</button>';
   o.querySelector('img').onerror = function () { this.onerror = null; this.src = im.src; }; o.addEventListener('click', () => o.remove()); document.body.appendChild(o); }, true);
-window.Tideline = { FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+function miResize(on) {
+  const mi = $('miniInst'); let h = $('miGrip'), bar = $('miBar'); if (h) h.remove(); if (bar) bar.remove(); document.documentElement.classList.toggle('mi-edit', on); if (!on || !mi) return;
+  h = document.createElement('div'); h.id = 'miGrip'; h.setAttribute('aria-label', 'Drag to resize the compass'); document.body.appendChild(h);
+  bar = document.createElement('div'); bar.id = 'miBar'; bar.className = 'm-chip'; bar.innerHTML = '<b>Drag the corner</b><button type="button" data-mib="look">Style</button><button type="button" data-mib="reset">Reset</button><button type="button" data-mib="done">Done</button>'; $('app').appendChild(bar);
+  const place = () => { const r = mi.getBoundingClientRect(); h.style.left = (r.left - 14) + 'px'; h.style.top = (r.bottom - 14) + 'px'; }; place();
+  let st = null; h.addEventListener('pointerdown', (e) => { e.preventDefault(); h.setPointerCapture(e.pointerId); st = { x: e.clientX, y: e.clientY, w: mi.getBoundingClientRect().width }; });
+  h.addEventListener('pointermove', (e) => { if (!st) return; const d = ((st.x - e.clientX) + (e.clientY - st.y)) / 2, w = Math.round(Math.max(60, Math.min(Math.min(innerWidth * 0.8, innerHeight * 0.6, 460), st.w + d)));
+    S.settings.miPx = w; applyMiSize(); place(); });
+  const end = () => { if (!st) return; st = null; saveSettings(); try { fitFabs(); } catch (e) { /* */ } place(); }; h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-mib]'); if (!b) return; const k = b.dataset.mib;
+    if (k === 'reset') { S.settings.miPx = 0; saveSettings(); applyMiSize(); place(); } if (k === 'look') { miResize(false); openLooks('comp'); } if (k === 'done') miResize(false); });
+}
+window.Tideline = { miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
