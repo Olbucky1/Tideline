@@ -53,7 +53,7 @@ Current build: 182 (13 Oct 2026). History, file layout and data sources are in H
 - **Radar gauge:** a rain radar tile in Batch A; the wind/everything weather window stays in the backlog.
 
 ### Batch A leftovers
-- **Label fix (the one open item, Andy 13 Oct):** the label is "Watermen / workboats" (first-run "What do you use Tideline for?" list, USES in app.js). Proposed change: write it "Watermen and workboats" to match the other labels. Confirm the exact fix with Andy, then build on "now execute the changes".
+- **Relabel the "Watermen / workboats" use (Andy 13 Oct):** the capitalization was inconsistent. Andy likes tugs and barges and "commercial work" as wording. Proposed label: "Commercial and workboats" with a small hint line "Tugs, barges, watermen". Change the label only; keep the internal key (`watermen`) so saved choices and the events filter keep working. Also check the matching event category "Watermen & docking" reads consistently. Build on "now execute the changes".
 - **Parked (Andy: "don't worry about the others", 13 Oct):** full-screen chart switcher; settings sheets other than Gauge look covering the chart; customize gauge face; rope/Polynesian/Chrome frames and surf designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger.
 
 ### Batch B: routing and safety (new session, top model)
