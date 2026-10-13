@@ -47,8 +47,8 @@ Current build: 181 (13 Oct 2026). History, file layout and data sources are in H
 ### Settled answers (13 Oct)
 - **Top slot default:** the combined compass/speed/depth gauge. Plain compass and "nothing" are options.
 - **Undo/redo:** multi-level, for nearly everything, including moving a route line by accident. Small curved arrows that appear only while editing (layout, looks, route plotting), never on the chart while navigating. ⌘Z / ⇧⌘Z on a computer.
-- **Paid satellite layers:** OPEN.
-- **Route-editing undo:** OPEN (now in Batch A, or with the routing overhaul in Batch B).
+- **Paid satellite layers:** ship the free ones; send Andy a list of any paid ones with their cost. Add no paid layer.
+- **Route-editing undo:** built with the routing overhaul in Batch B, not Batch A.
 - **Tidy up:** no preference from Andy, so: Tidy snaps the current layout in place and evens out sizes; a separate "Next layout" button cycles layouts.
 - **Radar gauge:** a rain radar tile in Batch A; the wind/everything weather window stays in the backlog.
 
@@ -58,8 +58,8 @@ Current build: 181 (13 Oct 2026). History, file layout and data sources are in H
 3. **Full-screen chart:** keep a small layout switcher. Check iPhone and iPad.
 4. **Copy my settings:** a link or QR that carries settings to a new window or device (stopgap until account sign-in).
 5. **Gauge look screen:** tabs in order Favorites, Modern, Displays, Classic, Artwork, Compass; one continuous scroll, tabs jump to sections.
-6. **More satellite and chart layers,** license-checked first (see open question).
-7. **Settings never cover what they change,** plus undo/redo as settled above (appearance and console layout here; route-editing undo is still an open question).
+6. **More satellite and chart layers,** license-checked first; free ones ship, paid ones are only listed with cost.
+7. **Settings never cover what they change,** plus undo/redo as settled above (appearance and console layout here; route-editing undo is Batch B).
 8. **Customize the gauge face** from the theme picker.
 9. **Simpler chart frames:** plain rope edge, no ship's-wheel spokes, quieter Polynesian and Chrome & Waves.
 10. **Surf-style gauge designs.**
@@ -84,7 +84,8 @@ Current build: 181 (13 Oct 2026). History, file layout and data sources are in H
 20. **Narrow-channel safety:**
     - C&D Canal brief: ship traffic and wake, passing port to port, bank effect and ship suction, hand-steer instead of autopilot, current, canal rules (33 CFR 162.40; verify).
     - AIS alert when a large ship or tug and barge will meet you in a canal or narrow channel.
-21. **Known-good route test set** of about 30 trips, run before every ship (Annapolis–St. Michaels, the C&D, both Cape May options, Sandy Hook–Liberty Landing, the East River, San Diego Harbor). Ask Andy for GPX tracks. Show route confidence and "not yet tested in this area".
+21. **Route undo/redo:** multi-level undo for route edits (e.g. a line moved by accident snaps back), small curved arrows shown only while plotting.
+22. **Known-good route test set** of about 30 trips, run before every ship (Annapolis–St. Michaels, the C&D, both Cape May options, Sandy Hook–Liberty Landing, the East River, San Diego Harbor). Ask Andy for GPX tracks. Show route confidence and "not yet tested in this area".
 22. **San Diego check:** Navy security zones, power-boat routing, graceful fallbacks outside the Chesapeake–NY corridor.
 23. **Boater types:** Great Looper, delivery captain, working and towing.
 24. **Board-sports track recording.**
