@@ -149,6 +149,11 @@ map.attributionControl.setPrefix(false);
       map.panBy([dx, dy], { animate: false });
     }
   }, { passive: false });
+  // iPad with a trackpad (and Magic Keyboard): Safari reports a pinch as gesture events with a scale, not as a wheel. The page itself must not zoom, so zoom the chart.
+  let gz = null, gat = null;
+  el.addEventListener('gesturestart', (e) => { e.preventDefault(); gz = map.getZoom(); const r = el.getBoundingClientRect(); gat = L.point((e.clientX || r.width / 2 + r.left) - r.left, (e.clientY || r.height / 2 + r.top) - r.top); }, { passive: false });
+  el.addEventListener('gesturechange', (e) => { e.preventDefault(); if (gz == null || !e.scale) return; const z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), gz + Math.log2(e.scale))); if (!raf) raf = requestAnimationFrame(() => { raf = null; map.setZoomAround(gat, z, { animate: false }); }); }, { passive: false });
+  el.addEventListener('gestureend', (e) => { e.preventDefault(); gz = null; }, { passive: false });
 })();
 
 const NOAA = 'https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/MapServer/export';
@@ -785,7 +790,7 @@ function drawRoute() {
   RT.marks.clearLayers();
   const show = RT.edit || RT.trip || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
-  const anyBad = show && RT.pts.some((p) => p.unchecked); RT.line.setStyle({ dashArray: anyBad ? '10 8' : null, color: anyBad ? '#E8952B' : '#C2185B' }); // a route that is not fully checked never looks like a normal one
+  const anyBad = show && RT.pts.some((p) => p.unchecked && p.unchecked !== 'land'); RT.line.setStyle({ dashArray: anyBad ? '10 8' : null, color: anyBad ? '#E8952B' : '#C2185B' }); // a route that is not fully checked never looks like a normal one
   if (!RT.bad) RT.bad = L.layerGroup().addTo(map); RT.bad.clearLayers();
   if (show) RT.pts.forEach((p, i) => { if (!i || !p.unchecked) return; let k = i - 1; if (p.unchecked !== 'land') while (k > 0 && RT.pts[k].turn) k--; L.polyline(RT.pts.slice(k, i + 1).map((q) => [q.lat, q.lon]), { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
   drawAvoid();
@@ -1188,6 +1193,54 @@ async function waterLeg(a, b) {
   if (partial) return { ok: false, why: 'partial', pts, shallow };
   return { ok: true, shallow, pts, dockA, dockB, far };
 }
+// ---------- long passages: the way a delivery skipper goes. Long legs follow known passages (the C&D Canal to Delaware Bay and Cape May,
+// the Bay channel to Norfolk, the Jersey shore to Sandy Hook and New York) instead of whatever the coarse search finds; the ends are
+// still routed by water from the chart. Every node is in deep, open or channel water. ----------
+const PN = {
+  ann: [38.955, -76.440, 'Annapolis approach (Severn River mouth)'], tpt: [38.885, -76.410, 'off Thomas Point Light'], bbr: [38.993, -76.372, 'Bay Bridge (main channel span)'],
+  spt: [39.060, -76.355, 'off Sandy Point and the Magothy'], bal1: [39.165, -76.420, 'Craighill Channel'], balt: [39.255, -76.560, 'Fort McHenry, Baltimore'],
+  pool: [39.255, -76.240, 'east of Pooles Island'], wort: [39.330, -76.215, 'off Worton Point'], tky: [39.430, -76.005, 'off Turkey Point (Elk River)'], elk: [39.500, -75.925, 'Elk River'],
+  cdw: [39.528, -75.860, 'C&D Canal west entrance (Back Creek)'], cdc: [39.528, -75.811, 'Chesapeake City'], cds: [39.546, -75.735, 'Summit Bridge'], cdg: [39.553, -75.650, 'St. Georges'],
+  cde: [39.558, -75.572, 'Reedy Point (C&D Canal east entrance)'], dlr: [39.460, -75.545, 'Delaware River'], sjs: [39.305, -75.375, 'Ship John Shoal'], mmh: [39.130, -75.215, 'Miah Maull Shoal'],
+  bwy: [38.985, -75.100, 'Brandywine Shoal'], cmp: [38.880, -74.970, 'off Cape May Point'], cmi: [38.920, -74.815, 'off Cape May Inlet'], acy: [39.330, -74.365, 'off Atlantic City'],
+  bgt: [39.760, -74.030, 'off Barnegat Inlet'], msq: [40.100, -73.950, 'off Manasquan Inlet'], shk: [40.470, -73.930, 'Sandy Hook Channel'], lbay: [40.525, -74.010, 'Lower New York Bay'],
+  vrz: [40.606, -74.045, 'Verrazzano-Narrows Bridge'], ubay: [40.670, -74.045, 'Upper New York Bay'], lib: [40.695, -74.032, 'Liberty Island and Liberty Landing'], bat: [40.698, -74.022, 'The Battery'],
+  hud: [40.755, -74.012, 'Hudson River, Midtown'], tpz: [41.070, -73.880, 'Tappan Zee'], ers: [40.745, -73.965, 'East River'], hgt: [40.780, -73.932, 'Hell Gate (time the current)'],
+  thr: [40.800, -73.790, 'Throgs Neck Bridge'], exr: [40.880, -73.735, 'Execution Rocks'], nhv: [41.230, -72.900, 'off New Haven'], race: [41.230, -72.060, 'The Race'], npt: [41.450, -71.385, 'Newport'],
+  hen: [38.800, -75.030, 'off Cape Henlopen'], ocm: [38.320, -75.030, 'off Ocean City Inlet'], chn: [37.850, -75.260, 'off Chincoteague'], chy: [36.930, -75.950, 'off Cape Henry'],
+  cbt: [36.965, -76.040, 'Chesapeake Bay Bridge-Tunnel (Thimble Shoal Channel)'], hrd: [36.985, -76.300, 'Hampton Roads'], wtp: [37.390, -76.190, 'off Wolf Trap Light'], smp: [37.880, -76.180, 'off Smith Point'],
+  plk: [38.030, -76.250, 'off Point Lookout'], cvp: [38.385, -76.360, 'off Cove Point'], sha: [38.650, -76.420, 'off Sharps Island / Choptank mouth'], pax: [38.305, -76.400, 'Patuxent River mouth (Solomons)'],
+};
+const PE = [['ann', 'tpt'], ['ann', 'bbr'], ['tpt', 'bbr'], ['bbr', 'spt'], ['spt', 'bal1'], ['bal1', 'balt'], ['spt', 'pool'], ['bal1', 'pool'], ['pool', 'wort'], ['wort', 'tky'], ['tky', 'elk'], ['elk', 'cdw'], ['cdw', 'cdc'], ['cdc', 'cds'], ['cds', 'cdg'], ['cdg', 'cde'],
+  ['cde', 'dlr'], ['dlr', 'sjs'], ['sjs', 'mmh'], ['mmh', 'bwy'], ['bwy', 'cmp'], ['bwy', 'hen'], ['cmp', 'cmi'], ['cmi', 'acy'], ['acy', 'bgt'], ['bgt', 'msq'], ['msq', 'shk'], ['shk', 'lbay'], ['lbay', 'vrz'], ['vrz', 'ubay'], ['ubay', 'lib'], ['ubay', 'bat'], ['bat', 'lib'],
+  ['bat', 'hud'], ['hud', 'tpz'], ['bat', 'ers'], ['ers', 'hgt'], ['hgt', 'thr'], ['thr', 'exr'], ['exr', 'nhv'], ['nhv', 'race'], ['race', 'npt'],
+  ['hen', 'ocm'], ['ocm', 'chn'], ['chn', 'chy'], ['chy', 'cbt'], ['cbt', 'hrd'], ['cbt', 'wtp'], ['wtp', 'smp'], ['smp', 'plk'], ['plk', 'cvp'], ['cvp', 'pax'], ['cvp', 'sha'], ['sha', 'tpt']];
+function pnPath(a, b) { // shortest way through the passage network from the nodes nearest a and b
+  const ll = (k) => ({ lat: PN[k][0], lon: PN[k][1] }), near = (p) => Object.keys(PN).map((k) => [k, distNm(p, ll(k))]).sort((x, y) => x[1] - y[1])[0];
+  const [sa, da] = near(a), [sb, db] = near(b); if (da > 30 || db > 30 || sa === sb) return null;
+  const adj = {}; PE.forEach(([x, y]) => { const d = distNm(ll(x), ll(y)); (adj[x] = adj[x] || []).push([y, d]); (adj[y] = adj[y] || []).push([x, d]); });
+  const dist = { [sa]: 0 }, prev = {}, Q = new Set(Object.keys(PN));
+  while (Q.size) { let u = null; Q.forEach((k) => { if (dist[k] != null && (u == null || dist[k] < dist[u])) u = k; }); if (u == null) break; Q.delete(u); if (u === sb) break; (adj[u] || []).forEach(([v, d]) => { if (dist[u] + d < (dist[v] == null ? Infinity : dist[v])) { dist[v] = dist[u] + d; prev[v] = u; } }); }
+  if (dist[sb] == null) return null; const path = [sb]; while (path[0] !== sa) path.unshift(prev[path[0]]);
+  // skip a first/last node that lies behind you (start already past it)
+  return path.map((k) => ({ lat: PN[k][0], lon: PN[k][1], name: PN[k][2], pn: k }));
+}
+function pnName(p, max) { let best = null, bd = max || 1.2; Object.keys(PN).forEach((k) => { const d = distNm(p, { lat: PN[k][0], lon: PN[k][1] }); if (d < bd) { bd = d; best = PN[k][2]; } });
+  try { (TG.stops || []).forEach((x) => { const d = distNm(p, x); if (d < bd) { bd = d; best = x.name; } }); } catch (e) { /* */ } return best; }
+async function passageLeg(a, b) { // long legs: by water to the nearest passage node, along the known passage, then by water to the stop
+  const P = pnPath(a, b); if (!P || P.length < 2) return null;
+  // drop nodes that would make you double back at either end
+  while (P.length > 2 && distNm(a, P[1]) < distNm(a, P[0]) + 0.5 && distNm(P[1], b) < distNm(P[0], b)) P.shift();
+  while (P.length > 2 && distNm(P[P.length - 2], b) < distNm(P[P.length - 1], b) + 0.5 && distNm(a, P[P.length - 2]) < distNm(a, P[P.length - 1])) P.pop();
+  const head = await waterLeg(a, P[0]), tail = await waterLeg(P[P.length - 1], b);
+  // each passage hop is then checked against the chart like any short leg, so a canal bend, an island or a point of land is followed, not cut
+  const hops = new Array(P.length - 1); let next = 0;
+  await Promise.all([0, 1, 2, 3].map(async () => { while (next < hops.length) { const k = next++; try { const r = await waterLeg(P[k], P[k + 1]); const L1 = (r.pts || []).reduce((m, q, i, A) => i ? m + distNm(A[i - 1], q) : 0, 0);
+    hops[k] = r.ok && r.pts && r.pts.length > 1 && L1 < distNm(P[k], P[k + 1]) * 1.6 ? r.pts.slice(1, -1) : []; } catch (e) { hops[k] = []; } } }));
+  const mid = []; P.forEach((q, k) => { mid.push({ lat: q.lat, lon: q.lon, name: q.name, pn: q.pn }); if (k < hops.length) hops[k].forEach((h) => mid.push({ lat: h.lat, lon: h.lon })); });
+  const pts = [].concat(head.pts || [a], mid, tail.pts || [b]);
+  return { ok: !!(head.ok && tail.ok), why: head.ok ? tail.why : head.why, pts, shallow: !!(head.shallow || tail.shallow), dockB: tail.dockB };
+}
 // turn a list of stops into stops plus turning points that stay in the water
 async function routeByWater(stops) {
   const out = [], notes = []; let failed = 0;
@@ -1196,10 +1249,15 @@ async function routeByWater(stops) {
     const p = stops[i];
     if (i) {
       const prev = stops[i - 1];
-      let r; try { r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
+      let r; try { r = distNm(prev, p) > 35 ? await passageLeg(prev, p) : null; if (!r) r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
       p.__ok = r.ok; p.__why = r.why; p.__sh = !!r.shallow;
       if (r.ok || ((r.why === 'partial' || r.why === 'fine') && r.pts)) {
-        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push({ lat: q.lat, lon: q.lon, turn: true }); });
+        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push(Object.assign({ lat: q.lat, lon: q.lon, turn: true }, q.name ? { name: q.name, via: 1, pn: q.pn } : {})); });
+        if (r.ok && r.dockB > 0.15 && r.pts && r.pts.length) { // a pin on land (a town): go to the nearest marina that is on the water instead of stopping at a shoreline
+          try { const end = r.pts[r.pts.length - 1], els = await overpass(around('nwr[leisure=marina];nwr[waterway=fuel];nwr["seamark:harbour:category"~"marina"]', 1.6, p)).catch(() => []);
+            const ms = els.map(toPlace).filter((m) => m && m.lat != null).sort((x, y) => distNm(p, x) - distNm(p, y)).slice(0, 4);
+            for (const m of ms) { const r2 = await waterLeg(end, m); if (r2.ok && (r2.dockB == null || r2.dockB < 0.15)) { (r2.pts || []).forEach((q, k) => { if (k && k < r2.pts.length - 1) out.push({ lat: q.lat, lon: q.lon, turn: true }); });
+              notes.push((p.name || 'Stop ' + (i + 1)) + ' is on land, so the route goes to ' + m.name + ', the nearest marina on the water.'); p.pinName = p.pinName || p.name; p.lat = m.lat; p.lon = m.lon; p.name = m.name + (p.pinName && p.pinName !== m.name ? ' (' + p.pinName + ')' : ''); r.dockB = r2.dockB || 0; break; } } } catch (e) { /* keep the shoreline end */ } }
         if (r.dockB > 0.15) p.__land = r.dockB;
         if (r.dockB > 0.15) notes.push((p.name || 'Stop ' + (i + 1)) + ' is not on charted water; the route reaches the nearest navigable water about ' + fmtDist(r.dockB) + ' away. Find the marina or dock there.');
         if (r.shallow) notes.push('Part of the way to ' + (p.name || 'stop ' + (i + 1)) + ' crosses areas the chart only gives as a depth range that may be shallower than you need. Watch the depth there.');
@@ -2884,7 +2942,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 179. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 180. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -8720,14 +8778,16 @@ async function openBriefing() {
   // merge the router's small wiggles into real legs: a new leg only at a stop or where the course changes by 25° or more;
   // the details (marks, wrecks, depths) still come from the true path under each leg
   const raw = RT.pts.filter((p, i) => !i || distNm(RT.pts[i - 1], p) >= 0.02); let cur = [raw[0]], t = dep;
-  const flush = () => { if (cur.length < 2) return; const a = cur[0], b = cur[cur.length - 1], d = cur.reduce((m, p, k) => k ? m + distNm(cur[k - 1], p) : 0, 0), hrs = d / st.spd; BRF.legs.push({ a, b, d, brg: bearing(a, b), hrs, t0: t, sub: cur.slice(), info: null }); t += hrs * 3600000; };
+  const lname = (p, first) => (p.name && (p.stop || p.via)) ? p.name : pnName(p, 1.5) || (first ? 'the start' : 'a turn ' + fmtDist(distNm(stops[stops.length - 1], p)) + ' from ' + stops[stops.length - 1].name);
+  const flush = () => { if (cur.length < 2) return; const a = cur[0], b = cur[cur.length - 1], d = cur.reduce((m, p, k) => k ? m + distNm(cur[k - 1], p) : 0, 0), hrs = d / st.spd; BRF.legs.push({ a, b, d, brg: bearing(a, b), hrs, t0: t, sub: cur.slice(), info: null, from: lname(a, !BRF.legs.length), to: lname(b) }); t += hrs * 3600000; };
   for (let i = 1; i < raw.length; i++) { const p = raw[i]; cur.push(p); const nx = raw[i + 1]; if (!nx) break;
-    const b0 = bearing(cur[0], p), b1 = bearing(p, nx); if (p.stop || Math.abs(((b1 - b0 + 540) % 360) - 180) >= 25) { flush(); cur = [p]; } }
+    const b0 = bearing(cur[0], p), b1 = bearing(p, nx); if (p.stop || p.via || Math.abs(((b1 - b0 + 540) % 360) - 180) >= 25) { flush(); cur = [p]; } }
   flush();
   await Promise.all(BRF.legs.map(async (L0) => { const parts = await Promise.all(L0.sub.slice(1).map((p, k) => legBrief(L0.sub[k], p)));
     const seen = new Set(), uniq = (arr, key) => arr.filter((x) => { const k2 = key(x); if (seen.has(k2)) return false; seen.add(k2); return true; });
     L0.info = { marks: uniq(parts.flatMap((x) => x.marks), (m) => 'm' + m.p.lat.toFixed(5) + m.p.lon.toFixed(5)).slice(0, 8), haz: uniq(parts.flatMap((x) => x.haz), (h) => 'h' + h.lat.toFixed(5) + h.lon.toFixed(5)).slice(0, 6),
       minD: parts.reduce((m, x) => x.minD == null ? m : m == null ? x.minD : Math.min(m, x.minD), null), rng: parts.some((x) => x.rng), bridges: uniq(parts.flatMap((x) => x.bridges), (x) => 'b' + x.br.id) }; }));
+  await brSights(); FLY.pts = null; FLY.s = 0; FLY.shown.clear();
   if (!BRF.on) return;
   BRF.legs.forEach((L0, k) => { if ((k === 0 || k === BRF.legs.length - 1) && L0.info.minD != null && L0.info.minD < 0.5) L0.info.minD = null; }); // the dock ends
   const c = stops[0], reg = REGION_NOTES.filter((r) => c.lat > r.box[0] && c.lat < r.box[2] && c.lon > r.box[1] && c.lon < r.box[3]).flatMap((r) => r.notes);
@@ -8747,33 +8807,137 @@ async function openBriefing() {
   reg.forEach((n) => watch.push('ℹ ' + n));
   watch.push('ℹ Charted depths are at low water (MLLW); the tide adds to them. Keep a lookout and check the official chart.');
   h += '<div class="bf-h">Watch for</div><ul class="bf-watch">' + watch.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>';
-  h += '<div class="bf-h">Leg by leg</div><div class="bf-legs">' + BRF.legs.map((L0, k) => '<button type="button" class="bf-leg" data-bfleg="' + k + '"><b>' + (k + 1) + '</b><span>Steer <b>' + fmtBrg(L0.brg) + '°T</b> for ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + (L0.info.marks.length ? ' · ' + L0.info.marks.length + ' mark' + (L0.info.marks.length > 1 ? 's' : '') : '') + (L0.info.haz.length || (L0.info.minD != null && L0.info.minD < need + 0.6) ? ' · <em>⚠ watch</em>' : '') + '</span></button>').join('') + '</div></div>';
+  h += '<div class="bf-h">Leg by leg</div><div class="bf-legs">' + BRF.legs.map((L0, k) => '<button type="button" class="bf-leg" data-bfleg="' + k + '"><b>' + (k + 1) + '</b><span><i class="bf-ft">' + esc(L0.from) + ' → ' + esc(L0.to) + ' · ' + fmtClock(L0.t0) + '</i>' + 'Head ' + legDirWords(L0.brg) + ', steer <b>' + fmtBrg(L0.brg) + '°T</b> · ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + ((L0.sights || []).length ? ' · 👁 ' + esc(L0.sights.map((x) => x.st.name).slice(0, 2).join(', ')) : '') + (L0.info.marks.length ? ' · ' + L0.info.marks.length + ' mark' + (L0.info.marks.length > 1 ? 's' : '') : '') + (L0.info.haz.length || (L0.info.minD != null && L0.info.minD < need + 0.6) ? ' · <em>⚠ watch</em>' : '') + '</span></button>').join('') + '</div></div>';
   h += '<div class="bf-btns"><button type="button" class="btn" data-bf="close">Back to the route</button><button type="button" class="btn primary" data-bf="play">▶ Fly the route</button></div>';
   el.innerHTML = h;
 }
-function brLeg(k) {
-  const L0 = BRF.legs[k], el = $('briefing'); if (!L0 || !el) return; BRF.i = k;
-  map.flyToBounds(L.latLngBounds([[L0.a.lat, L0.a.lon], [L0.b.lat, L0.b.lon]]), { paddingTopLeft: [30, 60], paddingBottomRight: [30, 300], maxZoom: 15, duration: 1.4 });
-  if (BRF.mk) map.removeLayer(BRF.mk); BRF.mk = L.polyline([[L0.a.lat, L0.a.lon], [L0.b.lat, L0.b.lon]], { color: '#FFD54F', weight: 8, opacity: 0.7, interactive: false }).addTo(map);
-  const need = wrNeedM(), nxt = BRF.legs[k + 1], turn = nxt ? Math.round(((nxt.brg - L0.brg + 540) % 360) - 180) : null;
-  const lines = [];
+// what a skipper would tell you at each named waypoint of a passage
+const PN_NOTE = {
+  bbr: 'Go under the Bay Bridge through the marked main channel spans; current runs hard between the piers.',
+  cdw: 'Into the C&D Canal: big ships and tugs use it day and night and have right of way. The current runs 2 to 3 knots, so time it to go with you. No anchoring in the canal; Chesapeake City has a free basin.',
+  cdc: 'Chesapeake City: the free town basin on the south side is the usual stop before or after the canal.',
+  cde: 'Reedy Point: out of the canal into the Delaware River. Ships, strong current, and the tide matters from here to Cape May.',
+  sjs: 'Delaware Bay: stay just outside the ship channel. Wind against tide here builds a short, steep sea, so ride the ebb going down.',
+  bwy: 'Lower Delaware Bay: the Bay is wide open to the south-east; check the forecast before committing.',
+  cmp: 'Round Cape May Point well off; the rips off the point are rough. Inside route: the Cape May Canal (fixed bridges, about 55 ft clearance) if your mast fits.',
+  cmi: 'Cape May Inlet is the good all-weather harbor before the open Jersey shore.',
+  acy: 'Jersey shore: the reliable bail-out inlets are Atlantic City (Absecon) and Manasquan. Most other inlets shoal and break in an onshore wind.',
+  msq: 'Manasquan Inlet: the last good inlet before Sandy Hook. Strong current in the inlet.',
+  shk: 'Sandy Hook Channel into New York Harbor: heavy ship and ferry traffic. Stay just outside the channel edges where you can.',
+  vrz: 'Verrazzano-Narrows: ships and ferries converge here; keep a sharp watch and stay out of the channel when big traffic is moving.',
+  ubay: 'Upper Bay: ferries cross fast from every direction. Liberty Landing is behind Liberty State Park, west of the Statue.',
+  hgt: 'Hell Gate: go at slack water or with a fair current. It runs 4 knots or more and swirls at the turn.',
+  chy: 'Cape Henry: the open Atlantic from here. Check the offshore forecast and the Gulf Stream if you are heading south.',
+  cbt: 'Cross the Bay Bridge-Tunnel over a tunnel (Thimble Shoal or Chesapeake Channel) for unlimited height.',
+  tpt: 'Thomas Point Shoal runs well off the point: stay outside the light.',
+};
+function legDirWords(brg) { return ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(((brg % 360) + 360) % 360 / 45) % 8]; }
+function legSay(L0, k) {
+  const dir = legDirWords(L0.brg), first = k === 0, last = k === BRF.legs.length - 1;
+  const to = /^off /.test(L0.to) ? 'a point ' + L0.to : L0.to;
+  let t = (first ? 'Leave ' + L0.from + ' and head ' : (/^off |^east of |^Lower |^Upper /.test(L0.from) ? 'Once ' : 'From ') + L0.from + ', head ') + dir + ' to ' + to + '. ' + fmtDist(L0.d) + ' at about ' + fmtDur(L0.hrs) + ', steering ' + fmtBrg(L0.brg) + '°T.';
+  if (last) t += ' This is the final leg; you arrive about ' + fmtClock(L0.t0 + L0.hrs * 3600000) + '.';
+  return t;
+}
+function legNotes(L0) { return L0.sub.filter((p) => p.pn && PN_NOTE[p.pn]).map((p) => PN_NOTE[p.pn]).filter((x, i, a) => a.indexOf(x) === i); }
+async function brSights() { // what to look for on each leg: the guide's stops (and Wikipedia's) close to the route, with the side you will see them on
+  try { await tgLoad(); const step = []; let acc = 0; RT.pts.forEach((p, i) => { if (i) acc += distNm(RT.pts[i - 1], p); if (!i || acc > 6) { step.push(p); acc = 0; } });
+    await Promise.race([Promise.all(step.slice(0, 16).map((p) => tgWikiNear(p.lat, p.lon))), new Promise((r) => setTimeout(r, 5000))]); } catch (e) { /* offline */ }
+  const used = new Set();
+  BRF.legs.forEach((L0) => { let list = []; try { list = tgAlongRoute(L0.sub); } catch (e) { /* */ }
+    L0.sights = list.filter((x) => !used.has(x.st.id) && (x.st.from === 'guide' || /light|island|bridge|fort|point|narrows|statue|lighthouse/i.test(x.st.name))).slice(0, 4).map((x) => { used.add(x.st.id);
+      let bi = 0, bd = 1e9; L0.sub.forEach((p, i) => { const d = distNm(p, x.st); if (d < bd) { bd = d; bi = i; } }); const a = L0.sub[Math.max(0, bi - 1)], b = L0.sub[Math.min(L0.sub.length - 1, bi + 1)];
+      const side = ((b.lon - a.lon) * (x.st.lat - a.lat) - (b.lat - a.lat) * (x.st.lon - a.lon)) > 0 ? 'port' : 'starboard'; return { st: x.st, off: x.off, at: x.at, side }; }); });
+}
+function brLine(L0) { if (BRF.mk) map.removeLayer(BRF.mk); BRF.mk = L.polyline(L0.sub.map((p) => [p.lat, p.lon]), { color: '#FFD54F', weight: 7, opacity: 0.75, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(map); }
+function brLegHtml(L0, k) {
+  const need = wrNeedM(), nxt = BRF.legs[k + 1], turn = nxt ? Math.round(((nxt.brg - L0.brg + 540) % 360) - 180) : null, lines = [];
+  legNotes(L0).forEach((x) => lines.push('⚓ ' + x));
   L0.info.marks.forEach((m) => { const lat = m.n.col === 'red' ? 'red' : m.n.col === 'green' ? 'green' : ''; lines.push('Pass ' + (m.n.name || ('a ' + (lat ? lat + ' ' : '') + m.n.shape)) + ' on your ' + m.side + (lat ? (m.side === (lat === 'red' ? 'right' : 'left') ? ' ✓' : ' (check: red right returning)') : '') + '.'); });
   L0.info.haz.forEach((p) => lines.push('⚠ Charted ' + (p.kind === 'wreck' ? 'wreck' : 'obstruction') + (p.a.VALSOU != null ? ' (' + fmtLen(+p.a.VALSOU / 0.3048) + ' over it)' : '') + ' close by. Give it room.'));
   if (L0.info.minD != null) lines.push((L0.info.minD < need + 0.6 ? '⚠ Shallowest charted water on this leg: ' : 'Least charted depth: ') + fmtLen(L0.info.minD / 0.3048) + '.');
   L0.info.bridges.forEach((x) => lines.push('🌉 ' + x.br.name + ': ' + x.j.text));
-  el.innerHTML = '<div class="bf-top"><b>Leg ' + (k + 1) + ' of ' + BRF.legs.length + '</b><span>' + fmtClock(L0.t0) + ' · ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + '</span><button type="button" class="bf-x" data-bf="close" aria-label="Close">×</button></div>' +
-    '<div class="bf-steer"><span class="bf-arrow" style="transform:rotate(' + Math.round(L0.brg + mapRot()) + 'deg)">▲</span><div><b class="tnum">' + fmtBrg(L0.brg) + '°T</b><span>' + compass16(L0.brg) + (nxt ? ' · then turn ' + (Math.abs(turn) < 8 ? 'and hold course' : Math.abs(turn) + '° ' + (turn > 0 ? 'to starboard' : 'to port') + ' onto ' + fmtBrg(nxt.brg) + '°') : ' · arrive') + '</span></div></div>' +
-    (lines.length ? '<ul class="bf-watch">' + lines.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '<p class="bf-quiet">Open water on this leg. Nothing charted close to the line.</p>') +
-    '<div class="bf-btns"><button type="button" class="btn" data-bf="prev"' + (k ? '' : ' disabled') + '>‹ Back</button><button type="button" class="btn" data-bf="' + (BRF.play ? 'pause' : 'play') + '">' + (BRF.play ? '❚❚ Pause' : '▶ Play') + '</button><button type="button" class="btn primary" data-bf="' + (nxt ? 'next' : 'end') + '">' + (nxt ? 'Next ›' : 'Done') + '</button></div>';
+  const sights = (L0.sights || []).map((x) => '<button type="button" class="bf-sight" data-bfsight="' + esc(x.st.id) + '"><span class="bf-sph" data-sid="' + esc(x.st.id) + '"></span><span><b>' + esc(x.st.name) + '</b><small>' + (x.off < 0.15 ? 'right on the route' : fmtDist(x.off) + ' to ' + x.side) + '</small></span></button>').join('');
+  return '<div class="bf-top"><b>Leg ' + (k + 1) + ' of ' + BRF.legs.length + '</b><span>' + fmtClock(L0.t0) + ' · ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + '</span><button type="button" class="bf-x" data-bf="close" aria-label="Close">×</button></div>' +
+    '<div class="bf-body"><div class="bf-steer"><span class="bf-arrow" style="transform:rotate(' + Math.round(L0.brg + mapRot()) + 'deg)">▲</span><div><b class="tnum">' + fmtBrg(L0.brg) + '°T</b><span>' + compass16(L0.brg) + (nxt ? ' · then turn ' + (Math.abs(turn) < 8 ? 'and hold course' : Math.abs(turn) + '° ' + (turn > 0 ? 'to starboard' : 'to port') + ' onto ' + fmtBrg(nxt.brg) + '°') : ' · arrive') + '</span></div></div>' +
+    '<p class="bf-say">' + esc(legSay(L0, k)) + '</p>' + (sights ? '<div class="bf-h">Look out for</div><div class="bf-sights">' + sights + '</div>' : '') +
+    (lines.length ? '<div class="bf-h">On this leg</div><ul class="bf-watch">' + lines.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '<p class="bf-quiet">Open water on this leg. Nothing charted close to the line.</p>') + '</div>' +
+    '<div class="bf-btns"><button type="button" class="btn" data-bf="prev"' + (k ? '' : ' disabled') + '>‹ Back</button><button type="button" class="btn" data-bf="' + (FLY.on ? 'pause' : 'play') + '">' + (FLY.on ? '❚❚ Pause' : '▶ Fly') + '</button><button type="button" class="btn primary" data-bf="' + (nxt ? 'next' : 'end') + '">' + (nxt ? 'Next ›' : 'Done') + '</button></div>' +
+    '<label class="bf-opt"><input type="checkbox" data-bfopt="sights"' + (S.settings.flySights !== false ? ' checked' : '') + '> Point out sights with photos as we fly</label>';
 }
-function closeBriefing() { BRF.on = false; clearInterval(BRF.play); BRF.play = null; if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } const el = $('briefing'); if (el) el.hidden = true; document.documentElement.classList.remove('briefing'); if (TRIP.on) { tripCardRender(); tripFit(); } }
+function brPhotos(el) { (el || document).querySelectorAll('.bf-sph[data-sid]').forEach(async (sp) => { const st = tgAll().find((x) => x.id === sp.dataset.sid); if (!st) return; const sm = await tgSummary(st); if (sm && sm.img) sp.style.backgroundImage = 'url("' + sm.img.replace(/"/g, '') + '")'; else sp.classList.add('none'); }); }
+function brLeg(k, keepCam) {
+  const L0 = BRF.legs[k], el = $('briefing'); if (!L0 || !el) return; BRF.i = k; brLine(L0);
+  if (!keepCam) { flyStop(); map.flyToBounds(L.latLngBounds(L0.sub.map((p) => [p.lat, p.lon])), { paddingTopLeft: [30, 60], paddingBottomRight: [30, Math.round(el.offsetHeight || 300) + 20], maxZoom: 15, duration: 0.9, easeLinearity: 0.5 }); }
+  el.innerHTML = brLegHtml(L0, k); brPhotos(el);
+}
+/* ---------- the fly-through: one continuous camera along the route at a steady speed and a fixed zoom (no zoom hops, no reloading tiles
+   every few seconds), a boat that turns with the route, the leg card changing as you go, and a "look out for" card with a photo as each sight
+   comes up. The camera slows down smoothly as it passes a sight. ---------- */
+const FLY = { on: false, raf: 0, s: 0, last: 0, pts: null, cum: null, total: 0, v: 0, z: 12, boat: null, shown: new Set(), slow: 1, endT: 0, hdg: null };
+function flyPrep() {
+  const pts = []; BRF.legs.forEach((L0, k) => L0.sub.forEach((p, j) => { if (k && !j) return; pts.push({ lat: p.lat, lon: p.lon, leg: k }); }));
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + distNm(pts[i - 1], pts[i]));
+  FLY.pts = pts; FLY.cum = cum; FLY.total = cum[cum.length - 1];
+  BRF.legs.forEach((L0, k) => { L0.s0 = cum[pts.findIndex((p) => p.leg === k)] || 0; (L0.sights || []).forEach((x) => { x.s = L0.s0 + x.at; }); });
+  // one zoom for the whole flight: about 60 to 150 seconds total, never closer than you can read the shore or further than the whole region
+  const secs = Math.max(30, Math.min(150, FLY.total * 3)), c = map.getCenter();
+  const pxPerNmAt = (z) => map.project(L.latLng(c.lat, c.lng + 1 / 60 / Math.cos(c.lat * Math.PI / 180)), z).distanceTo(map.project(c, z)); // 1 nm east
+  const want = 110; // screen pixels a second: smooth and easy to follow
+  let z = 14; while (z > 8 && pxPerNmAt(z) * FLY.total / secs > want) z -= 1; FLY.z = Math.max(9, Math.min(14, z)); FLY.v = FLY.total / secs; // nm per second
+}
+function flyAt(s) { const c = FLY.cum, p = FLY.pts; let lo = 0, hi = c.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= s) lo = m; else hi = m; } const seg = c[hi] - c[lo] || 1e-9, f = Math.max(0, Math.min(1, (s - c[lo]) / seg));
+  return { lat: p[lo].lat + (p[hi].lat - p[lo].lat) * f, lon: p[lo].lon + (p[hi].lon - p[lo].lon) * f, leg: p[lo].leg, brg: bearing(p[lo], p[hi]) }; }
+function flyMeasure() { const el = $('briefing'), mh = map.getSize().y, bh = el && !el.hidden ? el.offsetHeight : 0; FLY.dy = Math.max(0, Math.min(mh * 0.3, bh / 2)); }
+function flyCam(pos) { const dy = FLY.dy || 0; // keep the boat in the open part of the chart above the card
+  const tgt = map.project([pos.lat, pos.lon], FLY.z).add([0, dy]), cur = FLY.cpx || map.project(map.getCenter(), FLY.z), d = tgt.subtract(cur).round();
+  if (d.x || d.y) { map._rawPanBy(d); FLY.cpx = cur.add(d); map.fire('move'); } }
+function flyBoat(pos, hdg) { const ic = '<svg viewBox="-12 -16 24 32" width="26" height="34"><path d="M0-14 C6-6 7 4 5 14 L-5 14 C-7 4-6-6 0-14Z" fill="#FFD54F" stroke="#10202E" stroke-width="2"/></svg>';
+  if (!FLY.boat) FLY.boat = L.marker([pos.lat, pos.lon], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'fly-boat', iconSize: [26, 34], iconAnchor: [13, 17], html: '<div>' + ic + '</div>' }) }).addTo(map);
+  else FLY.boat.setLatLng([pos.lat, pos.lon]); const e = FLY.boat.getElement(); if (e && e.firstChild) e.firstChild.style.transform = 'rotate(' + Math.round(hdg + mapRot()) + 'deg)'; }
+function flyStart() {
+  if (!BRF.legs.length) return; if (!FLY.pts) flyPrep(); FLY.on = true; FLY.last = 0; map.stop();
+  if (FLY.s >= FLY.total - 0.01) { FLY.s = 0; FLY.shown.clear(); }
+  if (BRF.i >= 0 && BRF.legs[BRF.i] && Math.abs((FLY.s || 0) - BRF.legs[BRF.i].s0) > BRF.legs[BRF.i].d) FLY.s = BRF.legs[BRF.i].s0;
+  const p = flyAt(FLY.s); FLY.hdg = p.brg; brLeg(p.leg, true); flyMeasure(); map.setView([p.lat, p.lon], FLY.z, { animate: false }); FLY.cpx = null; FLY.cpx = map.project(map.getCenter(), FLY.z); flyCam(p); flyBoat(p, p.brg);
+  document.documentElement.classList.add('flying'); FLY.idle = 0; FLY.raf = requestAnimationFrame(flyFrame);
+}
+map.on('zoomstart dragstart', () => { if (FLY.on) { flyStop(); } FLY.cpx = null; });
+function flyStop(done) { if (!FLY.on && !FLY.raf) return; FLY.on = false; cancelAnimationFrame(FLY.raf); FLY.raf = 0; document.documentElement.classList.remove('flying'); map.fire('moveend'); if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } }
+function flyFrame(t) {
+  if (!FLY.on) return; const dt = FLY.last ? Math.min(0.05, (t - FLY.last) / 1000) : 0; FLY.last = t;
+  // slow down smoothly near a sight, and for the first and last few seconds
+  let target = 1; const all = BRF.legs.flatMap((L0) => L0.sights || []); all.forEach((x) => { const d = Math.abs(FLY.s - x.s); if (d < FLY.v * 3) target = Math.min(target, 0.35 + 0.65 * d / (FLY.v * 3)); });
+  const ease = Math.min(1, FLY.s / (FLY.v * 2.5) + 0.15, (FLY.total - FLY.s) / (FLY.v * 2.5) + 0.1); FLY.slow += (Math.min(target, ease) - FLY.slow) * Math.min(1, dt * 3);
+  FLY.s = Math.min(FLY.total, FLY.s + FLY.v * FLY.slow * dt);
+  const p = flyAt(FLY.s), ah = flyAt(Math.min(FLY.total, FLY.s + FLY.v * 1.2)); // look a little ahead so the boat turns smoothly into the bends
+  const want = bearing(p, ah), dh = ((want - FLY.hdg + 540) % 360) - 180; FLY.hdg = (FLY.hdg + dh * Math.min(1, dt * 4) + 360) % 360;
+  flyCam(p); flyBoat(p, FLY.hdg);
+  if (p.leg !== BRF.i) { brLeg(p.leg, true); requestAnimationFrame(flyMeasure); }
+  if (S.settings.flySights !== false) all.forEach((x) => { if (!FLY.shown.has(x.st.id) && FLY.s >= x.s - FLY.v * 2.5) { FLY.shown.add(x.st.id); flySight(x); } });
+  if (t - (FLY.idle || 0) > 350) { FLY.idle = t; map.eachLayer((l) => { if (l instanceof L.GridLayer && l._map && l._update) try { l._update(); } catch (e) { /* */ } }); } // keep the chart tiles coming without waking every other layer each frame
+  if (FLY.s >= FLY.total) { flyStop(); const el = $('briefing'); if (el) el.innerHTML = brLegHtml(BRF.legs[BRF.i], BRF.i); brPhotos(el); return; }
+  FLY.raf = requestAnimationFrame(flyFrame);
+}
+async function flySight(x) {
+  let el = $('flySight'); if (!el) { el = document.createElement('div'); el.id = 'flySight'; $('app').appendChild(el); }
+  el.innerHTML = '<div class="fs-txt"><small>DON\'T FORGET TO LOOK</small><b>' + esc(x.st.name) + '</b><span>' + (x.off < 0.15 ? 'Right on the route' : fmtDist(x.off) + ' off to ' + x.side) + '</span></div><button type="button" class="fs-x" aria-label="Close">×</button>';
+  el.hidden = false; el.classList.remove('in'); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in'))); clearTimeout(FLY.sT); FLY.sT = setTimeout(() => { el.classList.remove('in'); setTimeout(() => { el.hidden = true; }, 400); }, 7000);
+  const sm = await tgSummary(x.st).catch(() => null); if (!sm || el.querySelector('b').textContent !== x.st.name) return;
+  if (sm.img) el.insertAdjacentHTML('afterbegin', '<img src="' + esc(sm.img) + '" alt="">'); if (sm.brief) el.querySelector('.fs-txt').insertAdjacentHTML('beforeend', '<p>' + esc(sm.brief) + '</p>');
+  if (tgMode() === 'voice' && S.settings.voice) { try { speak('Don\'t forget to look ' + (x.side === 'port' ? 'to port' : 'to starboard') + ' for ' + x.st.name + '.'); } catch (e) { /* */ } }
+}
+document.addEventListener('click', (e) => { if (e.target.closest('#flySight .fs-x')) { const el = $('flySight'); el.hidden = true; return; }
+  const sg = e.target.closest('[data-bfsight]'); if (sg) { const st = tgAll().find((x) => x.id === sg.dataset.bfsight); if (st) tgSheet(st); return; }
+  const op = e.target.closest('[data-bfopt]'); if (op) { S.settings.flySights = op.checked; saveSettings(); } });
+function closeBriefing() { BRF.on = false; clearInterval(BRF.play); BRF.play = null; flyStop(true); FLY.pts = null; FLY.s = 0; FLY.shown.clear(); { const fs = $('flySight'); if (fs) fs.hidden = true; } if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } const el = $('briefing'); if (el) el.hidden = true; document.documentElement.classList.remove('briefing'); if (TRIP.on) { tripCardRender(); tripFit(); } }
 document.addEventListener('click', (e) => {
   const lg = e.target.closest('#briefing [data-bfleg]'); if (lg) { brLeg(+lg.dataset.bfleg); return; }
   const b = e.target.closest('#briefing [data-bf]'); if (!b) return; const a = b.dataset.bf;
-  if (a === 'close' || a === 'end') { if (a === 'end' || BRF.i >= 0) { clearInterval(BRF.play); BRF.play = null; if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } if (a === 'end') { closeBriefing(); return; } openBriefing(); return; } closeBriefing(); return; }
-  if (a === 'next') brLeg(BRF.i + 1); if (a === 'prev') brLeg(Math.max(0, BRF.i - 1));
-  if (a === 'play') { if (BRF.i < 0) brLeg(0); clearInterval(BRF.play); BRF.play = setInterval(() => { if (BRF.i >= BRF.legs.length - 1) { clearInterval(BRF.play); BRF.play = null; brLeg(BRF.i); return; } brLeg(BRF.i + 1); }, 4500); brLeg(BRF.i); }
-  if (a === 'pause') { clearInterval(BRF.play); BRF.play = null; brLeg(BRF.i); }
+  if (a === 'close' || a === 'end') { if (a === 'end' || BRF.i >= 0) { clearInterval(BRF.play); BRF.play = null; flyStop(true); FLY.s = 0; FLY.shown.clear(); if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } if (a === 'end') { closeBriefing(); return; } openBriefing(); return; } closeBriefing(); return; }
+  if (a === 'next') { brLeg(BRF.i + 1); if (FLY.pts) FLY.s = BRF.legs[BRF.i].s0; } if (a === 'prev') { brLeg(Math.max(0, BRF.i - 1)); if (FLY.pts) FLY.s = BRF.legs[BRF.i].s0; }
+  if (a === 'play') { if (BRF.i < 0) { FLY.s = 0; FLY.shown.clear(); } flyStart(); }
+  if (a === 'pause') { flyStop(); brLeg(BRF.i, true); }
 });
 /* a small temperature dial on the chart: air temperature, and what it feels like. Tap it for the weather. Arrange can move it. */
 function renderTempBtn() {
@@ -9025,14 +9189,23 @@ document.addEventListener('click', (e) => {
 const TG = { stops: null, wiki: new Map(), seen: store.get('tourSeen', {}), lastAt: 0, quietUntil: 0, layer: L.layerGroup().addTo(map), lastQ: null, sum: new Map() };
 const tgMode = () => S.settings.tourMode || 'cards', tgDepth = () => S.settings.tourDepth || 'brief';
 async function tgLoad() { if (TG.stops) return TG.stops; try { const d = await (await fetch('kb/tour.json')).json(); TG.stops = (d.stops || []).map((x) => ({ ...x, from: 'guide' })); } catch (e) { TG.stops = []; } return TG.stops; }
-const TG_SKIP = /\bschool\b|elementary|church of|county\b|census|\broad\b|route \d|highway|street|avenue|railway station|train station|metro station|fire station|police station|airport|\bmall\b|apartment|hospital|cemetery|disambiguation|^list of|shopping|\bhotel\b|stadium|post office/i;
+const TG_SKIP = /\bschool\b|elementary|church of|county\b|census|\broad\b|route \d|highway|street|avenue|railway station|train station|metro station|fire station|police station|airport|\bmall\b|apartment|hospital|cemetery|disambiguation|^list of|shopping|\bhotel\b|post office|\bCDP\b|neighborhood|subdivision|census-designated|\bestates?\b|\bmanor\b/i;
 async function tgWikiNear(lat, lon) {
   const k = (Math.round(lat * 20) / 20) + ',' + (Math.round(lon * 20) / 20); if (TG.wiki.has(k) || offNow()) return; TG.wiki.set(k, []);
   try {
     const g = await fetchT('https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&list=geosearch&gscoord=' + lat.toFixed(4) + '|' + lon.toFixed(4) + '&gsradius=10000&gslimit=80&gsprop=type', 9000).then((r) => r.json());
     TG.wiki.set(k, ((g.query || {}).geosearch || []).filter((h) => !TG_SKIP.test(h.title) && !/^(edu|railwaystation|airport|adm\w*|country|state)$/.test(h.type || ''))
-      .map((h) => ({ id: 'w' + h.pageid, title: h.title, name: h.title.replace(/\s*\(.*\)$/, ''), lat: h.lat, lon: h.lon, kind: h.type || 'place', r: /isle|waterbody|landmark/.test(h.type || '') || /light|island|point|bridge|fort|narrows|creek|river|harbou?r/i.test(h.title) ? 1.8 : 1, from: 'wiki' })));
+      .map((h) => ({ pageid: h.pageid, id: 'w' + h.pageid, title: h.title, name: h.title.replace(/\s*\(.*\)$/, ''), lat: h.lat, lon: h.lon, kind: h.type || 'place', r: /isle|waterbody|landmark/.test(h.type || '') || /light|island|point|bridge|fort|narrows|creek|river|harbou?r/i.test(h.title) ? 1.8 : 1, from: 'wiki' })));
+    // how much people read each page in the last month is a good, honest measure of what is worth pointing out (the stadium yes, the house that was a dentist's office no)
+    const L2 = TG.wiki.get(k) || [];
+    for (let i = 0; i < L2.length; i += 50) { const part = L2.slice(i, i + 50);
+      try { const v = await fetchT('https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&prop=pageviews&pvipdays=30&pageids=' + part.map((x) => x.pageid).join('|'), 9000).then((r) => r.json());
+        const pg = (v.query || {}).pages || {}; part.forEach((x) => { const pv = (pg[x.pageid] || {}).pageviews; x.pv = pv ? Object.values(pv).reduce((m, n) => m + (n || 0), 0) : 0; }); } catch (e) { /* keep without */ } }
   } catch (e) { TG.wiki.delete(k); }
+}
+function tgWorth(x, d) { // a score for "worth pointing out": the guide's own stops first, then Wikipedia pages by how much people read them, nearer is better
+  if (x.from === 'guide') return 6 / (1 + d / 2);
+  const pv = x.pv == null ? 400 : x.pv; if (pv < 120 && d > 0.4) return 0; return Math.log10(pv + 10) / (1 + d / 1.5) * (/light|island|fort|bridge|stadium|academy|museum|historic|lighthouse|ship|harbor|harbour|point/i.test(x.name) ? 1.4 : 1);
 }
 function tgAll() {
   const cur = TG.stops || [], ids = new Set(), first = (n) => n.toLowerCase().replace(/^(the|fort|port|cape|mount)\s+/, '').split(/[\s,]/)[0];
@@ -9076,7 +9249,7 @@ async function tgTick() {
   if (!TG.lastQ || distNm(TG.lastQ, f) > 2) { TG.lastQ = { lat: f.lat, lon: f.lon }; tgWikiNear(f.lat, f.lon).then(tgDraw); }
   if (m === 'pins' || FT.on || now - TG.lastAt < 3 * 60000 || now < TG.quietUntil || (S.sog || 0) < 1 || (RC.on && RC.kind === 'race')) return;
   let best = null, bd = 1e9;
-  tgAll().forEach((st) => { if (now - (TG.seen[st.id] || 0) < 12 * 3600000) return; const d = distNm(f, st) / (st.from === 'guide' ? 1.3 : 1); if (d < (st.r || 1.2) * (st.from === 'guide' ? 1.3 : 1) && d < bd) { bd = d; best = st; } });
+  tgAll().forEach((st) => { if (now - (TG.seen[st.id] || 0) < 12 * 3600000) return; if (st.from === 'wiki' && st.pv != null && st.pv < 600) return; const d = distNm(f, st) / (st.from === 'guide' ? 1.3 : 1); if (d < (st.r || 1.2) * (st.from === 'guide' ? 1.3 : 1) && d < bd) { bd = d; best = st; } });
   if (!best) return; TG.seen[best.id] = now; Object.keys(TG.seen).forEach((k) => { if (now - TG.seen[k] > 3 * 86400000) delete TG.seen[k]; }); store.set('tourSeen', TG.seen);
   if (await tgShow(best)) TG.lastAt = now;
 }
@@ -9086,7 +9259,7 @@ function tgAlongRoute(pts) {
   const dense = []; for (let i = 0; i < pts.length; i++) { if (i) { const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(distNm(a, b) / 0.3)); for (let j = 1; j <= n; j++) dense.push({ lat: a.lat + (b.lat - a.lat) * j / n, lon: a.lon + (b.lon - a.lon) * j / n }); } else dense.push(pts[0]); }
   const cum = [0]; for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + distNm(dense[i - 1], dense[i]));
   return tgAll().map((st) => { let bi = 0, bd = 1e9; dense.forEach((p, i) => { const d = distNm(p, st); if (d < bd) { bd = d; bi = i; } }); return { st, off: bd, at: cum[bi] }; })
-    .filter((x) => x.off < Math.max(1.5, (x.st.r || 1) * 1.2) && (x.st.from === 'guide' || x.off < 1)).sort((a, b) => a.at - b.at);
+    .filter((x) => x.off < Math.max(1.5, (x.st.r || 1) * 1.2) && (x.st.from === 'guide' || (x.off < 1 && (x.st.pv == null || x.st.pv >= 300)))).sort((a, b) => a.at - b.at);
 }
 async function openTour() {
   openSheet('<h3>Tour guide</h3><p class="sub">Looking along the way…</p>'); await tgLoad();
@@ -9161,8 +9334,11 @@ async function fmNearby(kind) { // OpenStreetMap via Overpass: named places of o
   const r = kind === 'food' || kind === 'fuel' || kind === 'ramp' ? 9000 : 18500, A = '(around:' + r + ',' + at.lat.toFixed(4) + ',' + at.lon.toFixed(4) + ')';
   const Q = { island: 'nwr["place"~"^(island|islet)$"]["name"]' + A, anchorage: 'nwr["seamark:type"="anchorage"]' + A + ';nwr["leisure"="anchorage"]' + A, beach: 'nwr["natural"="beach"]["name"]' + A,
     marina: 'nwr["leisure"="marina"]["name"]' + A + ';nwr["club"="sailing"]["name"]' + A, ramp: 'nwr["leisure"="slipway"]' + A, fuel: 'nwr["waterway"="fuel"]' + A + ';nwr["amenity"="fuel"]["boat"="yes"]' + A,
-    food: 'nwr["amenity"~"^(restaurant|bar|pub)$"]["name"]' + A, lighthouse: 'nwr["man_made"="lighthouse"]' + A + ';nwr["seamark:type"~"light_major|landmark"]["name"]' + A, cove: 'nwr["natural"~"^(bay|cove)$"]["name"]' + A + ';nwr["waterway"="stream"]["name"~"Creek"]' + A }[kind];
-  try { const j = await fetchT(OVERPASS + encodeURIComponent('[out:json][timeout:15];(' + Q + ';);out center 80;'), 16000).then((x) => x.json());
+    food: 'FOOD', lighthouse: 'nwr["man_made"="lighthouse"]' + A + ';nwr["seamark:type"~"light_major|landmark"]["name"]' + A, cove: 'nwr["natural"~"^(bay|cove)$"]["name"]' + A + ';nwr["waterway"="stream"]["name"~"Creek"]' + A }[kind];
+  // waterfront food means on the water: a restaurant or bar within about 120 m of the shoreline, a marina or a pier, still trading (no disused or closed tags)
+  const qs = Q === 'FOOD' ? '[out:json][timeout:20];(way["natural"="coastline"]' + A + ';nwr["leisure"="marina"]' + A + ';way["man_made"="pier"]' + A + ';)->.w;nwr["amenity"~"^(restaurant|bar|pub|cafe|ice_cream)$"]["name"][!"disused:amenity"][!"was:amenity"]["opening_hours"!="closed"](around.w:120);out center 80;'
+    : '[out:json][timeout:15];(' + Q + ';);out center 80;';
+  try { const j = await fetchT(OVERPASS + encodeURIComponent(qs), 22000).then((x) => x.json());
     const seen = new Set(), list = (j.elements || []).map((e) => ({ name: (e.tags && (e.tags.name || e.tags['seamark:name'])) || (kind === 'ramp' ? 'Boat ramp' : kind === 'anchorage' ? 'Anchorage' : kind === 'fuel' ? 'Fuel dock' : ''), lat: e.lat != null ? e.lat : e.center && e.center.lat, lon: e.lon != null ? e.lon : e.center && e.center.lon }))
       .filter((x) => x.name && x.lat != null && !seen.has(x.name) && seen.add(x.name)).map((x) => Object.assign(x, { d: distNm(at, x) })).sort((a, b) => a.d - b.d).slice(0, 6);
     FMN.set(key, list); return list; } catch (e) { return null; }
@@ -9267,7 +9443,7 @@ async function openNearby(kind) {
   const here = fmHere(), chips = '<div class="lk-cats nb-cats">' + NB_KINDS.map(([k, l]) => '<button type="button" data-nb="' + k + '" class="' + (k === kind ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
   openSheet('<h3>Near ' + (S.fix ? 'you' : 'here') + '</h3>' + chips + '<p class="sub">Looking…</p>');
   let list = [];
-  if (kind === 'guide') { await tgLoad(); try { await Promise.race([tgWikiNear(here.lat, here.lon), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { /* */ } list = tgAll().map((x) => Object.assign({ tg: x }, x, { d: distNm(here, x) })).filter((x) => x.d < 10).sort((a, b) => a.d - b.d).slice(0, 12); }
+  if (kind === 'guide') { await tgLoad(); try { await Promise.race([tgWikiNear(here.lat, here.lon), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { /* */ } list = tgAll().map((x) => Object.assign({ tg: x }, x, { d: distNm(here, x) })).map((x) => Object.assign(x, { w: tgWorth(x.tg, x.d) })).filter((x) => x.d < 10 && x.w > 0).sort((a, b) => b.w - a.w).slice(0, 12); }
   else if (kind === 'fish') list = (S.spots || []).map((x) => ({ name: x.species || x.name || 'Fishing spot', lat: x.lat, lon: x.lon, d: distNm(here, x) })).sort((a, b) => a.d - b.d).slice(0, 12);
   else list = (await fmNearby(kind)) || [];
   if (!$('sheet') || sheet.hidden) return;
@@ -9309,7 +9485,7 @@ document.addEventListener('keydown', (e) => { const ck = $('cockpit'); if (!ck |
   clearTimeout(window.__ckKT); window.__ckKT = setTimeout(() => { try { window.__ckSnap(); } catch (err) { /* */ } const G = ck.querySelector('.ck-grid').getBoundingClientRect(), all = S.settings.ckFree || (S.settings.ckFree = {}), key = G.width / G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {}); own[sel.dataset.fid] = [parseFloat(sel.style.left), parseFloat(sel.style.top), w, h]; saveSettings(); }, 400); }, true);
 // outside links (MarineTraffic, VesselFinder, organizers, DNR…) always open in a new tab, never on top of the chart
 document.addEventListener('click', (e) => { const a = e.target.closest && e.target.closest('a[href^="http"]'); if (!a || a.closest('#welcome')) return; if (new URL(a.href).origin === location.origin) return; e.preventDefault(); e.stopPropagation(); const w = window.open(a.href, '_blank', 'noopener'); if (!w) location.href = a.href; }, true);
-window.Tideline = { setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+window.Tideline = { openBriefing, BRF, FLY, pnPath, flyStart, legSay, setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();

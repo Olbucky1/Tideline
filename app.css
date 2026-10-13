@@ -2645,3 +2645,22 @@ html:root[data-night] #map { background: #05080C !important; }
 /* the air/water dial only when no gauges are on screen (they already show it) */
 #app.wide:has(#panelSide:not([hidden])) #btnTemp, #app:has(#cockpit:not([hidden])) #btnTemp { display: none !important; }
 html:root #app.wide #cockpit .ck-map #fabsR.fab-col.fab-right, html:root #app #cockpit .ck-map #fabsR, html:root #app.ck-host .ck-map #fabsR.fab-col { right: 8px !important; left: auto !important; }
+/* build 180: briefing sentences, sights and the fly-through */
+.bf-say { margin: 2px 14px 8px; font-size: 15px; line-height: 1.4; color: #EEF4FA; }
+#briefing .bf-body .bf-say { margin-left: 0; margin-right: 0; }
+.bf-ft { display: block; font-style: normal; font-weight: 600; font-size: 13px; color: var(--mt-acc, #7CC0FF); margin-bottom: 2px; }
+.bf-sights { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-bottom: 4px; }
+.bf-sight { display: flex; gap: 8px; align-items: center; text-align: left; padding: 6px; border-radius: 10px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: #EEF4FA; font: 13px var(--f-ui); }
+.bf-sight b { display: block; font-size: 13px; line-height: 1.2; } .bf-sight small { color: #A9BCCD; font-size: 12px; }
+.bf-sph { flex: none; width: 44px; height: 44px; border-radius: 8px; background: rgba(255,255,255,.1) center/cover no-repeat; }
+.bf-sph.none::after { content: '👁'; display: grid; place-items: center; height: 100%; font-size: 18px; }
+.bf-opt { display: flex; gap: 8px; align-items: center; padding: 0 14px 12px; font-size: 13px; color: #A9BCCD; }
+.fly-boat > div { transition: none; will-change: transform; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+html.flying .leaflet-marker-icon:not(.fly-boat), html.flying .leaflet-tooltip { transition: none !important; }
+#flySight { position: absolute; z-index: 970; top: calc(env(safe-area-inset-top, 0px) + 64px); left: 50%; width: min(420px, calc(100% - 32px)); transform: translate(-50%, -12px); opacity: 0; transition: opacity .35s ease, transform .35s ease;
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 14px; background: rgba(16,32,46,.94); color: #EEF4FA; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+#flySight.in { opacity: 1; transform: translate(-50%, 0); } #flySight[hidden] { display: none; }
+#flySight img { flex: none; width: 96px; height: 72px; object-fit: cover; border-radius: 10px; }
+#flySight .fs-txt { flex: 1; min-width: 0; } #flySight small { display: block; font: 700 11px var(--f-ui); letter-spacing: .06em; color: #FFD54F; }
+#flySight b { display: block; font-size: 16px; } #flySight span { font-size: 13px; color: #A9BCCD; } #flySight p { margin: 4px 0 0; font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#flySight .fs-x { flex: none; border: 0; background: rgba(255,255,255,.12); color: #fff; width: 28px; height: 28px; border-radius: 50%; font-size: 18px; }
