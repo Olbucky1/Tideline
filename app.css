@@ -1864,7 +1864,7 @@ html.arr-dragging .arr-bar { opacity: .12; pointer-events: none; transition: opa
 
 /* 10. The spot card (z-index 1400) stays on top of sheets, the layer panel, menus and Instruments opened after it,
    covering their titles and buttons. Hide it while one of those is up (it comes back when they close). */
-body:has(#sheet:not([hidden]), #quick:not([hidden]), .panel:not([hidden]), #cockpit:not([hidden])) .spot-card { display: none; }
+body:has(#sheet:not([hidden]), #quick:not([hidden]), .panel:not([hidden]):not(#app.wide #panelSide), #cockpit:not([hidden])) .spot-card { display: none; } /* 181 C: not for the gauges beside the chart on a wide screen (it hid every long-press card there) */
 
 /* 11. Night mode loses its red ink for Classic black, Classic white, Brass and ivory, Navy and brass, Simple digital
    and Carbon: their :root[data-gtheme] rules come later in the file than :root[data-night] with the same specificity.
@@ -2664,3 +2664,161 @@ html.flying .leaflet-marker-icon:not(.fly-boat), html.flying .leaflet-tooltip { 
 #flySight .fs-txt { flex: 1; min-width: 0; } #flySight small { display: block; font: 700 11px var(--f-ui); letter-spacing: .06em; color: #FFD54F; }
 #flySight b { display: block; font-size: 16px; } #flySight span { font-size: 13px; color: #A9BCCD; } #flySight p { margin: 4px 0 0; font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 #flySight .fs-x { flex: none; border: 0; background: rgba(255,255,255,.12); color: #fff; width: 28px; height: 28px; border-radius: 50%; font-size: 18px; }
+/* ==== build 181 A start ==== */
+/* the layout switch docks to the chart's right edge (whatever panel is open) and steps up over the forecast bar / tour card */
+html:root #app.wide #deskSw { right: calc(var(--chartR, 0px) + 14px); bottom: calc(var(--tabbar-h, 0px) + 26px + var(--dskLift, 0px)); }
+html:root[data-desk="split"] #app.wide:has(#panelSide:not([hidden])) #deskSw { right: calc(var(--chartR, var(--sideW, 400px)) + 14px); }
+html:root #app.wide:has(#cockpit:not([hidden])) #deskSw { right: 14px !important; bottom: calc(var(--tabbar-h, 0px) + 26px); }
+/* the chart dial never grows wider than the chart can hold beside the left buttons */
+html:root[data-mi] #app #fabsR .mini-inst:not(.as-bar) { --miE: min(var(--mi, 92px), max(60px, calc(var(--chartW, 100vw) - 130px))); width: var(--miE) !important; }
+html:root[data-mi] #app #fabsR .mini-inst:not(.as-bar) > svg { width: var(--miE) !important; height: var(--miE) !important; }
+/* chart only, no buttons: the tab bar dims on a laptop (full again under the pointer) but never on a touch screen, where there is no hover to bring it back */
+html[data-desk="bare"] #app.wide .tabbar { opacity: .55; }
+html[data-desk="bare"] #app.wide .tabbar:is(:hover, :focus-within) { opacity: 1; }
+@media (hover: none), (pointer: coarse) { html[data-desk="bare"] #app.wide .tabbar { opacity: 1 !important; } }
+/* the helm screen's way out is easy to find */
+html.helm #helmX { opacity: .85; box-shadow: 0 0 0 1.5px rgba(255,255,255,.6); }
+/* the chart credit line stays to the right of MOB on a narrow chart (one line, trimmed) */
+html:root #app > #map .leaflet-control-attribution { max-width: calc(var(--chartW, 100vw) - 76px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* MOB follows the button size too (never smaller than 46 px, it must stay an easy tap) */
+html:root[data-fs="l"] #app #btnMOB.mob { width: 52px !important; height: 52px !important; font-size: 12px !important; }
+html:root[data-fs="xl"] #app #btnMOB.mob { width: 60px !important; height: 60px !important; font-size: 13px !important; }
+/* helm screen: the layout switch sits above the small way-out button instead of on it */
+html:root.helm #app.wide #deskSw { bottom: calc(26px + 44px + var(--dskLift, 0px)); }
+/* ==== build 181 A end ==== */
+/* ==== build 181 B start ==== */
+/* B1. Night: a dim warm-neutral palette (parchment text on navy-black, amber accent) instead of the salmon/red wash.
+   Red stays for alarms, MOB and port; navaid and AIS colours are untouched. ink2 6:1, ink 10:1 on the sheets. */
+html:root[data-night] {
+  --chart: #080B0F; --surface: #12161B; --surface2: #171C22; --line: #2C343D;
+  --ink: #D4C6AF; --ink2: #A39683; --accent: #D39A52;
+  --panel: #080B0F; --tile: #12161B; --tile-line: #2C343D; --p-ink: #D4C6AF; --p-muted: #A39683;
+  --teal: #5E9A8F; --teal-ink: #A3CCC3; --teal-bg: #13221F; --teal-hi: #A3CCC3;
+  --amber: #D39A52; --amber-bg: #251C10; --amber-ink: #E2B575; --red: #C9564A;
+  --gi-ink: #D4C6AF; --gi-muted: #9A8D7A; --gi-acc: #D39A52; --gi-n: #C9564A;
+}
+html:root[data-night][data-gtheme] { --gi-ink: #D4C6AF; --gi-muted: #9A8D7A; --gi-acc: #D39A52; --gi-n: #C9564A; }
+html:root[data-night] :is(.cockpit, #app.wide #panelSide, #panelSide) { --g-bg: #080B0F !important; --g-face: #12161B !important; --g-line: #2C343D !important; --g-ink: #D4C6AF !important; --g-muted: #9A8D7A !important; --g-acc: #D39A52 !important; --g-acc2: #C9A66E !important; --g-amber: #D39A52 !important; --g-port: #B4483E !important; --g-stbd: #4E9466 !important; --g-red: #D2594C !important; }
+html:root[data-night] .cockpit { background: #080B0F !important; }
+html:root[data-night] :is(.ch1, .ch4) { stop-color: #3A4048 !important; } html:root[data-night] :is(.ch2, .ch5) { stop-color: #1E2328 !important; } html:root[data-night] .ch3 { stop-color: #101418 !important; }
+html:root[data-night] .fc1 { stop-color: #161B21 !important; } html:root[data-night] .fc2 { stop-color: #0A0D10 !important; }
+html:root[data-night] :is(.ring-lbl, .mp-pin span, .wv-pt b) { color: #BFB29D !important; text-shadow: 0 0 3px #080B0F, 0 0 4px #080B0F !important; }
+html:root[data-night] .pl-name { color: #AFA28E; }
+html:root[data-night] .fab.info .fi-ic svg, html:root[data-night] #waveChip .fi-ic svg, html:root[data-night] #tideChip .fi-ic svg { stroke: var(--accent); }
+html:root[data-night] .mini-inst.as-bar .mb-t { color: var(--ink); } html:root[data-night] .mini-inst.as-bar .mb-t :is(small, i) { color: var(--ink2); }
+html:root[data-night] .rose3d { --rn1: #C9564A; --rn2: #7A2A22; --rw1: #6F675C; --rw2: #3A3630; --rm1: #57524A; --rm2: #2C2925; --rring: rgba(211,154,82,.35); }
+html:root[data-night] .rose3d .rose-c { fill: #6F675C !important; }
+html:root[data-night] .touch-tip { background: rgba(18,22,27,.96) !important; color: var(--ink) !important; }
+html:root[data-night] .spot-card, html:root[data-night] .spot-card::after { background: rgba(18,22,27,.94) !important; }
+html:root[data-night] .sp-btn.pri { background: #3A2C18 !important; color: #EBC58C !important; }
+html:root[data-night] .sp-c { background: rgba(212,198,175,.05); }
+html:root[data-night] .verdict.v-no { background: #2A1412; }
+html:root[data-night] .alert-bar.mini { background: rgba(18,22,27,.75) !important; }
+/* selected chips, toggles and primary buttons: a dim amber fill with amber text, never a solid bright block */
+html:root[data-night] :is(.q-t.on, .seg button.on, .tl-chips button.on, .tl-tabs button.on, .uses button.on, .btn.primary, .fw-peak, .fw-cal i.pk, .lk-cats button.on, .lt-fabs button.on) { background: #3A2C18 !important; color: #EBC58C !important; border-color: #8C6A3A !important; }
+html:root[data-night] :is(.q-t.on, .seg button.on) svg { stroke: #EBC58C !important; }
+html:root[data-night] .tab.on { color: #E2B575 !important; }
+/* toasts: dark card with soft text (was a bright salmon block) */
+html:root[data-night] #app .toast { background: #1B2027; color: var(--ink); border: 1px solid #3A434D; box-shadow: 0 2px 10px rgba(0,0,0,.6); }
+html:root[data-night] #offPill { background: rgba(70, 30, 20, .92); color: #E6CDBF; }
+html:root[data-night] .alert-bar:not(.mini) { filter: none; background: #5A231D; color: #EBD3C8; }
+/* MOB stays red and obvious, but no white ring glaring at night */
+html:root[data-night] #app .mob { background: #A8372C; border-color: #D9897E; color: #F4E2DB; }
+/* race timer, briefing, fly-through and plain numbers were hard-coded white */
+html:root[data-night] #raceTimer { background: rgba(10, 13, 17, .95); color: var(--ink); }
+html:root[data-night] #raceTimer .rt-l { color: var(--ink2); } html:root[data-night] #raceTimer.hot .rt-big { color: #E2B575; } html:root[data-night] :is(#raceTimer.go .rt-big, #raceTimer.go .rt-l) { color: #8CC7A0; }
+html:root[data-night] #raceTimer .rt-b button { background: rgba(212,198,175,.06); border-color: #3A434D; color: var(--ink); }
+html:root[data-night] #raceTimer .rt-b :is(button.on, button[data-rt="sync"], .fin) { background: #3A2C18; border-color: #8C6A3A; color: #EBC58C; }
+html:root[data-night] #raceTimer .rt-b .rt-go { background: #24543A !important; border-color: #3E7A57 !important; color: #DCEBDF; }
+html:root[data-night] :is(.bf-say, .bf-sight, #flySight) { color: var(--ink); }
+html:root[data-night] :is(.bf-sight small, .bf-opt, #flySight span) { color: var(--ink2); }
+html:root[data-night] #flySight { background: rgba(18,22,27,.95); } html:root[data-night] #flySight small { color: var(--accent); }
+html:root[data-night] #panelSide:not(.gmode) { background: linear-gradient(180deg, #0E1217, #080B0F) !important; }
+html:root[data-night] #panelSide:not(.gmode) .sd { background: linear-gradient(160deg, rgba(40,46,54,.55), rgba(12,15,19,.9)) !important; color: var(--ink) !important; border-color: rgba(212,198,175,.12) !important; }
+html:root[data-night] #panelSide:not(.gmode) :is(.sd-v, .sd b) { color: #DCCDB4 !important; }
+html:root[data-night] #panelSide:not(.gmode) :is(.sd small, .sd-v i) { color: #A39683 !important; } html:root[data-night] #panelSide:not(.gmode) .sd em { color: #8E8372 !important; }
+html:root[data-night] #panelSide:not(.gmode) .sd-more { color: var(--ink) !important; }
+html:root[data-night] .tg-txt small { color: var(--ink2); } html:root[data-night] .tg-note { color: #BDB09B; }
+/* the chart tiles: build 177's warm dim filter, a touch brighter so the chart reads at night (.42 -> .52) */
+html:root[data-night] #map .leaflet-tile-pane, html:root[data-night] #map .leaflet-image-layer { filter: brightness(.52) contrast(1.12) saturate(.8) sepia(.3) hue-rotate(-10deg) !important; }
+html:root[data-night] #map { background: #080B0F !important; }
+html:root[data-night] .leaflet-control-attribution { color: var(--ink2) !important; }
+
+html:root[data-night] .lx-chip:not(.close):not(.coming) { border-color: #9C7A28; }
+html:root[data-night] .lx-chip { background: rgba(18,22,27,.9); color: var(--ink); } html:root[data-night] .lx-chip svg { fill: #D9A52A; }
+html:root[data-night] #miniInst { filter: brightness(.8) saturate(.85); } /* the brass chart dial was the brightest thing on the night screen */
+html:root[data-night] #raceTimer { background: rgba(10, 13, 17, .98); }
+html:root[data-night] .rc-card { background: rgba(18,22,27,.95); color: var(--ink); }
+html:root[data-night] .rc-say span { color: var(--ink2); }
+html:root[data-night] .rc-btns button { color: var(--ink); border-color: rgba(212,198,175,.2); background: rgba(212,198,175,.05); }
+html:root[data-night] #app.wide #deskSw { background: rgba(18,22,27,.85); } html:root[data-night] #deskSw button { color: var(--ink); } html:root[data-night] #deskSw button.on { background: #3A2C18; color: #EBC58C; }
+html:root[data-night] .card.setup .su-row.ok i { background: #2F6B62; color: #E6EFEA; }
+html:root[data-night] .lk-grid button.on { border-color: #8C6A3A; background: rgba(211,154,82,.12); }
+/* map labels (tour pins, AIS names, search results) were white boxes at night */
+html:root[data-night] :is(.leaflet-tooltip, .ais-label) { background: rgba(18,22,27,.92); color: var(--ink); border-color: #2C343D; box-shadow: 0 1px 4px rgba(0,0,0,.6); }
+html:root[data-night] .leaflet-tooltip-top::before { border-top-color: rgba(18,22,27,.92); } html:root[data-night] .leaflet-tooltip-bottom::before { border-bottom-color: rgba(18,22,27,.92); }
+html:root[data-night] .leaflet-tooltip-left::before { border-left-color: rgba(18,22,27,.92); } html:root[data-night] .leaflet-tooltip-right::before { border-right-color: rgba(18,22,27,.92); }
+html:root[data-night] :is(input[type=checkbox], input[type=radio], input[type=range]) { accent-color: #B98A4C; }
+
+/* B2. Readability, every theme */
+.tab { font-size: 11px; } /* tab labels were 10.5px */
+:is(.q-h, .lbl, span.lbl) { font-size: 11px !important; }
+.tg-txt small { font-size: 11px; }
+#app .tg-card .rc-btns { padding-left: 14px; } /* buttons were indented 66px for a photo layout that is not there */
+/* AIS count badge: white on orange was 2.4:1 */
+html:root:not([data-fablook="gauge"]):not([data-fablook="app"]) .fab.fab.fab .ais-n, html:root:is([data-night], [data-dusk]) .fab.fab.fab .ais-n { color: #1A1206 !important; }
+html:root[data-night] .fab.fab.fab .ais-n { background: #B87A35 !important; }
+/* matched button looks put cream text on the gold/silver badge (1.9:1): near-black text on the look's accent */
+html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab.fab.fab .ais-n { color: color-mix(in srgb, var(--bt-c2, #E8952B) 12%, #0A0A0A) !important; }
+/* race timer: white on #2E86DE was 3.8:1 */
+#raceTimer .rt-b button.on, #raceTimer .rt-b button[data-rt="sync"], #raceTimer .rt-b .fin { background: #1D6FC2; border-color: #1D6FC2; }
+#raceTimer .rt-b .rt-go { background: #16824E !important; border-color: #16824E !important; }
+/* Events / Near me category chips: white on #2E86DE was 3.8:1 */
+.lk-cats button.on { background: #1D6FC2; border-color: #1D6FC2; }
+/* weather card: the last chip ran past the card edge on a phone; the "Now" line was cut off with "…" */
+@media (max-width: 480px) { #wxBar.tl .tl-chips button { flex: 1 1 auto; padding: 3px 4px !important; font-size: 12px !important; min-width: 0; } }
+#wxBar.tl .tl-sum { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* desktop view switcher sat on top of the Menu / Settings panel text */
+#app.wide:has(.panel:not([hidden]):not(#panelSide)) #deskSw { right: 414px !important; }
+/* race timer centred over the chart, not over the gauge column beside it (iPad portrait / split desktop) */
+html:is([data-side="third"],[data-side="half"]) #app.wide:has(#panelSide:not([hidden])) #raceTimer { left: calc((100% - var(--sideW)) / 2); }
+html:not([data-side="third"]):not([data-side="half"]) #app.wide:has(#panelSide:not([hidden])) #raceTimer { left: calc((100% - 400px) / 2); }
+/* on narrower wide screens the view switcher sat on the tour/coach card's buttons */
+@media (max-width: 1100px) { #app.wide:has(.rc-card:not([hidden])) #deskSw { display: none !important; } }
+/* ==== build 181 B end ==== */
+/* ==== build 181 C start ==== */
+/* the briefing steer arrow was 14px: `.bf-steer span` (the course caption) out-ranked `.bf-arrow`; it is now ↑ (a rotated ▲ looks the same three ways round) */
+html:root .bf-steer .bf-arrow { font-size: 34px; line-height: 1; }
+/* ==== build 181 C end ==== */
+/* ==== build 181 D start ==== */
+/* console Customize bar rides in the header line, so it never covers a tile's picker or its × */
+@media (min-width: 700px) {
+  html:root #cockpit .ck-lay:not([hidden]) { top: calc(3px + env(safe-area-inset-top, 0px)); flex-wrap: nowrap; max-width: calc(100% - 440px); box-sizing: border-box; }
+  html:root #cockpit .ck-lay > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  html:root #cockpit .ck-lay > button { flex: none; }
+  html:root #cockpit:has(.ck-grid.editing) .ck-head :is(.ck-gps, .ck-time) { visibility: hidden; }
+}
+/* the console / chart switch sits in the console's header (next to the title), clear of the tiles; hidden while customizing */
+html:root #app.wide:has(#cockpit:not([hidden])) #deskSw { top: calc(4px + env(safe-area-inset-top, 0px)); bottom: auto; left: 104px !important; right: auto !important; transform: none !important; opacity: .9; }
+html:root #app.wide:has(#cockpit .ck-grid.editing) #deskSw { display: none; }
+/* ==== build 181 D end ==== */
+/* ==== build 181 lead: a compact briefing that leaves the chart usable ==== */
+html:root #briefing { max-height: min(46%, 420px); }
+html:root #briefing .bf-body { overscroll-behavior: contain; }
+html:root #briefing .bf-steer { padding: 4px 14px 2px; } html:root #briefing .bf-steer b { font-size: 24px; }
+html:root #briefing .bf-say { font-size: 14px; margin: 2px 0 6px; }
+html:root #briefing .bf-watch li { padding: 4px 0; font-size: 13.5px; }
+html:root #briefing .bf-btns { padding: 6px 14px 8px; } html:root #briefing .bf-btns .btn { min-height: 38px; padding: 6px 10px; }
+html:root #briefing .bf-opt { padding-bottom: 8px; }
+@media (min-width: 900px) { /* laptop and iPad: a card at the bottom left of the chart, not a curtain across it */
+  html:root #briefing { left: 12px; right: auto; width: min(520px, calc(100% - 24px)); bottom: calc(var(--tabbar-h) + 12px); border-radius: 16px; max-height: min(52%, 460px); }
+  html:root #app.wide #briefing { max-width: 520px; }
+}
+/* while flying: only the steer line, the sentence and the controls; the details come back when you pause */
+html.flying #briefing .bf-body > :not(.bf-steer):not(.bf-say) { display: none !important; }
+html.flying #briefing .bf-opt { display: none; }
+/* chart buttons can blend in: see-through until you reach for them (MOB always stays solid) */
+html:root .fab-col .fab:not(#btnMob), html:root #btnTemp { opacity: var(--fab-o, 1); transition: opacity .18s ease; }
+html:root .fab-col .fab:hover, html:root .fab-col .fab:focus-visible, html:root .fab-col .fab:active, html:root .fab-col .fab.on, html:root #btnTemp:hover { opacity: 1; }
+/* ==== build 181 lead end ==== */
+@media (min-width: 900px) { html:root #flySight { left: 76px; transform: translate(0, -12px); width: min(400px, calc(100% - 300px)); } html:root #flySight.in { transform: translate(0, 0); } }

@@ -612,6 +612,175 @@
    "src": [
     "https://www.spinsheet.com/see-bay/see-bay-sailing-swan-point-bar-it-right-you"
    ]
+  },
+  {
+   "id": "turkey-point-light",
+   "name": "Turkey Point Lighthouse",
+   "lat": 39.4503,
+   "lon": -76.0087,
+   "r": 2.5,
+   "kind": "lighthouse",
+   "brief": "A short white tower on a 100-foot bluff at the head of the Bay, lit in 1833 and kept for decades by women keepers, among them Fannie Salter, the last woman lighthouse keeper in the U.S.",
+   "wiki": "Turkey Point Light",
+   "src": [
+    "https://en.wikipedia.org/wiki/Turkey_Point_Light"
+   ]
+  },
+  {
+   "id": "chesapeake-city",
+   "name": "Chesapeake City",
+   "lat": 39.527,
+   "lon": -75.811,
+   "r": 1.2,
+   "kind": "town",
+   "brief": "The little canal town on the C&D: Victorian houses, a free anchorage basin on the south side, and big ships sliding past the restaurant decks.",
+   "wiki": "Chesapeake City, Maryland",
+   "src": [
+    "https://en.wikipedia.org/wiki/Chesapeake_City,_Maryland"
+   ]
+  },
+  {
+   "id": "fort-delaware",
+   "name": "Fort Delaware (Pea Patch Island)",
+   "lat": 39.5886,
+   "lon": -75.5661,
+   "r": 2.5,
+   "kind": "fort",
+   "brief": "The granite pentagon on Pea Patch Island guarded the Delaware River and held Confederate prisoners in the Civil War. It is a state park now, reached by ferry.",
+   "wiki": "Fort Delaware",
+   "src": [
+    "https://en.wikipedia.org/wiki/Fort_Delaware"
+   ]
+  },
+  {
+   "id": "ship-john-shoal",
+   "name": "Ship John Shoal Light",
+   "lat": 39.3053,
+   "lon": -75.3767,
+   "r": 3,
+   "kind": "lighthouse",
+   "brief": "A cast-iron Victorian cottage light on a caisson in the middle of Delaware Bay, first lit in 1877 and named for the ship John, wrecked on the shoal in 1797.",
+   "wiki": "Ship John Shoal Light",
+   "src": [
+    "https://en.wikipedia.org/wiki/Ship_John_Shoal_Light"
+   ]
+  },
+  {
+   "id": "miah-maull",
+   "name": "Miah Maull Shoal Light",
+   "lat": 39.1268,
+   "lon": -75.2098,
+   "r": 3,
+   "kind": "lighthouse",
+   "brief": "A red cast-iron tower on a caisson marking the Delaware Bay ship channel, lit in 1913.",
+   "wiki": "Miah Maull Shoal Light",
+   "src": [
+    "https://en.wikipedia.org/wiki/Miah_Maull_Shoal_Light"
+   ]
+  },
+  {
+   "id": "brandywine-shoal",
+   "name": "Brandywine Shoal Light",
+   "lat": 38.9862,
+   "lon": -75.1133,
+   "r": 3,
+   "kind": "lighthouse",
+   "brief": "A concrete tower at the mouth of Delaware Bay, standing where the country's first screwpile lighthouse was built in 1850.",
+   "wiki": "Brandywine Shoal Light",
+   "src": [
+    "https://en.wikipedia.org/wiki/Brandywine_Shoal_Light"
+   ]
+  },
+  {
+   "id": "harbor-of-refuge",
+   "name": "Harbor of Refuge Light",
+   "lat": 38.8145,
+   "lon": -75.0925,
+   "r": 3,
+   "kind": "lighthouse",
+   "brief": "The light on the breakwater off Cape Henlopen that shelters the Harbor of Refuge, where ships waited out storms before entering the Bay.",
+   "wiki": "Harbor of Refuge Light",
+   "src": [
+    "https://en.wikipedia.org/wiki/Harbor_of_Refuge_Light"
+   ]
+  },
+  {
+   "id": "cape-may-light",
+   "name": "Cape May Lighthouse",
+   "lat": 38.9332,
+   "lon": -74.9603,
+   "r": 4,
+   "kind": "lighthouse",
+   "brief": "The 157-foot tower at Cape May Point, lit in 1859; you can see it for miles as you round the cape. Cape May itself, a Victorian seaside town, is the classic stop on the way north.",
+   "wiki": "Cape May Lighthouse",
+   "src": [
+    "https://en.wikipedia.org/wiki/Cape_May_Lighthouse"
+   ]
+  },
+  {
+   "id": "absecon-light",
+   "name": "Absecon Lighthouse",
+   "lat": 39.3663,
+   "lon": -74.4144,
+   "r": 4,
+   "kind": "lighthouse",
+   "brief": "New Jersey's tallest lighthouse (171 ft), lit in 1857. These days it stands among the Atlantic City casinos.",
+   "wiki": "Absecon Lighthouse",
+   "src": [
+    "https://en.wikipedia.org/wiki/Absecon_Lighthouse"
+   ]
+  },
+  {
+   "id": "barnegat-light",
+   "name": "Barnegat Lighthouse",
+   "lat": 39.7642,
+   "lon": -74.1062,
+   "r": 4,
+   "kind": "lighthouse",
+   "brief": "\"Old Barney\", the red-and-white tower at Barnegat Inlet, lit in 1859. The inlet itself has a bad reputation in an onshore blow.",
+   "wiki": "Barnegat Lighthouse",
+   "src": [
+    "https://en.wikipedia.org/wiki/Barnegat_Lighthouse"
+   ]
+  },
+  {
+   "id": "sandy-hook-light",
+   "name": "Sandy Hook Lighthouse",
+   "lat": 40.4617,
+   "lon": -74.0019,
+   "r": 3,
+   "kind": "lighthouse",
+   "brief": "Lit in 1764, it is the oldest working lighthouse in the United States, on the hook you round into New York Harbor.",
+   "wiki": "Sandy Hook Light",
+   "src": [
+    "https://en.wikipedia.org/wiki/Sandy_Hook_Light"
+   ]
+  },
+  {
+   "id": "verrazzano",
+   "name": "Verrazzano-Narrows Bridge",
+   "lat": 40.6066,
+   "lon": -74.0447,
+   "r": 2,
+   "kind": "bridge",
+   "brief": "The gateway to New York Harbor, linking Brooklyn and Staten Island. It was the world's longest suspension span when it opened in 1964.",
+   "wiki": "Verrazzano-Narrows Bridge",
+   "src": [
+    "https://en.wikipedia.org/wiki/Verrazzano-Narrows_Bridge"
+   ]
+  },
+  {
+   "id": "statue-liberty",
+   "name": "Statue of Liberty",
+   "lat": 40.6892,
+   "lon": -74.0445,
+   "r": 2,
+   "kind": "landmark",
+   "brief": "Lady Liberty on Liberty Island, dedicated in 1886. Liberty Landing Marina sits just behind her on the Jersey side.",
+   "wiki": "Statue of Liberty",
+   "src": [
+    "https://en.wikipedia.org/wiki/Statue_of_Liberty"
+   ]
   }
  ]
 }

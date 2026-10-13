@@ -140,6 +140,7 @@ map.attributionControl.setPrefix(false);
     e.preventDefault();
     const px = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1, dx = e.deltaX * px, dy = e.deltaY * px;
     const mouseWheel = e.deltaMode !== 0 || (e.wheelDeltaY && Math.abs(e.wheelDeltaY) % 120 === 0 && !e.deltaX) || (Math.abs(dy) >= 100 && !dx && Number.isInteger(dy));
+    if (e.ctrlKey && gz != null) return; // Safari can send a trackpad pinch both as gesture events and as ctrl+wheel: the gesture handler owns it
     if (e.ctrlKey || mouseWheel) { // pinch, or a real mouse wheel: smooth zoom around the pointer
       at = map.mouseEventToContainerPoint(e);
       zoomAcc += -dy * (e.ctrlKey ? 0.012 : 0.0035);
@@ -150,9 +151,10 @@ map.attributionControl.setPrefix(false);
     }
   }, { passive: false });
   // iPad with a trackpad (and Magic Keyboard): Safari reports a pinch as gesture events with a scale, not as a wheel. The page itself must not zoom, so zoom the chart.
-  let gz = null, gat = null;
-  el.addEventListener('gesturestart', (e) => { e.preventDefault(); gz = map.getZoom(); const r = el.getBoundingClientRect(); gat = L.point((e.clientX || r.width / 2 + r.left) - r.left, (e.clientY || r.height / 2 + r.top) - r.top); }, { passive: false });
-  el.addEventListener('gesturechange', (e) => { e.preventDefault(); if (gz == null || !e.scale) return; const z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), gz + Math.log2(e.scale))); if (!raf) raf = requestAnimationFrame(() => { raf = null; map.setZoomAround(gat, z, { animate: false }); }); }, { passive: false });
+  let gz = null, gat = null, tc = 0; // tc: fingers on the glass. A touch pinch also fires gesture events in Safari, but Leaflet's touch zoom already handles that one
+  ['touchstart', 'touchend', 'touchcancel'].forEach((t) => el.addEventListener(t, (e) => { tc = e.touches ? e.touches.length : 0; if (tc) gz = null; }, { passive: true, capture: true }));
+  el.addEventListener('gesturestart', (e) => { e.preventDefault(); if (tc) { gz = null; return; } gz = map.getZoom(); const r = el.getBoundingClientRect(); gat = L.point((e.clientX || r.width / 2 + r.left) - r.left, (e.clientY || r.height / 2 + r.top) - r.top); }, { passive: false });
+  el.addEventListener('gesturechange', (e) => { e.preventDefault(); if (gz == null || tc || !e.scale) return; const z = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), gz + Math.log2(e.scale))); if (!raf) raf = requestAnimationFrame(() => { raf = null; map.setZoomAround(gat, z, { animate: false }); }); }, { passive: false });
   el.addEventListener('gestureend', (e) => { e.preventDefault(); gz = null; }, { passive: false });
 })();
 
@@ -455,8 +457,8 @@ function openLayersSheet() {
   html += '<div class="mo-h">Buoy and light markers</div>' + optSeg('navaids', [['night', 'At night'], ['always', 'Always'], ['off', 'Off']], st.navaids || 'night') + '<p class="hint" style="margin:2px 0 10px">Small red and green markers with their numbers, drawn from NOAA chart data. Tap any buoy for what it is.</p>';
   html += '<div class="mo-h">Chart colors</div>' + '<div class="btheme-row cs-row">' + [['blue', 'Ocean blue', 'linear-gradient(135deg,#FFFFFF 0 40%,#8CC6EE 40% 62%,#F7E7B4 62%)'], ['classic', 'Classic NOAA', 'linear-gradient(135deg,#FFFFFF 0 40%,#A5CDEB 40% 62%,#FAEBB9 62%)'], ['vintage', 'Old-time map', 'linear-gradient(135deg,#E8D9B5 0 40%,#CBB98E 40% 62%,#B8925A 62% 88%,#4A3420 88%)'], ['ivory', 'Ivory harbor', 'linear-gradient(135deg,#F4EEDD 0 40%,#CFDDE0 40% 62%,#E6D3A3 62% 88%,#3A3328 88%)'], ['navyp', 'Navy parchment', 'linear-gradient(135deg,#183353 0 40%,#2C4E73 40% 62%,#D9C29A 62% 88%,#F0E6CC 88%)'], ['driftwood', 'Driftwood', 'linear-gradient(135deg,#EFE3C8 0 40%,#C9D7D3 40% 62%,#D5B98A 62% 88%,#4A3A28 88%)'], ['slate', 'Slate navigator', 'linear-gradient(135deg,#DCE3E8 0 40%,#AFC0CC 40% 62%,#8E979E 62% 88%,#1E2A36 88%)'], ['linen', 'Linen coast survey', 'linear-gradient(135deg,#F5EFE3 0 40%,#D9E4E6 40% 62%,#E2CDA0 62% 88%,#3B3A3A 88%)'], ['atlas', 'Faded blue atlas', 'linear-gradient(135deg,#E6EFF6 0 40%,#B9D3E8 40% 62%,#D8E2EA 62% 88%,#2E4A72 88%)']].map(([v, l, g]) => '<button type="button" data-opt="chartTint" data-val="' + v + '" class="' + ((st.chartTint || 'blue') === v ? 'on' : '') + '"><i style="background:' + g + '"></i>' + l + '</button>').join('') + '</div><small class="hint">The same NOAA chart in a different print style. Soundings, buoys and depths stay accurate.</small>';
   html += '<div class="mo-h">Menu color in daytime</div>' + optSeg('menuTone', [['dark', 'Deep navy (more contrast)'], ['light', 'Light']], st.menuTone || 'dark');
-  html += '<div class="mo-h">Gauge look</div>' + glPicker(st.gTheme || 'midnight') + optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
-  html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large'], ['xxl', 'Huge']], st.miSize || 'l') + '<div class="mo-h">Button size</div>' + optSeg('fabSize', [['s', 'Small'], ['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.fabSize || 'm');
+  html += '<div class="mo-h">Gauge look</div><button type="button" class="btn" data-gauge-look style="width:100%;margin-bottom:6px">Choose a look for gauges and buttons…</button>' + /* the full picker lives in Looks: drawing every preview here froze the sheet */ optSeg('gStyle', [['analog', 'Analog'], ['hybrid', 'Analog + digital'], ['digital', 'Digital']], st.gStyle || 'hybrid') + '<small class="hint">For the speed circle and the instrument panel.</small>';
+  html += '<div class="mo-h">Speed dial size</div>' + optSeg('miSize', [['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large'], ['xxl', 'Huge']], st.miSize || 'l') + '<div class="mo-h">Button see-through</div>' + optSeg('fabAlpha', [['1', 'Solid'], ['0.82', 'Soft'], ['0.62', 'Blend in'], ['0.42', 'Ghost']], String(st.fabAlpha || '1')) + '<div class="mo-h">Button size</div>' + optSeg('fabSize', [['s', 'Small'], ['m', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']], st.fabSize || 'm');
   html += '<div class="mo-h">Button names</div>' + optSeg('learnTips', [['false', 'Only when I press and hold'], ['true', 'Also display it on each tap']], String(st.learnTips === true || st.learnTips === 'true'));
   html += '<div class="mo-h">Tapping the chart</div>' + optSeg('spotTap', [['false', 'Tap and hold shows conditions'], ['true', 'A quick tap shows them']], String(st.spotTap === true || st.spotTap === 'true'));
   html += '<div class="mo-h">What are you doing today?</div><div class="btheme-row">' + ACTIVITY.map(([v, l, th]) => '<button type="button" data-activity="' + v + '" class="' + (st.activity === v ? 'on' : '') + '"><i style="background:' + (BTHEMES.find((x) => x[0] === th) || BTHEMES[0])[2] + '"></i>' + l + '</button>').join('') + '</div><small class="hint">Sets the colors and the layers that matter for it. Change anything afterwards.</small>';
@@ -481,6 +483,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'chartTint') applyTint();
   if (k === 'miSize') { S.settings.miPx = 0; applyMiSize(); }
   if (k === 'tempBtn') { S.settings.tempBtn = v === 'on'; saveSettings(); renderTempBtn(); }
+  if (k === 'fabAlpha') applyFabAlpha();
   if (k === 'fabSize') { document.documentElement.dataset.fs = v; try { if (ARR.on) arrGrips(); } catch (e) { /* */ } }
   if ((k === 'fabSize' || k === 'miSize') && !sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; }
   if (k === 'gStyle') { applyGTheme(); document.documentElement.dataset.gstyle = v; }
@@ -790,9 +793,10 @@ function drawRoute() {
   RT.marks.clearLayers();
   const show = RT.edit || RT.trip || (S.goto && S.goto.route);
   RT.line.setLatLngs(show ? RT.pts.map((p) => [p.lat, p.lon]) : []);
-  const anyBad = show && RT.pts.some((p) => p.unchecked && p.unchecked !== 'land'); RT.line.setStyle({ dashArray: anyBad ? '10 8' : null, color: anyBad ? '#E8952B' : '#C2185B' }); // a route that is not fully checked never looks like a normal one
+  const anyBad = show && RT.pts.some((p, i) => p.unchecked && p.unchecked !== 'land' && !(p.unchecked === 'partial' && RT.pts[i - 1] && RT.pts[i - 1].turn)); // a passage with one unchecked piece stays a normal line; only that piece is dotted RT.line.setStyle({ dashArray: anyBad ? '10 8' : null, color: anyBad ? '#E8952B' : '#C2185B' }); // a route that is not fully checked never looks like a normal one
   if (!RT.bad) RT.bad = L.layerGroup().addTo(map); RT.bad.clearLayers();
-  if (show) RT.pts.forEach((p, i) => { if (!i || !p.unchecked) return; let k = i - 1; if (p.unchecked !== 'land') while (k > 0 && RT.pts[k].turn) k--; L.polyline(RT.pts.slice(k, i + 1).map((q) => [q.lat, q.lon]), { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
+  if (show) RT.pts.forEach((p, i) => { if (i && (p.unk || RT.pts[i - 1].unk)) L.polyline([[RT.pts[i - 1].lat, RT.pts[i - 1].lon], [p.lat, p.lon]], { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
+  if (show) RT.pts.forEach((p, i) => { if (!i || !p.unchecked || (p.unchecked === 'partial' && RT.pts[i - 1].turn)) return; let k = i - 1; if (p.unchecked !== 'land') while (k > 0 && RT.pts[k].turn) k--; L.polyline(RT.pts.slice(k, i + 1).map((q) => [q.lat, q.lon]), { color: '#FFB300', weight: 6, dashArray: '2 10', lineCap: 'round', interactive: false }).addTo(RT.bad); });
   drawAvoid();
   if (!show) return;
   let sn = 0;
@@ -975,6 +979,7 @@ async function encJson(u, ms) {
 async function encLayerIds(svc) {
   if (WR.ids[svc]) return WR.ids[svc];
   if (WR.idsP && WR.idsP[svc]) return WR.idsP[svc];
+  if (WR.idsFail && Date.now() - WR.idsFail < 45000) return null; // NOAA just failed on both hosts: don't make every tile wait through the retries again
   WR.idsP = WR.idsP || {};
   return (WR.idsP[svc] = (async () => {
     for (const h of WR.hosts) {
@@ -985,7 +990,7 @@ async function encLayerIds(svc) {
         if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds7', { ts: Date.now(), ids: WR.ids }); return ids; }
       } catch (e) { WR.lastErr = e.message || String(e); }
     }
-    delete WR.idsP[svc]; return null;
+    delete WR.idsP[svc]; WR.idsFail = Date.now(); return null;
   })());
 }
 const ENC_TILE = { enc_general: 1, enc_coastal: 0.5, enc_approach: 0.25, enc_harbour: 0.2 };
@@ -1232,14 +1237,19 @@ async function passageLeg(a, b) { // long legs: by water to the nearest passage 
   // drop nodes that would make you double back at either end
   while (P.length > 2 && distNm(a, P[1]) < distNm(a, P[0]) + 0.5 && distNm(P[1], b) < distNm(P[0], b)) P.shift();
   while (P.length > 2 && distNm(P[P.length - 2], b) < distNm(P[P.length - 1], b) + 0.5 && distNm(a, P[P.length - 2]) < distNm(a, P[P.length - 1])) P.pop();
-  const head = await waterLeg(a, P[0]), tail = await waterLeg(P[P.length - 1], b);
+  const nf = () => ({ ok: false, why: 'net' }), head = await waterLeg(a, P[0]).catch(nf), tail = await waterLeg(P[P.length - 1], b).catch(nf);
   // each passage hop is then checked against the chart like any short leg, so a canal bend, an island or a point of land is followed, not cut
-  const hops = new Array(P.length - 1); let next = 0;
+  const hops = new Array(P.length - 1); let next = 0, bad = 0;
   await Promise.all([0, 1, 2, 3].map(async () => { while (next < hops.length) { const k = next++; try { const r = await waterLeg(P[k], P[k + 1]); const L1 = (r.pts || []).reduce((m, q, i, A) => i ? m + distNm(A[i - 1], q) : 0, 0);
-    hops[k] = r.ok && r.pts && r.pts.length > 1 && L1 < distNm(P[k], P[k + 1]) * 1.6 ? r.pts.slice(1, -1) : []; } catch (e) { hops[k] = []; } } }));
-  const mid = []; P.forEach((q, k) => { mid.push({ lat: q.lat, lon: q.lon, name: q.name, pn: q.pn }); if (k < hops.length) hops[k].forEach((h) => mid.push({ lat: h.lat, lon: h.lon })); });
-  const pts = [].concat(head.pts || [a], mid, tail.pts || [b]);
-  return { ok: !!(head.ok && tail.ok), why: head.ok ? tail.why : head.why, pts, shallow: !!(head.shallow || tail.shallow), dockB: tail.dockB };
+    hops[k] = r.ok && r.pts && r.pts.length > 1 && L1 < distNm(P[k], P[k + 1]) * 1.6 ? r.pts : null; } catch (e) { hops[k] = null; } if (!hops[k]) bad++; } }));
+  // chain the hops end to end. Each hop starts and ends on charted water (the search moves a node that sits on the bank into the channel), so use
+  // those points, never the raw node position, and keep only one point at each join so the line doesn't jog back and forth at a node
+  const mid = [];
+  hops.forEach((h, k) => { const seg = h || [P[k], P[k + 1]]; seg.forEach((q, j) => { if (j === seg.length - 1 && k < hops.length - 1) return; const o = { lat: q.lat, lon: q.lon }; if (j === 0) { o.name = P[k].name; o.pn = P[k].pn; } if (j === seg.length - 1) { o.name = P[k + 1].name; o.pn = P[k + 1].pn; } if (!h) o.unk = 1; mid.push(o); }); });
+  const hp = (head.pts || [a]).slice(0, -1), tp = (tail.pts || [b]).slice(1);
+  const pts = [].concat(hp.length ? hp : [a], mid, tp.length ? tp : [b]);
+  const why = head.ok ? tail.why : head.why; // no signal at an end: the passage itself is still the known way, so say 'not fully checked', not 'a straight line'
+  return { ok: !!(head.ok && tail.ok && !bad), why: !bad || !head.ok || !tail.ok ? (why === 'net' ? 'partial' : why) : 'partial', pts, shallow: !!(head.shallow || tail.shallow), dockB: tail.dockB, passage: true };
 }
 // turn a list of stops into stops plus turning points that stay in the water
 async function routeByWater(stops) {
@@ -1251,8 +1261,8 @@ async function routeByWater(stops) {
       const prev = stops[i - 1];
       let r; try { r = distNm(prev, p) > 35 ? await passageLeg(prev, p) : null; if (!r) r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
       p.__ok = r.ok; p.__why = r.why; p.__sh = !!r.shallow;
-      if (r.ok || ((r.why === 'partial' || r.why === 'fine') && r.pts)) {
-        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push(Object.assign({ lat: q.lat, lon: q.lon, turn: true }, q.name ? { name: q.name, via: 1, pn: q.pn } : {})); });
+      if (r.ok || ((r.why === 'partial' || r.why === 'fine' || r.passage) && r.pts)) { // a passage keeps its known route even when an end could not be checked (no signal): dashed, but not a straight line over land
+        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push(Object.assign({ lat: q.lat, lon: q.lon, turn: true }, q.name ? { name: q.name, via: 1, pn: q.pn } : {}, q.unk ? { unk: 1 } : {})); });
         if (r.ok && r.dockB > 0.15 && r.pts && r.pts.length) { // a pin on land (a town): go to the nearest marina that is on the water instead of stopping at a shoreline
           try { const end = r.pts[r.pts.length - 1], els = await overpass(around('nwr[leisure=marina];nwr[waterway=fuel];nwr["seamark:harbour:category"~"marina"]', 1.6, p)).catch(() => []);
             const ms = els.map(toPlace).filter((m) => m && m.lat != null).sort((x, y) => distNm(p, x) - distNm(p, y)).slice(0, 4);
@@ -1480,6 +1490,7 @@ $('pages').addEventListener('scroll', () => {
   if (i) renderPages();
 }, { passive: true });
 function renderStrip() {
+  if (window.__flyOn) return;
   if ($('pages').scrollLeft > 4) renderPages();
   $('sA').closest('.strip').classList.toggle('two', !S.goto);
   $('sSog').textContent = S.fix ? fmtSpeed(S.sog || 0) : '–';
@@ -2540,8 +2551,6 @@ function setTab(t) {
   app.classList.toggle('wide', isWide());
   const vis = visiblePanel();
   Object.entries(PANELS).forEach(([k, id]) => { $(id).hidden = k !== vis; });
-  // every full screen has a way back to the chart: a small × in the top corner
-  if (vis && vis !== 'side' && PANELS[vis]) { const pe = $(PANELS[vis]); if (pe && !pe.querySelector(':scope > .p-close')) pe.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-pclose aria-label="Back to the chart">×</button>'); }
   if (!isWide() && t !== 'chart') closeSheet();
   if (vis === 'dash') renderDash();
   if (vis === 'anchor') renderAnchor();
@@ -2552,6 +2561,8 @@ function setTab(t) {
   if (vis === 'side') renderSide();
   if (vis === 'menu') renderMenu();
   if (vis === 'safety') renderSafety();
+  // every full screen has a way back to the chart: a small × in the top corner (pClose below keeps it there when a panel re-renders)
+  if (vis && vis !== 'side' && PANELS[vis]) { const pe = $(PANELS[vis]); if (pe && !pe.querySelector(':scope > .p-close')) pe.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-pclose aria-label="Back to the chart">×</button>'); }
   setTimeout(() => map.invalidateSize(), 60);
 }
 document.querySelector('.tabbar').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
@@ -2577,7 +2588,7 @@ function applySideWidth() { const w = S.settings.sideWidth || 'normal', root = d
   setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
 // the chart always ends where the gauge panel begins (set directly, so it works the same in Safari)
 function syncMapRight() { const ps = $('panelSide'), m = $('map'); if (!ps || !m) return; const on = isWide() && !ps.hidden && ps.offsetParent !== null && !document.querySelector('#cockpit:not([hidden])') && !m.closest('.ck-map');
-  const w = on ? Math.round(ps.getBoundingClientRect().width) : 0; if (on) m.style.setProperty('right', w + 'px', 'important'); else m.style.removeProperty('right'); const fr = $('fabsR'); if (fr) { if (on && !fr.closest('.ck-map')) fr.style.setProperty('right', (w + 12) + 'px', 'important'); else fr.style.removeProperty('right'); } }
+  const w = on ? Math.round(ps.getBoundingClientRect().width) : 0; if (on) m.style.setProperty('right', w + 'px', 'important'); else m.style.removeProperty('right'); const fr = $('fabsR'); if (fr) { if (on && !fr.closest('.ck-map')) fr.style.setProperty('right', (w + 12) + 'px', 'important'); else fr.style.removeProperty('right'); } try { chartEdges(); } catch (e) { /* defined later */ } }
 if (window.ResizeObserver) { new ResizeObserver(() => syncMapRight()).observe($('panelSide')); new MutationObserver(() => syncMapRight()).observe($('panelSide'), { attributes: true, attributeFilter: ['hidden'] }); }
 window.addEventListener('resize', syncMapRight); setTimeout(syncMapRight, 500);
 if (window.ResizeObserver) { let raf = 0; new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { try { map.invalidateSize({ pan: false, debounceMoveend: true }); } catch (e) { /* */ } }); }).observe($('map')); }
@@ -2602,6 +2613,7 @@ sheet.addEventListener('change', (e) => { const sp = e.target.closest('[data-sid
 function sideCols(n, W, H) { let best = 1, bs = 0; for (let c = 1; c <= Math.min(n, 5); c++) { const r = Math.ceil(n / c), sz = Math.min(W / c, (H / r) * 1.05); if (sz > bs + 1) { bs = sz; best = c; } } return best; }
 applySideWidth(); window.addEventListener('resize', () => { clearTimeout(window.__sgT); window.__sgT = setTimeout(() => { try { renderSide(); } catch (e) { /* later */ } }, 200); });
 function renderSide() {
+  if (window.__flyOn) return; // the fly-through owns the frame; the gauges catch up when it stops
   CK_FALL.clear();
   const p = $('panelSide'); if (!p) return;
   if (S.settings.sideStyle !== 'text') {
@@ -2940,9 +2952,9 @@ function renderMenu() {
       menuTile('settings', 'settings', 'Settings', 'Units, coach, display, offline charts') +
       menuTile('arrange', 'layers', 'Arrange buttons', 'Drag the round buttons where you want them') +
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
-      menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
+      menuTile('apptour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 180. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 181. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2978,7 +2990,7 @@ $('panelMenu').addEventListener('click', (e) => {
   if (a === 'nearby') { setTab('chart'); openNearby(); return; }
   if (a === 'fishcoach') { openCoach('fish'); return; }
   if (a === 'loop') { openLoop(); return; }
-  if (a === 'tour') { startTour(0); return; }
+  if (a === 'apptour') { startTour(0); return; }
   if (a === 'gaugelook') { setTab('chart'); openLooks(); return; }
   if (a === 'arrange') { setTab('chart'); setTimeout(() => arrangeMode(true), 150); return; }
   if (a === 'month') { openThisMonth(); return; }
@@ -5126,8 +5138,14 @@ $('btnFollow').addEventListener('click', () => {
   const home = homePort() || S.waypoints.find((w) => /home/i.test(w.name)) || { lat: 38.975, lon: -76.47, name: 'Annapolis' };
   map.setView([home.lat, home.lon], 12); toast('No GPS here, so this is ' + (home.name || 'home') + '. Drag the chart to plan anywhere.', 3500);
 });
-$('btnZoomIn').addEventListener('click', () => map.zoomIn());
-$('btnZoomOut').addEventListener('click', () => map.zoomOut());
+// a tap while the chart is still animating the last zoom used to be dropped by Leaflet; queue it and apply it when that zoom ends
+function zoomStep(d) { const lim = (z) => Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z));
+  if (map._animatingZoom || zoomStep.t != null) { zoomStep.q = (zoomStep.q || 0) + d; return; } // Leaflet starts the animation a frame later, so remember the target ourselves
+  const z = lim(map.getZoom() + d); if (Math.abs(z - map.getZoom()) < 1e-6) return; zoomStep.t = z;
+  const done = () => { if (zoomStep.t !== z) return; zoomStep.t = null; const q = zoomStep.q; zoomStep.q = 0; if (q) zoomStep(q); };
+  map.once('zoomend', done); setTimeout(done, 900); map.setZoom(z); }
+$('btnZoomIn').addEventListener('click', () => zoomStep(1));
+$('btnZoomOut').addEventListener('click', () => zoomStep(-1));
 $('btnMeasure').addEventListener('click', () => { if (RT.edit) routeMode(false); setMeasure(!S.measure.on); });
 $('btnRoute').addEventListener('click', () => routeMode(!RT.edit));
 /* satellite: one tap, saved as a preference; falls back to the chart alone if imagery won't load */
@@ -5822,7 +5840,7 @@ function anchorGauge(ft, radius) {
 const CK_OPTS = [['combo', 'Speed, course and depth (one dial)'], ['binnacle', 'Compass (classic, with digital readout)'], ['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['eta', 'Time to go (whole route)'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['feels', 'Temperature and feels like'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
 (() => { const a = S.settings.ckSlots; if (Array.isArray(a) && a.filter((x) => x === 'chart').length > 1) { let seen = false; S.settings.ckSlots = a.filter((x) => { if (x !== 'chart') return true; if (seen) return false; seen = true; return true; }); saveSettings(); } })();
-function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
+function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : (window.innerWidth >= 900 ? ['chart'] : []).concat(['speed', 'depth', 'wind', 'auto']); } // laptops and iPads: the console is chart and gauges together
 /* charted depth where the boat is (or the chart centre): NOAA ENC depth area, plus the predicted tide. Not a sounder. */
 const DEP = { at: 0, pos: null, v: null, busy: false, err: false };
 async function maybeDepth() {
@@ -6107,10 +6125,10 @@ function ckDefaultFree(sl, W, H) {
     rest.forEach((id, i) => { const c = i % 2, r2 = Math.floor(i / 2); out[id] = [c ? 75 - w / 2 : 25 - w / 2, topH + 2 + r2 * ((98 - topH - 2) / Math.max(rows, 1)), w, w * A]; });
     return out; }
   if (chart) {
-    out.chart = [26, 4, 48, 66];
     const sq = (hp) => [hp / A, hp]; // a square tile hp % tall
     const nL = Math.ceil(Math.min(g.length, 6) / 3), nR = nL, side = g.slice(0, nL + nR), below = g.slice(nL + nR);
-    const hs = Math.min(30, 92 / Math.max(1, Math.max(nL, Math.ceil(side.length / 2))));
+    out.chart = [26, 4, 48, below.length ? 66 : 92]; // nothing below: the chart runs the full height (no empty band)
+    const hs = Math.min(below.length ? 30 : 23 * A, 92 / Math.max(1, Math.max(nL, Math.ceil(side.length / 2))));
     side.forEach((id, i) => { const left = i % 2 === 0, row = Math.floor(i / 2), n = left ? Math.ceil(side.length / 2) : Math.floor(side.length / 2) || 1; const [w, h] = sq(hs * 0.95);
       const y = 4 + row * (92 / Math.max(n, 1)) + (92 / Math.max(n, 1) - h) / 2; out[id] = [left ? (13 - w / 2) : (87 - w / 2), y, w, h]; });
     const hb = Math.min(26, 28), [wb] = sq(hb), gap = 2, tot = below.length * wb + (below.length - 1) * gap;
@@ -6143,9 +6161,9 @@ function ckFreeLayout(grid, sl) {
 (() => {
   let mv = null;
   const GAP = 1.6; // % of dash width between snapped tiles
-  const CKU = []; window.__ckUndo = () => { const prev = CKU.pop(); if (!prev) { toast('Nothing to undo', 1200); return; } S.settings.ckFree = prev.free; S.settings.ckSlots = prev.slots; saveSettings(); buildCockpit(); };
-  window.__ckSnap = () => { CKU.push({ free: JSON.parse(JSON.stringify(S.settings.ckFree || {})), slots: (S.settings.ckSlots || ckSlots()).slice() }); if (CKU.length > 30) CKU.shift(); };
-  const save = (grid, rects) => { window.__ckSnap(); const G = grid.getBoundingClientRect(), all = S.settings.ckFree && !Array.isArray(S.settings.ckFree.speed) ? S.settings.ckFree : (S.settings.ckFree = {}), key = G.width / G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {});
+  const CKU = []; window.__ckUndo = () => { const prev = CKU.pop(); if (!prev) { toast('Nothing to undo', 1200); return; } S.settings.ckFree = prev.free; S.settings.ckSlots = prev.slots; if (prev.n != null) S.settings.ckTidyN = prev.n; saveSettings(); buildCockpit(); };
+  window.__ckSnap = () => { CKU.push({ free: JSON.parse(JSON.stringify(S.settings.ckFree || {})), slots: (S.settings.ckSlots || ckSlots()).slice(), n: S.settings.ckTidyN || 0 }); if (CKU.length > 30) CKU.shift(); };
+  const save = (grid, rects, noSnap) => { if (!noSnap) window.__ckSnap(); const G = grid.getBoundingClientRect(), all = S.settings.ckFree && !Array.isArray(S.settings.ckFree.speed) ? S.settings.ckFree : (S.settings.ckFree = {}), key = G.width / G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {});
     Object.keys(rects).forEach((id) => { own[id] = rects[id].map((v) => Math.round(v * 10) / 10); }); saveSettings(); };
   const rectOf = (el, G) => { const R = el.getBoundingClientRect(); return [(R.left - G.left) / G.width * 100, (R.top - G.top) / G.height * 100, R.width / G.width * 100, R.height / G.height * 100]; };
   const place = (el, q) => Object.assign(el.style, { left: q[0] + '%', top: q[1] + '%', width: q[2] + '%', height: q[3] + '%' });
@@ -6221,21 +6239,23 @@ function ckFreeLayout(grid, sl) {
   window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
   // Tidy up: keep each tile's size roughly, but line everything up with even gaps round the screen
   // Tidy up: each press snaps everything into the next clean layout (chart centre, chart left, chart right, chart on top), equal-size gauges
-  const pack = (ids, X, Y, W, H, A, rects) => { if (!ids.length) return; const gy = GAP * A; let best = null;
+  const pack = (ids, X, Y, W, H, A, rects, cap) => { if (!ids.length) return 99; const gy = GAP * A; let best = null;
     for (let c = 1; c <= ids.length; c++) { const r = Math.ceil(ids.length / c), sz = Math.min((W - (c - 1) * GAP) / c * A, (H - (r - 1) * gy) / r); if (!best || sz > best.sz) best = { c, r, sz }; }
-    const { c, r } = best, sz = Math.min(best.sz, 40), w = sz / A, tw = c * w + (c - 1) * GAP, th = r * sz + (r - 1) * gy;
-    ids.forEach((id, k) => { const row = Math.floor(k / c), inRow = Math.min(c, ids.length - row * c), rowW = inRow * w + (inRow - 1) * GAP, x0 = X + (W - rowW) / 2; rects[id] = [x0 + (k % c) * (w + GAP), Y + (H - th) / 2 + row * (sz + gy), w, sz]; }); void tw; };
+    const { c, r } = best, sz = Math.min(best.sz, 40, cap || 99), w = sz / A, tw = c * w + (c - 1) * GAP, th = r * sz + (r - 1) * gy;
+    ids.forEach((id, k) => { const row = Math.floor(k / c), inRow = Math.min(c, ids.length - row * c), rowW = inRow * w + (inRow - 1) * GAP, x0 = X + (W - rowW) / 2; rects[id] = [x0 + (k % c) * (w + GAP), Y + (H - th) / 2 + row * (sz + gy), w, sz]; }); void tw; return sz; };
   const LAYOUTS = ['centre', 'left', 'right', 'top'];
-  const tidy = (grid, keep) => { const sl = ckSlots().filter((x) => x !== 'off'); const G = grid.getBoundingClientRect(), A = G.width / G.height, gy = GAP * A, rects = {}, g = sl.filter((x) => x !== 'chart'), chart = sl.includes('chart');
-    const n = S.settings.ckTidyN = keep ? (S.settings.ckTidyN || 0) : ((S.settings.ckTidyN || 0) + 1) % LAYOUTS.length, L0 = chart ? (A < 1.2 ? 'top' : LAYOUTS[n]) : 'none';
+  const tidy = (grid, keep, noSnap) => { if (!noSnap) window.__ckSnap(); /* undo goes back to the layout before this tidy */ const sl = ckSlots().filter((x) => x !== 'off'); const G = grid.getBoundingClientRect(), A = G.width / G.height, gy = GAP * A, rects = {}, g = sl.filter((x) => x !== 'chart'), chart = sl.includes('chart');
+    const n = S.settings.ckTidyN = keep ? (S.settings.ckTidyN || 0) : ((S.settings.ckTidyN || 0) + 1) % (A < 1.2 && chart ? 3 : LAYOUTS.length), L0 = chart ? (A < 1.2 ? ['top', 'bottom', 'middle'][n % 3] : LAYOUTS[n]) : 'none'; // upright screens cycle too: chart on top, below, between the gauges
     if (L0 === 'none') pack(g, GAP, gy, 100 - 2 * GAP, 100 - 2 * gy, A, rects);
     else if (L0 === 'left' || L0 === 'right') { const cw = g.length > 6 ? 56 : 62, cx = L0 === 'left' ? GAP : 100 - GAP - cw; rects.chart = [cx, gy, cw, 100 - 2 * gy]; pack(g, L0 === 'left' ? cx + cw + GAP : GAP, gy, 100 - cw - 3 * GAP, 100 - 2 * gy, A, rects); }
+    else if (L0 === 'bottom') { const chh = 55; rects.chart = [GAP, 100 - gy - chh, 100 - 2 * GAP, chh]; pack(g, GAP, gy, 100 - 2 * GAP, 100 - chh - 3 * gy, A, rects); }
+    else if (L0 === 'middle') { const chh = 46, half = Math.ceil(g.length / 2), bh = (100 - chh - 4 * gy) / 2, t2 = 2 * gy + bh; rects.chart = [GAP, t2, 100 - 2 * GAP, chh]; const cap = Math.min(pack(g.slice(0, half), GAP, gy, 100 - 2 * GAP, bh, A, {}), pack(g.slice(half), GAP, t2 + chh + gy, 100 - 2 * GAP, bh, A, {})); pack(g.slice(0, half), GAP, gy, 100 - 2 * GAP, bh, A, rects, cap); pack(g.slice(half), GAP, t2 + chh + gy, 100 - 2 * GAP, bh, A, rects, cap); }
     else if (L0 === 'top') { const chh = A < 1.2 ? 55 : 64; rects.chart = [GAP, gy, 100 - 2 * GAP, chh]; pack(g, GAP, chh + 2 * gy, 100 - 2 * GAP, 100 - chh - 3 * gy, A, rects); }
-    else { const cw = 46, half = Math.ceil(g.length / 2), side = (100 - cw - 4 * GAP) / 2; rects.chart = [50 - cw / 2, gy, cw, 100 - 2 * gy]; pack(g.slice(0, half), GAP, gy, side, 100 - 2 * gy, A, rects); pack(g.slice(half), 50 + cw / 2 + GAP, gy, side, 100 - 2 * gy, A, rects); }
-    const all = S.settings.ckFree || (S.settings.ckFree = {}); all[A < 1.2 ? 'tall' : 'wide'] = {}; save(grid, rects); buildCockpit();
-    if (!keep) toast({ centre: 'Chart in the middle', left: 'Chart on the left', right: 'Chart on the right', top: 'Chart on top, gauges below', none: 'Gauges in an even grid' }[L0] + (chart ? ' · tap Tidy up again for the next layout' : ''), 2200); };
+    else { const cw = 46, half = Math.ceil(g.length / 2), side = (100 - cw - 4 * GAP) / 2; rects.chart = [50 - cw / 2, gy, cw, 100 - 2 * gy]; const cap = Math.min(pack(g.slice(0, half), GAP, gy, side, 100 - 2 * gy, A, {}), pack(g.slice(half), 50 + cw / 2 + GAP, gy, side, 100 - 2 * gy, A, {})); pack(g.slice(0, half), GAP, gy, side, 100 - 2 * gy, A, rects, cap); pack(g.slice(half), 50 + cw / 2 + GAP, gy, side, 100 - 2 * gy, A, rects, cap); } // both sides the same gauge size
+    const all = S.settings.ckFree || (S.settings.ckFree = {}); all[A < 1.2 ? 'tall' : 'wide'] = {}; save(grid, rects, true); buildCockpit();
+    if (!keep) toast({ centre: 'Chart in the middle', left: 'Chart on the left', right: 'Chart on the right', top: 'Chart on top, gauges below', bottom: 'Chart below the gauges', middle: 'Chart between the gauges', none: 'Gauges in an even grid' }[L0] + (chart ? ' · tap Tidy up again for the next layout' : ''), 2200); };
   document.addEventListener('click', (e) => { if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckFree; saveSettings(); buildCockpit(); } if (e.target.closest('[data-cktidy]')) { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g); } });
-  window.__ckTidy = () => { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g, true); };
+  window.__ckTidy = (noSnap) => { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g, true, noSnap); };
 })();
 /* Customize: drag the corner handle of a tile to make it as big as you like; it snaps to whole cells */
 (() => {
@@ -6317,7 +6337,7 @@ $('cockpit').addEventListener('change', (e) => {
   saveSettings(); buildCockpit();
 });
 $('cockpit').addEventListener('click', (e) => {
-  const dl = e.target.closest('[data-ckdel]'); if (dl) { try { window.__ckSnap(); } catch (err) { /* */ } const sl = ckSlots().filter((x) => x !== 'off').slice(); sl.splice(+dl.dataset.ckdel, 1); S.settings.ckSlots = sl.length ? sl : ['speed']; saveSettings(); buildCockpit(); setTimeout(() => { try { window.__ckTidy(); } catch (err) { /* */ } }, 60); return; } // the others close the gap
+  const dl = e.target.closest('[data-ckdel]'); if (dl) { try { window.__ckSnap(); } catch (err) { /* */ } const sl = ckSlots().filter((x) => x !== 'off').slice(); sl.splice(+dl.dataset.ckdel, 1); S.settings.ckSlots = sl.length ? sl : ['speed']; saveSettings(); buildCockpit(); setTimeout(() => { try { window.__ckTidy(true); } catch (err) { /* */ } }, 60); return; } // the others close the gap (one undo brings the tile back)
   if (e.target.closest('[data-ckadd]')) { const sl = ckSlots().slice(); sl.push(['speed', 'course', 'wind', 'tide', 'position', 'chart'].find((x) => !sl.includes(x)) || 'time'); S.settings.ckSlots = sl; saveSettings(); buildCockpit(); }
   if (e.target.closest('.ck-edit')) { ckEdit = !ckEdit; buildCockpit(); }
   if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckSpan; saveSettings(); buildCockpit(); }
@@ -6886,6 +6906,9 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
     '';
   const el = document.createElement('style'); el.id = 'shapeCss'; el.textContent = css; document.head.appendChild(el);
 })();
+function applyFabAlpha() { document.documentElement.style.setProperty('--fab-o', String(+S.settings.fabAlpha || 1)); }
+applyFabAlpha();
+document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-seg="fabAlpha"],[data-opt="fabAlpha"]'); if (b) setTimeout(() => { S.settings.fabAlpha = b.dataset.val; saveSettings(); applyFabAlpha(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); }, 0); });
 function applyMiSize() { const R0 = document.documentElement; R0.dataset.mi = S.settings.miPx ? 'xl' : S.settings.miSize || 'l'; if (S.settings.miPx) R0.style.setProperty('--mi', S.settings.miPx + 'px'); else R0.style.removeProperty('--mi'); document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
 if (S.settings.compDef1 && !S.settings.compDef2) { S.settings.compDef2 = 1; if (S.settings.miComp === 'p2_4' && (S.settings.gTheme || 'clean') === 'clean') S.settings.gTheme = 'navybrass'; try { saveSettings(); } catch (e) { /* */ } }
@@ -6925,6 +6948,10 @@ applyTint();
       was = off;
     };
     vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 300));
+    // iPad/iPhone: after the keyboard closes Safari can leave the page scrolled or the viewport offset without another event, which pushes the tab bar off the bottom; put it back
+    const unstick = () => { try { if (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) { window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; } } catch (e) { /* */ } fit(); };
+    document.addEventListener('focusout', () => { setTimeout(unstick, 120); setTimeout(unstick, 600); }); window.addEventListener('pageshow', unstick); window.addEventListener('resize', () => setTimeout(unstick, 200));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(unstick, 250); });
     fit();
   }
 })();
@@ -7742,7 +7769,7 @@ function upcoming(days) {
 function upcomingEvents(days) { const now = Date.now(); return upcoming(days).filter((e) => e.b - e.a < 21 * 86400000 || e.a > now); } // seasons and long series that already began are not 'coming up'
 // Events on the water: the year ahead, filtered by how far you will go and what kind of thing it is
 const EV_CATS = [['all', 'All'], ['watermen', 'Watermen & docking'], ['race', 'Races & regattas'], ['fish', 'Fishing'], ['festival', 'Festivals & shows'], ['season', 'Seasons & rules']];
-function evCat(e) { if (e.kind === 'docking' || e.kind === 'watermen' || (e.uses || []).includes('pro')) return 'watermen'; if (/rockfish|crab season|striped bass|season/i.test(e.n)) return 'season'; if (e.kind === 'race' || /regatta|race|cup|series|frostbite|championship|worlds|north american|challenge/i.test(e.n)) return 'race'; if (/tournament|open\b|fish|marlin|tuna|classic/i.test(e.n)) return 'fish'; return 'festival'; }
+function evCat(e) { if (e.kind === 'docking' || e.kind === 'watermen') return 'watermen'; if (/tournament|\bopen\b|marlin|tuna|big fish|fishing/i.test(e.n)) return 'fish'; if (/rockfish|crab season|striped bass|season/i.test(e.n)) return 'season'; if (e.kind === 'race' || /regatta|\braces?\b|cup|series|frostbite|championship|worlds|north american|challenge/i.test(e.n)) return 'race'; if ((e.uses || []).includes('pro')) return 'watermen'; return 'festival'; } // tournaments first: they carry 'pro' too, 'classic' matched the antique boat festival and 'race' matched Havre de Grace
 function openThisMonth() {
   const st = S.settings, m = new Date().getMonth() + 1, u = myUses(), cat = st.evCat || 'all', far = +(st.evFar || 0), here = fmHere(), now = Date.now();
   const all = []; const y = new Date().getFullYear();
@@ -7786,8 +7813,19 @@ function applyFabLayout() {
 }
 // buttons you placed freely stay the same distance from the chart's nearer edge, so they move with the chart when the gauge panel opens, closes or resizes
 function fabFreePlace() { const lay = S.settings.fabLayout; if (!lay || !lay.free || ARR.on) return; const M = $('map').getBoundingClientRect();
-  Object.entries(lay.free).forEach(([id, q]) => { const el = $(id); if (!el || !el.classList.contains('fab-free')) return; const w = el.offsetWidth || 40;
-    if (q.rx != null) el.style.left = Math.round(M.right - q.rx - w) + 'px'; else if (q.lx != null) el.style.left = Math.round(M.left + q.lx) + 'px'; }); }
+  if (!M.width || !M.height) return; let mig = false;
+  Object.entries(lay.free).forEach(([id, q]) => { const el = $(id); if (!el || !el.classList.contains('fab-free')) return; const w = el.offsetWidth || 40, h = el.offsetHeight || 40;
+    if (q.rx == null && q.lx == null && q.x != null) { const x0 = q.x * innerWidth; // placed before build 178 (only a share of the screen): anchor it to the chart's nearer edge once, so it moves with the chart from now on
+      if (x0 + w / 2 > M.left + M.width / 2) q.rx = Math.max(12, Math.round(M.right - x0 - w)); else q.lx = Math.max(12, Math.round(x0 - M.left)); mig = true; }
+    let x = q.rx != null ? M.right - q.rx - w : q.lx != null ? M.left + q.lx : null;
+    const y0 = (q.y != null ? q.y * innerHeight : el.getBoundingClientRect().top), y = Math.max(M.top + 6, Math.min(M.bottom - h - 6, y0));
+    if (x != null) { x = Math.max(M.left + 6, Math.min(M.right - w - 6, x)); // never under the gauge panel or off the chart
+      // and never on top of the buttons still in the right or left column: step beside them
+      [...$('fabsR').children, ...$('fabs').children].forEach((c) => { const b = c.getBoundingClientRect(); if (!b.width || c === el || !(y < b.bottom && y + h > b.top && x < b.right && x + w > b.left)) return; x = c.closest('#fabsR') ? b.left - w - 8 : b.right + 8; });
+      if (mig && q.rx != null) q.rx = Math.round(M.right - x - w); else if (mig && q.lx != null) q.lx = Math.round(x - M.left);
+      el.style.left = Math.round(x) + 'px'; }
+    el.style.top = Math.round(y) + 'px'; });
+  if (mig) saveSettings(); }
 if (window.ResizeObserver) new ResizeObserver(() => fabFreePlace()).observe($('map')); window.addEventListener('resize', () => setTimeout(fabFreePlace, 60));
 function saveFabLayout() { const free = {}; document.querySelectorAll('#app > .fab-free[id]').forEach((el) => { const r = el.getBoundingClientRect(); const M = $('map').getBoundingClientRect(), right = r.left + r.width / 2 > M.left + M.width / 2; free[el.id] = { x: +(r.left / innerWidth).toFixed(4), y: +(r.top / innerHeight).toFixed(4), [right ? 'rx' : 'lx']: Math.round(right ? M.right - r.right : r.left - M.left) }; }); S.settings.fabLayout = { left: fabItems($('fabs')).map((x) => x.id), right: fabItems($('fabsR')).map((x) => x.id), free }; saveSettings(); }
 function arrangeMode(on) {
@@ -7887,7 +7925,7 @@ function openLooks(cat) {
   const seg = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<div class="lk"><div class="lk-top"><h3>Gauge look</h3></div>' +
     '<div class="lk-ctl"><span>Size</span>' + seg('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + seg('gShape', sh, [['round', 'Round'], ['square', 'Square']]) + '</div>' +
-    '<div class="lk-ctl"><span>Buttons</span>' + seg('fabLook', (st.fabLook || 'theme') === 'theme' ? 'theme' : 'gauge', [['theme', 'Plain'], ['gauge', 'Match the look']]) + seg('fabSize', st.fabSize || 'm', [['s', 'S'], ['m', 'M'], ['l', 'L'], ['xl', 'XL']]) + '</div>' +
+    '<div class="lk-ctl"><span>Buttons</span>' + seg('fabLook', (st.fabLook || 'theme') === 'theme' ? 'theme' : 'gauge', [['theme', 'Plain'], ['gauge', 'Match the look']]) + seg('fabSize', st.fabSize || 'm', [['s', 'S'], ['m', 'M'], ['l', 'L'], ['xl', 'XL']]) + seg('fabAlpha', String(st.fabAlpha || '1'), [['1', 'Solid'], ['0.82', 'Soft'], ['0.62', 'Blend'], ['0.42', 'Ghost']]) + '</div>' +
     '<div class="lk-cats">' + LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
     '<div class="lk-grid">' + ids.map((id) => { const t = gtOf(id); return '<button type="button" data-lkpick="' + id + '" class="' + (cur === id ? 'on' : '') + '">' + glPrev(id, '', t.sq ? 'round' : sh) + '<span>' + esc(t.l) + '</span></button>'; }).join('') + '</div>' +
     '<div class="row-btns lk-more"><button type="button" class="btn" data-lkcustom>Customize bezel and face</button><button type="button" class="btn" data-looktry="1">Swipe through on the chart</button></div></div>');
@@ -8023,7 +8061,7 @@ async function fmUnderstand(text) {
   }
   // tour guide: on, off, read aloud, and "what's that island" / "tell me about Poplar Island"
   if (has(/\btour( guide)?\b/) && has(/\b(on|start|turn on|switch on)\b/) && !off) { S.settings.tourMode = has(/\b(aloud|out loud|talk|voice|read)\b/) ? 'voice' : 'cards'; saveSettings(); tgDraw(); TG.lastAt = 0; return { say: 'Tour guide on. I will tell you about places as we pass them.' }; }
-  if (has(/\btour( guide)?\b/) && off) { S.settings.tourMode = 'off'; saveSettings(); tgDraw(); return { say: 'Tour guide off.' }; }
+  if (has(/\btour( guide)?\b/) && (off || has(/\boff\b/))) { S.settings.tourMode = 'off'; saveSettings(); tgDraw(); return { say: 'Tour guide off.' }; }
   if (!(S.settings.aiUrl && !offNow()) && has(/\b(what'?s|what is|whats|tell me about|what am i looking at|tell me the history of|history of|story of|what do you know about)\b/) && !has(/\b(wind|weather|tide|depth|current|forecast|waves?)\b/)) {
     await tgLoad(); const at = S.fix || refPos(); try { await Promise.race([tgWikiNear(at.lat, at.lon), new Promise((r) => setTimeout(r, 3500))]); } catch (e) { /* offline */ }
     const all = tgAll(), q = f.replace(/^.*?\b(about|of|is|whats|what'?s)\s+/, '').replace(/^(the|that|this)\s+/, '').trim();
@@ -8761,6 +8799,7 @@ async function legBrief(a, b) { // what is near this leg: buoys and lights, wrec
   const d = distNm(a, b), near = (p, nm) => { const t = Math.max(0, Math.min(1, ((p.lon - a.lon) * (b.lon - a.lon) + (p.lat - a.lat) * (b.lat - a.lat)) / (((b.lon - a.lon) ** 2 + (b.lat - a.lat) ** 2) || 1e-12))); return distNm(p, { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t }) < nm; };
   const out = { marks: [], haz: [], minD: null, bridges: [] };
   const svc = d < 3 ? 'enc_harbour' : 'enc_approach';
+  if (offNow()) { try { out.bridges = bridgesOnLeg(a, b); } catch (e) { /* */ } return out; } // no signal: the chart lookups would only time out (the briefing sat on 'Preparing' for minutes)
   try { const [bu, be, li] = await Promise.all(['buoy', 'beacon', 'light'].map((l) => encPoints(svc, l, bb).catch(() => []))); out.marks = bu.concat(be, li).filter((p) => near(p, 0.12)).slice(0, 8).map((p) => { const n = navaidInfo(p); return { p, n, side: ((b.lon - a.lon) * (p.lat - a.lat) - (b.lat - a.lat) * (p.lon - a.lon)) > 0 ? 'left' : 'right' }; }); } catch (e) { /* */ }
   try { const [w, o] = await Promise.all(['wreck', 'obstr'].map((l) => encPoints(svc, l, bb).catch(() => []))); out.haz = w.concat(o).filter((p) => near(p, 0.15)).slice(0, 5); } catch (e) { /* */ }
   try { const dep = await encQuery(svc, 'depth', bb); for (let k = 2; k < 19; k++) { const f = k / 20, x = a.lon + (b.lon - a.lon) * f, y = a.lat + (b.lat - a.lat) * f; dep.forEach((g) => { if (g.d1 != null && g.rings && encInside(g.rings, x, y) && !(g.d1 <= 0 && g.d2 > 0 && (out.rng = true)) && (out.minD == null || g.d1 < out.minD)) out.minD = g.d1; }); } } catch (e) { /* */ }
@@ -8778,11 +8817,24 @@ async function openBriefing() {
   // merge the router's small wiggles into real legs: a new leg only at a stop or where the course changes by 25° or more;
   // the details (marks, wrecks, depths) still come from the true path under each leg
   const raw = RT.pts.filter((p, i) => !i || distNm(RT.pts[i - 1], p) >= 0.02); let cur = [raw[0]], t = dep;
-  const lname = (p, first) => (p.name && (p.stop || p.via)) ? p.name : pnName(p, 1.5) || (first ? 'the start' : 'a turn ' + fmtDist(distNm(stops[stops.length - 1], p)) + ' from ' + stops[stops.length - 1].name);
+  const lname = (p, first) => (p.name && (p.stop || p.via)) ? p.name : pnName(p, 1.5) || ((n) => n ? 'near ' + n.replace(/^off /, '') : null)(pnName(p, 8)) || (first ? 'the start' : 'a turn ' + fmtDist(distNm(stops[stops.length - 1], p)) + ' from ' + stops[stops.length - 1].name);
   const flush = () => { if (cur.length < 2) return; const a = cur[0], b = cur[cur.length - 1], d = cur.reduce((m, p, k) => k ? m + distNm(cur[k - 1], p) : 0, 0), hrs = d / st.spd; BRF.legs.push({ a, b, d, brg: bearing(a, b), hrs, t0: t, sub: cur.slice(), info: null, from: lname(a, !BRF.legs.length), to: lname(b) }); t += hrs * 3600000; };
-  for (let i = 1; i < raw.length; i++) { const p = raw[i]; cur.push(p); const nx = raw[i + 1]; if (!nx) break;
-    const b0 = bearing(cur[0], p), b1 = bearing(p, nx); if (p.stop || p.via || Math.abs(((b1 - b0 + 540) % 360) - 180) >= 25) { flush(); cur = [p]; } }
-  flush();
+  // real legs, the way you'd write them on a passage plan: simplify the track (Douglas-Peucker, tolerance grows with trip length) so the
+  // router's small wiggles in a canal or creek don't become 50 tiny legs, always break at your stops, and break at a named passage point
+  // (the canal entrance, Cape May) only when the legs either side are worth having
+  const tot = raw.reduce((m, p, i) => i ? m + distNm(raw[i - 1], p) : 0, 0), tol = Math.max(0.12, tot / 200), minLeg = Math.max(0.4, tot / 40);
+  const keep = new Array(raw.length).fill(false); keep[0] = keep[raw.length - 1] = true;
+  const xte = (p, a, b) => { const k = Math.cos(a.lat * Math.PI / 180), ax = 0, ay = 0, bx = (b.lon - a.lon) * k, by = b.lat - a.lat, px = (p.lon - a.lon) * k, py = p.lat - a.lat, L2 = bx * bx + by * by || 1e-12, t = Math.max(0, Math.min(1, (px * bx + py * by) / L2)); return Math.hypot(px - t * bx, py - t * by) * 60; };
+  const dp = (i, j) => { if (j <= i + 1) return; let m = -1, md = 0; for (let k = i + 1; k < j; k++) { const d = xte(raw[k], raw[i], raw[j]); if (d > md) { md = d; m = k; } } if (md > tol) { keep[m] = true; dp(i, m); dp(m, j); } };
+  raw.forEach((p, i) => { if (p.stop) keep[i] = true; });
+  { let st = 0; for (let i = 1; i < raw.length; i++) if (keep[i]) { dp(st, i); st = i; } }
+  const cumD = [0]; for (let i = 1; i < raw.length; i++) cumD.push(cumD[i - 1] + distNm(raw[i - 1], raw[i]));
+  raw.forEach((p, i) => { if (p.via && !keep[i]) { let a = i - 1; while (a > 0 && !keep[a]) a--; let b = i + 1; while (b < raw.length - 1 && !keep[b]) b++; if (cumD[i] - cumD[a] >= minLeg && cumD[b] - cumD[i] >= minLeg) keep[i] = true; } });
+  // merge legs that are still tiny into the one before, unless they end at a stop
+  { let last = 0; for (let i = 1; i < raw.length - 1; i++) if (keep[i]) { if (!raw[i].stop && cumD[i] - cumD[last] < minLeg / 2) keep[i] = false; else last = i; } }
+  for (let i = 1; i < raw.length; i++) { cur.push(raw[i]); if (keep[i]) { flush(); cur = [raw[i]]; } }
+  // name a leg's end after the passage point or sight it passes last, so you never read "from Back Creek to Back Creek"
+  BRF.legs.forEach((L0, k) => { if (L0.to === L0.from) { const nm = L0.sub.slice().reverse().find((p) => p.name && p.name !== L0.from); L0.to = nm ? nm.name : (BRF.legs[k + 1] ? 'the next turn' : L0.to); } if (k && BRF.legs[k - 1].to !== L0.from) L0.from = BRF.legs[k - 1].to; });
   await Promise.all(BRF.legs.map(async (L0) => { const parts = await Promise.all(L0.sub.slice(1).map((p, k) => legBrief(L0.sub[k], p)));
     const seen = new Set(), uniq = (arr, key) => arr.filter((x) => { const k2 = key(x); if (seen.has(k2)) return false; seen.add(k2); return true; });
     L0.info = { marks: uniq(parts.flatMap((x) => x.marks), (m) => 'm' + m.p.lat.toFixed(5) + m.p.lon.toFixed(5)).slice(0, 8), haz: uniq(parts.flatMap((x) => x.haz), (h) => 'h' + h.lat.toFixed(5) + h.lon.toFixed(5)).slice(0, 6),
@@ -8806,6 +8858,10 @@ async function openBriefing() {
   if (wx && wx.dark) watch.push('🌙 You arrive after dark: lights on, slower speed, and know the lit marks on the way in.');
   reg.forEach((n) => watch.push('ℹ ' + n));
   watch.push('ℹ Charted depths are at low water (MLLW); the tide adds to them. Keep a lookout and check the official chart.');
+  { // long trips: where you could break the passage, with when you'd get there
+    const cum = [0]; RT.pts.forEach((p, i) => { if (i) cum.push(cum[i - 1] + distNm(RT.pts[i - 1], p)); }); const seen = new Set(), brk = [];
+    RT.pts.forEach((p, i) => { if (p.pn && PN_STOP[p.pn] && !seen.has(p.pn) && i > 0 && i < RT.pts.length - 1) { seen.add(p.pn); brk.push({ t: PN_STOP[p.pn], at: dep + cum[i] / st.spd * 3600000, d: cum[i] }); } });
+    if (st.total > 50 && brk.length) h += '<div class="bf-h">Places to break the trip</div><ul class="bf-watch">' + brk.map((x) => '<li>⚓ <b>' + fmtClock(x.at) + '</b> · ' + fmtDist(x.d) + ' out · ' + esc(x.t) + '</li>').join('') + '</ul>'; }
   h += '<div class="bf-h">Watch for</div><ul class="bf-watch">' + watch.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>';
   h += '<div class="bf-h">Leg by leg</div><div class="bf-legs">' + BRF.legs.map((L0, k) => '<button type="button" class="bf-leg" data-bfleg="' + k + '"><b>' + (k + 1) + '</b><span><i class="bf-ft">' + esc(L0.from) + ' → ' + esc(L0.to) + ' · ' + fmtClock(L0.t0) + '</i>' + 'Head ' + legDirWords(L0.brg) + ', steer <b>' + fmtBrg(L0.brg) + '°T</b> · ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + ((L0.sights || []).length ? ' · 👁 ' + esc(L0.sights.map((x) => x.st.name).slice(0, 2).join(', ')) : '') + (L0.info.marks.length ? ' · ' + L0.info.marks.length + ' mark' + (L0.info.marks.length > 1 ? 's' : '') : '') + (L0.info.haz.length || (L0.info.minD != null && L0.info.minD < need + 0.6) ? ' · <em>⚠ watch</em>' : '') + '</span></button>').join('') + '</div></div>';
   h += '<div class="bf-btns"><button type="button" class="btn" data-bf="close">Back to the route</button><button type="button" class="btn primary" data-bf="play">▶ Fly the route</button></div>';
@@ -8831,18 +8887,25 @@ const PN_NOTE = {
   cbt: 'Cross the Bay Bridge-Tunnel over a tunnel (Thimble Shoal or Chesapeake Channel) for unlimited height.',
   tpt: 'Thomas Point Shoal runs well off the point: stay outside the light.',
 };
+const PN_STOP = { // good places to stop on the big passages (all have marinas or a sheltered anchorage)
+  cdc: 'Chesapeake City: free town basin and docks, right on the canal.', cde: 'Delaware City: a small marina just north of the canal exit, handy to wait for a fair tide down the bay.',
+  cmi: 'Cape May: Cape May Harbor has marinas and an anchorage; the classic stop before the Jersey shore.', acy: 'Atlantic City: Absecon Inlet and the marinas at Gardner\'s Basin and Farley State Marina.',
+  msq: 'Manasquan Inlet: marinas at Brielle and Point Pleasant, the last stop before Sandy Hook.', shk: 'Sandy Hook Bay / Atlantic Highlands: anchor or take a mooring to wait for daylight or the tide into the harbor.',
+  hrd: 'Hampton Roads: Norfolk and Hampton marinas, the end of the Bay.', sha: 'The Choptank: Oxford and Cambridge.', pax: 'Solomons: one of the best harbors on the Bay.', tpt: 'Annapolis.', balt: 'Baltimore Inner Harbor.',
+};
 function legDirWords(brg) { return ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(((brg % 360) + 360) % 360 / 45) % 8]; }
 function legSay(L0, k) {
   const dir = legDirWords(L0.brg), first = k === 0, last = k === BRF.legs.length - 1;
   const to = /^off /.test(L0.to) ? 'a point ' + L0.to : L0.to;
-  let t = (first ? 'Leave ' + L0.from + ' and head ' : (/^off |^east of |^Lower |^Upper /.test(L0.from) ? 'Once ' : 'From ') + L0.from + ', head ') + dir + ' to ' + to + '. ' + fmtDist(L0.d) + ' at about ' + fmtDur(L0.hrs) + ', steering ' + fmtBrg(L0.brg) + '°T.';
+  let t = (first ? 'Leave ' + L0.from + ' and head ' : (/^(Lower|Upper) /.test(L0.from) ? 'Once in ' : /^off |^east of /.test(L0.from) ? 'Once ' : 'From ') + L0.from + ', head ') + dir + ' to ' + to + '. ' + fmtDist(L0.d) + ' at about ' + fmtDur(L0.hrs) + ', steering ' + fmtBrg(L0.brg) + '°T.';
   if (last) t += ' This is the final leg; you arrive about ' + fmtClock(L0.t0 + L0.hrs * 3600000) + '.';
   return t;
 }
 function legNotes(L0) { return L0.sub.filter((p) => p.pn && PN_NOTE[p.pn]).map((p) => PN_NOTE[p.pn]).filter((x, i, a) => a.indexOf(x) === i); }
 async function brSights() { // what to look for on each leg: the guide's stops (and Wikipedia's) close to the route, with the side you will see them on
   try { await tgLoad(); const step = []; let acc = 0; RT.pts.forEach((p, i) => { if (i) acc += distNm(RT.pts[i - 1], p); if (!i || acc > 6) { step.push(p); acc = 0; } });
-    await Promise.race([Promise.all(step.slice(0, 16).map((p) => tgWikiNear(p.lat, p.lon))), new Promise((r) => setTimeout(r, 5000))]); } catch (e) { /* offline */ }
+    const pick = step.length > 16 ? Array.from({ length: 16 }, (_, i) => step[Math.round(i * (step.length - 1) / 15)]) : step; // spread over the whole route, not just its first 90 nm
+    await Promise.race([Promise.all(pick.map((p) => tgWikiNear(p.lat, p.lon))), new Promise((r) => setTimeout(r, 5000))]); } catch (e) { /* offline */ }
   const used = new Set();
   BRF.legs.forEach((L0) => { let list = []; try { list = tgAlongRoute(L0.sub); } catch (e) { /* */ }
     L0.sights = list.filter((x) => !used.has(x.st.id) && (x.st.from === 'guide' || /light|island|bridge|fort|point|narrows|statue|lighthouse/i.test(x.st.name))).slice(0, 4).map((x) => { used.add(x.st.id);
@@ -8853,13 +8916,15 @@ function brLine(L0) { if (BRF.mk) map.removeLayer(BRF.mk); BRF.mk = L.polyline(L
 function brLegHtml(L0, k) {
   const need = wrNeedM(), nxt = BRF.legs[k + 1], turn = nxt ? Math.round(((nxt.brg - L0.brg + 540) % 360) - 180) : null, lines = [];
   legNotes(L0).forEach((x) => lines.push('⚓ ' + x));
-  L0.info.marks.forEach((m) => { const lat = m.n.col === 'red' ? 'red' : m.n.col === 'green' ? 'green' : ''; lines.push('Pass ' + (m.n.name || ('a ' + (lat ? lat + ' ' : '') + m.n.shape)) + ' on your ' + m.side + (lat ? (m.side === (lat === 'red' ? 'right' : 'left') ? ' ✓' : ' (check: red right returning)') : '') + '.'); });
-  L0.info.haz.forEach((p) => lines.push('⚠ Charted ' + (p.kind === 'wreck' ? 'wreck' : 'obstruction') + (p.a.VALSOU != null ? ' (' + fmtLen(+p.a.VALSOU / 0.3048) + ' over it)' : '') + ' close by. Give it room.'));
-  if (L0.info.minD != null) lines.push((L0.info.minD < need + 0.6 ? '⚠ Shallowest charted water on this leg: ' : 'Least charted depth: ') + fmtLen(L0.info.minD / 0.3048) + '.');
+  { const un = { left: 0, right: 0 }; L0.info.marks.forEach((m) => { const col = m.n.col === 'red' || m.n.col === 'green' ? m.n.col : ''; if (!m.n.name) { un[m.side]++; return; } if (lines.length < 6) lines.push('Pass ' + m.n.name + (col ? ' (' + col + ')' : '') + ' on your ' + m.side + '.'); });
+    if (un.left + un.right) lines.push('Plus ' + (un.left + un.right) + ' more unnamed mark' + (un.left + un.right > 1 ? 's' : '') + (un.left && un.right ? ' on both sides' : ' on your ' + (un.left ? 'left' : 'right')) + '. They are on the chart.'); }
+  { const hz = L0.info.haz, w = hz.filter((p) => p.kind === 'wreck').length, o = hz.length - w, least = hz.map((p) => p.a.VALSOU).filter((v) => v != null).map(Number).sort((x, y) => x - y)[0];
+    if (hz.length) lines.push('⚠ ' + [w ? w + ' charted wreck' + (w > 1 ? 's' : '') : '', o ? o + ' obstruction' + (o > 1 ? 's' : '') : ''].filter(Boolean).join(' and ') + ' close to the line' + (least != null ? ' (least ' + fmtLen(least / 0.3048) + ' over one)' : '') + '. Give them room.'); }
+  if (L0.info.minD != null) lines.push(L0.info.minD < 0 ? '⚠ The line passes close to banks that dry at low water. Stay in the marked channel.' : (L0.info.minD < need + 0.6 ? '⚠ Shallowest charted water on this leg: ' : 'Least charted depth: ') + fmtLen(L0.info.minD / 0.3048) + '.');
   L0.info.bridges.forEach((x) => lines.push('🌉 ' + x.br.name + ': ' + x.j.text));
   const sights = (L0.sights || []).map((x) => '<button type="button" class="bf-sight" data-bfsight="' + esc(x.st.id) + '"><span class="bf-sph" data-sid="' + esc(x.st.id) + '"></span><span><b>' + esc(x.st.name) + '</b><small>' + (x.off < 0.15 ? 'right on the route' : fmtDist(x.off) + ' to ' + x.side) + '</small></span></button>').join('');
   return '<div class="bf-top"><b>Leg ' + (k + 1) + ' of ' + BRF.legs.length + '</b><span>' + fmtClock(L0.t0) + ' · ' + fmtDist(L0.d) + ' · ' + fmtDur(L0.hrs) + '</span><button type="button" class="bf-x" data-bf="close" aria-label="Close">×</button></div>' +
-    '<div class="bf-body"><div class="bf-steer"><span class="bf-arrow" style="transform:rotate(' + Math.round(L0.brg + mapRot()) + 'deg)">▲</span><div><b class="tnum">' + fmtBrg(L0.brg) + '°T</b><span>' + compass16(L0.brg) + (nxt ? ' · then turn ' + (Math.abs(turn) < 8 ? 'and hold course' : Math.abs(turn) + '° ' + (turn > 0 ? 'to starboard' : 'to port') + ' onto ' + fmtBrg(nxt.brg) + '°') : ' · arrive') + '</span></div></div>' +
+    '<div class="bf-body"><div class="bf-steer"><span class="bf-arrow" style="transform:rotate(' + Math.round(L0.brg + mapRot()) + 'deg)">↑</span><div><b class="tnum">' + fmtBrg(L0.brg) + '°T</b><span>' + compass16(L0.brg) + (nxt ? ' · then turn ' + (Math.abs(turn) < 8 ? 'and hold course' : Math.abs(turn) + '° ' + (turn > 0 ? 'to starboard' : 'to port') + ' onto ' + fmtBrg(nxt.brg) + '°') : ' · arrive') + '</span></div></div>' +
     '<p class="bf-say">' + esc(legSay(L0, k)) + '</p>' + (sights ? '<div class="bf-h">Look out for</div><div class="bf-sights">' + sights + '</div>' : '') +
     (lines.length ? '<div class="bf-h">On this leg</div><ul class="bf-watch">' + lines.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '<p class="bf-quiet">Open water on this leg. Nothing charted close to the line.</p>') + '</div>' +
     '<div class="bf-btns"><button type="button" class="btn" data-bf="prev"' + (k ? '' : ' disabled') + '>‹ Back</button><button type="button" class="btn" data-bf="' + (FLY.on ? 'pause' : 'play') + '">' + (FLY.on ? '❚❚ Pause' : '▶ Fly') + '</button><button type="button" class="btn primary" data-bf="' + (nxt ? 'next' : 'end') + '">' + (nxt ? 'Next ›' : 'Done') + '</button></div>' +
@@ -8876,7 +8941,8 @@ function brLeg(k, keepCam) {
    comes up. The camera slows down smoothly as it passes a sight. ---------- */
 const FLY = { on: false, raf: 0, s: 0, last: 0, pts: null, cum: null, total: 0, v: 0, z: 12, boat: null, shown: new Set(), slow: 1, endT: 0, hdg: null };
 function flyPrep() {
-  const pts = []; BRF.legs.forEach((L0, k) => L0.sub.forEach((p, j) => { if (k && !j) return; pts.push({ lat: p.lat, lon: p.lon, leg: k }); }));
+  // each point carries the leg of the stretch that starts there, so a leg's card shows while you fly that leg (the shared turn point starts the next leg)
+  const pts = [], nL = BRF.legs.length; BRF.legs.forEach((L0, k) => L0.sub.forEach((p, j) => { if (k < nL - 1 && j === L0.sub.length - 1) return; pts.push({ lat: p.lat, lon: p.lon, leg: k }); }));
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + distNm(pts[i - 1], pts[i]));
   FLY.pts = pts; FLY.cum = cum; FLY.total = cum[cum.length - 1];
   BRF.legs.forEach((L0, k) => { L0.s0 = cum[pts.findIndex((p) => p.leg === k)] || 0; (L0.sights || []).forEach((x) => { x.s = L0.s0 + x.at; }); });
@@ -8888,7 +8954,9 @@ function flyPrep() {
 }
 function flyAt(s) { const c = FLY.cum, p = FLY.pts; let lo = 0, hi = c.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= s) lo = m; else hi = m; } const seg = c[hi] - c[lo] || 1e-9, f = Math.max(0, Math.min(1, (s - c[lo]) / seg));
   return { lat: p[lo].lat + (p[hi].lat - p[lo].lat) * f, lon: p[lo].lon + (p[hi].lon - p[lo].lon) * f, leg: p[lo].leg, brg: bearing(p[lo], p[hi]) }; }
-function flyMeasure() { const el = $('briefing'), mh = map.getSize().y, bh = el && !el.hidden ? el.offsetHeight : 0; FLY.dy = Math.max(0, Math.min(mh * 0.3, bh / 2)); }
+function flyMeasure() { // the boat sits three quarters of the way down the open chart above the card: clear of the "look" card at the top (on a phone it hid the boat)
+  const el = $('briefing'), mh = map.getSize().y, mt = map.getContainer().getBoundingClientRect().top, bt = el && !el.hidden ? el.getBoundingClientRect().top - mt : mh;
+  FLY.dy = Math.max(0, Math.min(mh * 0.35, mh / 2 - Math.max(80, Math.min(mh, bt)) * 0.75)); }
 function flyCam(pos) { const dy = FLY.dy || 0; // keep the boat in the open part of the chart above the card
   const tgt = map.project([pos.lat, pos.lon], FLY.z).add([0, dy]), cur = FLY.cpx || map.project(map.getCenter(), FLY.z), d = tgt.subtract(cur).round();
   if (d.x || d.y) { map._rawPanBy(d); FLY.cpx = cur.add(d); map.fire('move'); } }
@@ -8896,14 +8964,15 @@ function flyBoat(pos, hdg) { const ic = '<svg viewBox="-12 -16 24 32" width="26"
   if (!FLY.boat) FLY.boat = L.marker([pos.lat, pos.lon], { interactive: false, keyboard: false, zIndexOffset: 2000, icon: L.divIcon({ className: 'fly-boat', iconSize: [26, 34], iconAnchor: [13, 17], html: '<div>' + ic + '</div>' }) }).addTo(map);
   else FLY.boat.setLatLng([pos.lat, pos.lon]); const e = FLY.boat.getElement(); if (e && e.firstChild) e.firstChild.style.transform = 'rotate(' + Math.round(hdg + mapRot()) + 'deg)'; }
 function flyStart() {
-  if (!BRF.legs.length) return; if (!FLY.pts) flyPrep(); FLY.on = true; FLY.last = 0; map.stop();
-  if (FLY.s >= FLY.total - 0.01) { FLY.s = 0; FLY.shown.clear(); }
-  if (BRF.i >= 0 && BRF.legs[BRF.i] && Math.abs((FLY.s || 0) - BRF.legs[BRF.i].s0) > BRF.legs[BRF.i].d) FLY.s = BRF.legs[BRF.i].s0;
-  const p = flyAt(FLY.s); FLY.hdg = p.brg; brLeg(p.leg, true); flyMeasure(); map.setView([p.lat, p.lon], FLY.z, { animate: false }); FLY.cpx = null; FLY.cpx = map.project(map.getCenter(), FLY.z); flyCam(p); flyBoat(p, p.brg);
-  document.documentElement.classList.add('flying'); FLY.idle = 0; FLY.raf = requestAnimationFrame(flyFrame);
+  if (!BRF.legs.length) return; if (!FLY.pts) flyPrep(); FLY.last = 0; map.stop(); try { setFollow(false); } catch (e) { /* */ } // following the boat would pull the camera back to it every fix
+  if (FLY.s >= FLY.total - 0.01) { FLY.s = 0; FLY.shown.clear(); } // finished: fly again from the start
+  else if (BRF.i >= 0 && BRF.legs[BRF.i] && Math.abs((FLY.s || 0) - BRF.legs[BRF.i].s0) > BRF.legs[BRF.i].d) FLY.s = BRF.legs[BRF.i].s0;
+  // setView changes the zoom, which fires zoomstart, and that stops a flight: so only switch the flight on after it
+  const p = flyAt(FLY.s); FLY.hdg = p.brg; map.setView([p.lat, p.lon], FLY.z, { animate: false }); FLY.on = true; brLeg(p.leg, true); flyMeasure(); FLY.cpx = null; FLY.cpx = map.project(map.getCenter(), FLY.z); flyCam(p); flyBoat(p, p.brg);
+  document.documentElement.classList.add('flying'); window.__flyOn = true; FLY.idle = 0; FLY.raf = requestAnimationFrame(flyFrame);
 }
-map.on('zoomstart dragstart', () => { if (FLY.on) { flyStop(); } FLY.cpx = null; });
-function flyStop(done) { if (!FLY.on && !FLY.raf) return; FLY.on = false; cancelAnimationFrame(FLY.raf); FLY.raf = 0; document.documentElement.classList.remove('flying'); map.fire('moveend'); if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } }
+map.on('zoomstart dragstart', () => { if (FLY.on) { flyStop(); const el = $('briefing'); if (BRF.on && el && BRF.legs[BRF.i]) { el.innerHTML = brLegHtml(BRF.legs[BRF.i], BRF.i); brPhotos(el); } } FLY.cpx = null; }); // the card shows ▶ Fly again, not a dead Pause
+function flyStop(done) { if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } if (!FLY.on && !FLY.raf) return; FLY.on = false; cancelAnimationFrame(FLY.raf); FLY.raf = 0; document.documentElement.classList.remove('flying'); window.__flyOn = false; try { renderSide(); } catch (e) { /* */ } map.fire('moveend'); if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } }
 function flyFrame(t) {
   if (!FLY.on) return; const dt = FLY.last ? Math.min(0.05, (t - FLY.last) / 1000) : 0; FLY.last = t;
   // slow down smoothly near a sight, and for the first and last few seconds
@@ -8915,7 +8984,7 @@ function flyFrame(t) {
   flyCam(p); flyBoat(p, FLY.hdg);
   if (p.leg !== BRF.i) { brLeg(p.leg, true); requestAnimationFrame(flyMeasure); }
   if (S.settings.flySights !== false) all.forEach((x) => { if (!FLY.shown.has(x.st.id) && FLY.s >= x.s - FLY.v * 2.5) { FLY.shown.add(x.st.id); flySight(x); } });
-  if (t - (FLY.idle || 0) > 350) { FLY.idle = t; map.eachLayer((l) => { if (l instanceof L.GridLayer && l._map && l._update) try { l._update(); } catch (e) { /* */ } }); } // keep the chart tiles coming without waking every other layer each frame
+  if (t - (FLY.idle || 0) > 350) { FLY.idle = t; map.eachLayer((l) => { if ((l instanceof L.GridLayer || l instanceof L.Renderer) && l._map && l._update) try { l._update(); } catch (e) { /* */ } }); } // keep the chart tiles coming without waking every other layer each frame
   if (FLY.s >= FLY.total) { flyStop(); const el = $('briefing'); if (el) el.innerHTML = brLegHtml(BRF.legs[BRF.i], BRF.i); brPhotos(el); return; }
   FLY.raf = requestAnimationFrame(flyFrame);
 }
@@ -9436,17 +9505,24 @@ document.addEventListener('click', (e) => { const b = e.target.closest('[data-rt
   if (k === 'finish') { const el2 = $('raceTimer'); RT2.on = false; if (el2) el2.hidden = true; clearInterval(RT2.t); try { rcStop(); } catch (err) { /* */ } openCoach('race', 'debrief'); return; }
   if (k === 'x') { const el2 = $('raceTimer'); if (el2) el2.hidden = true; if (!(RT2.on && left <= 0)) RT2.on = false; }
   try { RC.startAt = RT2.on ? RT2.t0 : null; } catch (err) { /* */ } rtDraw(); });
+// build 181 C: the panels' render functions replace their contents (renderBoat, renderNav, renderAnchor…), which took the × back to the chart with them
+function pCloseKeep() { const vis = visiblePanel(); if (!vis || vis === 'side' || !PANELS[vis]) return; const pe = $(PANELS[vis]); if (pe && !pe.hidden && !pe.querySelector(':scope > .p-close')) pe.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-pclose aria-label="Back to the chart">×</button>'); }
+try { const mo = new MutationObserver(pCloseKeep); Object.values(PANELS).forEach((id) => { const pe = $(id); if (pe) mo.observe(pe, { childList: true }); }); } catch (e) { /* */ }
+// build 181 C: Esc closes First Mate's talk mode and the race timer, and works on the trip briefing like its × (a leg card goes back to the overview, the overview closes); an open sheet closes first
+window.addEventListener('keydown', (e) => { if (e.key !== 'Escape' || !sheet.hidden) return; const ft = $('fmTalk'); if (ft && !ft.hidden) { e.stopImmediatePropagation(); ftStop(); return; }
+  const rx = document.querySelector('#raceTimer:not([hidden]) [data-rt=x]'); if (rx) { e.stopImmediatePropagation(); rx.click(); return; } if (!BRF.on) return; const el = $('briefing'); if (!el || el.hidden) return;
+  e.stopImmediatePropagation(); const x = el.querySelector('[data-bf=close]'); if (x) x.click(); else closeBriefing(); }, true);
 // "what's near me": one tap for islands, lighthouses, anchorages, beaches, marinas, fuel, ramps, food, the guide's stops and your fishing spots
 const NB_KINDS = [['island', 'Islands'], ['lighthouse', 'Lighthouses'], ['anchorage', 'Anchorages'], ['beach', 'Beaches'], ['marina', 'Marinas'], ['fuel', 'Fuel'], ['ramp', 'Boat ramps'], ['food', 'Waterfront food'], ['cove', 'Creeks & coves'], ['guide', 'Sights & history'], ['fish', 'My fishing spots']];
 async function openNearby(kind) {
-  kind = kind || S.settings.nbKind || 'guide'; S.settings.nbKind = kind;
+  kind = kind || S.settings.nbKind || 'guide'; S.settings.nbKind = kind; const seq = FM.nbSeq = (FM.nbSeq || 0) + 1;
   const here = fmHere(), chips = '<div class="lk-cats nb-cats">' + NB_KINDS.map(([k, l]) => '<button type="button" data-nb="' + k + '" class="' + (k === kind ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
   openSheet('<h3>Near ' + (S.fix ? 'you' : 'here') + '</h3>' + chips + '<p class="sub">Looking…</p>');
   let list = [];
   if (kind === 'guide') { await tgLoad(); try { await Promise.race([tgWikiNear(here.lat, here.lon), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { /* */ } list = tgAll().map((x) => Object.assign({ tg: x }, x, { d: distNm(here, x) })).map((x) => Object.assign(x, { w: tgWorth(x.tg, x.d) })).filter((x) => x.d < 10 && x.w > 0).sort((a, b) => b.w - a.w).slice(0, 12); }
   else if (kind === 'fish') list = (S.spots || []).map((x) => ({ name: x.species || x.name || 'Fishing spot', lat: x.lat, lon: x.lon, d: distNm(here, x) })).sort((a, b) => a.d - b.d).slice(0, 12);
   else list = (await fmNearby(kind)) || [];
-  if (!$('sheet') || sheet.hidden) return;
+  if (!$('sheet') || sheet.hidden || seq !== FM.nbSeq || !sheet.querySelector('.nb-cats')) return; // a later tap (another kind, or another sheet) wins over a slow search
   FM.pick = { list, at: Date.now() }; if (list.length) fmShowPicks(list.slice(0, 8));
   openSheet('<h3>Near ' + (S.fix ? 'you' : 'here') + '</h3>' + chips + (list.length ? '<ul class="tg-list">' + list.map((x, i) => '<li><button type="button" data-nbi="' + i + '"><b>' + (i + 1) + '. ' + esc(x.name) + '</b><span>' + fmtDist(x.d) + ' ' + compass16(bearing(here, x)) + '</span></button></li>').join('') + '</ul>' : '<p class="sub">' + (offNow() ? 'No signal: only the guide stops and your own spots work offline.' : 'Nothing found within about 10 miles.') + '</p>') +
     '<p class="hint">Tap one to see it and plan a route. ' + (S.fix ? '' : 'No GPS: searching around the middle of the chart.') + '</p><div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
@@ -9461,8 +9537,37 @@ function setHelm(on) { const R0 = document.documentElement; R0.classList.toggle(
   else { try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* */ } }
   setTimeout(() => { try { map.invalidateSize(); renderSide(); } catch (e) { /* */ } }, 250); }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-helm]')) setHelm(!document.documentElement.classList.contains('helm')); });
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.documentElement.classList.contains('helm')) setHelm(false); });
+['fullscreenchange', 'webkitfullscreenchange'].forEach((t) => document.addEventListener(t, () => { if (!(document.fullscreenElement || document.webkitFullscreenElement) && document.documentElement.classList.contains('helm')) setHelm(false); }));
 (() => { const b = document.createElement('button'); b.type = 'button'; b.id = 'helmX'; b.setAttribute('data-helm', ''); b.title = 'Leave the helm screen'; b.textContent = '⤢'; ($('app') || document.body).appendChild(b); })();
+// build 181 A: everything that docks to the chart reads the chart's real edges (--chartL/--chartR/--chartW on the root), so the
+// buttons, the dial, the layout switch and the top chips follow the chart when the gauge panel is dragged, opened or closed
+function chartEdges() { const m = $('map'), A = $('app'); if (!m || !A || m.closest('.ck-map')) return; const r = m.getBoundingClientRect(), a = A.getBoundingClientRect(); if (!r.width) return;
+  const R0 = document.documentElement.style; R0.setProperty('--chartL', Math.round(r.left - a.left) + 'px'); R0.setProperty('--chartR', Math.max(0, Math.round(a.right - r.right)) + 'px'); R0.setProperty('--chartW', Math.round(r.width) + 'px');
+  cancelAnimationFrame(chartEdges.f); chartEdges.f = requestAnimationFrame(() => { try { chipPlace($('offPill')); chipPlace($('toast')); deskSwPlace(); } catch (e) { /* */ } }); }
+// a pill at the top of the chart (No signal, toasts) sits centred in the free gap between the left buttons and the dial, never over them or the gauge panel
+function chipPlace(el) { if (!el) return; ['left', 'top', 'max-width', 'white-space'].forEach((k) => el.style.removeProperty(k)); if (el.hidden || !el.offsetWidth || el.classList.contains('mid')) return;
+  const m = $('map'), A = $('app'); if (!m || m.closest('.ck-map') || document.querySelector('#cockpit:not([hidden])')) return; const M = m.getBoundingClientRect(), a = A.getBoundingClientRect(), r = el.getBoundingClientRect(), cx = M.left + M.width / 2;
+  const blocks = [...document.querySelectorAll('#fabs > *, #fabsR > *, #app > .fab-free')].map((x) => { const q = x.getBoundingClientRect(); return q.width && q.height && getComputedStyle(x).visibility !== 'hidden' ? q : null; }).filter(Boolean);
+  const inRow = (q) => q.top < r.bottom + 4 && q.bottom > r.top - 4; let L = M.left + 8, R = M.right - 8;
+  blocks.filter(inRow).forEach((q) => { if (q.left + q.width / 2 < cx) L = Math.max(L, q.right + 8); else R = Math.min(R, q.left - 8); });
+  const fits = R - L >= Math.min(r.width, 150), race = document.querySelector('#raceTimer:not([hidden])');
+  if (fits) { el.style.setProperty('left', Math.round((L + R) / 2 - a.left) + 'px', 'important'); el.style.setProperty('max-width', Math.round(R - L) + 'px', 'important'); if (r.width > R - L) el.style.setProperty('white-space', 'normal', 'important'); }
+  else if (!race) { // no room beside the dial: drop below everything on the right
+    const low = blocks.filter((q) => q.left + q.width / 2 >= cx && q.top < M.top + 0.6 * M.height).reduce((y, q) => Math.max(y, q.bottom), r.top);
+    el.style.setProperty('left', Math.round(cx - a.left) + 'px', 'important'); el.style.setProperty('max-width', Math.round(M.width - 120) + 'px', 'important'); el.style.setProperty('white-space', 'normal', 'important'); el.style.setProperty('top', Math.round(low + 8 - a.top) + 'px', 'important'); }
+  const op = $('offPill'); if (el.id !== 'toast' || race || !op || op.hidden || !op.offsetWidth) return; // a message never hides the No signal pill
+  const t = el.getBoundingClientRect(), o = op.getBoundingClientRect(); if (o.top < t.bottom && o.bottom > t.top && o.left < t.right && o.right > t.left) el.style.setProperty('top', Math.round(o.bottom + 6 - a.top) + 'px', 'important'); }
+// the layout switch (bottom right of the chart) steps up above the forecast bar or a tour card instead of sitting on top of them
+function deskSwPlace() { const d = $('deskSw'), R0 = document.documentElement.style; if (!d) return; R0.setProperty('--dskLift', '0px'); d.style.removeProperty('visibility'); if (!d.offsetWidth || document.querySelector('#cockpit:not([hidden])')) return;
+  const r = d.getBoundingClientRect(); let top = r.bottom;
+  document.querySelectorAll('#bottomStack > *, #tourCard, .rc-card, #mChip, .wx-legend, .fm-talk').forEach((e) => { if (e.hidden) return; const q = e.getBoundingClientRect(); if (!q.width || !q.height || getComputedStyle(e).visibility === 'hidden') return; if (q.left < r.right && q.right > r.left && q.top < r.bottom && q.bottom > r.top) top = Math.min(top, q.top); });
+  if (top >= r.bottom) return; const lift = Math.round(r.bottom - top + 8); R0.setProperty('--dskLift', lift + 'px');
+  const fr = $('fabsR'), q = fr && fr.getBoundingClientRect(); if (q && q.height && r.top - lift < q.bottom + 8 && q.left < r.right && q.right > r.left) d.style.setProperty('visibility', 'hidden'); } // nowhere free: hide it until there is room (key V still works)
+(() => { const m = $('map'); if (window.ResizeObserver && m) new ResizeObserver(() => chartEdges()).observe(m); window.addEventListener('resize', () => setTimeout(chartEdges, 80));
+  const st = $('bottomStack'); if (window.ResizeObserver && st) new ResizeObserver(() => { cancelAnimationFrame(deskSwPlace.f); deskSwPlace.f = requestAnimationFrame(deskSwPlace); }).observe(st);
+  const t = $('toast'); if (t && window.MutationObserver) new MutationObserver(() => chipPlace(t)).observe(t, { attributes: true, attributeFilter: ['hidden', 'class'], childList: true, characterData: true, subtree: true });
+  const o = $('offPill'); if (o && window.MutationObserver) new MutationObserver(() => chipPlace(o)).observe(o, { attributes: true, attributeFilter: ['hidden'] });
+  setTimeout(chartEdges, 700); setInterval(deskSwPlace, 2000); })();
 // laptop / desktop view: chart and gauges, chart only (all buttons), or chart only and clean (no buttons; MOB stays)
 function setDeskView(v) { S.settings.deskView = v; saveSettings(); document.documentElement.dataset.desk = v; setTab(S.tab === 'weather' ? 'weather' : 'chart'); renderDeskSw(); setTimeout(() => { try { map.invalidateSize(); fitFabs(); } catch (e) { /* */ } }, 120); }
 function renderDeskSw() { let el = $('deskSw'); if (!el) { el = document.createElement('div'); el.id = 'deskSw'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Screen layout'); $('app').appendChild(el);
@@ -9471,6 +9576,8 @@ function renderDeskSw() { let el = $('deskSw'); if (!el) { el = document.createE
 document.documentElement.dataset.desk = S.settings.deskView || 'split'; setTimeout(renderDeskSw, 300);
 document.addEventListener('keydown', (e) => { if (e.target.closest && e.target.closest('input, textarea, select')) return; if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !ckEdit) { const on = $('cockpit') && !$('cockpit').hidden; if (on) setCockpit(false); else setCockpit(true); renderDeskSw(); return; }
   if (e.key === 'v' && !e.metaKey && !e.ctrlKey) { if ($('cockpit') && !$('cockpit').hidden) setCockpit(false); const o = ['split', 'chart', 'bare'], v = S.settings.deskView || 'split'; setDeskView(o[(o.indexOf(v) + 1) % 3]); } });
+// the chart redraws fully whenever its box changes size: a console tile resized or tidied (after its slide), entering or leaving the console
+(() => { if (!window.ResizeObserver) return; const el = map.getContainer(); new ResizeObserver(() => { try { const z = map.getSize(); if (el.clientWidth > 0 && (el.clientWidth !== z.x || el.clientHeight !== z.y)) { map.invalidateSize(); fitFabs(); } } catch (e) { /* */ } }).observe(el); })(); // fitFabs: the left buttons wrap clear of MOB in a short chart tile
 // keyboard on the console: Esc = done, ⌘Z / Ctrl+Z = undo, Delete = remove the tile you last touched, arrows nudge it (Shift = bigger steps), T = tidy up
 document.addEventListener('pointerdown', (e) => { const t = e.target.closest && e.target.closest('#cockpit .ck-slot[data-fid]'); if (t && ckEdit) { document.querySelectorAll('#cockpit .ck-slot.sel').forEach((x) => x.classList.remove('sel')); t.classList.add('sel'); } }, true);
 document.addEventListener('keydown', (e) => { const ck = $('cockpit'); if (!ck || ck.hidden || !ckEdit || (e.target.closest && e.target.closest('input, select, textarea'))) return;
