@@ -2466,3 +2466,40 @@ html.looktry-ck #lookTry { z-index: 1300; }
 #tourCard.tg-card { left: 84px !important; right: 10px !important; transform: none !important; width: auto !important; max-width: 440px; }
 #tourCard .tg-txt { max-height: 30vh !important; } #tourCard .tg-img { max-height: 96px; }
 .lk-grid span { white-space: normal; line-height: 1.15; max-height: 2.3em; overflow: hidden; text-overflow: clip; }
+/* MOB: bottom-left, just above the tab bar, always */
+#app #btnMOB.mob { left: calc(12px + env(safe-area-inset-left, 0px)) !important; right: auto !important; top: auto !important; bottom: calc(var(--tabbar-h, 64px) + 12px + var(--stackH, 0px) + env(safe-area-inset-bottom, 0px)) !important; }
+
+/* build 164: the forecast bar is a slim strip, clear of MOB, not a toolbar */
+#wxBar.wxbar:not(.tl) { padding: 4px 8px 6px 10px !important; gap: 0 !important; border-radius: 14px !important; }
+@media (max-width: 899px) { #wxBar.wxbar:not(.tl) { margin-left: 74px; } }
+#wxBar .wx-mini { min-height: 24px; gap: 6px; } #wxBar .wx-mini b { font-size: 12.5px; } #wxBar .wx-mini .wx-st { font-size: 11px; } #wxBar .wx-mini .x { width: 24px; height: 24px; font-size: 16px; }
+#wxBar .scrub { margin-top: 0; gap: 3px; align-items: center; } #wxBar .sc-b { width: 28px; height: 28px; font-size: 15px; border-radius: 8px; }
+#wxBar .sc-b[data-wxstep="-24"], #wxBar .sc-b[data-wxstep="24"] { display: none; }
+#wxBar .sc-mid { padding-top: 18px; } #wxBar .sc-bub { font-size: 11px; padding: 1px 6px; } #wxBar .sc-mid em { top: 6px; font-size: 9px; opacity: .75; }
+#wxBar .sc-row { height: 4px; } #wxBar .sc-mid input[type=range] { margin: 0; height: 18px; }
+
+/* quick controls: three to a row, short labels, smaller */
+#quick .q-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+#quick .q-t { min-height: 38px; padding: 0 7px; gap: 6px; font-size: 12.5px !important; line-height: 1.15; border-radius: 10px; }
+#quick .q-t i { width: 14px; height: 14px; border-radius: 4px; }
+#quick .q-head b { font-size: 15px; } #quick .q-h { font-size: 10.5px; margin: 8px 0 4px; } #quick .seg button { padding: 6px 4px !important; font-size: 12.5px !important; }
+/* settings: switches two to a row, so you see twice as much */
+.card:has(> .set-row .switch) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: stretch; }
+.card:has(> .set-row .switch) > :not(.set-row) { grid-column: 1 / -1; }
+.card:has(> .set-row .switch) > .set-row:not(:has(.switch)) { grid-column: 1 / -1; }
+.card > .set-row:has(.switch) { flex-direction: column; align-items: flex-start; gap: 6px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.card > .set-row:has(.switch) .sr-text b { font-size: 13.5px; } .card > .set-row:has(.switch) .sr-text span { font-size: 11px; line-height: 1.25; }
+/* settings: tighter cards, segmented rows full width but smaller */
+#panelSettings .card { padding: 12px 14px !important; margin-bottom: 10px; } #panelSettings .card h4 { margin: 0 0 6px; font-size: 12px; }
+#panelSettings .set-row { padding: 8px 0; } #panelSettings .set-row .sr-text b { font-size: 14px; } #panelSettings .set-row .sr-text span { font-size: 11.5px; }
+#panelSettings .seg button { padding: 7px 4px !important; font-size: 13px !important; min-height: 34px; }
+.p-close { position: sticky; top: calc(6px + env(safe-area-inset-top, 0px)); float: right; z-index: 30; width: 34px; height: 34px; margin: -4px -4px 0 6px; border-radius: 50%; border: 0; background: rgba(127,127,127,.22); color: inherit; font: 400 22px/34px system-ui; padding: 0; }
+
+/* the edge between chart and gauges on a laptop or iPad: drag it */
+#sideGrip { display: none; }
+#app.wide:has(#panelSide:not([hidden])) #sideGrip { display: block; position: absolute; top: 0; bottom: var(--tabbar-h, 0px); right: calc(var(--sideW, 400px) - 9px); width: 18px; z-index: 860; cursor: col-resize; touch-action: none; }
+#sideGrip i { position: absolute; left: 7px; top: 50%; width: 4px; height: 56px; margin-top: -28px; border-radius: 2px; background: rgba(127,127,127,.55); }
+#sideGrip:hover i, #sideGrip.drag i { background: #2E86DE; height: 90px; margin-top: -45px; }
+html[data-side="normal"] #app.wide:has(#panelSide:not([hidden])) #sideGrip, html:not([data-side]) #app.wide:has(#panelSide:not([hidden])) #sideGrip { right: 391px; }
+html:is([data-side="third"],[data-side="half"]) #app.wide:has(#panelSide:not([hidden])) :is(.lx-chip, #offPill, #mChip, .wx-legend) { left: calc((100% - var(--sideW)) / 2) !important; }
+html:not([data-side="third"]):not([data-side="half"]) #app.wide:has(#panelSide:not([hidden])) :is(.lx-chip, #offPill, .wx-legend) { left: calc((100% - 400px) / 2) !important; }

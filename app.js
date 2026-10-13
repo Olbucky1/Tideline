@@ -506,7 +506,7 @@ sheet.addEventListener('input', (e) => {
   const mc = $('modeChip'); if (mc) { mc.className = 'fab info'; mc.hidden = true; document.body.appendChild(mc); mc.style.display = 'none'; } // sail/motor lives in Layers now
   rb.addEventListener('click', () => { setTab('chart'); setWxL('rain', !wxOn('rain')); });
   const ab = document.createElement('button'); ab.id = 'btnAis'; ab.type = 'button'; ab.className = 'fab aisbtn'; ab.setAttribute('aria-label', 'AIS ships on or off');
-  ab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 16-5-3-5 3z"/></svg><span class="ais-n"></span>';
+  ab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 16h19l-3 4.5h-13z"/><path d="M6 16v-3.5h9.5L18 16"/><path d="M9.5 12.5V9.5h3.5v3"/><path d="M16 4.6a4.2 4.2 0 0 1 0 5.4M18.6 2.6a7.4 7.4 0 0 1 0 9.4"/></svg><span class="ais-n"></span>';
   const wrap = document.createElement('div'); wrap.className = 'wx-wrap'; wrap.id = 'wxWrap'; wrap.appendChild(wb); wrap.appendChild(grp);
   const rt = $('btnRoute'); fc.insertBefore(wrap, rt ? rt.nextSibling : null); fc.insertBefore(ab, wrap.nextSibling); ch.remove();
   wb.addEventListener('click', (e) => { e.stopPropagation(); grp.hidden = !grp.hidden; wb.classList.toggle('open', !grp.hidden); });
@@ -2002,7 +2002,7 @@ function wsField() {
   const g = WX.grids.wind; if (!g || !WS.cv) { WS.field = null; return; }
   WS.moving = false;
   const sz = map.getSize(), dpr = Math.min(2, window.devicePixelRatio || 1);
-  WS.cv.width = sz.x * dpr; WS.cv.height = sz.y * dpr; WS.cv.style.width = sz.x + 'px'; WS.cv.style.height = sz.y + 'px'; WS.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (WS.cv.width !== Math.round(sz.x * dpr) || WS.cv.height !== Math.round(sz.y * dpr)) { WS.cv.width = sz.x * dpr; WS.cv.height = sz.y * dpr; WS.cv.style.width = sz.x + 'px'; WS.cv.style.height = sz.y + 'px'; WS.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
   const want = Date.now() + WX.hour * 3600000, rot = mapRot();
   WS.field = g.pts.filter((p) => p.t.length).map((p) => { // blend the two forecast hours either side of the slider time, so the lines change smoothly
     let i0 = 0; for (let i = 0; i < p.t.length; i++) if (p.t[i] <= want) i0 = i; const i1 = Math.min(p.t.length - 1, i0 + 1), f = p.t[i1] > p.t[i0] ? Math.max(0, Math.min(1, (want - p.t[i0]) / (p.t[i1] - p.t[i0]))) : 0;
@@ -2023,8 +2023,9 @@ function wfSetup() { if (WF.cv) return; WF.cv = document.createElement('canvas')
   map.on('moveend zoomend resize', () => { if (WF.on) { clearTimeout(WF.t); WF.t = setTimeout(() => { wfPaint(); if (WS.run) wsField(); }, 60); } }); }
 function wfField(kind) { // points in screen space with value and direction for the current forecast hour
   const g = WX.grids[kind]; if (!g) return null; const want = Date.now() + WX.hour * 3600000, rot = mapRot();
-  return g.pts.filter((p) => p.t.length).map((p) => { let i0 = 0; for (let i = 0; i < p.t.length; i++) if (p.t[i] <= want) i0 = i; const v = p.a && p.a[i0], d = p.b && p.b[i0]; if (v == null) return null;
-    const pt = map.latLngToContainerPoint([p.lat, p.lon]), to = ((d || 0) + 180 + rot) * Math.PI / 180; return { x: pt.x, y: pt.y, v, u: Math.sin(to) * v, w: -Math.cos(to) * v }; }).filter(Boolean);
+  return g.pts.filter((p) => p.t.length).map((p) => { let i0 = 0; for (let i = 0; i < p.t.length; i++) if (p.t[i] <= want) i0 = i; const i1 = Math.min(p.t.length - 1, i0 + 1), f = p.t[i1] > p.t[i0] ? Math.max(0, Math.min(1, (want - p.t[i0]) / (p.t[i1] - p.t[i0]))) : 0;
+    const uv = (i) => { const v0 = p.a && p.a[i], d0 = p.b && p.b[i]; if (v0 == null) return null; const to = ((d0 || 0) + 180 + rot) * Math.PI / 180; return [Math.sin(to) * v0, -Math.cos(to) * v0, v0]; };
+    const A = uv(i0), B = uv(i1) || A; if (!A) return null; const pt = map.latLngToContainerPoint([p.lat, p.lon]); return { x: pt.x, y: pt.y, u: A[0] + (B[0] - A[0]) * f, w: A[1] + (B[1] - A[1]) * f, v: A[2] + (B[2] - A[2]) * f }; }).filter(Boolean);
 }
 function wfIdw(F, x, y) { let su = 0, sv = 0, ss = 0, sw = 0; for (const f of F) { const d2 = (f.x - x) ** 2 + (f.y - y) ** 2 + 400, w = 1 / (d2 * d2); su += f.u * w; sv += f.w * w; ss += f.v * w; sw += w; } return sw ? [su / sw, sv / sw, ss / sw] : [0, 0, 0]; }
 function wfRgb(tbl, v) { const hex = colFor(tbl, v), n = parseInt(hex.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
@@ -2333,7 +2334,8 @@ function setWxHour(k) {
   const lo = wxOn('rain') ? -0.84 : 0, b = $('wxBub'); if (b) { b.textContent = scrubLabel(WX.hour); b.style.left = ((WX.hour - lo) / (WXH - lo) * 100).toFixed(2) + '%'; }
   $('wxBar').classList.toggle('future', WX.hour > 0.08);
   const hr = Math.round(WX.hour), now = performance.now();
-  if (hr !== WX.drawnHr || now - (WX.drawnAt || 0) > 300) { WX.drawnHr = hr; WX.drawnAt = now; drawGrid(); try { if (curOn()) { drawCurrents(); } } catch (e) { /* currents not ready */ } }
+  if (hr !== WX.drawnHr) { WX.drawnHr = hr; WX.drawnAt = now; drawGrid(); try { if (curOn()) { drawCurrents(); } } catch (e) { /* currents not ready */ } }
+  else if (now - (WX.lightAt || 0) > 70) { WX.lightAt = now; try { wfPaint(); if (WS.run) wsField(); drawRainForecast(); } catch (e) { /* not ready */ } } // in between: just the colour field and the wind lines, smoothly
   clearTimeout(WX.settle); WX.settle = setTimeout(() => { drawGrid(); try { if (curOn()) drawCurrents(); } catch (e) { /* later */ } }, 160);
 }
 document.addEventListener('click', (e) => { const st = e.target.closest('[data-wxstep]'); if (st) { wxStop(); setWxHour(WX.hour + +st.dataset.wxstep); } });
@@ -2344,7 +2346,7 @@ function wxPlay() {
   if (!wxAny()) { setWxL('wind', true); }
   if (WX.hour >= WXH) setWxHour(0);
   let last = performance.now(); // smooth: about an hour and a half of forecast per second
-  WX.play = setInterval(() => { const t = performance.now(), dt = (t - last) / 1000; last = t; if (WX.hour >= WXH) { wxStop(); return; } setWxHour(WX.hour + dt * 1.5); }, 40);
+  WX.play = setInterval(() => { const t = performance.now(), dt = (t - last) / 1000; last = t; if (WX.hour >= WXH) { wxStop(); return; } setWxHour(WX.hour + dt * 1.2); }, 33);
   renderWxBar();
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]')) wxPlay(); });
@@ -2468,6 +2470,7 @@ function visiblePanel() {
   return isWide() ? 'side' : null;
 }
 function setTab(t) {
+  try { if (!$('quick').hidden && t !== 'chart') toggleQuick(false); } catch (e) { /* early */ }
   if (S.settings.cockpit && $('cockpit') && !$('cockpit').hidden) setCockpit(false);
   const was = S.tab; S.tab = t;
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === (TAB_GROUP[t] || t)));
@@ -2476,6 +2479,8 @@ function setTab(t) {
   app.classList.toggle('wide', isWide());
   const vis = visiblePanel();
   Object.entries(PANELS).forEach(([k, id]) => { $(id).hidden = k !== vis; });
+  // every full screen has a way back to the chart: a small × in the top corner
+  if (vis && PANELS[vis] && !isWide()) { const pe = $(PANELS[vis]); if (pe && !pe.querySelector(':scope > .p-close')) pe.insertAdjacentHTML('afterbegin', '<button type="button" class="p-close" data-pclose aria-label="Back to the chart">×</button>'); }
   if (!isWide() && t !== 'chart') closeSheet();
   if (vis === 'dash') renderDash();
   if (vis === 'anchor') renderAnchor();
@@ -2503,8 +2508,20 @@ function renderLive() {
 /* iPad side column: the four things a skipper glances at, each with its source and age */
 function ageS(t) { if (!t) return ''; const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + 's ago' : agoTxt(t); }
 const SIDE_MAX = 10;
-function sideIds() { return (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).filter((x) => x !== 'chart' && x !== 'off').slice(0, SIDE_MAX); }
-function applySideWidth() { document.documentElement.dataset.side = S.settings.sideWidth || 'normal'; setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
+function sideIds() { const l = (S.settings.sideSlots || ['speed', 'depth', 'course', 'wind', 'auto', 'time']).filter((x) => x !== 'chart' && x !== 'off'); return l.filter((x) => !(x === 'auto' && l.includes('tide') && !S.goto)).slice(0, SIDE_MAX); }
+// chart on the left, gauges on the right: drag the edge between them to any width; it snaps to a quarter, a third, 40 %, half and 60 %
+if (!S.settings.sideWidth && DESK) { S.settings.sideWidth = 'custom'; S.settings.sideFrac = 0.4; }
+function applySideWidth() { const w = S.settings.sideWidth || 'normal', root = document.documentElement;
+  if (w === 'custom') { root.dataset.side = 'third'; root.style.setProperty('--sideW', Math.round((S.settings.sideFrac || 0.4) * 1000) / 10 + 'vw'); } else { root.dataset.side = w; root.style.removeProperty('--sideW'); }
+  setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
+(() => { const g = document.createElement('div'); g.id = 'sideGrip'; g.setAttribute('role', 'separator'); g.setAttribute('aria-label', 'Drag to resize the chart and the gauges'); g.innerHTML = '<i></i>'; ($('app') || document.body).appendChild(g);
+  let on = false; const SN = [0.25, 1 / 3, 0.4, 0.5, 0.6];
+  g.addEventListener('pointerdown', (e) => { on = true; g.setPointerCapture(e.pointerId); g.classList.add('drag'); e.preventDefault(); });
+  g.addEventListener('pointermove', (e) => { if (!on) return; const W = window.innerWidth; let f = Math.max(0.2, Math.min(0.7, (W - e.clientX) / W)); const sn = SN.find((x) => Math.abs(x - f) < 0.022); if (sn) f = sn;
+    S.settings.sideWidth = 'custom'; S.settings.sideFrac = f; document.documentElement.dataset.side = 'third'; document.documentElement.style.setProperty('--sideW', (f * 100).toFixed(1) + 'vw'); });
+  const end = () => { if (!on) return; on = false; g.classList.remove('drag'); saveSettings(); applySideWidth(); setTimeout(() => { try { renderSide(); } catch (e) { /* */ } }, 120); };
+  g.addEventListener('pointerup', end); g.addEventListener('pointercancel', end);
+  g.addEventListener('dblclick', () => { S.settings.sideWidth = 'custom'; S.settings.sideFrac = 0.4; saveSettings(); applySideWidth(); setTimeout(renderSide, 120); }); })();
 function openSideCustom() {
   const cur = sideIds(), wd = S.settings.sideWidth || 'normal';
   const opts = CK_OPTS.filter(([v]) => v !== 'chart' && v !== 'off').concat([['auto', 'Tide, or destination when navigating']]);
@@ -2852,7 +2869,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 163. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 164. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5061,18 +5078,22 @@ const QUICK = [
   ['sat', 'Satellite', () => S.settings.satOver || S.settings.chart === 'satellite', (on) => { S.settings.satOver = on; if (!on && S.settings.chart === 'satellite') S.settings.chart = 'noaa'; S.satFailed = false; applyChart(); }],
   ['wind', 'Wind', () => wxOn('wind'), (on) => setWxL('wind', on)],
   ['waves', 'Waves', () => wxOn('waves'), (on) => setWxL('waves', on)],
-  ['rain', 'Rain radar', () => wxOn('rain'), (on) => setWxL('rain', on)],
-  ['mp', 'Marinas & clubs', () => S.settings.mplaces !== false, (on) => { S.settings.mplaces = on; refreshMarinePlaces(); }],
+  ['rain', 'Rain', () => wxOn('rain'), (on) => setWxL('rain', on)],
+  ['mp', 'Marinas', () => S.settings.mplaces !== false, (on) => { S.settings.mplaces = on; refreshMarinePlaces(); }],
   ['br', 'Bridges', () => S.settings.bridges !== false, (on) => { S.settings.bridges = on; refreshBridges(true); }],
-  ['ais', 'AIS boats', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); renderAisBtn(); }],
+  ['ais', 'AIS', () => S.settings.aisShow !== false, (on) => { S.settings.aisShow = on; updateAis(); renderAisBtn(); }],
   ['aisn', 'Ship names', () => S.settings.aisNames === true, (on) => { S.settings.aisNames = on; updateAis(); }],
-  ['sail', 'Under sail (off = motoring)', () => !!S.settings.underSail, (on) => { if (!!S.settings.underSail !== on) $('modeChip').click(); }],
-  ['towns', 'Town names', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); drawPlaceNames(); loadPlaceNames(); }],
-  ['roads', 'Main roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
-  ['struct', 'Fish structure', () => !!S.settings.structOn, (on) => { S.settings.structOn = on; drawStruct(); }],
-  ['status', 'Status line (GPS, wind, tide)', () => !!S.settings.statusOn, (on) => { S.settings.statusOn = on; applyStatus(); }],
-  ['rings', 'Range rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); setTimeout(renderQuick, 0); }],
-  ['chips', 'Wind & tide chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
+  ['sail', 'Under sail', () => !!S.settings.underSail, (on) => { if (!!S.settings.underSail !== on) $('modeChip').click(); }],
+  ['towns', 'Towns', () => S.settings.landPlaces !== false, (on) => { S.settings.landPlaces = on; applyChart(); drawPlaceNames(); loadPlaceNames(); }],
+  ['roads', 'Roads', () => !!S.settings.landRoads, (on) => { S.settings.landRoads = on; applyChart(); }],
+  ['struct', 'Fish spots', () => !!S.settings.structOn, (on) => { S.settings.structOn = on; drawStruct(); }],
+  ['status', 'Status line', () => !!S.settings.statusOn, (on) => { S.settings.statusOn = on; applyStatus(); }],
+  ['rings', 'Rings', () => !!S.settings.rings, (on) => { S.settings.rings = on; drawRings(); setTimeout(renderQuick, 0); }],
+  ['chips', 'Chips', () => !!S.settings.chips, (on) => { S.settings.chips = on; applyCalm(); }],
+  ['tour', 'Tour guide', () => (S.settings.tourMode || 'cards') !== 'off', (on) => { S.settings.tourMode = on ? 'cards' : 'off'; tgDraw(); if (!on) { const el = $('tourCard'); if (el) el.hidden = true; } }],
+  ['tourv', 'Tour aloud', () => S.settings.tourMode === 'voice', (on) => { S.settings.tourMode = on ? 'voice' : 'cards'; tgDraw(); }],
+  ['night', 'Night colors', () => themeNow() === 'night', (on) => { S.settings.theme = on ? 'night' : 'day'; applyNight(); }],
+  ['voice', 'Spoken alerts', () => !!S.settings.voice, (on) => { S.settings.voice = on; }],
 ];
 function renderQuick() {
   const q = $('quick'), sz = S.settings.pinSize || 'M';
@@ -6732,6 +6753,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
 })();
 function applyMiSize() { document.documentElement.dataset.mi = S.settings.miSize || 'l'; document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
+if (!S.settings.noTemp5) { S.settings.noTemp5 = 1; S.settings.tempBtn = false; try { saveSettings(); } catch (e) { /* */ } } // the air-temperature dial sat on top of the speed/compass dial: off by default (Map options brings it back)
 if (!S.settings.bigDial4) { S.settings.bigDial4 = 1; if (!S.settings.miSize || S.settings.miSize === 'l' || S.settings.miSize === 'm') S.settings.miSize = 'xl'; try { saveSettings(); } catch (e) { /* */ } }
 if (!S.settings.cleanDefault3) { S.settings.cleanDefault3 = 1; S.settings.cleanDefault2 = 1; S.settings.cleanDefault1 = 1; S.settings.fabLookSeeded = 2; S.settings.gTheme = 'clean'; S.settings.gShape = 'round'; S.settings.gFace = ''; S.settings.chartGauges = 'dial'; S.settings.fabLook = 'theme'; S.settings.fabArt = 'simple'; S.settings.btheme = 'white'; try { saveSettings(); } catch (e) { /* early */ } } // Andy: Argo-like default — white round buttons, one round speed/course/depth gauge, clean white look
 if (!S.settings.cleanDefault2) { S.settings.cleanDefault2 = 1; S.settings.fabLookSeeded = 2; S.settings.fabLook = 'theme'; S.settings.fabArt = 'simple'; try { saveSettings(); } catch (e) { /* early */ } } // buttons start plain; matching them to the look is a choice
@@ -6960,7 +6982,7 @@ function setCurrents(on) { S.settings.curOn = on; saveSettings(); drawCurrents()
 map.on('moveend', () => { if (curOn()) { clearTimeout(CUR.mt); CUR.mt = setTimeout(drawCurrents, 300); } });
 setInterval(() => { if (curOn()) drawCurrents(); else renderCurChip(); }, 5 * 60000);
 setTimeout(() => { if (curOn()) drawCurrents(); }, 2500);
-QUICK.splice(QUICK.findIndex((q) => q[0] === 'rain') + 1, 0, ['cur', 'Tidal currents (long-press the current button for detail)', () => curOn(), (on) => setCurrents(on)]);
+QUICK.splice(QUICK.findIndex((q) => q[0] === 'rain') + 1, 0, ['cur', 'Currents', () => curOn(), (on) => setCurrents(on)]);
 FM_LAYER.current = 'cur'; FM_LAYER.currents = 'cur';
 /* ---------- sailing coach: sail plan, trim and how to sail the course, from the wind, your heading, the current and the forecast ---------- */
 function pointOfSail(twa) {
@@ -8634,10 +8656,9 @@ function fitFabs() {
   const f = $('fabs'), mob = $('btnMOB'), tb = document.querySelector('.tabbar, #tabbar, nav.tabs'); if (!f || !mob) return;
   ['flexWrap', 'maxHeight', 'alignContent', 'columnGap'].forEach((k) => { f.style[k] = ''; }); ['left', 'top', 'bottom'].forEach((k) => mob.style.removeProperty(k));
   if (document.documentElement.classList.contains('trip') || f.offsetParent === null) return;
-  const r = f.getBoundingClientRect(), tbTop = tb ? tb.getBoundingClientRect().top : innerHeight, avail = tbTop - r.top - 10;
+  // MOB always lives bottom-left just above the tab bar; if the left buttons would run into it, they wrap into a second column instead
+  const r = f.getBoundingClientRect(), m = mob.getBoundingClientRect(), stop = (m.width ? m.top : (tb ? tb.getBoundingClientRect().top : innerHeight)) - 10, avail = stop - r.top;
   if (r.height > avail && avail > 120) { Object.assign(f.style, { flexWrap: 'wrap', maxHeight: avail + 'px', alignContent: 'flex-start', columnGap: '8px' }); }
-  const m = mob.getBoundingClientRect(), hits = [...document.querySelectorAll('.fab, #fabs > *, #fabsR > *')].filter((x) => x !== mob && x.offsetParent && (() => { const q = x.getBoundingClientRect(); return q.width && q.right > m.left && q.left < m.right && q.bottom > m.top && q.top < m.bottom; })());
-  if (hits.length) { const fr = f.getBoundingClientRect(); mob.style.setProperty('left', (fr.left < innerWidth / 2 ? fr.right + 12 : 12) + 'px', 'important'); mob.style.setProperty('top', 'auto', 'important'); mob.style.setProperty('bottom', (innerHeight - tbTop + 12) + 'px', 'important'); }
 }
 window.addEventListener('resize', () => { clearTimeout(fitFabs.t); fitFabs.t = setTimeout(fitFabs, 150); }); window.addEventListener('orientationchange', () => setTimeout(fitFabs, 300)); setTimeout(fitFabs, 1200); setTimeout(fitFabs, 3000);
 // a quiet badge on the chart when there is no signal, so a blank chart or old forecast never looks like "all clear"
@@ -8983,7 +9004,9 @@ async function ftRun(said) {
 function ftStop() { FT.on = false; clearTimeout(FT.hide); if (FT.rec) { try { FT.rec.abort(); } catch (e) { /* */ } FT.rec = null; } try { speechSynthesis.cancel(); } catch (e) { /* */ } const el = $('fmTalk'); if (el) el.remove(); if (WAKE.pause) { WAKE.pause = false; WAKE.rec = null; if (S.settings.wakeOn) setTimeout(wakeStart, 300); } }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-ft]'); if (!b) return; const k = b.dataset.ft;
   if (k === 'x') ftStop(); if (k === 'again') { FT.on = true; FT.turns = 0; try { speechSynthesis.cancel(); } catch (err) { /* */ } ftListen(); } if (k === 'kbd') { ftStop(); openFirstMate(); setTimeout(() => { const i = $('firstMateRequest'); if (i) i.focus(); }, 80); } });
-window.Tideline = { ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+document.addEventListener('click', (e) => { if (e.target.closest('[data-pclose]')) setTab('chart'); });
+document.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; if (!sheet.hidden) { closeSheet(); return; } if ($('cockpit') && !$('cockpit').hidden) { setCockpit(false); return; } if (!$('quick').hidden) { toggleQuick(false); return; } if (S.tab !== 'chart') setTab('chart'); });
+window.Tideline = { setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
