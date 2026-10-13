@@ -2542,3 +2542,21 @@ html:root[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.ch
 .ck-h-tl { left: -9px; top: -9px; cursor: nwse-resize; } .ck-h-tr { right: -9px; top: -9px; cursor: nesw-resize; } .ck-h-br { right: -9px; bottom: -9px; cursor: nwse-resize; } .ck-h-bl { left: -9px; bottom: -9px; cursor: nesw-resize; }
 .ck-h-t { left: calc(50% - 9px); top: -9px; cursor: ns-resize; } .ck-h-b { left: calc(50% - 9px); bottom: -9px; cursor: ns-resize; } .ck-h-l { top: calc(50% - 9px); left: -9px; cursor: ew-resize; } .ck-h-r { top: calc(50% - 9px); right: -9px; cursor: ew-resize; }
 .ck-grid.free.editing > .ck-slot .ck-h-t, .ck-grid.free.editing > .ck-slot .ck-h-b { width: 34px; left: calc(50% - 17px); border-radius: 9px; } .ck-grid.free.editing > .ck-slot .ck-h-l, .ck-grid.free.editing > .ck-slot .ck-h-r { height: 34px; top: calc(50% - 17px); border-radius: 9px; }
+/* race start timer */
+#raceTimer { position: absolute; z-index: 1300; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 10px); min-width: 250px; padding: 8px 12px 10px; border-radius: 18px; background: rgba(8, 16, 26, .94); color: #fff; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+#raceTimer[hidden] { display: none; }
+#raceTimer .rt-l { font: 700 11px/1.2 system-ui; letter-spacing: .1em; text-transform: uppercase; color: #8FD3FF; }
+#raceTimer .rt-big { font: 700 64px/1 var(--f-num, system-ui); margin: 2px 0 6px; letter-spacing: -.02em; }
+#raceTimer.hot .rt-big { color: #FFC233; } #raceTimer.go .rt-big { color: #5EE6A0; font-size: 44px; } #raceTimer.go .rt-l { color: #5EE6A0; }
+#raceTimer .rt-b { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+#raceTimer .rt-b button { min-width: 44px; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: #fff; font: 700 15px system-ui; }
+#raceTimer .rt-b button.on, #raceTimer .rt-b button[data-rt="sync"], #raceTimer .rt-b .fin { background: #2E86DE; border-color: #2E86DE; }
+@media (min-width: 900px) { #raceTimer .rt-big { font-size: 88px; } }
+/* helm screen on a laptop */
+#helmX { display: none; }
+html.helm .tabbar, html.helm #tabbar, html.helm nav.tabs { display: none !important; }
+html.helm { --tabbar-h: 0px !important; }
+html.helm #helmX { display: block; position: fixed; z-index: 2000; right: 10px; bottom: 10px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(0,0,0,.5); color: #fff; font-size: 18px; }
+html.helm #app.wide #panelSide { padding-top: 8px !important; }
+html.helm .side-btns { display: none; }
+.nb-cats { flex-wrap: wrap; overflow: visible; }
