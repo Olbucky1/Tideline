@@ -47,7 +47,10 @@ Current build: 181 (13 Oct 2026). History, file layout and data sources are in H
 ### Settled answers (13 Oct)
 - **Top slot default:** the combined compass/speed/depth gauge. Plain compass and "nothing" are options.
 - **Undo/redo:** multi-level, for nearly everything, including moving a route line by accident. Small curved arrows that appear only while editing (layout, looks, route plotting), never on the chart while navigating. ⌘Z / ⇧⌘Z on a computer.
-- **Paid satellite layers:** OPEN, see questions below.
+- **Paid satellite layers:** OPEN.
+- **Route-editing undo:** OPEN (now in Batch A, or with the routing overhaul in Batch B).
+- **Tidy up:** no preference from Andy, so: Tidy snaps the current layout in place and evens out sizes; a separate "Next layout" button cycles layouts.
+- **Radar gauge:** a rain radar tile in Batch A; the wind/everything weather window stays in the backlog.
 
 ### Batch A: appearance and usability (cheaper model)
 1. **Fly-by controls:** ½× / 1× / 2× / 4×, a draggable timeline, pause anywhere.
@@ -56,19 +59,19 @@ Current build: 181 (13 Oct 2026). History, file layout and data sources are in H
 4. **Copy my settings:** a link or QR that carries settings to a new window or device (stopgap until account sign-in).
 5. **Gauge look screen:** tabs in order Favorites, Modern, Displays, Classic, Artwork, Compass; one continuous scroll, tabs jump to sections.
 6. **More satellite and chart layers,** license-checked first (see open question).
-7. **Settings never cover what they change,** plus undo/redo as settled above (appearance and console layout here; route-editing undo per open question).
+7. **Settings never cover what they change,** plus undo/redo as settled above (appearance and console layout here; route-editing undo is still an open question).
 8. **Customize the gauge face** from the theme picker.
 9. **Simpler chart frames:** plain rope edge, no ship's-wheel spokes, quieter Polynesian and Chrome & Waves.
 10. **Surf-style gauge designs.**
 11. **Label and capitalization sweep** (Waterman, Waterwork).
 12. **Center the First Mate anchor** in every theme.
 13. **Help search:** typing and pressing Enter does nothing and no results appear. Enter (and typing) should show matching answers; no button needed. The box that opens is too large.
-14. **Console Tidy up:** it rearranges oddly. It should snap tiles edge to edge and make near-equal tiles exactly equal (a tile that's clearly meant to be bigger stays bigger). The corner handles and top bar make it hard to see whether things line up.
+14. **Console Tidy up:** it rearranges oddly (see the settled answer: snap in place, separate Next layout button). It should snap tiles edge to edge and make near-equal tiles exactly equal (a tile that's clearly meant to be bigger stays bigger). The corner handles and top bar make it hard to see whether things line up.
 15. **Console button row** ("Helm screen · Gauges only · Choose gauges · Plain numbers") wraps to two lines and wastes space. Make it one compact row or a menu; give the space to the gauges.
 16. **Plain-numbers cards:**
     - Labels are clipped at the top ("SPEED (SOG)", "COURSE (COG)", "WIND") and the small lines under the numbers are clipped at the bottom ("GPS · 0s ago", "Shown once moving", "Gust 12…"). Seen on iPad (screenshot 13 Oct), in the half-and-half view with the draggable divider, and in the numbers-only gauge.
     - Redesign them to look polished and professional, Argo-clean rather than plain boxes.
-17. **Weather/radar gauge:** a console tile showing live radar (a small weather map), resizable like any window, e.g. chart top-left, radar top-right, four gauges below. Scope per open question.
+17. **Weather/radar gauge:** a console tile showing live radar (a small weather map), resizable like any window, e.g. chart top-left, radar top-right, four gauges below. Rain radar only for now.
 
 ### Batch B: routing and safety (new session, top model)
 18. **Routing overhaul (top priority):**
