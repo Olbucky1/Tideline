@@ -2603,3 +2603,19 @@ html:not([data-desk="split"]) #sideGrip { display: none !important; }
 /* inside the console the gauges are already shown: no speed dial / data tiles over the chart tile; BOW/N label only on hover */
 #cockpit .ck-map #miniInst, .ck-host .ck-map #miniInst, #cockpit #miniInst { display: none !important; }
 .fab.orient .or-lbl { opacity: 0; transition: opacity .2s; } .fab.orient:hover .or-lbl, .fab.orient:focus-visible .or-lbl { opacity: 1; }
+/* plain numbers: marine data cards — big bright numbers on dark glass, coloured labels, accent rule */
+#app.wide #panelSide:not(.gmode) { background: linear-gradient(180deg, #0B1A28, #07111B) !important; padding: 14px 12px !important; display: flex; flex-direction: column; gap: 10px; }
+#panelSide:not(.gmode) .sd { position: relative; display: block; width: 100%; text-align: left; border: 1px solid rgba(120,170,210,.18) !important; border-radius: 16px !important; padding: 12px 16px 12px 20px !important; background: linear-gradient(160deg, rgba(30,60,90,.55), rgba(10,22,34,.85)) !important; color: #EAF4FB !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 4px 14px rgba(0,0,0,.3); overflow: hidden; }
+#panelSide:not(.gmode) .sd::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px; border-radius: 0 4px 4px 0; background: #2CD3C5; }
+#panelSide:not(.gmode) .sd:nth-of-type(2)::before { background: #5AA8FF; } #panelSide:not(.gmode) .sd:nth-of-type(3)::before { background: #FFC233; } #panelSide:not(.gmode) .sd:nth-of-type(4)::before { background: #9B8CFF; } #panelSide:not(.gmode) .sd-dest::before { background: #FF7A59; }
+#panelSide:not(.gmode) .sd small { display: block; font: 700 11px/1.2 system-ui; letter-spacing: .12em; text-transform: uppercase; color: #8FB8D8 !important; }
+#panelSide:not(.gmode) .sd-v { font: 700 clamp(44px, 6vw, 96px)/1.02 var(--f-num, system-ui) !important; color: #FFFFFF !important; margin: 4px 0 2px; letter-spacing: -.02em; }
+#panelSide:not(.gmode) .sd-v i { font: 600 15px system-ui; font-style: normal; color: #8FB8D8; margin-left: 6px; letter-spacing: 0; }
+#panelSide:not(.gmode) .sd b { font: 700 26px/1.15 var(--f-num, system-ui); color: #fff; display: block; margin-top: 4px; }
+#panelSide:not(.gmode) .sd em { display: block; font: 500 12px/1.3 system-ui; font-style: normal; color: #7E98AE !important; }
+#panelSide:not(.gmode) .sd svg { max-height: 56px; width: 100%; }
+#panelSide:not(.gmode) .sd-more { border-radius: 12px; background: rgba(255,255,255,.06) !important; color: #CFE3F2 !important; border: 1px solid rgba(255,255,255,.15) !important; }
+.fab.ai svg.ai-ic { width: 32px !important; height: 32px !important; }
+.fab.ai { --ai-ring: 1; }
+#panelSide:not(.gmode) .sd { flex: 1 1 0; min-height: 0; display: flex !important; flex-direction: column; justify-content: center; }
+#panelSide:not(.gmode) .sd-more { flex: 0 0 auto !important; min-height: 40px !important; height: auto !important; padding: 8px 14px !important; }

@@ -2517,12 +2517,17 @@ if (!S.settings.sideWidth && DESK) { S.settings.sideWidth = 'custom'; S.settings
 function applySideWidth() { const w = S.settings.sideWidth || 'normal', root = document.documentElement;
   if (w === 'custom') { root.dataset.side = 'third'; root.style.setProperty('--sideW', Math.round((S.settings.sideFrac || 0.4) * 1000) / 10 + 'vw'); } else { root.dataset.side = w; root.style.removeProperty('--sideW'); }
   setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
+// the chart always ends where the gauge panel begins (set directly, so it works the same in Safari)
+function syncMapRight() { const ps = $('panelSide'), m = $('map'); if (!ps || !m) return; const on = isWide() && !ps.hidden && ps.offsetParent !== null && !document.querySelector('#cockpit:not([hidden])');
+  const w = on ? Math.round(ps.getBoundingClientRect().width) : 0; m.style.setProperty('right', on ? w + 'px' : '', 'important'); const fr = $('fabsR'); if (fr && !fr.closest('.ck-map')) fr.style.setProperty('right', on ? (w + 12) + 'px' : '', 'important'); }
+if (window.ResizeObserver) { new ResizeObserver(() => syncMapRight()).observe($('panelSide')); new MutationObserver(() => syncMapRight()).observe($('panelSide'), { attributes: true, attributeFilter: ['hidden'] }); }
+window.addEventListener('resize', syncMapRight); setTimeout(syncMapRight, 500);
 if (window.ResizeObserver) { let raf = 0; new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { try { map.invalidateSize({ pan: false, debounceMoveend: true }); } catch (e) { /* */ } }); }).observe($('map')); }
 (() => { const g = document.createElement('div'); g.id = 'sideGrip'; g.setAttribute('role', 'separator'); g.setAttribute('aria-label', 'Drag to resize the chart and the gauges'); g.innerHTML = '<i></i>'; ($('app') || document.body).appendChild(g);
   let on = false; const SN = [0.25, 1 / 3, 0.4, 0.5, 0.6];
   g.addEventListener('pointerdown', (e) => { on = true; g.setPointerCapture(e.pointerId); g.classList.add('drag'); e.preventDefault(); });
   g.addEventListener('pointermove', (e) => { if (!on) return; const W = window.innerWidth; let f = Math.max(0.2, Math.min(0.7, (W - e.clientX) / W)); const sn = SN.find((x) => Math.abs(x - f) < 0.022); if (sn) f = sn;
-    S.settings.sideWidth = 'custom'; S.settings.sideFrac = f; document.documentElement.dataset.side = 'third'; document.documentElement.style.setProperty('--sideW', (f * 100).toFixed(1) + 'vw'); cancelAnimationFrame(g.__r); g.__r = requestAnimationFrame(() => { try { map.invalidateSize({ pan: false }); } catch (e) { /* */ } }); });
+    S.settings.sideWidth = 'custom'; S.settings.sideFrac = f; document.documentElement.dataset.side = 'third'; document.documentElement.style.setProperty('--sideW', (f * 100).toFixed(1) + 'vw'); syncMapRight(); cancelAnimationFrame(g.__r); g.__r = requestAnimationFrame(() => { try { map.invalidateSize({ pan: false }); } catch (e) { /* */ } }); });
   const end = () => { if (!on) return; on = false; g.classList.remove('drag'); saveSettings(); applySideWidth(); setTimeout(() => { try { renderSide(); } catch (e) { /* */ } }, 120); };
   g.addEventListener('pointerup', end); g.addEventListener('pointercancel', end);
   g.addEventListener('dblclick', () => { S.settings.sideWidth = 'custom'; S.settings.sideFrac = 0.4; saveSettings(); applySideWidth(); setTimeout(renderSide, 120); }); })();
@@ -2879,7 +2884,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 173. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 174. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6616,7 +6621,7 @@ sheet.addEventListener('click', e => {
 sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' && e.key === 'Enter') { e.preventDefault(); askFirstMate(); } });
 document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) { if (S.settings.mateTalk === false) openFirstMate(); else ftStart(); } if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
 // the AI sparkle, with a small anchor at its heart
-const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><path class="ai-star" d="M11.6 2.2c.7 5.3 3.9 8.5 9.2 9.2-5.3.7-8.5 3.9-9.2 9.2-.7-5.3-3.9-8.5-9.2-9.2 5.3-.7 8.5-3.9 9.2-9.2z"/><path class="ai-star" d="M19.6 1.6c.25 1.6 1.1 2.45 2.7 2.7-1.6.25-2.45 1.1-2.7 2.7-.25-1.6-1.1-2.45-2.7-2.7 1.6-.25 2.45-1.1 2.7-2.7z"/><g class="ai-anc"><circle cx="11.6" cy="8.7" r=".95"/><path d="M11.6 9.65v5.6M10.1 10.9h3M9.1 13.3a2.5 2.5 0 0 0 5 0"/></g></svg>';
+const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".55"/><path class="ai-star" d="M12 1.2 13.6 10.4 22.8 12 13.6 13.6 12 22.8 10.4 13.6 1.2 12 10.4 10.4Z"/><path d="M12 6.2v8.4M9.4 8.1h5.2M7.7 12.4c.5 2.4 2.2 3.9 4.3 3.9s3.8-1.5 4.3-3.9" fill="none" stroke="#0B2440" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="5.6" r="1" fill="none" stroke="#0B2440" stroke-width="1.2"/><path class="ai-star" d="M19.8 1.4c.2 1.4 1 2.2 2.4 2.4-1.4.2-2.2 1-2.4 2.4-.2-1.4-1-2.2-2.4-2.4 1.4-.2 2.2-1 2.4-2.4z"/></svg>';
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.id = 'btnFM'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; retintCheck(); }
