@@ -52,17 +52,9 @@ Current build: 182 (13 Oct 2026). History, file layout and data sources are in H
 - **Tidy up:** no preference from Andy, so: Tidy snaps the current layout in place and evens out sizes; a separate "Next layout" button cycles layouts.
 - **Radar gauge:** a rain radar tile in Batch A; the wind/everything weather window stays in the backlog.
 
-### Batch A leftovers (build 182 shipped items 1, 2, 4, 5, 6 (free), 7 (looks only), 12, 13, 14, 15, 16, 17)
-- **Full-screen chart:** keep a small layout switcher; check iPhone and iPad. Not started: ask Andy what "full-screen chart" means in the app (no such mode found).
-- **Settings never cover what they change:** done for Gauge look only (short sheet). Other sheets still cover the chart.
-- **Customize the gauge face from the theme picker:** a "Customize bezel and face" button already exists at the bottom of Gauge look; ask Andy what is missing.
-- **Simpler chart frames:** ship's-wheel looks are hidden from the picker. A plain rope edge and quieter Polynesian and Chrome & Waves need new artwork (skins/*.webp).
-- **Surf-style gauge designs:** need new artwork.
-- **Label and capitalization sweep:** "Waterman" and "Waterwork" were not found in the code; ask Andy where they appear (the nearest are "Watermen / workboats" in the first-run uses list and "Watermen & docking" in events).
-- **Paid satellite layers:** send Andy a list with costs (Esri World Imagery is already used and its terms need a license for a commercial app; Mapbox, Maxar, Google and Apple imagery are paid). Free layer added: USGS imagery with topo labels (US only).
-- **Plain-numbers cards:** tested at 1024x768; re-check on iPad with real data (wind and tide cards).
-- **QR for the settings link:** link only so far.
-- **Tidy up:** it equalizes every gauge; it does not yet keep one intentionally larger gauge larger.
+### Batch A leftovers
+- **Label fix (the one open item, Andy 13 Oct):** the label is "Watermen / workboats" (first-run "What do you use Tideline for?" list, USES in app.js). Proposed change: write it "Watermen and workboats" to match the other labels. Confirm the exact fix with Andy, then build on "now execute the changes".
+- **Parked (Andy: "don't worry about the others", 13 Oct):** full-screen chart switcher; settings sheets other than Gauge look covering the chart; customize gauge face; rope/Polynesian/Chrome frames and surf designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger.
 
 ### Batch B: routing and safety (new session, top model)
 18. **Routing overhaul (top priority):**
