@@ -2518,8 +2518,8 @@ function applySideWidth() { const w = S.settings.sideWidth || 'normal', root = d
   if (w === 'custom') { root.dataset.side = 'third'; root.style.setProperty('--sideW', Math.round((S.settings.sideFrac || 0.4) * 1000) / 10 + 'vw'); } else { root.dataset.side = w; root.style.removeProperty('--sideW'); }
   setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
 // the chart always ends where the gauge panel begins (set directly, so it works the same in Safari)
-function syncMapRight() { const ps = $('panelSide'), m = $('map'); if (!ps || !m) return; const on = isWide() && !ps.hidden && ps.offsetParent !== null && !document.querySelector('#cockpit:not([hidden])');
-  const w = on ? Math.round(ps.getBoundingClientRect().width) : 0; m.style.setProperty('right', on ? w + 'px' : '', 'important'); const fr = $('fabsR'); if (fr && !fr.closest('.ck-map')) fr.style.setProperty('right', on ? (w + 12) + 'px' : '', 'important'); }
+function syncMapRight() { const ps = $('panelSide'), m = $('map'); if (!ps || !m) return; const on = isWide() && !ps.hidden && ps.offsetParent !== null && !document.querySelector('#cockpit:not([hidden])') && !m.closest('.ck-map');
+  const w = on ? Math.round(ps.getBoundingClientRect().width) : 0; if (on) m.style.setProperty('right', w + 'px', 'important'); else m.style.removeProperty('right'); const fr = $('fabsR'); if (fr) { if (on && !fr.closest('.ck-map')) fr.style.setProperty('right', (w + 12) + 'px', 'important'); else fr.style.removeProperty('right'); } }
 if (window.ResizeObserver) { new ResizeObserver(() => syncMapRight()).observe($('panelSide')); new MutationObserver(() => syncMapRight()).observe($('panelSide'), { attributes: true, attributeFilter: ['hidden'] }); }
 window.addEventListener('resize', syncMapRight); setTimeout(syncMapRight, 500);
 if (window.ResizeObserver) { let raf = 0; new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { try { map.invalidateSize({ pan: false, debounceMoveend: true }); } catch (e) { /* */ } }); }).observe($('map')); }
@@ -2884,7 +2884,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 178. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 179. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -5986,13 +5986,13 @@ function ckHost(box) {
   const ids = ['map', 'fabs', 'fabsR', 'btnMOB'];
   CKH.moved = ids.map((id) => { const el = $(id); return el ? { el, parent: el.parentNode, next: el.nextSibling } : null; }).filter(Boolean);
   CKH.moved.forEach((m) => box.appendChild(m.el));
-  CKH.on = true; $('app').classList.add('ck-host');
+  CKH.on = true; $('app').classList.add('ck-host'); try { syncMapRight(); } catch (e) { /* */ }
   setTimeout(() => map.invalidateSize(), 50); setTimeout(() => map.invalidateSize(), 400);
 }
 function ckUnhost() {
   if (!CKH.on) return;
   CKH.moved.slice().reverse().forEach((m) => m.parent.insertBefore(m.el, m.next && m.next.parentNode === m.parent ? m.next : null));
-  CKH.moved = []; CKH.on = false; $('app').classList.remove('ck-host');
+  CKH.moved = []; CKH.on = false; $('app').classList.remove('ck-host'); try { syncMapRight(); } catch (e) { /* */ }
   setTimeout(() => map.invalidateSize(), 50);
 }
 function buildCockpit() {
@@ -6269,6 +6269,7 @@ function setCockpit(on) {
   S.settings.cockpit = on; saveSettings(); setTimeout(() => { try { renderDeskSw(); } catch (e) { /* */ } }, 0);
   const el = $('cockpit'); el.hidden = !on; $('app').classList.toggle('ck-on', on); const bi = $('btnInst'); if (bi) { bi.classList.toggle('on', on); bi.dataset.tip = on ? 'Back to the chart' : 'Instruments: full-screen gauges'; }
   clearInterval(cockTimer);
+  try { syncMapRight(); } catch (e) { /* */ }
   if (on) { closeSheet(); ckEdit = false; buildCockpit(); cockTimer = setInterval(() => renderCockpit('tick'), 1000); wake(); } else ckUnhost();
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-act="ckclose"]')) setCockpit(false); });

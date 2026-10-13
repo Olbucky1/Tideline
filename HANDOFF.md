@@ -150,6 +150,7 @@ Still open from the review: service-worker caching of data (stale offline data s
 - Build 175–176: outside links always open a new tab (capture handler). Weather tab timeline is a compact card (max 560 px, small chips, alerts/currents/lightning in one row of small buttons, legend moves to the top) so the chart stays usable; layout switch moved to the bottom-right of the chart.
 - Build 177: night mode keeps chart colours (dim warm filter, no invert/red wash); chart instrument forced back to the round speed/course/depth dial once (dialDef6) — data tiles still selectable; right column evenly spaced (gap 10); Find me no longer amber when not following (same colour, small dot instead, .nofollow).
 - Build 178: freely arranged buttons are stored as a distance from the chart's nearer edge (rx/lx) and re-placed whenever the chart resizes (fabFreePlace), so they follow the chart when the gauge panel opens/closes/resizes; air-temperature dial hidden while gauges are on screen, shows air + water.
+- Build 179: FIX console chart half blank / buttons missing: syncMapRight (178) left an inline right on #map and #fabsR when the chart moved into the console; now cleared when hosted (ck-map) and on setCockpit/ckHost/ckUnhost; console chart buttons pinned to the tile's right edge.
 
 ## Ideas backlog (Oct 12) — details in the Claude Doc "Tideline brainstorm: crews, yachts and going global"
 - Crew mode: crew invite QR, shared live route, shore-view link, crew float plan + overdue alert, private crew spots, trip chat, shared catch log, watch schedule.
