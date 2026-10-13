@@ -15,6 +15,7 @@ const NET = { okAt: Date.now(), failAt: 0 };
 const offNow = () => navigator.onLine === false || (NET.failAt > NET.okAt && Date.now() - NET.failAt < 120000);
 const PCOMP = [["p1_0", "Captain's porthole", "classic", 0.5, 0.505, 0.426, [0.37, 0.705, 0.63, 0.855], "box", "#FFFFFF"], ["p1_1", "Ship wheel navigator", "classic", 0.494, 0.496, 0.426, [0.38, 0.74, 0.64, 0.87], "box", "#FFFFFF"], ["p1_2", "Mariner's chart", "classic", 0.496, 0.505, 0.377, [0.38, 0.745, 0.62, 0.885], "box", "#FFFFFF"], ["p1_3", "Binnacle classic", "classic", 0.503, 0.494, 0.436, [0.36, 0.61, 0.62, 0.75], "box", "#FFFFFF"], ["p1_4", "Yacht heritage", "classic", 0.496, 0.458, 0.4, [0.37, 0.66, 0.63, 0.8], "box", "#FFFFFF"], ["p1_5", "Heirloom mariner", "classic", 0.5, 0.464, 0.373, [0.38, 0.645, 0.62, 0.78], "box", "#FFFFFF"], ["p2_0", "Traditional brass", "classic", 0.505, 0.5, 0.426, [0.35, 0.655, 0.655, 0.835], "box", "#F2D58A"], ["p2_1", "Chrome yacht helm", "classic", 0.5, 0.494, 0.403, [0.345, 0.615, 0.655, 0.835], "box", "#F2D58A"], ["p2_2", "Teak and brass", "classic", 0.485, 0.49, 0.416, [0.355, 0.655, 0.665, 0.845], "box", "#FFFFFF"], ["p2_3", "Console module", "classic", 0.511, 0.5, 0.403, [0.33, 0.575, 0.67, 0.78], "box", "#FFFFFF"], ["p2_4", "Navy classic", "classic", 0.496, 0.466, 0.436, [0.325, 0.59, 0.675, 0.795], "box", "#F2D58A"], ["p2_5", "Chesapeake coastal", "classic", 0.511, 0.485, 0.406, [0.38, 0.655, 0.64, 0.8], "box", "#FFFFFF"], ["c2_4", "Military brass", "classic", 0.494, 0.479, 0.418, [0.345, 0.55, 0.64, 0.71], "box", "#F2D58A"], ["p3_0", "Apex digital", "tech", 0.5, 0.485, 0.403, [0.33, 0.525, 0.69, 0.72], "box", "#FFFFFF"], ["p3_2", "Carbon tech", "tech", 0.494, 0.487, 0.422, [0.4, 0.45, 0.61, 0.625], "txt", "#FFFFFF"], ["p3_4", "Horizon glass", "tech", 0.503, 0.47, 0.419, [0.37, 0.4, 0.65, 0.57], "txt", "#FFFFFF"], ["c1_0", "Glossy glass", "tech", 0.52, 0.481, 0.429, [0.375, 0.365, 0.64, 0.57], "txt", "#FFFFFF"], ["c1_2", "Carbon performance", "tech", 0.515, 0.481, 0.436, [0.38, 0.39, 0.65, 0.58], "txt", "#FFFFFF"], ["c1_3", "Surf coastal", "tech", 0.526, 0.535, 0.4, [0.405, 0.39, 0.665, 0.535], "txt", "#FFFFFF"], ["c1_4", "Teak and brass glow", "classic", 0.5, 0.466, 0.393, [0.39, 0.425, 0.605, 0.6], "txt", "#F2D58A"]];
 const pcOf = (id) => PCOMP.find((x) => x[0] === id);
+const PC_LOOK = { p1_0: 'brass', p1_1: 'navybrass', p1_2: 'chart', p1_3: 'heritage', p1_4: 'whiteface', p1_5: 'navybrass', p2_0: 'navybrass', p2_1: 'whiteface', p2_2: 'heritage', p2_3: 'pewter', p2_4: 'navybrass', p2_5: 'cb_thomas', c2_4: 'heritage', p3_0: 'midnight', p3_2: 'carbon', p3_4: 'glass', c1_0: 'glass', c1_2: 'carbon', c1_3: 'lagoon', c1_4: 'teak' };
 const SYNC_SKIP = /^(aisCache|curSt|cgNotices|loopFR|stations|bridges|bridgeTiles|mplaces|mpTiles|plTiles|weather|tide|encIds|obs|alrSeen|demo|sync)/; // caches stay local; your own data syncs
 const saveTimers = {};
 function saveSoon(key, getter, ms = 3000) {
@@ -2545,11 +2546,14 @@ function renderSide() {
     let h = '';
     if (S.goto && S.fix) { const d = distNm(S.fix, S.goto), mv = (S.sog || 0) > 0.6, hrs = mv ? d / S.sog : NaN; h += '<button type="button" class="sd sd-dest" data-sact="nav"><small>Next destination</small><b>' + esc(S.goto.name) + '</b><span class="tnum">' + fmtDist(d) + (isFinite(hrs) ? ' · ETA ' + fmtClock(Date.now() + hrs * 3600000) : '') + '</span></button>'; }
     const W = Math.max(200, (p.clientWidth || 400) - 40), H = Math.max(300, (p.clientHeight || 700) - 150), cols = sideCols(ids.length, W, H);
+    const sig = ids.join(',') + '|' + cols + '|' + (S.goto && S.fix ? 1 : 0), old = p.querySelector('.side-g');
+    if (old && p.dataset.sig === sig && !(S.goto && S.fix)) { const gs = ids.map(ckGauge); old.querySelectorAll(':scope > .sg').forEach((el, i) => { if (el.__h !== gs[i]) { el.__h = gs[i]; if (!pcPatch(el, gs[i])) el.innerHTML = gs[i]; } }); return; } // only the readings change: no flashing
+    p.dataset.sig = sig;
     h += '<div class="side-g" data-n="' + ids.length + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + ids.map((id) => '<div class="sg">' + ckGauge(id) + '</div>').join('') + '</div>';
     h += '<div class="side-btns"><button type="button" class="btn small" data-sact="dash">Full screen</button><button type="button" class="btn small" data-sact="sidecust">Choose gauges</button><button type="button" class="btn small" data-sact="sidetext">Plain numbers</button></div>';
     p.innerHTML = h; p.classList.add('gmode'); return;
   }
-  p.classList.remove('gmode');
+  p.classList.remove('gmode'); p.dataset.sig = '';
   const f = S.fix, g = S.goto, w = S.weather, ob = nearestObs(), src = S.settings.sim ? 'Demo GPS' : 'GPS';
   const moving = (S.sog || 0) > 0.6;
   let h = '';
@@ -2872,7 +2876,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 168. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 169. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6219,7 +6223,7 @@ function renderCockpit(why) {
       return; }
     if (box.querySelector('select:focus') || (ckEdit && box.dataset.drawn)) return; // while customizing, keep tiles still so taps land
     box.dataset.drawn = ckEdit ? '1' : '';
-    const nh = pick + ckGauge(id); if (box.__h !== nh) { box.__h = nh; box.innerHTML = nh; }
+    const nh = pick + ckGauge(id); if (box.__h !== nh) { box.__h = nh; if (!pcPatch(box, nh)) box.innerHTML = nh; }
   });
   const acc = S.fix && S.fix.acc != null ? '±' + Math.round(ftToLen(S.fix.acc * 3.28084)) + ' ' + lenUnit() : '';
   const age = S.lastFixAt ? Math.round((Date.now() - S.lastFixAt) / 1000) : null;
@@ -6298,10 +6302,14 @@ function pcHtml(id, d) {
   const bx = (b[0] + b[2]) * 50, by0 = b[1] * 100, bh = (b[3] - b[1]) * 100, bw = (b[2] - b[0]) * 100, big = Math.min(bh * 0.52, bw * 0.3);
   const bug = d.cog != null ? '<g transform="rotate(' + (d.cog + (d.mr || 0)).toFixed(0) + ' ' + X + ' ' + Y + ')"><path d="M' + X + ' ' + (Y - R * 0.97) + ' l' + (R * 0.075) + ' ' + (-R * 0.14) + ' h' + (-R * 0.15) + ' z" transform="rotate(180 ' + X + ' ' + (Y - R * 1.04) + ')" class="pc-bug ' + g + '"/></g>' : '';
   const line2 = (d.spd != null ? d.spd + ' ' + d.su : '') + (d.dep ? ' · ' + d.dep : '');
-  return '<svg viewBox="0 0 100 100" class="pc-svg" aria-hidden="true"><image href="skins/pc_' + id + '.webp" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice"/>' + bug +
+  return '<svg viewBox="0 0 100 100" class="pc-svg" data-pc="' + id + '" aria-hidden="true" style="background:url(skins/pc_' + id + '.webp) center/cover">' + bug +
     '<text x="' + bx + '" y="' + (by0 + bh * (line2 ? 0.56 : 0.66)).toFixed(1) + '" text-anchor="middle" class="pc-hd" style="fill:' + ink + ';font-size:' + big.toFixed(1) + 'px">' + (d.cog != null ? fmtBrg(d.cog) + '°' : '–') + '</text>' +
     (line2 ? '<text x="' + bx + '" y="' + (by0 + bh * 0.86).toFixed(1) + '" text-anchor="middle" class="pc-l2" style="fill:' + ink + ';font-size:' + Math.min(bh * 0.25, bw * 0.14).toFixed(1) + 'px">' + esc(line2) + '</text>' : '') + '</svg>';
 }
+function pcPatch(box, nh) { // a compass gauge whose design did not change: swap only its readings, so the artwork never reloads
+  const m = /data-pc="(\w+)"/.exec(nh), cur = m && box.querySelector('svg.pc-svg[data-pc="' + m[1] + '"]'); if (!cur) return false;
+  const t = document.createElement('div'); t.innerHTML = nh; const ns = t.querySelector('svg.pc-svg'), nf = t.querySelector('.g-foot'), of = box.querySelector('.g-foot'); if (!ns) return false;
+  cur.replaceChildren(...ns.childNodes); if (nf && of) of.textContent = nf.textContent; return true; }
 function pcData() { const f = S.fix, mv = (S.sog || 0) > 0.6; let dep = ''; try { const d = DEP.v; if (f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000) dep = Math.round(ftToLen(d.d1 / 0.3048)) + ' ' + lenUnit(); } catch (e) { /* */ }
   let ch = null; try { ch = compassHeading; } catch (e) { /* */ }
   return { cog: mv ? S.cog : ch != null ? ch : null, spd: f ? fmtSpeed(S.sog || 0) : null, su: SPEED_LBL[S.settings.speedUnit], dep, mr: 0 }; }
@@ -6328,7 +6336,7 @@ function renderMini() {
       '<span class="mb-t' + (shallow ? ' bad' : '') + '"><small>DEPTH</small><b>' + (validDepth ? Math.round(ftToLen(dft)) : '–') + '</b><i>' + lenUnit() + (validDepth ? ' charted' : '') + '</i></span>';
     return; }
   el.classList.remove('as-bar');
-  if (S.settings.miComp && pcOf(S.settings.miComp)) { el.classList.add('pc-on'); el.innerHTML = pcHtml(S.settings.miComp, pcData()); el.setAttribute('aria-label', 'Compass with speed and depth. Tap for instruments, press and hold to resize.'); return; } el.classList.remove('pc-on');
+  if (S.settings.miComp && pcOf(S.settings.miComp)) { el.classList.add('pc-on'); const nh = pcHtml(S.settings.miComp, pcData()); if (el.__pc !== nh) { el.__pc = nh; const cur = el.querySelector('svg.pc-svg[data-pc="' + S.settings.miComp + '"]'); if (cur) { const t = document.createElement('div'); t.innerHTML = nh; cur.replaceChildren(...t.firstChild.childNodes); } else el.innerHTML = nh; } el.setAttribute('aria-label', 'Compass with speed and depth. Tap for instruments, press and hold to resize.'); return; } el.classList.remove('pc-on');
   el.innerHTML = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></g></svg>';
   el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
   el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : ' · charted depth when NOAA chart data loads') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
@@ -6802,7 +6810,8 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
 })();
 function applyMiSize() { const R0 = document.documentElement; R0.dataset.mi = S.settings.miPx ? 'xl' : S.settings.miSize || 'l'; if (S.settings.miPx) R0.style.setProperty('--mi', S.settings.miPx + 'px'); else R0.style.removeProperty('--mi'); document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
-if (!S.settings.compDef1) { S.settings.compDef1 = 1; if (!S.settings.miComp) S.settings.miComp = 'p2_4'; try { saveSettings(); } catch (e) { /* */ } }
+if (S.settings.compDef1 && !S.settings.compDef2) { S.settings.compDef2 = 1; if (S.settings.miComp === 'p2_4' && (S.settings.gTheme || 'clean') === 'clean') S.settings.gTheme = 'navybrass'; try { saveSettings(); } catch (e) { /* */ } }
+if (!S.settings.compDef1) { S.settings.compDef1 = 1; if (!S.settings.miComp) { S.settings.miComp = 'p2_4'; if ((S.settings.gTheme || 'clean') === 'clean') S.settings.gTheme = 'navybrass'; } S.settings.compDef2 = 1; try { saveSettings(); } catch (e) { /* */ } }
 if (!S.settings.noTemp5) { S.settings.noTemp5 = 1; S.settings.tempBtn = false; try { saveSettings(); } catch (e) { /* */ } } // the air-temperature dial sat on top of the speed/compass dial: off by default (Map options brings it back)
 if (!S.settings.bigDial4) { S.settings.bigDial4 = 1; if (!S.settings.miSize || S.settings.miSize === 'l' || S.settings.miSize === 'm') S.settings.miSize = 'xl'; try { saveSettings(); } catch (e) { /* */ } }
 if (!S.settings.cleanDefault3) { S.settings.cleanDefault3 = 1; S.settings.cleanDefault2 = 1; S.settings.cleanDefault1 = 1; S.settings.fabLookSeeded = 2; S.settings.gTheme = 'clean'; S.settings.gShape = 'round'; S.settings.gFace = ''; S.settings.chartGauges = 'dial'; S.settings.fabLook = 'theme'; S.settings.fabArt = 'simple'; S.settings.btheme = 'white'; try { saveSettings(); } catch (e) { /* early */ } } // Andy: Argo-like default — white round buttons, one round speed/course/depth gauge, clean white look
@@ -7782,7 +7791,7 @@ function openLooks(cat) {
     openSheet('<div class="lk"><div class="lk-top"><h3>Chart compass</h3></div><div class="lk-ctl"><span>Size</span>' + seg0('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + '</div><p class="hint" style="margin:-2px 0 6px">Any size: press and hold the compass on the chart, then drag its corner.</p>' +
       '<div class="lk-cats">' + LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
       '<div class="lk-grid"><button type="button" data-lkcomp="" class="' + (!st.miComp ? 'on' : '') + '"><i class="lk-std">◎</i><span>Standard dial</span></button>' + PCOMP.map((x) => '<button type="button" data-lkcomp="' + x[0] + '" class="' + (st.miComp === x[0] ? 'on' : '') + '"><img src="skins/pc_' + x[0] + '.webp" alt="" loading="lazy"><span>' + esc(x[1]) + '</span></button>').join('') + '</div>' +
-      '<p class="hint">These show on the chart and as the Speed, course and depth gauge in Instruments. The card stays north-up like the chart; the gold or blue marker on the rim is your course.</p></div>'); return; }
+      '<label class="opt"><input type="checkbox" id="pcMatch"' + (st.pcMatch !== false ? ' checked' : '') + '><span>Match the other gauges to the compass<small>Brass with brass, glass with glass</small></span></label><p class="hint">These show on the chart and as the Speed, course and depth gauge in Instruments. The card stays north-up like the chart; the gold or blue marker on the rim is your course.</p></div>'); return; }
   const seg = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
   openSheet('<div class="lk"><div class="lk-top"><h3>Gauge look</h3></div>' +
     '<div class="lk-ctl"><span>Size</span>' + seg('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + seg('gShape', sh, [['round', 'Round'], ['square', 'Square']]) + '</div>' +
@@ -7794,7 +7803,7 @@ function openLooks(cat) {
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openLooks(); return; }
   const c = e.target.closest('[data-lkcat]'); if (c) { const sb = sheet.querySelector('.sheet-body') || sheet; openLooks(c.dataset.lkcat); (sheet.querySelector('.sheet-body') || sheet).scrollTop = Math.min(sb.scrollTop, 180); return; }
-  const pk = e.target.closest('[data-lkcomp]'); if (pk) { S.settings.miComp = pk.dataset.lkcomp || ''; saveSettings(); try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* */ } sheet.querySelectorAll('[data-lkcomp]').forEach((b) => b.classList.toggle('on', b === pk)); return; }
+  const pk = e.target.closest('[data-lkcomp]'); if (pk) { S.settings.miComp = pk.dataset.lkcomp || ''; if (S.settings.pcMatch !== false && PC_LOOK[S.settings.miComp] && gtOf(PC_LOOK[S.settings.miComp])) { S.settings.gTheme = PC_LOOK[S.settings.miComp]; S.settings.gFace = ''; applyGTheme(); try { applyGFace(); applyFabLook(); } catch (err) { /* */ } } saveSettings(); try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* */ } sheet.querySelectorAll('[data-lkcomp]').forEach((b) => b.classList.toggle('on', b === pk)); return; }
   const p = e.target.closest('[data-lkpick]'); if (p) { S.settings.gTheme = p.dataset.lkpick; saveSettings(); applyGTheme(); try { applyFabLook(); } catch (err) { /* */ } try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ }
     sheet.querySelectorAll('[data-lkpick]').forEach((b) => b.classList.toggle('on', b === p)); return; }
   if (e.target.closest('[data-lkcustom]')) { openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = 0; sheet.scrollTop = 0; }
@@ -8947,7 +8956,7 @@ async function openCoach(kind, tab) {
   } else h += rcDebriefHtml();
   openSheet(h + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>');
 }
-document.addEventListener('change', (e) => { if (e.target.id === 'rcLive') { S.settings.rcLive = e.target.checked; saveSettings(); } if (e.target.id === 'rcBoat') { S.settings.rcBoat = e.target.value; RC.boat = e.target.value; saveSettings(); openCoach('race', 'brief'); } if (e.target.id === 'fcSpecies') { RC.species = e.target.value || null; openCoach('fish', 'brief'); } });
+document.addEventListener('change', (e) => { if (e.target.id === 'pcMatch') { S.settings.pcMatch = e.target.checked; saveSettings(); } if (e.target.id === 'rcLive') { S.settings.rcLive = e.target.checked; saveSettings(); } if (e.target.id === 'rcBoat') { S.settings.rcBoat = e.target.value; RC.boat = e.target.value; saveSettings(); openCoach('race', 'brief'); } if (e.target.id === 'fcSpecies') { RC.species = e.target.value || null; openCoach('fish', 'brief'); } });
 document.addEventListener('click', (e) => {
   const k = e.target.closest('[data-rck]'); if (k) { openCoach(k.dataset.rck, 'brief'); return; }
   const t = e.target.closest('[data-rct]'); if (t) { openCoach(t.dataset.k, t.dataset.rct); return; }
