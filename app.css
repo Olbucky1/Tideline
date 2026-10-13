@@ -2560,3 +2560,6 @@ html.helm #helmX { display: block; position: fixed; z-index: 2000; right: 10px; 
 html.helm #app.wide #panelSide { padding-top: 8px !important; }
 html.helm .side-btns { display: none; }
 .nb-cats { flex-wrap: wrap; overflow: visible; }
+#raceTimer .rt-b .rt-go { min-width: 120px; min-height: 52px; font-size: 20px; background: #1FA463 !important; border-color: #1FA463 !important; }
+#raceTimer .rt-b button[data-rt="seq"] { min-width: 40px; }
+#app:has(#raceTimer:not([hidden])) #toast { top: calc(env(safe-area-inset-top, 0px) + 230px) !important; }
