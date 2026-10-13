@@ -2633,3 +2633,12 @@ html:not([data-desk="split"]) #sideGrip { display: none !important; }
 #app.wide #deskSw { left: auto !important; transform: none !important; right: 14px; bottom: calc(var(--tabbar-h, 0px) + 26px); }
 html[data-desk="split"] #app.wide:has(#panelSide:not([hidden])) #deskSw { left: auto !important; right: calc(var(--sideW, 400px) + 14px); }
 #app.wide:has(#cockpit:not([hidden])) #deskSw { right: 14px !important; }
+/* build 177: night mode keeps the chart's colours, just dark and warm (no more night-vision red wash) */
+html:root[data-night] #map .leaflet-tile-pane, html:root[data-night] #map .leaflet-image-layer { filter: brightness(.42) contrast(1.15) saturate(.75) sepia(.35) hue-rotate(-12deg) !important; }
+html:root[data-night] #map { background: #05080C !important; }
+/* the right-hand column: dial on top, then evenly spaced buttons */
+#app #fabsR.fab-col { gap: 10px !important; align-items: flex-end !important; }
+#app #fabsR .mini-inst { margin: 0 0 6px 0 !important; align-self: flex-end !important; }
+#app #fabsR .fab { margin: 0 !important; }
+/* Find me: same colours as every other button; when the chart is not following you, a small dot says "tap to come back" */
+#btnFollow.nofollow { position: relative; } #btnFollow.nofollow::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #FFC233; box-shadow: 0 0 0 1.5px #fff; }

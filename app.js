@@ -1563,7 +1563,7 @@ function updateBoat() {
   else if (S.follow) map.panTo(ll, { animate: true, duration: 0.5 });
 }
 function setFollow(on) {
-  S.follow = on; $('btnFollow').classList.toggle('attn', !on);
+  S.follow = on; $('btnFollow').classList.remove('attn'); $('btnFollow').classList.toggle('nofollow', !on);
   if (on && S.fix) map.setView([S.fix.lat, S.fix.lon], Math.max(map.getZoom(), 11));
 }
 
@@ -2884,7 +2884,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 176. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 177. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -6830,6 +6830,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
 function applyMiSize() { const R0 = document.documentElement; R0.dataset.mi = S.settings.miPx ? 'xl' : S.settings.miSize || 'l'; if (S.settings.miPx) R0.style.setProperty('--mi', S.settings.miPx + 'px'); else R0.style.removeProperty('--mi'); document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
 if (S.settings.compDef1 && !S.settings.compDef2) { S.settings.compDef2 = 1; if (S.settings.miComp === 'p2_4' && (S.settings.gTheme || 'clean') === 'clean') S.settings.gTheme = 'navybrass'; try { saveSettings(); } catch (e) { /* */ } }
+if (!S.settings.dialDef6) { S.settings.dialDef6 = 1; S.settings.chartGauges = 'dial'; try { saveSettings(); } catch (e) { /* */ } } // the round speed/course/depth dial is the chart's main instrument
 if (!S.settings.compDef1) { S.settings.compDef1 = 1; if (!S.settings.miComp) { S.settings.miComp = 'p2_4'; if ((S.settings.gTheme || 'clean') === 'clean') S.settings.gTheme = 'navybrass'; } S.settings.compDef2 = 1; try { saveSettings(); } catch (e) { /* */ } }
 if (!S.settings.noTemp5) { S.settings.noTemp5 = 1; S.settings.tempBtn = false; try { saveSettings(); } catch (e) { /* */ } } // the air-temperature dial sat on top of the speed/compass dial: off by default (Map options brings it back)
 if (!S.settings.bigDial4) { S.settings.bigDial4 = 1; if (!S.settings.miSize || S.settings.miSize === 'l' || S.settings.miSize === 'm') S.settings.miSize = 'xl'; try { saveSettings(); } catch (e) { /* */ } }
