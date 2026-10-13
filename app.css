@@ -2581,3 +2581,25 @@ html:not([data-desk="split"]) #sideGrip { display: none !important; }
   #app.wide:not(:has(.panel:not([hidden]))) .bottom-stack { right: 10px !important; }
   #app.wide:not(:has(.panel:not([hidden]))) .sheet { right: 0 !important; }
 }
+/* build 173: plain buttons you can actually see — more solid, a crisp ring and shadow, in every color mode */
+:root { --fab-alpha-fix: 1; }
+:root:not([data-night]):not([data-dusk]) .fab:not(.on):not(.attn):not(.fish):not([data-gl]) { background-color: color-mix(in srgb, var(--fab-bg) 100%, transparent) !important; }
+:root[data-btheme="blue"], :root:not([data-btheme]) { --fab-bg: rgba(30, 98, 176, .9); --fab-bd: rgba(255,255,255,.9); }
+:root[data-btheme="navy"] { --fab-bg: rgba(18, 42, 78, .9); } :root[data-btheme="green"] { --fab-bg: rgba(34, 139, 96, .9); } :root[data-btheme="teal"] { --fab-bg: rgba(16, 130, 140, .9); } :root[data-btheme="gold"] { --fab-bg: rgba(18, 58, 107, .9); } :root[data-btheme="sunset"] { --fab-bg: rgba(210, 100, 50, .9); }
+#app .fab { box-shadow: 0 2px 6px rgba(0,0,0,.35), 0 0 0 1.5px rgba(255,255,255,.75) !important; }
+:root[data-dusk] .fab:not(.on):not(.attn):not(.fish), :root[data-night] .fab:not(.on):not(.attn):not(.fish) { background: color-mix(in srgb, var(--surface) 90%, transparent) !important; border-color: color-mix(in srgb, var(--ink) 35%, transparent) !important; }
+:root[data-night] #app .fab { box-shadow: 0 1px 4px rgba(0,0,0,.6) !important; }
+/* the chart's buttons inside the console's chart tile sit at its right edge */
+#app .ck-map #fabsR, #cockpit .ck-map #fabsR { right: 8px !important; left: auto !important; }
+#app .ck-map #fabs, #cockpit .ck-map #fabs { left: 8px !important; }
+/* data tiles in the gauge look's colours */
+.mini-inst.as-bar .mb-t { background: linear-gradient(180deg, var(--bt-f1, rgba(10,16,24,.9)), var(--bt-f2, rgba(10,16,24,.9))) !important; color: var(--bt-ink, #F4F7FA) !important; border-color: var(--bt-c2, rgba(255,255,255,.12)) !important; border-width: 1.5px !important; }
+.mini-inst.as-bar .mb-t :is(small, i) { color: color-mix(in srgb, var(--bt-ink, #F4F7FA) 65%, transparent) !important; }
+.ck-del { display: none; }
+.ck-grid.editing > .ck-slot .ck-del { display: grid; place-items: center; position: absolute; z-index: 46; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; background: #D64545; color: #fff; font: 700 17px/1 system-ui; padding: 0; box-shadow: 0 1px 4px rgba(0,0,0,.5); cursor: pointer; }
+.ck-grid.free.editing > .ck-slot.sel { outline: 2px solid #FFC233; outline-offset: 2px; }
+.cr-t { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 10px; } .cr-t th { text-align: left; vertical-align: top; width: 38%; padding: 6px 8px 6px 0; color: var(--ink2, #6B7B8B); font-weight: 600; } .cr-t td { padding: 6px 0; } .cr-t tr { border-bottom: 1px solid var(--line, #DDE3E8); }
+#app.wide:has(#cockpit:not([hidden])) #deskSw { z-index: 1250; left: 50% !important; bottom: calc(var(--tabbar-h, 0px) + 14px); opacity: .8; }
+/* inside the console the gauges are already shown: no speed dial / data tiles over the chart tile; BOW/N label only on hover */
+#cockpit .ck-map #miniInst, .ck-host .ck-map #miniInst, #cockpit #miniInst { display: none !important; }
+.fab.orient .or-lbl { opacity: 0; transition: opacity .2s; } .fab.orient:hover .or-lbl, .fab.orient:focus-visible .or-lbl { opacity: 1; }

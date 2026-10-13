@@ -1,12 +1,12 @@
 /* Tideline service worker: keeps the app, charts you've viewed, and the last forecast available offline. */
-const APP = 'tl-app-v172';
+const APP = 'tl-app-v173';
 const TILES = 'tl-tiles';
 const DATA = 'tl-data';
 const SHELL = [
   './', 'index.html', 'app.css', 'app.js', 'rules.js', 'manifest.webmanifest',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet-rotate/leaflet-rotate.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-  'kb/trim.json', 'kb/race.json', 'kb/fish.json', 'kb/tour.json',
+  'kb/trim.json', 'kb/race.json', 'kb/fish.json', 'kb/tour.json', 'kb/crab.json',
 ];
 const TILE_HOSTS = ['gis.charttools.noaa.gov', 'server.arcgisonline.com', 'basemap.nationalmap.gov', 'tile.openstreetmap.org', 'tiles.openseamap.org'];
 const DATA_HOSTS = ['api.open-meteo.com', 'marine-api.open-meteo.com', 'api.tidesandcurrents.noaa.gov', 'overpass-api.de', 'nominatim.openstreetmap.org', 'encdirect.noaa.gov', 'api.inaturalist.org', 'api.weather.gov', 'en.wikipedia.org', 'commons.wikimedia.org', 'www.federalregister.gov'];
