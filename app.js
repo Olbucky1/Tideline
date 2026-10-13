@@ -49,7 +49,10 @@ const S = {
   follow: true, measure: { on: false, pts: [] }, tab: 'chart', sheetPoint: null,
   alarmOn: false, alarmKind: null, snoozeUntil: 0, gpsErr: null,
 };
-const saveSettings = () => store.set('settings', S.settings);
+const APP_KEYS = ['gTheme', 'gFace', 'gShape', 'miComp', 'miSize', 'miPx', 'miMode', 'fabLook', 'fabSize', 'fabAlpha', 'chart', 'satOver', 'satSrc', 'gStyle', 'pcMatch'];
+function appSnap() { const o = {}; APP_KEYS.forEach((k) => { if (S.settings[k] !== undefined) o[k] = S.settings[k]; }); return JSON.stringify(o); }
+function appUndoNote() { const A = window.__AU || (window.__AU = { u: [], r: [], last: null, hold: false }), now = appSnap(); if (A.last == null) { A.last = now; return; } if (now !== A.last && !A.hold) { A.u.push(A.last); if (A.u.length > 40) A.u.shift(); A.r.length = 0; } A.last = now; } // every change to the look of the app is remembered: undo and redo walk back and forward
+const saveSettings = () => { try { appUndoNote(); } catch (e) { /* early */ } store.set('settings', S.settings); };
 
 /* ---------- geodesy (nautical miles, degrees true) ---------- */
 const R_NM = 3440.065, FT_PER_NM = 6076.12, M_PER_NM = 1852, KN_PER_MS = 1.943844;
@@ -240,6 +243,7 @@ const LAYERS = {
   ocean: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 13, attribution: 'Base: Esri, GEBCO, NOAA' }),
   noaaOver: new NoaaLayer('', { className: 'noaa-chart-tile', maxZoom: 19, maxNativeZoom: 18, transparentChart: true, opacity: 0.62, updateWhenZooming: false, keepBuffer: 4, attribution: 'Chart: NOAA' }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics' }),
+  satTopo: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery and map: USGS The National Map' }),
   satHD: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Imagery: USGS The National Map' }),
   places: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.99, maxNativeZoom: 13, minZoom: 5, opacity: 0.8, zIndex: 3, attribution: 'Labels: Esri' }), // quiet grey town names, gone before street names appear
   roads: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13.49, maxNativeZoom: 12, opacity: 0.4, zIndex: 2, attribution: 'Roads: Esri' }), // main roads only: the layer fades out before neighbourhood streets appear
@@ -266,8 +270,8 @@ if (S.settings.chart === 'hybrid') { S.settings.chart = 'noaa'; S.settings.satOv
 function chartLayerKeys() {
   const ch = CHARTS[S.settings.chart] ? S.settings.chart : 'noaa';
   let keys;
-  if (ch !== 'satellite' && ch !== 'clean' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
-  else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : ch === 'noaa' ? ['ocean', 'noaa'] : CHARTS[ch].layers.slice();
+  if (ch !== 'satellite' && ch !== 'clean' && S.settings.satOver && !S.satFailed) keys = [S.settings.satSrc === 'hd' ? 'satHD' : S.settings.satSrc === 'topo' ? 'satTopo' : 'satellite', ch === 'noaa' ? 'noaaOver' : 'street']; // satellite under a see-through chart
+  else keys = ch === 'satellite' && S.settings.satSrc === 'hd' ? ['satHD'] : ch === 'satellite' && S.settings.satSrc === 'topo' ? ['satTopo'] : ch === 'noaa' ? ['ocean', 'noaa'] : CHARTS[ch].layers.slice();
   if (S.settings.seamarks && ch !== 'noaa') keys.push('seamarks');
   // town and point names are drawn by Tideline itself as plain text (see PLB), not as outlined tile labels
   if (ch !== 'street' && S.settings.landRoads) keys.push('roads');
@@ -324,7 +328,7 @@ function renderWaypoints() {
 /* ---------- sheet (bottom card for a point, layers) ---------- */
 const sheet = $('sheet');
 function openSheet(html) { sheet.innerHTML = '<div class="grab"></div><button type="button" class="sheet-x" data-sheetx aria-label="Close">&times;</button>' + html; sheet.hidden = false; }
-function closeSheet() { sheet.hidden = true; sheet.innerHTML = ''; S.sheetPoint = null; }
+function closeSheet() { sheet.hidden = true; sheet.classList.remove('help', 'lk-open'); sheet.innerHTML = ''; S.sheetPoint = null; }
 
 function legInfo(from, to) {
   const d = distNm(from, to), b = bearing(from, to);
@@ -444,7 +448,7 @@ function openLayersSheet() {
   html += '<div class="mo-h">Overlays</div>';
   html += tog('satBox', 'Satellite imagery', 'Aerial photo under the chart', st.satOver && st.chart !== 'satellite');
   if (st.satOver && st.chart !== 'satellite') html += '<div class="field" style="margin:4px 0 8px"><label for="satMix">Chart on top: <b id="satMixVal">' + Math.round(st.chartOnSat * 100) + '%</b></label><input id="satMix" type="range" min="20" max="100" step="5" value="' + Math.round(st.chartOnSat * 100) + '"></div>';
-  if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)']], st.satSrc || 'std');
+  if (st.satOver || st.chart === 'satellite') html += '<div class="mo-h">Satellite imagery</div>' + optSeg('satSrc', [['std', 'Standard'], ['hd', 'HD (US waters)'], ['topo', 'US map-style']], st.satSrc || 'std');
   html += tog('aisBox', 'AIS boats', S.settings.sim ? 'Demo shows sample boats' : S.settings.aisRelay ? 'Live from aisstream.io through your relay: ships and AIS-equipped boats within about 20 nm' + (AISS.n ? ' · ' + [...ais.values()].filter((t) => t.live).length + ' in view' : '') : 'Live ships over the internet need a small relay (below)', S.settings.aisShow !== false);
   if (!S.settings.sim) html += '<div class="ais-key"><input id="aisKeyIn" type="url" autocomplete="off" placeholder="AIS relay address (wss://…)" value="' + esc(S.settings.aisRelay || '') + '"><button type="button" class="btn small" data-act="aiskeysave">' + (S.settings.aisRelay ? 'Update' : 'Save') + '</button></div><p class="hint" style="margin:2px 0 10px">aisstream.io (free) does not let browsers connect directly, so live AIS goes through a small free relay that holds your key. Setup steps: tools/ais-relay in the Tideline repo. ' + (AISS.err ? '<b>' + esc(AISS.err) + '</b>' : '') + '</p>';
   html += tog('aisNamesBox', 'Ship names', 'Off shows icons only; tap a ship for its details', S.settings.aisNames === true);
@@ -482,6 +486,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'wx') applyWx();
   if (k === 'chartTint') applyTint();
   if (k === 'miSize') { S.settings.miPx = 0; applyMiSize(); }
+  if (k === 'miMode') { applyMiMode(); try { const m = $('miniInst'); if (m) { m.__pc = ''; m.classList.remove('pc-on'); } renderMini(); } catch (err) { /* */ } }
   if (k === 'tempBtn') { S.settings.tempBtn = v === 'on'; saveSettings(); renderTempBtn(); }
   if (k === 'fabAlpha') applyFabAlpha();
   if (k === 'fabSize') { document.documentElement.dataset.fs = v; try { if (ARR.on) arrGrips(); } catch (e) { /* */ } }
@@ -490,7 +495,7 @@ sheet.addEventListener('click', (e) => {
   if (k === 'gArt') applyGArt();
   if (k === 'chartGauges') { try { renderMini(); } catch (e) { /* */ } }
   if (k === 'fabLook' || k === 'fabArt') applyFabLook();
-  if (!sheet.hidden && sheet.querySelector('.lk') && ['gShape', 'miSize', 'fabLook'].includes(k)) { if (k === 'gShape') { applyGTheme(); try { applyFabLook(); if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ } } if (k === 'miSize') applyMiSize(); if (k === 'fabLook') { try { applyFabLook(); } catch (err) { /* */ } } const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openLooks(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; return; }
+  if (!sheet.hidden && sheet.querySelector('.lk') && ['gShape', 'miSize', 'fabLook', 'miMode', 'fabSize', 'fabAlpha'].includes(k)) { if (k === 'gShape') { applyGTheme(); try { applyFabLook(); if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ } } if (k === 'miSize') applyMiSize(); if (k === 'fabLook') { try { applyFabLook(); } catch (err) { /* */ } } const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openLooks(undefined, true); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; return; }
   if (k === 'gShape') { applyGTheme(); if (!sheet.hidden && sheet.querySelector('.gl-opts')) { const sc = (sheet.querySelector('.sheet-body') || sheet).scrollTop; openGaugeLook(); (sheet.querySelector('.sheet-body') || sheet).scrollTop = sc; } try { applyFabLook(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } }
   if (k === 'ckStyle') { document.documentElement.dataset.ck = v; try { buildCockpit(); } catch (e) { /* */ } }
   if (k === 'ringW') { try { renderMini(); } catch (e) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); } catch (e) { /* */ } if (!sheet.hidden && sheet.querySelector('.gl-opts')) openGaugeLook(); }
@@ -2602,7 +2607,7 @@ if (window.ResizeObserver) { let raf = 0; new ResizeObserver(() => { cancelAnima
   g.addEventListener('dblclick', () => { S.settings.sideWidth = 'custom'; S.settings.sideFrac = 0.4; saveSettings(); applySideWidth(); setTimeout(renderSide, 120); }); })();
 function openSideCustom() {
   const cur = sideIds(), wd = S.settings.sideWidth || 'normal';
-  const opts = CK_OPTS.filter(([v]) => v !== 'chart' && v !== 'off').concat([['auto', 'Tide, or destination when navigating']]);
+  const opts = CK_OPTS.filter(([v]) => v !== 'chart' && v !== 'off' && v !== 'radar').concat([['auto', 'Tide, or destination when navigating']]);
   openSheet('<h3>Gauges beside the chart</h3><div class="sub">Pick up to ten. They fit themselves to the space, in this order.</div>' +
     '<div class="field"><label>Gauge panel size</label><div class="seg" role="group">' + [['normal', 'Narrow'], ['third', 'A third'], ['half', 'Half the screen']].map(([v, l]) => '<button type="button" data-sidew="' + v + '" class="' + (wd === v ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div>' +
     '<div class="side-picks">' + Array.from({ length: SIDE_MAX }, (_, i) => '<div class="field"><label>Gauge ' + (i + 1) + '</label><select data-sidepick="' + i + '"><option value="off">None</option>' + opts.map(([v, l]) => '<option value="' + v + '"' + (cur[i] === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>').join('') + '</div>' +
@@ -2625,7 +2630,7 @@ function renderSide() {
     if (old && p.dataset.sig === sig && !(S.goto && S.fix)) { const gs = ids.map(ckGauge); old.querySelectorAll(':scope > .sg').forEach((el, i) => { if (el.__h !== gs[i]) { el.__h = gs[i]; if (!pcPatch(el, gs[i])) el.innerHTML = gs[i]; } }); return; } // only the readings change: no flashing
     p.dataset.sig = sig;
     h += '<div class="side-g" data-n="' + ids.length + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' + ids.map((id) => '<div class="sg">' + ckGauge(id) + '</div>').join('') + '</div>';
-    h += '<div class="side-btns"><button type="button" class="btn small primary" data-helm>' + (document.documentElement.classList.contains('helm') ? 'Exit helm screen' : 'Helm screen') + '</button><button type="button" class="btn small" data-sact="dash">Gauges only</button><button type="button" class="btn small" data-sact="sidecust">Choose gauges</button><button type="button" class="btn small" data-sact="sidetext">Plain numbers</button></div>';
+    h += '<div class="side-btns"><button type="button" class="btn small primary" data-helm>' + (document.documentElement.classList.contains('helm') ? 'Exit helm' : 'Helm screen') + '</button><button type="button" class="btn small" data-sact="dash">Gauges only</button><button type="button" class="btn small" data-sact="sidecust">Choose</button><button type="button" class="btn small" data-sact="sidetext">Numbers</button></div>';
     p.innerHTML = h; p.classList.add('gmode'); return;
   }
   p.classList.remove('gmode'); p.dataset.sig = '';
@@ -2900,13 +2905,20 @@ const HELP = [
   ['coach rules colregs give way stand on', 'Rules of the Road coach', 'Optional, off by default. Turn it on in Settings › Captain\'s coach.', 'settings'],
   ['mob man overboard', 'Man overboard', 'Press and hold the red MOB button. It marks the spot and guides you back.', null],
 ];
+const HELP_STOP = new Set('a an and are at be can do does for from get have how i if in is it its me my of on or so that the there this to turn use want what when where which why with you your'.split(' '));
+function helpScore(q, text) { // any word can match; the more words match, the higher the answer ranks; filler words are ignored
+  const ws = q.toLowerCase().split(/[^a-z0-9']+/).filter((w) => w && !HELP_STOP.has(w)), ns = String(text || '').toLowerCase().split(/[^a-z0-9']+/).filter(Boolean); let sc = 0;
+  for (const w of ws) { let best = 0; for (const n of ns) { if (n === w) best = Math.max(best, 4); else if (n.startsWith(w) || (w.length > 3 && w.startsWith(n) && n.length > 3)) best = Math.max(best, 3); else if (w.length >= 4 && (n.startsWith(w.slice(0, 4)) || lev(w, n.slice(0, w.length)) <= (w.length > 6 ? 2 : 1))) best = Math.max(best, 2); } sc += best; }
+  return sc;
+}
 function openHelp(q) {
-  const list = (q ? HELP.map((h) => ({ h, sc: fuzzyScore(q, h[0] + ' ' + h[1]) })).filter((x) => x.sc).sort((a, b) => b.sc - a.sc).map((x) => x.h) : HELP).slice(0, q ? 5 : 8);
+  const list = (q ? HELP.map((h) => ({ h, sc: helpScore(q, h[0] + ' ' + h[1]) })).filter((x) => x.sc).sort((a, b) => b.sc - a.sc).map((x) => x.h) : HELP).slice(0, q ? 5 : 8);
   const body = list.map((h, i) => '<div class="hp"><b>' + h[1] + '</b><p>' + h[2] + '</p>' + (h[3] ? '<button type="button" class="btn small" data-help="' + h[3] + '">Show me</button>' : '') + '</div>').join('') || '<p class="sub">No answer yet. Try other words, like “tide” or “anchor alarm”.</p>';
-  if (!q) { setTab('chart'); openSheet('<h3>Help</h3><div class="field"><input id="helpQ" type="search" placeholder="Ask a question, e.g. how do I turn off the weather" autocomplete="off"></div><div id="helpList">' + body + '</div>'); setTimeout(() => { const i = $('helpQ'); if (i) i.focus(); }, 60); }
-  else $('helpList').innerHTML = body;
+  if (!q) { setTab('chart'); openSheet('<h3>Help</h3><div class="field"><input id="helpQ" type="search" placeholder="Ask a question, e.g. how do I turn off the weather" autocomplete="off"></div><div id="helpList">' + body + '</div>'); sheet.classList.add('help'); setTimeout(() => { const i = $('helpQ'); if (i) i.focus(); }, 60); }
+  else if ($('helpList')) $('helpList').innerHTML = body;
 }
 sheet.addEventListener('input', (e) => { if (e.target.id === 'helpQ') openHelp(e.target.value.trim()); });
+sheet.addEventListener('keydown', (e) => { if (e.target.id === 'helpQ' && e.key === 'Enter') { e.preventDefault(); openHelp(e.target.value.trim()); e.target.blur(); } }); // Enter shows the answers and puts the keyboard away
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-help]'); if (!b) return; const a = b.dataset.help; closeSheet();
   if (a === 'mapopts') openLayersSheet();
@@ -2954,7 +2966,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('apptour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 181. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 182. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -3583,6 +3595,7 @@ function renderSettings() {
     '<p class="hint" style="margin:0 0 12px">Live AIS needs the app-store version with an AIS receiver or feed. Demo mode shows simulated traffic so you can try the coach.</p></div>' +
     '<div class="card"><h4>Display</h4><div class="set-row"><div class="sr-text"><b>Light</b><span>Auto switches day, dusk and red night at civil twilight</span></div></div>' + seg('theme', [['auto', 'Auto'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']]) + '<div style="height:10px"></div>' + sw('keepAwake', 'Keep screen on', 'Recommended underway and at anchor') +
     '<div class="set-row"><div class="sr-text"><b>Cockpit display</b><span>Huge numbers for an iPad or spare phone mounted on deck. Taps are locked; press and hold to exit.</span></div></div><div class="row-btns"><button class="btn" data-act="cockpit">Open cockpit display</button></div><div style="height:12px"></div></div>' +
+    '<div class="card"><h4>Move my settings</h4><div class="set-row"><div class="sr-text"><b>Copy a settings link</b><span>Looks, units and layouts, but not your trips, keys or account. Open the link in Tideline on a new window or device and choose Apply.</span></div></div><div class="row-btns"><button class="btn primary" data-act="copyset">Copy my settings link</button></div></div>' +
     '<div class="card"><h4>Offline charts</h4><div class="set-row"><div class="sr-text"><b>Save this area</b><span>Downloads the NOAA chart for the area you see now plus 3 closer zoom levels, so it works without signal. Satellite and street maps need signal.</span></div></div>' +
     '<div class="row-btns"><button class="btn primary" data-act="offline">Save charts for this area</button><button class="btn" data-act="offlineclear">Clear saved charts</button></div>' +
     '<div id="offStatus" class="hint" style="margin:10px 0 4px"></div><div class="progress" id="offBarWrap" hidden><i id="offBar"></i></div><div style="height:12px"></div></div>' +
@@ -5837,7 +5850,7 @@ function anchorGauge(ft, radius) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, lim, A1) + '" class="g-danger"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (frac > 1 ? ' bad' : '') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + (ft == null ? '–' : Math.round(ftToLen(ft))) + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' of ' + fmtLen(radius) + '</text>';
 }
-const CK_OPTS = [['combo', 'Speed, course and depth (one dial)'], ['binnacle', 'Compass (classic, with digital readout)'], ['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['eta', 'Time to go (whole route)'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['feels', 'Temperature and feels like'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
+const CK_OPTS = [['combo', 'Speed, course and depth (one dial)'], ['binnacle', 'Compass (classic, with digital readout)'], ['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['eta', 'Time to go (whole route)'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['feels', 'Temperature and feels like'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['radar', 'Rain radar (live map, resizable)'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
 (() => { const a = S.settings.ckSlots; if (Array.isArray(a) && a.filter((x) => x === 'chart').length > 1) { let seen = false; S.settings.ckSlots = a.filter((x) => { if (x !== 'chart') return true; if (seen) return false; seen = true; return true; }); saveSettings(); } })();
 function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : (window.innerWidth >= 900 ? ['chart'] : []).concat(['speed', 'depth', 'wind', 'auto']); } // laptops and iPads: the console is chart and gauges together
@@ -6005,6 +6018,7 @@ function baroGauge(b) {
 }
 const CK_FALL = new Set();
 function ckGauge(id) {
+  if (id === 'radar') return '<div class="gauge"><div class="g-lbl">RAIN RADAR</div><div class="ck-radar"></div></div>'; // the map itself is made in ckRadars() once the tile is on screen
   const w = S.weather, tn = tideNow(), ob = nearestObs(), moving = (S.sog || 0) > 0.6;
   if (id === 'auto') id = S.goto && S.fix ? 'dest' : 'tide';
   if ((id === 'dest' || id === 'eta') && !(S.goto && S.fix)) { // not navigating: these slots show the basics instead of sitting empty
@@ -6088,7 +6102,7 @@ function buildCockpit() {
   }
   if (ckEdit) grid.classList.add('editing'); else grid.classList.remove('editing');
   const lay = S.settings.ckLayout || 'grid'; grid.className = grid.className.replace(/\blay-\S+/g, '').trim() + ' lay-' + (sl.includes('chart') ? lay : 'grid');
-  const consoleOnL = (S.settings.ckStyle || 'console') === 'console', lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>' + (consoleOnL ? 'Drag to move · pull a handle to resize · × removes · keys: T tidy, ⌘Z undo, arrows nudge, Delete, Esc' : 'Drag a tile to move it, its corner ◢ to resize') + '</span>' + (consoleOnL ? '<button type="button" class="btn small" data-cktidy>Tidy up</button>' + (ckSlots().length < 9 ? '<button type="button" class="btn small" data-ckadd>+ Add a gauge</button>' : '') : '') + '<button type="button" class="btn small" data-ckrsreset>Reset</button>' + (consoleOnL ? '' : '<span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join('')); }
+  const consoleOnL = (S.settings.ckStyle || 'console') === 'console', lb = $('cockpit').querySelector('.ck-lay'); if (lb) { lb.hidden = !ckEdit; lb.innerHTML = '<span>' + (consoleOnL ? 'Drag to move · pull a handle to resize · × removes · keys: T tidy, ⌘Z undo, arrows nudge, Delete, Esc' : 'Drag a tile to move it, its corner ◢ to resize') + '</span>' + (consoleOnL ? '<button type="button" class="btn small" data-cktidy>Tidy up</button><button type="button" class="btn small" data-cknext>Next layout</button>' + (ckSlots().length < 9 ? '<button type="button" class="btn small" data-ckadd>+ Add a gauge</button>' : '') : '') + '<button type="button" class="btn small" data-ckrsreset>Reset</button>' + (consoleOnL ? '' : '<span>Layout</span>' + [['grid', 'Even grid'], ['half', 'Chart half'], ['big', 'Chart two-thirds'], ['top', 'Chart on top']].map(([v, l]) => '<button type="button" data-cklay="' + v + '" class="' + (lay === v ? 'on' : '') + '">' + l + '</button>').join('')); }
   { const rows = Math.max(1, Math.ceil((sl.length - 1) / 2)), wide = window.innerWidth >= 900, sp = sl.includes('chart') && (lay === 'half' || lay === 'big') && wide;
     grid.style.gridTemplateRows = sp ? 'repeat(' + rows + ', minmax(0, 1fr))' : '';
     const cs = grid.querySelector('.ck-slot.chart'); if (cs) cs.style.gridRow = sp ? '1 / span ' + rows : ''; }
@@ -6253,8 +6267,8 @@ function ckFreeLayout(grid, sl) {
     else if (L0 === 'top') { const chh = A < 1.2 ? 55 : 64; rects.chart = [GAP, gy, 100 - 2 * GAP, chh]; pack(g, GAP, chh + 2 * gy, 100 - 2 * GAP, 100 - chh - 3 * gy, A, rects); }
     else { const cw = 46, half = Math.ceil(g.length / 2), side = (100 - cw - 4 * GAP) / 2; rects.chart = [50 - cw / 2, gy, cw, 100 - 2 * gy]; const cap = Math.min(pack(g.slice(0, half), GAP, gy, side, 100 - 2 * gy, A, {}), pack(g.slice(half), 50 + cw / 2 + GAP, gy, side, 100 - 2 * gy, A, {})); pack(g.slice(0, half), GAP, gy, side, 100 - 2 * gy, A, rects, cap); pack(g.slice(half), 50 + cw / 2 + GAP, gy, side, 100 - 2 * gy, A, rects, cap); } // both sides the same gauge size
     const all = S.settings.ckFree || (S.settings.ckFree = {}); all[A < 1.2 ? 'tall' : 'wide'] = {}; save(grid, rects, true); buildCockpit();
-    if (!keep) toast({ centre: 'Chart in the middle', left: 'Chart on the left', right: 'Chart on the right', top: 'Chart on top, gauges below', bottom: 'Chart below the gauges', middle: 'Chart between the gauges', none: 'Gauges in an even grid' }[L0] + (chart ? ' · tap Tidy up again for the next layout' : ''), 2200); };
-  document.addEventListener('click', (e) => { if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckFree; saveSettings(); buildCockpit(); } if (e.target.closest('[data-cktidy]')) { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g); } });
+    if (!keep) toast({ centre: 'Chart in the middle', left: 'Chart on the left', right: 'Chart on the right', top: 'Chart on top, gauges below', bottom: 'Chart below the gauges', middle: 'Chart between the gauges', none: 'Gauges in an even grid' }[L0] + (chart ? ' · tap Next layout for another' : ''), 2200); };
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-ckrsreset]')) { delete S.settings.ckFree; saveSettings(); buildCockpit(); } if (e.target.closest('[data-cktidy]')) { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) { tidy(g, true); toast('Lined up and evened out', 1400); } } if (e.target.closest('[data-cknext]')) { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g); } });
   window.__ckTidy = (noSnap) => { const g = document.querySelector('#cockpit .ck-grid.free'); if (g) tidy(g, true, noSnap); };
 })();
 /* Customize: drag the corner handle of a tile to make it as big as you like; it snaps to whole cells */
@@ -6302,6 +6316,22 @@ function ckSwap(a, b) {
 let ckPress = 0;
 ['pointerdown', 'touchstart'].forEach((ev) => document.addEventListener(ev, (e) => { if (e.target.closest && e.target.closest('#cockpit')) ckPress = Date.now() + 1500; }, { passive: true, capture: true }));
 ['pointerup', 'pointercancel', 'touchend'].forEach((ev) => document.addEventListener(ev, () => { if (ckPress) ckPress = Date.now() + 350; }, { passive: true, capture: true }));
+const CK_RADARS = [];
+function ckRadars(el) { // small live-radar maps inside console tiles; rebuilt when the console rebuilds, refreshed every 5 minutes
+  for (let i = CK_RADARS.length - 1; i >= 0; i--) if (!CK_RADARS[i].el.isConnected) { try { CK_RADARS[i].m.remove(); } catch (e) { /* gone */ } CK_RADARS.splice(i, 1); }
+  el.querySelectorAll('.ck-radar').forEach((box) => {
+    if (CK_RADARS.some((r) => r.el === box) || !box.clientWidth) return;
+    try {
+      const f = S.fix || refPos(), m = L.map(box, { zoomControl: false, attributionControl: false, zoomSnap: 0.5 }).setView([f.lat, f.lon != null ? f.lon : f.lng], 7);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { opacity: 0.55, maxZoom: 12 }).addTo(m);
+      const rl = window.TL_DEMO ? L.imageOverlay(window.TL_DEMO.radar, window.TL_DEMO.bounds, { opacity: 0.7 }) : L.tileLayer(RADAR_URL + '?t={t}', { t: () => Math.floor(Date.now() / 300000), opacity: 0.7, maxZoom: 12 });
+      rl.addTo(m); L.circleMarker([f.lat, f.lon != null ? f.lon : f.lng], { radius: 6, color: '#fff', weight: 2, fillColor: '#087E83', fillOpacity: 1 }).addTo(m);
+      CK_RADARS.push({ el: box, m, rl }); setTimeout(() => m.invalidateSize(), 80);
+    } catch (e) { box.textContent = 'Radar unavailable'; }
+  });
+}
+setInterval(() => CK_RADARS.forEach((r) => { if (r.rl && r.rl.redraw) r.rl.redraw(); }), 300000);
+window.addEventListener('resize', () => CK_RADARS.forEach((r) => { try { r.m.invalidateSize(); } catch (e) { /* gone */ } }));
 function renderCockpit(why) {
   const el = $('cockpit'); if (!el || el.hidden) return; if (why === 'tick' && Date.now() < ckPress) return;
   const sl = ckSlots().filter((x) => x !== 'off');
@@ -6321,6 +6351,7 @@ function renderCockpit(why) {
     box.dataset.drawn = ckEdit ? '1' : '';
     const nh = pick + ckGauge(id); if (box.__h !== nh) { box.__h = nh; if (!pcPatch(box, nh)) box.innerHTML = nh; }
   });
+  ckRadars(el);
   const acc = S.fix && S.fix.acc != null ? '±' + Math.round(ftToLen(S.fix.acc * 3.28084)) + ' ' + lenUnit() : '';
   const age = S.lastFixAt ? Math.round((Date.now() - S.lastFixAt) / 1000) : null;
   el.querySelector('.ck-gps').className = 'ck-gps ' + (age != null && age < 10 ? 'ok' : 'bad');
@@ -6434,13 +6465,13 @@ function renderMini() {
       '<span class="mb-t' + (shallow ? ' bad' : '') + '"><small>DEPTH</small><b>' + (validDepth ? Math.round(ftToLen(dft)) : '–') + '</b><i>' + lenUnit() + (validDepth ? ' charted' : '') + '</i></span>';
     return; }
   el.classList.remove('as-bar');
-  if (S.settings.miComp && pcOf(S.settings.miComp)) { el.classList.add('pc-on'); const nh = pcHtml(S.settings.miComp, pcData()); if (el.__pc !== nh) { el.__pc = nh; const cur = el.querySelector('svg.pc-svg[data-pc="' + S.settings.miComp + '"]'); if (cur) { const t = document.createElement('div'); t.innerHTML = nh; cur.replaceChildren(...t.firstChild.childNodes); } else el.innerHTML = nh; } el.setAttribute('aria-label', 'Compass with speed and depth. Tap for instruments, press and hold to resize.'); return; } el.classList.remove('pc-on');
+  if (S.settings.miMode !== 'plain' && S.settings.miComp && pcOf(S.settings.miComp)) { el.classList.add('pc-on'); const nh = pcHtml(S.settings.miComp, pcData()); if (el.__pc !== nh) { el.__pc = nh; const cur = el.querySelector('svg.pc-svg[data-pc="' + S.settings.miComp + '"]'); if (cur) { const t = document.createElement('div'); t.innerHTML = nh; cur.replaceChildren(...t.firstChild.childNodes); } else el.innerHTML = nh; } el.setAttribute('aria-label', 'Compass with speed and depth. Tap for instruments, press and hold to resize.'); return; } el.classList.remove('pc-on');
   el.innerHTML = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></g></svg>';
   el.setAttribute('aria-label', 'Speed, course and charted depth. Tap for full instruments.');
   el.dataset.tip = f ? 'Speed ' + fmtSpeed(S.sog || 0) + ' ' + SPEED_LBL[S.settings.speedUnit] + (cog != null ? ' · course ' + fmtBrg(cog) + '° true (' + compass16(cog) + ')' : ' · course shows once moving') + (validDepth ? ' · charted depth ' + Math.round(ftToLen(dft)) + ' ' + lenUnit() + (shallow ? ' (shallow for your boat)' : '') : ' · charted depth when NOAA chart data loads') + '. Tap for the full gauges.' : 'Speed, course and charted depth: waiting for GPS';
 }
 $('miniInst').addEventListener('click', () => { if (document.documentElement.classList.contains('mi-edit')) return; setCockpit(true); });
-setInterval(renderMini, 1000); renderMini();
+applyMiMode(); setInterval(renderMini, 1000); renderMini();
 /* ---------- account and sync (Supabase): sign in with your email, and your boats, routes and logs follow you to any browser or phone ---------- */
 const TL_ACCOUNTS = null; // { url: 'https://xxxx.supabase.co', key: 'anon public key' }: once set here, everyone just signs in with their email
 const SB = { cfg: store.get('syncCfg', null) || TL_ACCOUNTS, client: null, user: null, busy: false, t: null, last: store.get('syncAt', 0) };
@@ -6700,7 +6731,7 @@ sheet.addEventListener('click', e => {
 sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' && e.key === 'Enter') { e.preventDefault(); askFirstMate(); } });
 document.addEventListener('click', e => { if (e.target.closest('[data-first-mate]')) { if (S.settings.mateTalk === false) openFirstMate(); else ftStart(); } if (e.target.closest('[data-act="close"], [data-sheetx]') && FM.recognition) FM.recognition.stop(); });
 // the AI sparkle, with a small anchor at its heart
-const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".55"/><path class="ai-star" d="M12 1.2 13.6 10.4 22.8 12 13.6 13.6 12 22.8 10.4 13.6 1.2 12 10.4 10.4Z"/><path d="M12 6.2v8.4M9.4 8.1h5.2M7.7 12.4c.5 2.4 2.2 3.9 4.3 3.9s3.8-1.5 4.3-3.9" fill="none" stroke="#0B2440" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="5.6" r="1" fill="none" stroke="#0B2440" stroke-width="1.2"/><path class="ai-star" d="M19.8 1.4c.2 1.4 1 2.2 2.4 2.4-1.4.2-2.2 1-2.4 2.4-.2-1.4-1-2.2-2.4-2.4 1.4-.2 2.2-1 2.4-2.4z"/></svg>';
+const AI_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="ai-ic"><circle cx="12" cy="12" r="10.2" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".55"/><path class="ai-star" d="M12 1.2 13.6 10.4 22.8 12 13.6 13.6 12 22.8 10.4 13.6 1.2 12 10.4 10.4Z"/><g class="ai-anc0" transform="translate(0 1.5)"><path d="M12 6.2v8.4M9.4 8.1h5.2M7.7 12.4c.5 2.4 2.2 3.9 4.3 3.9s3.8-1.5 4.3-3.9" fill="none" stroke="#0B2440" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="5.6" r="1" fill="none" stroke="#0B2440" stroke-width="1.2"/></g><path class="ai-star" d="M19.8 1.4c.2 1.4 1 2.2 2.4 2.4-1.4.2-2.2 1-2.4 2.4-.2-1.4-1-2.2-2.4-2.4 1.4-.2 2.2-1 2.4-2.4z"/></svg>';
 (() => { const b = document.createElement('button'); b.type = 'button'; b.className = 'fab ai'; b.id = 'btnFM'; b.dataset.firstMate = 'true'; b.title = 'First mate: your AI assistant'; b.dataset.tip = 'First mate: ask by voice or type'; b.setAttribute('aria-label','First mate, your AI assistant'); b.innerHTML = AI_ICON; $('fabs').appendChild(b); })();
 
 function applyTint() { document.documentElement.dataset.tint = S.settings.chartTint || 'blue'; retintCheck(); }
@@ -6747,7 +6778,7 @@ const GT = [
   { id: 'teakbrass', l: 'Teak and brass', g: 'Photo', skin: 'skins/teakbrass.webp', k: 0.79, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#7A3A1C', '#3B1A0A'], ink: '#FFF4E0', muted: '#F0D2A8', acc: '#FFE2A8', n: '#FFF4E0', art: 'none' },
   { id: 'rope', l: 'Rope edition', g: 'Photo', skin: 'skins/rope.webp', k: 0.62, bz: ['#E8CF9E', '#B8955E', '#6E5428', '#D6B77E', '#8A6A36'], fc: ['#1D2F4F', '#0B1630'], ink: '#FFF6E0', muted: '#D9C08A', acc: '#E8C36A', n: '#E53935', art: 'none' },
   { id: 'polynesian', l: 'Polynesian carved', g: 'Photo', skin: 'skins/polynesian.webp', k: 0.71, bz: ['#C88A55', '#7E4420', '#3A1C0A', '#A8683A', '#5C2E12'], fc: ['#7A3E1E', '#3A1A08'], ink: '#FFF6E6', muted: '#F2D6B0', acc: '#7FE3E8', n: '#FFF6E6', art: 'none' },
-  { id: 'wheel1', l: 'Ship\'s wheel', g: 'Photo', skin: 'skins/wheel1.webp', k: 0.64, noclip: 1, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1D3A6E', '#0C1C3E'], ink: '#FFF4D6', muted: '#D9C08A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
+  { id: 'wheel1', hidden: 1, l: 'Ship\'s wheel', g: 'Photo', skin: 'skins/wheel1.webp', k: 0.64, noclip: 1, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1D3A6E', '#0C1C3E'], ink: '#FFF4D6', muted: '#D9C08A', acc: '#E8C36A', n: '#E8C36A', art: 'none' },
   { id: 'wheel2', hidden: 1, l: 'Ship\'s wheel brass', g: 'Photo', skin: 'skins/wheel2.webp', k: 0.66, noclip: 1, bz: ['#FFF0C2', '#C9A04E', '#6E4F12', '#EBCF86', '#8E6A1F'], fc: ['#1D3A6E', '#0C1C3E'], ink: '#FFF4D6', muted: '#D9C08A', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
   { id: 'chart1', l: 'Navigator\'s chart', g: 'Photo', skin: 'skins/chart1.webp', k: 0.88, bz: ['#E6C48A', '#A8783E', '#5A3E18', '#C9A066', '#7A5A2E'], fc: ['#EADBB8', '#D9C49A'], ink: '#2A1E10', muted: '#5E4A2E', acc: '#7A2E1E', n: '#7A2E1E', art: 'none', light: 1 },
   { id: 'chart2', hidden: 1, l: 'Explorer\'s chart', g: 'Photo', skin: 'skins/chart2.webp', k: 0.89, bz: ['#E6C48A', '#A8783E', '#5A3E18', '#C9A066', '#7A5A2E'], fc: ['#EADBB8', '#D9C49A'], ink: '#2A1E10', muted: '#5E4A2E', acc: '#1E3A5F', n: '#1E3A5F', art: 'none', light: 1 },
@@ -6771,7 +6802,7 @@ const GT = [
   { id: 'sq_carbon', l: 'Carbon square', g: 'Square', sq: 1, skin: 'skins/sq_carbon.webp', k: 0.72, bz: ['#C9A04E', '#B8913F', '#8E6A1F', '#EBCF86', '#6E4F12'], fc: ['#14181E', '#05070A'], ink: '#FFFFFF', muted: '#9AB6CC', acc: '#3FA9F5', n: '#3FA9F5', art: 'none' },
   { id: 'bport', l: 'Brass porthole', g: 'Photo', sq: 1, skin: 'skins/bport.webp', k: 0.76, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#D8B25C', '#A97E2C'], ink: '#1E1608', muted: '#4A3510', acc: '#1B2E52', n: '#1B2E52', art: 'none', light: 1 },
   { id: 'bcompass', l: 'Brass compass rose', g: 'Photo', sq: 1, skin: 'skins/bcompass.webp', k: 0.62, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#D8B25C', '#A97E2C'], ink: '#1E1608', muted: '#4A3510', acc: '#1B2E52', n: '#1B2E52', art: 'none', light: 1 },
-  { id: 'bhelm', l: 'Brass helm wheel', g: 'Photo', sq: 1, skin: 'skins/bhelm.webp', k: 0.6, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#D8B25C', '#A97E2C'], ink: '#1E1608', muted: '#4A3510', acc: '#1B2E52', n: '#1B2E52', art: 'none', light: 1 },
+  { id: 'bhelm', hidden: 1, l: 'Brass helm wheel', g: 'Photo', sq: 1, skin: 'skins/bhelm.webp', k: 0.6, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#D8B25C', '#A97E2C'], ink: '#1E1608', muted: '#4A3510', acc: '#1B2E52', n: '#1B2E52', art: 'none', light: 1 },
   { id: 'cb_annapolis', l: 'Annapolis brass and navy', g: 'Bay', skin: 'skins/cb_annapolis.webp', k: 0.8, veil: 1, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#1B3358', '#0A1428'], ink: '#FFF4D6', muted: '#D9C08A', acc: '#F2C94C', n: '#F2C94C', art: 'none' },
   { id: 'cb_chart', l: 'Chesapeake chart navigator', g: 'Bay', skin: 'skins/cb_chart.webp', k: 0.8, veil: 1, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#E8D8A8', '#CFB878'], ink: '#1E2A3A', muted: '#5A4A2E', acc: '#1E3A5F', n: '#1E3A5F', art: 'none', light: 1 },
   { id: 'cb_thomas', l: 'Thomas Point heritage', g: 'Bay', skin: 'skins/cb_thomas.webp', k: 0.8, veil: 1, bz: ['#FFF0C2', '#D4AF5A', '#7A5A16', '#F0D48C', '#9A7424'], fc: ['#D8B25C', '#A97E2C'], ink: '#14223A', muted: '#3A2E14', acc: '#14284A', n: '#14284A', art: 'none', light: 1 },
@@ -6909,6 +6940,7 @@ function applyGTheme() { const id = S.settings.gTheme || 'clean'; document.docum
 function applyFabAlpha() { document.documentElement.style.setProperty('--fab-o', String(+S.settings.fabAlpha || 1)); }
 applyFabAlpha();
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-seg="fabAlpha"],[data-opt="fabAlpha"]'); if (b) setTimeout(() => { S.settings.fabAlpha = b.dataset.val; saveSettings(); applyFabAlpha(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); }, 0); });
+function applyMiMode() { document.documentElement.dataset.mimode = S.settings.miMode || 'combo'; } // chart top slot: combo (default) | plain | off
 function applyMiSize() { const R0 = document.documentElement; R0.dataset.mi = S.settings.miPx ? 'xl' : S.settings.miSize || 'l'; if (S.settings.miPx) R0.style.setProperty('--mi', S.settings.miPx + 'px'); else R0.style.removeProperty('--mi'); document.documentElement.dataset.fs = S.settings.fabSize || 'm'; }
 if (S.settings.gShape === 'board') S.settings.gShape = 'round'; // the surfboard shape was dropped
 if (S.settings.compDef1 && !S.settings.compDef2) { S.settings.compDef2 = 1; if (S.settings.miComp === 'p2_4' && (S.settings.gTheme || 'clean') === 'clean') S.settings.gTheme = 'navybrass'; try { saveSettings(); } catch (e) { /* */ } }
@@ -7904,7 +7936,6 @@ function openGaugeLook() {
 // the quick picker: ready-made looks as thumbnails, several at once; tap one and it is on (the speed circle above shows it live).
 // Size, shape and the buttons sit on top; building your own bezel and face is one level down (Customize).
 const LK_CATS = [
-  ['comp', 'Compasses', () => []],
   ['feat', 'Favorites', () => ['clean', 'mfdnight', 'chromenight', 'midnight', 'glass', 'helm', 'aqua', 'arctic', 'titanium', 'midteal', 'carbonrefined', 'arcticglass', 'goldnavy', 'navyphoto', 'horizon', 'cb_annapolis', 'sailrope', 'teak', 'brass', 'expedition', 'carbon']],
   ['modern', 'Modern', () => GT.filter((t) => !t.hidden && (t.g === 'Simple' || t.g === 'Modern')).map((t) => t.id)],
   ['tech', 'Displays', () => GT.filter((t) => !t.hidden && t.g === 'Tech').map((t) => t.id)],
@@ -7912,27 +7943,48 @@ const LK_CATS = [
   ['art', 'Artwork', () => GT.filter((t) => !t.hidden && t.g === 'Photo').map((t) => t.id)],
   ['bay', 'Chesapeake', () => GT.filter((t) => !t.hidden && t.g === 'Bay').map((t) => t.id)],
   ['sq', 'Square art', () => GT.filter((t) => !t.hidden && t.g === 'Square').map((t) => t.id)],
+  ['comp', 'Compasses', () => []],
 ];
-function openLooks(cat) {
+function openLooks(cat, keep) {
   const st = S.settings; cat = cat || st.lkCat || 'feat'; st.lkCat = cat;
-  const cur = st.gTheme || 'clean', sh = st.gShape || 'round', f = st.gFace || '', c = LK_CATS.find((x) => x[0] === cat) || LK_CATS[0];
-  const ids = [...new Set(c[2]())].filter((id) => gtOf(id) && gtOf(id).id === id);
-  if (cat === 'comp') { const seg0 = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
-    openSheet('<div class="lk"><div class="lk-top"><h3>Chart compass</h3></div><div class="lk-ctl"><span>Size</span>' + seg0('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + '</div><p class="hint" style="margin:-2px 0 6px">Any size: press and hold the compass on the chart, then drag its corner.</p>' +
-      '<div class="lk-cats">' + LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
-      '<div class="lk-grid"><button type="button" data-lkcomp="" class="' + (!st.miComp ? 'on' : '') + '"><i class="lk-std">◎</i><span>Standard dial</span></button>' + PCOMP.map((x) => '<button type="button" data-lkcomp="' + x[0] + '" class="' + (st.miComp === x[0] ? 'on' : '') + '"><img src="skins/pc_' + x[0] + '.webp" alt="" loading="lazy"><span>' + esc(x[1]) + '</span></button>').join('') + '</div>' +
-      '<label class="opt"><input type="checkbox" id="pcMatch"' + (st.pcMatch !== false ? ' checked' : '') + '><span>Match the other gauges to the compass<small>Brass with brass, glass with glass</small></span></label><p class="hint">These show on the chart and as the Speed, course and depth gauge in Instruments. The card stays north-up like the chart; the gold or blue marker on the rim is your course.</p></div>'); return; }
+  const cur = st.gTheme || 'clean', sh = st.gShape || 'round';
   const seg = (k, curv, opts) => '<div class="seg lk-seg" role="group">' + opts.map(([v, t]) => '<button type="button" data-opt="' + k + '" data-val="' + v + '" class="' + (String(curv) === v ? 'on' : '') + '">' + t + '</button>').join('') + '</div>';
-  openSheet('<div class="lk"><div class="lk-top"><h3>Gauge look</h3></div>' +
+  const LKH = {}, tabs = LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('');
+  const secs = LK_CATS.map(([k, l, fn]) => {
+    if (k === 'comp') return '<section class="lk-sec" id="lksec-comp"><h4>Compasses</h4><div class="lk-grid"><button type="button" data-lkcomp="" class="' + (!st.miComp ? 'on' : '') + '"><i class="lk-std">◎</i><span>Standard dial</span></button>' + PCOMP.map((x) => '<button type="button" data-lkcomp="' + x[0] + '" class="' + (st.miComp === x[0] ? 'on' : '') + '"><img src="skins/pc_' + x[0] + '.webp" alt="" loading="lazy"><span>' + esc(x[1]) + '</span></button>').join('') + '</div><label class="opt"><input type="checkbox" id="pcMatch"' + (st.pcMatch !== false ? ' checked' : '') + '><span>Match the other gauges to the compass<small>Brass with brass, glass with glass</small></span></label><p class="hint">Compasses show at the top of the chart and as the Speed, course and depth gauge in Instruments. The card stays north-up like the chart; the gold or blue marker on the rim is your course.</p></section>';
+    const ids = [...new Set(fn())].filter((id) => gtOf(id) && gtOf(id).id === id); if (!ids.length) return '';
+    LKH[k] = () => ids.map((id) => { const t = gtOf(id); return '<button type="button" data-lkpick="' + id + '" class="' + (cur === id ? 'on' : '') + '">' + glPrev(id, '', t.sq ? 'round' : sh) + '<span>' + esc(t.l) + '</span></button>'; }).join(''); // drawn only when it scrolls near: a hundred previews at once would freeze a phone
+    return '<section class="lk-sec" id="lksec-' + k + '"><h4>' + l + '</h4><div class="lk-grid" data-lklazy="' + k + '" style="min-height:' + Math.ceil(ids.length / 3) * 93 + 'px"></div></section>';
+  }).join('');
+  openSheet('<div class="lk"><div class="lk-top"><h3>Gauge look</h3><span class="lk-undo"><button type="button" data-appundo="-1" aria-label="Undo" title="Undo">↶</button><button type="button" data-appundo="1" aria-label="Redo" title="Redo">↷</button></span></div>' +
+    '<div class="lk-ctl"><span>Top of chart</span>' + seg('miMode', st.miMode || 'combo', [['combo', 'Combined gauge'], ['plain', 'Plain dial'], ['off', 'Nothing']]) + '</div>' +
     '<div class="lk-ctl"><span>Size</span>' + seg('miSize', st.miSize || 'xl', [['m', 'S'], ['l', 'M'], ['xl', 'L'], ['xxl', 'XL']]) + seg('gShape', sh, [['round', 'Round'], ['square', 'Square']]) + '</div>' +
     '<div class="lk-ctl"><span>Buttons</span>' + seg('fabLook', (st.fabLook || 'theme') === 'theme' ? 'theme' : 'gauge', [['theme', 'Plain'], ['gauge', 'Match the look']]) + seg('fabSize', st.fabSize || 'm', [['s', 'S'], ['m', 'M'], ['l', 'L'], ['xl', 'XL']]) + seg('fabAlpha', String(st.fabAlpha || '1'), [['1', 'Solid'], ['0.82', 'Soft'], ['0.62', 'Blend'], ['0.42', 'Ghost']]) + '</div>' +
-    '<div class="lk-cats">' + LK_CATS.map(([k, l]) => '<button type="button" data-lkcat="' + k + '" class="' + (k === cat ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
-    '<div class="lk-grid">' + ids.map((id) => { const t = gtOf(id); return '<button type="button" data-lkpick="' + id + '" class="' + (cur === id ? 'on' : '') + '">' + glPrev(id, '', t.sq ? 'round' : sh) + '<span>' + esc(t.l) + '</span></button>'; }).join('') + '</div>' +
+    '<div class="lk-cats">' + tabs + '</div>' + secs +
     '<div class="row-btns lk-more"><button type="button" class="btn" data-lkcustom>Customize bezel and face</button><button type="button" class="btn" data-looktry="1">Swipe through on the chart</button></div></div>');
+  sheet.classList.add('lk-open');
+  // only sections near the screen are drawn; ones scrolled far away are emptied again (their height is kept), so a phone never holds a hundred previews
+  const fill = (g) => { const k = g.dataset.lklazy; if (!k || !LKH[k] || g.dataset.lkfull) return; g.innerHTML = LKH[k](); g.dataset.lkfull = '1'; g.style.minHeight = ''; };
+  const drop = (g) => { if (!g.dataset.lkfull) return; g.style.minHeight = g.offsetHeight + 'px'; g.innerHTML = ''; delete g.dataset.lkfull; };
+  const grids = [...sheet.querySelectorAll('[data-lklazy]')];
+  if (window.IntersectionObserver) {
+    const ioIn = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) fill(en.target); }), { root: sheet, rootMargin: '120px 0px' });
+    const ioOut = new IntersectionObserver((es) => es.forEach((en) => { if (!en.isIntersecting) drop(en.target); }), { root: sheet, rootMargin: '420px 0px' });
+    grids.forEach((g) => { ioIn.observe(g); ioOut.observe(g); });
+  } else grids.forEach(fill);
+  if (!keep) setTimeout(() => lkJump(cat, true), 30);
 }
+function lkJump(k, instant) { const t = $('lksec-' + k); if (!t) return; const box = sheet, off = (box.querySelector('.lk-cats') || { offsetHeight: 44 }).offsetHeight + 8; box.scrollTo({ top: Math.max(0, t.offsetTop - off - 6), behavior: instant ? 'auto' : 'smooth' }); box.querySelectorAll('[data-lkcat]').forEach((b) => b.classList.toggle('on', b.dataset.lkcat === k)); S.settings.lkCat = k; }
+function appUndo(dir) { const A = window.__AU; const from = A && (dir < 0 ? A.u : A.r), to = A && (dir < 0 ? A.r : A.u); if (!from || !from.length) { toast(dir < 0 ? 'Nothing to undo' : 'Nothing to redo', 1200); return; }
+  to.push(appSnap()); const o = JSON.parse(from.pop()); A.hold = true; APP_KEYS.forEach((k) => { if (o[k] === undefined) delete S.settings[k]; else S.settings[k] = o[k]; }); saveSettings(); A.last = appSnap(); A.hold = false;
+  try { applyGTheme(); applyGFace(); applyFabLook(); applyMiSize(); applyMiMode(); applyFabAlpha(); applyChart(); const m = $('miniInst'); if (m) m.__pc = ''; renderMini(); document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* */ }
+  if (!sheet.hidden && sheet.querySelector('.lk')) { const y = sheet.scrollTop; openLooks(S.settings.lkCat, true); sheet.scrollTop = y; }
+  toast(dir < 0 ? 'Undone' : 'Redone', 900); }
+document.addEventListener('click', (e) => { const u = e.target.closest('[data-appundo]'); if (u) appUndo(+u.dataset.appundo); });
+document.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !sheet.hidden && sheet.querySelector('.lk') && !/input|textarea|select/i.test((e.target || {}).tagName || '')) { e.preventDefault(); e.stopImmediatePropagation(); appUndo(e.shiftKey ? 1 : -1); } }, true);
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-gauge-look]')) { e.stopPropagation(); openLooks(); return; }
-  const c = e.target.closest('[data-lkcat]'); if (c) { const sb = sheet.querySelector('.sheet-body') || sheet; openLooks(c.dataset.lkcat); (sheet.querySelector('.sheet-body') || sheet).scrollTop = Math.min(sb.scrollTop, 180); return; }
+  const c = e.target.closest('[data-lkcat]'); if (c) { lkJump(c.dataset.lkcat); return; }
   const pk = e.target.closest('[data-lkcomp]'); if (pk) { S.settings.miComp = pk.dataset.lkcomp || ''; if (S.settings.pcMatch !== false && PC_LOOK[S.settings.miComp] && gtOf(PC_LOOK[S.settings.miComp])) { S.settings.gTheme = PC_LOOK[S.settings.miComp]; S.settings.gFace = ''; applyGTheme(); try { applyGFace(); applyFabLook(); } catch (err) { /* */ } } saveSettings(); try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) renderCockpit(); renderSide(); } catch (err) { /* */ } sheet.querySelectorAll('[data-lkcomp]').forEach((b) => b.classList.toggle('on', b === pk)); return; }
   const p = e.target.closest('[data-lkpick]'); if (p) { S.settings.gTheme = p.dataset.lkpick; S.settings.gFace = ''; try { applyGFace(); } catch (err) { /* */ } saveSettings(); applyGTheme(); try { applyFabLook(); } catch (err) { /* */ } try { renderMini(); } catch (err) { /* */ } try { if (!$('cockpit').hidden) { document.querySelectorAll('#cockpit .ck-slot').forEach((b) => { b.__h = ''; }); renderCockpit(); } } catch (err) { /* */ }
     sheet.querySelectorAll('[data-lkpick]').forEach((b) => b.classList.toggle('on', b === p)); return; }
@@ -8969,16 +9021,33 @@ function flyStart() {
   else if (BRF.i >= 0 && BRF.legs[BRF.i] && Math.abs((FLY.s || 0) - BRF.legs[BRF.i].s0) > BRF.legs[BRF.i].d) FLY.s = BRF.legs[BRF.i].s0;
   // setView changes the zoom, which fires zoomstart, and that stops a flight: so only switch the flight on after it
   const p = flyAt(FLY.s); FLY.hdg = p.brg; map.setView([p.lat, p.lon], FLY.z, { animate: false }); FLY.on = true; brLeg(p.leg, true); flyMeasure(); FLY.cpx = null; FLY.cpx = map.project(map.getCenter(), FLY.z); flyCam(p); flyBoat(p, p.brg);
-  document.documentElement.classList.add('flying'); window.__flyOn = true; FLY.idle = 0; FLY.raf = requestAnimationFrame(flyFrame);
+  document.documentElement.classList.add('flying'); window.__flyOn = true; FLY.idle = 0; FLY.raf = requestAnimationFrame(flyFrame); flyCtlShow();
 }
+/* fly-by controls: pause anywhere, ½× 1× 2× 4×, and a timeline you can drag */
+function flyCtlShow() {
+  let c = $('flyCtl'); if (!c) { c = document.createElement('div'); c.id = 'flyCtl'; c.innerHTML = '<button type="button" data-fc="pause" aria-label="Pause or play">⏸</button><span class="fc-spd" role="group" aria-label="Speed">' + [['0.5', '½×'], ['1', '1×'], ['2', '2×'], ['4', '4×']].map(([v, t]) => '<button type="button" data-fc-spd="' + v + '">' + t + '</button>').join('') + '</span><input type="range" min="0" max="1000" value="0" aria-label="Position along the trip">'; $('app').appendChild(c); }
+  c.hidden = false; flyCtlSync(true);
+}
+function flyCtlSync(force) { const c = $('flyCtl'); if (!c || c.hidden) return; const r = c.querySelector('input'); if (r && !c.__drag && FLY.total) r.value = Math.round(FLY.s / FLY.total * 1000);
+  const pb = c.querySelector('[data-fc="pause"]'); if (pb) pb.textContent = FLY.on ? '⏸' : '▶'; if (force || c.__m !== (FLY.mul || 1)) { c.__m = FLY.mul || 1; c.querySelectorAll('[data-fc-spd]').forEach((b) => b.classList.toggle('on', +b.dataset.fcSpd === c.__m)); } }
+function flyCtlHide() { const c = $('flyCtl'); if (c) c.hidden = true; }
+document.addEventListener('click', (e) => {
+  const sp = e.target.closest('#flyCtl [data-fc-spd]'); if (sp) { FLY.mul = +sp.dataset.fcSpd; flyCtlSync(true); return; }
+  if (e.target.closest('#flyCtl [data-fc="pause"]')) { if (FLY.on) { flyStop(); const el = $('briefing'); if (BRF.on && el && BRF.legs[BRF.i]) { el.innerHTML = brLegHtml(BRF.legs[BRF.i], BRF.i); brPhotos(el); } } else flyStart(); flyCtlSync(true); }
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.closest || !e.target.closest('#flyCtl') || !FLY.pts) return; const c = $('flyCtl'); c.__drag = true; clearTimeout(c.__dt); c.__dt = setTimeout(() => { c.__drag = false; }, 600);
+  const s0 = +e.target.value / 1000 * FLY.total; FLY.s = s0; FLY.shown.clear(); BRF.legs.forEach((L0) => (L0.sights || []).forEach((x) => { if (x.s < s0) FLY.shown.add(x.st.id); }));
+  const p = flyAt(s0); FLY.hdg = p.brg; FLY.cpx = null; map.setView([p.lat, p.lon], FLY.z, { animate: false }); flyMeasure(); FLY.cpx = map.project(map.getCenter(), FLY.z); flyCam(p); flyBoat(p, p.brg); if (p.leg !== BRF.i) brLeg(p.leg, true);
+});
 map.on('zoomstart dragstart', () => { if (FLY.on) { flyStop(); const el = $('briefing'); if (BRF.on && el && BRF.legs[BRF.i]) { el.innerHTML = brLegHtml(BRF.legs[BRF.i], BRF.i); brPhotos(el); } } FLY.cpx = null; }); // the card shows ▶ Fly again, not a dead Pause
-function flyStop(done) { if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } if (!FLY.on && !FLY.raf) return; FLY.on = false; cancelAnimationFrame(FLY.raf); FLY.raf = 0; document.documentElement.classList.remove('flying'); window.__flyOn = false; try { renderSide(); } catch (e) { /* */ } map.fire('moveend'); if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } }
+function flyStop(done) { setTimeout(flyCtlSync, 0); if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } if (!FLY.on && !FLY.raf) return; FLY.on = false; cancelAnimationFrame(FLY.raf); FLY.raf = 0; document.documentElement.classList.remove('flying'); window.__flyOn = false; try { renderSide(); } catch (e) { /* */ } map.fire('moveend'); if (done && FLY.boat) { map.removeLayer(FLY.boat); FLY.boat = null; } }
 function flyFrame(t) {
   if (!FLY.on) return; const dt = FLY.last ? Math.min(0.05, (t - FLY.last) / 1000) : 0; FLY.last = t;
   // slow down smoothly near a sight, and for the first and last few seconds
   let target = 1; const all = BRF.legs.flatMap((L0) => L0.sights || []); all.forEach((x) => { const d = Math.abs(FLY.s - x.s); if (d < FLY.v * 3) target = Math.min(target, 0.35 + 0.65 * d / (FLY.v * 3)); });
   const ease = Math.min(1, FLY.s / (FLY.v * 2.5) + 0.15, (FLY.total - FLY.s) / (FLY.v * 2.5) + 0.1); FLY.slow += (Math.min(target, ease) - FLY.slow) * Math.min(1, dt * 3);
-  FLY.s = Math.min(FLY.total, FLY.s + FLY.v * FLY.slow * dt);
+  FLY.s = Math.min(FLY.total, FLY.s + FLY.v * FLY.slow * dt * (FLY.mul || 1)); flyCtlSync();
   const p = flyAt(FLY.s), ah = flyAt(Math.min(FLY.total, FLY.s + FLY.v * 1.2)); // look a little ahead so the boat turns smoothly into the bends
   const want = bearing(p, ah), dh = ((want - FLY.hdg + 540) % 360) - 180; FLY.hdg = (FLY.hdg + dh * Math.min(1, dt * 4) + 360) % 360;
   flyCam(p); flyBoat(p, FLY.hdg);
@@ -8999,7 +9068,7 @@ async function flySight(x) {
 document.addEventListener('click', (e) => { if (e.target.closest('#flySight .fs-x')) { const el = $('flySight'); el.hidden = true; return; }
   const sg = e.target.closest('[data-bfsight]'); if (sg) { const st = tgAll().find((x) => x.id === sg.dataset.bfsight); if (st) tgSheet(st); return; }
   const op = e.target.closest('[data-bfopt]'); if (op) { S.settings.flySights = op.checked; saveSettings(); } });
-function closeBriefing() { BRF.on = false; clearInterval(BRF.play); BRF.play = null; flyStop(true); FLY.pts = null; FLY.s = 0; FLY.shown.clear(); { const fs = $('flySight'); if (fs) fs.hidden = true; } if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } const el = $('briefing'); if (el) el.hidden = true; document.documentElement.classList.remove('briefing'); if (TRIP.on) { tripCardRender(); tripFit(); } }
+function closeBriefing() { flyCtlHide(); BRF.on = false; clearInterval(BRF.play); BRF.play = null; flyStop(true); FLY.pts = null; FLY.s = 0; FLY.shown.clear(); { const fs = $('flySight'); if (fs) fs.hidden = true; } if (BRF.mk) { map.removeLayer(BRF.mk); BRF.mk = null; } const el = $('briefing'); if (el) el.hidden = true; document.documentElement.classList.remove('briefing'); if (TRIP.on) { tripCardRender(); tripFit(); } }
 document.addEventListener('click', (e) => {
   const lg = e.target.closest('#briefing [data-bfleg]'); if (lg) { brLeg(+lg.dataset.bfleg); return; }
   const b = e.target.closest('#briefing [data-bf]'); if (!b) return; const a = b.dataset.bf;
@@ -9592,6 +9661,12 @@ document.addEventListener('keydown', (e) => { const ck = $('cockpit'); if (!ck |
   clearTimeout(window.__ckKT); window.__ckKT = setTimeout(() => { try { window.__ckSnap(); } catch (err) { /* */ } const G = ck.querySelector('.ck-grid').getBoundingClientRect(), all = S.settings.ckFree || (S.settings.ckFree = {}), key = G.width / G.height < 1.2 ? 'tall' : 'wide', own = all[key] || (all[key] = {}); own[sel.dataset.fid] = [parseFloat(sel.style.left), parseFloat(sel.style.top), w, h]; saveSettings(); }, 400); }, true);
 // outside links (MarineTraffic, VesselFinder, organizers, DNR…) always open in a new tab, never on top of the chart
 document.addEventListener('click', (e) => { const a = e.target.closest && e.target.closest('a[href^="http"]'); if (!a || a.closest('#welcome')) return; if (new URL(a.href).origin === location.origin) return; e.preventDefault(); e.stopPropagation(); const w = window.open(a.href, '_blank', 'noopener'); if (!w) location.href = a.href; }, true);
+/* move settings to another window or device: a link carries them (never keys, accounts or trips) */
+const SET_SKIP = /key|token|relay|auth|sync|session|email|pass|secret|anchor|sim$/i;
+function settingsLink() { const o = {}; Object.keys(S.settings).forEach((k) => { if (!SET_SKIP.test(k)) o[k] = S.settings[k]; }); return location.origin + location.pathname + '#s=' + btoa(unescape(encodeURIComponent(JSON.stringify(o)))); }
+document.addEventListener('click', async (e) => { if (!e.target.closest('[data-act="copyset"]')) return; const u = settingsLink(); try { await navigator.clipboard.writeText(u); toast('Settings link copied. Open it on the other device.', 3000); } catch (err) { openSheet('<h3>Your settings link</h3><div class="field"><textarea readonly rows="4" style="width:100%" onfocus="this.select()">' + esc(u) + '</textarea></div><p class="hint">Copy this link and open it in Tideline on the other device.</p>'); } });
+(function applySharedSettings() { const m = /^#s=(.+)$/.exec(location.hash); if (!m) return; let o; try { o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); } catch (err) { return; } history.replaceState(null, '', location.pathname + location.search);
+  setTimeout(() => { if (!o || typeof o !== 'object') return; if (!confirm('Apply the Tideline settings from this link? Your trips and account are not changed.')) return; Object.keys(o).forEach((k) => { if (!SET_SKIP.test(k)) S.settings[k] = o[k]; }); saveSettings(); location.reload(); }, 800); })();
 window.Tideline = { openBriefing, BRF, FLY, pnPath, flyStart, legSay, setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card

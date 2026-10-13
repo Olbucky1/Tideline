@@ -2822,3 +2822,38 @@ html:root .fab-col .fab:not(#btnMob), html:root #btnTemp { opacity: var(--fab-o,
 html:root .fab-col .fab:hover, html:root .fab-col .fab:focus-visible, html:root .fab-col .fab:active, html:root .fab-col .fab.on, html:root #btnTemp:hover { opacity: 1; }
 /* ==== build 181 lead end ==== */
 @media (min-width: 900px) { html:root #flySight { left: 76px; transform: translate(0, -12px); width: min(400px, calc(100% - 300px)); } html:root #flySight.in { transform: translate(0, 0); } }
+
+/* build 182: plain-numbers cards never clip (they grow to fit their text and the panel scrolls), look polished */
+#panelSide:not(.gmode) { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#app.wide #panelSide:not(.gmode) .sd, #panelSide:not(.gmode) .sd { flex: 1 0 auto !important; min-height: min-content !important; justify-content: center; overflow: visible !important; padding: 14px 18px 14px 24px !important; border-radius: 18px !important; background: radial-gradient(120% 140% at 0% 0%, rgba(60,110,160,.38), rgba(12,26,40,.92) 62%) !important; border: 1px solid rgba(140,190,230,.16) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 6px 18px rgba(0,0,0,.28) !important; }
+#panelSide:not(.gmode) .sd::before { top: 16px !important; bottom: 16px !important; width: 4px; border-radius: 4px !important; left: 8px !important; }
+#panelSide:not(.gmode) .sd small { line-height: 1.35 !important; padding-top: 2px; margin-bottom: 4px; font-size: 11px !important; letter-spacing: .14em !important; }
+#panelSide:not(.gmode) .sd-v { display: flex; align-items: baseline; gap: 6px; font-size: clamp(40px, min(6vw, 9vh), 88px) !important; line-height: 1.12 !important; padding: 2px 0 4px; font-variant-numeric: tabular-nums; text-shadow: 0 2px 10px rgba(0,0,0,.25); }
+#panelSide:not(.gmode) .sd-v i { margin-left: 0 !important; }
+#panelSide:not(.gmode) .sd em { line-height: 1.45 !important; padding-bottom: 2px; font-size: 12.5px !important; }
+#panelSide:not(.gmode) .sd-more { flex: 0 0 auto !important; }
+/* the button strip above the gauges stays on one line */
+.side-btns { flex-wrap: nowrap !important; gap: 5px !important; }
+.side-btns .btn { flex: 1 1 0; min-width: 0; padding: 7px 4px !important; font-size: 12px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Help: a compact sheet, results scroll inside it */
+.sheet.help { max-height: 46% !important; max-width: 560px; margin-left: auto; margin-right: auto; display: flex; flex-direction: column; }
+.sheet.help .field { flex: 0 0 auto; margin-bottom: 8px; }
+.sheet.help #helpList { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
+.sheet.help .hp { padding: 8px 0; border-bottom: 1px solid var(--line); } .sheet.help .hp p { margin: 2px 0 6px; font-size: 14px; }
+/* live radar tile in the console */
+.ck-radar { position: absolute; inset: 22px 4px 4px; border-radius: 10px; overflow: hidden; background: #0d1b28; }
+.ck-slot .gauge:has(.ck-radar) { position: relative; }
+
+/* build 182: fly-by controls */
+#flyCtl { position: absolute; z-index: 900; left: 50%; transform: translateX(-50%); top: calc(var(--topbar-h, 56px) + 14px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 16px; background: rgba(10,24,38,.84); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.35); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); max-width: calc(100% - 20px); }
+#flyCtl[hidden] { display: none; }
+#flyCtl button { min-width: 38px; height: 34px; border: 0; border-radius: 10px; background: rgba(255,255,255,.12); color: #fff; font: 700 14px system-ui; padding: 0 8px; cursor: pointer; }
+#flyCtl button.on, #flyCtl button[data-fc="pause"] { background: #2CD3C5; color: #06222A; }
+#flyCtl .fc-spd { display: flex; gap: 4px; } #flyCtl input[type=range] { width: min(34vw, 240px); accent-color: #2CD3C5; }
+/* build 182: Gauge look is one scroll with jump tabs; it stays short so what you change stays in view */
+.sheet.lk-open { max-height: 46% !important; }
+.lk-cats { position: sticky; top: 0; z-index: 3; background: var(--surface); padding: 6px 0; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; }
+.lk-sec h4 { margin: 14px 0 6px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); }
+.lk-top { display: flex; align-items: center; justify-content: space-between; padding-right: 44px; }
+.lk-undo { display: inline-flex; gap: 6px; } .lk-undo button { width: 36px; height: 34px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface2); color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; }
+html[data-mimode="off"] #miniInst { display: none !important; }
