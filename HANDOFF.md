@@ -1,5 +1,7 @@
 # Tideline handoff notes
 
+> New session? Read START_HERE.md first (rules, ship steps, current queue). This file is the long history.
+
 Last updated: build 123 (11 Oct 2026). Live at https://olbucky1.github.io/Tideline/ · repo Olbucky1/Tideline.
 
 ## What it is
