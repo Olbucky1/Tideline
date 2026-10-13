@@ -2619,3 +2619,17 @@ html:not([data-desk="split"]) #sideGrip { display: none !important; }
 .fab.ai { --ai-ring: 1; }
 #panelSide:not(.gmode) .sd { flex: 1 1 0; min-height: 0; display: flex !important; flex-direction: column; justify-content: center; }
 #panelSide:not(.gmode) .sd-more { flex: 0 0 auto !important; min-height: 40px !important; height: auto !important; padding: 8px 14px !important; }
+/* build 176: weather timeline is a compact card, not half the screen; the chart stays usable around it */
+#wxBar.wxbar.tl { max-width: 560px !important; width: calc(100% - 96px) !important; margin-left: 74px !important; padding: 6px 10px 8px !important; gap: 4px !important; border-radius: 16px !important; }
+@media (min-width: 900px) { #app.wide #wxBar.wxbar.tl { margin-left: 74px !important; width: min(560px, calc(100% - 140px)) !important; } }
+#wxBar.tl .tl-heading { font-size: 12px; min-height: 0; } #wxBar.tl .tl-heading .nws-btn { font-size: 11.5px; padding: 2px 6px; }
+#wxBar.tl .tl-chips { gap: 4px !important; } #wxBar.tl .tl-chips button { min-height: 28px !important; padding: 3px 8px !important; font-size: 12.5px !important; border-width: 1px !important; border-radius: 9px !important; }
+#wxBar.tl .tl-model { min-height: 22px !important; padding: 0 6px !important; font-size: 11px !important; border: 0 !important; background: none !important; width: auto !important; align-self: flex-start; }
+#wxBar.tl .tl-sum { font-size: 12.5px; line-height: 1.3; } #wxBar.tl .tl-sky { font-size: 11px; }
+#wxBar.tl .tl-links { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+#wxBar.tl .tl-links .weather-alert-link { width: auto !important; flex: 0 0 auto !important; min-height: 26px !important; height: auto !important; padding: 3px 9px !important; font-size: 12px !important; border-radius: 8px !important; margin: 0 !important; }
+#wxBar.tl .tl-hours, #wxBar.tl .tl-cells { max-height: 96px; }
+#app:has(#wxBar.tl:not([hidden])) #wxLegend { bottom: auto !important; top: calc(env(safe-area-inset-top, 0px) + 54px); }
+#app.wide #deskSw { left: auto !important; transform: none !important; right: 14px; bottom: calc(var(--tabbar-h, 0px) + 26px); }
+html[data-desk="split"] #app.wide:has(#panelSide:not([hidden])) #deskSw { left: auto !important; right: calc(var(--sideW, 400px) + 14px); }
+#app.wide:has(#cockpit:not([hidden])) #deskSw { right: 14px !important; }

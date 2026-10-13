@@ -2356,7 +2356,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-wxplay]'
 document.addEventListener('input', (e) => { if (e.target.id === 'wxHour') wxStop(); }, true);
 function renderWxBar() {
   const el = $('wxBar'), k = S.settings.wx; if (!el) return;
-  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button><button type="button" class="btn small weather-alert-link" data-cur-near>⇄ Currents near you</button><button type="button" class="btn small weather-alert-link" data-lx-open>⚡ Lightning</button>'); return; }
+  if (S.tab === 'weather') { el.hidden = false; renderTimeline(el); el.insertAdjacentHTML('beforeend', '<div class="tl-links"><button type="button" class="btn small weather-alert-link" data-weather-alerts>⚠ Weather alerts</button><button type="button" class="btn small weather-alert-link" data-cur-near>⇄ Currents near you</button><button type="button" class="btn small weather-alert-link" data-lx-open>⚡ Lightning</button></div>'); return; }
   el.className = 'wxbar';
   if (!wxAny()) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
@@ -2884,7 +2884,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 175. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 176. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
