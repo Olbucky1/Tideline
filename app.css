@@ -2563,3 +2563,21 @@ html.helm .side-btns { display: none; }
 #raceTimer .rt-b .rt-go { min-width: 120px; min-height: 52px; font-size: 20px; background: #1FA463 !important; border-color: #1FA463 !important; }
 #raceTimer .rt-b button[data-rt="seq"] { min-width: 40px; }
 #app:has(#raceTimer:not([hidden])) #toast { top: calc(env(safe-area-inset-top, 0px) + 230px) !important; }
+/* desktop layout switch: chart + gauges / chart with buttons / chart only */
+#deskSw { display: none; }
+#app.wide #deskSw { display: flex; position: absolute; z-index: 870; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h, 0px) + 10px); gap: 2px; padding: 3px; border-radius: 10px; background: rgba(10, 20, 32, .78); opacity: .55; transition: opacity .2s; }
+#app.wide #deskSw:hover { opacity: 1; }
+html[data-desk="split"] #app.wide:has(#panelSide:not([hidden])) #deskSw { left: calc((100% - var(--sideW, 400px)) / 2); }
+#deskSw button { width: 32px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #fff; font-size: 16px; cursor: pointer; }
+#deskSw button.on { background: #2E86DE; }
+html[data-desk="bare"] #app.wide :is(#fabs, #fabsR, .fab-free, .topbar, #offPill, .lx-chip, #wxLegend, #miniInst, .mini-inst, #tourCard) { display: none !important; }
+html[data-desk="bare"] #app.wide .tabbar { opacity: .25; transition: opacity .2s; } html[data-desk="bare"] #app.wide .tabbar:hover { opacity: 1; }
+html:not([data-desk="split"]) #sideGrip { display: none !important; }
+/* no panel open on a wide screen (chart-only views): the chart takes the whole width */
+@media (min-width: 900px) {
+  #app.wide:not(:has(.panel:not([hidden]))) #map { right: 0 !important; }
+  #app.wide:not(:has(.panel:not([hidden]))) .fab-col.fab-right, #app.wide:not(:has(.panel:not([hidden]))) #fabsR { right: 12px !important; }
+  #app.wide:not(:has(.panel:not([hidden]))) .topbar { right: 12px !important; }
+  #app.wide:not(:has(.panel:not([hidden]))) .bottom-stack { right: 10px !important; }
+  #app.wide:not(:has(.panel:not([hidden]))) .sheet { right: 0 !important; }
+}

@@ -2470,7 +2470,7 @@ const PANELS = { dash: 'panelDash', anchor: 'panelAnchor', log: 'panelLog', sett
 const TAB_GROUP = { chart: 'chart', search: 'chart', nav: 'nav', log: 'nav', weather: 'weather', anchor: 'anchor', menu: 'menu', boat: 'menu', dash: 'menu', settings: 'menu', safety: 'menu' };
 function visiblePanel() {
   if (S.tab !== 'chart' && S.tab !== 'weather') return S.tab;
-  return isWide() ? 'side' : null;
+  return isWide() && (S.settings.deskView || 'split') === 'split' ? 'side' : null;
 }
 function setTab(t) {
   try { if (!$('quick').hidden && t !== 'chart') toggleQuick(false); } catch (e) { /* early */ }
@@ -2878,7 +2878,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 171. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 172. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -9243,7 +9243,14 @@ function setHelm(on) { const R0 = document.documentElement; R0.classList.toggle(
 document.addEventListener('click', (e) => { if (e.target.closest('[data-helm]')) setHelm(!document.documentElement.classList.contains('helm')); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.documentElement.classList.contains('helm')) setHelm(false); });
 (() => { const b = document.createElement('button'); b.type = 'button'; b.id = 'helmX'; b.setAttribute('data-helm', ''); b.title = 'Leave the helm screen'; b.textContent = '⤢'; ($('app') || document.body).appendChild(b); })();
-window.Tideline = { setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+// laptop / desktop view: chart and gauges, chart only (all buttons), or chart only and clean (no buttons; MOB stays)
+function setDeskView(v) { S.settings.deskView = v; saveSettings(); document.documentElement.dataset.desk = v; setTab(S.tab === 'weather' ? 'weather' : 'chart'); renderDeskSw(); setTimeout(() => { try { map.invalidateSize(); fitFabs(); } catch (e) { /* */ } }, 120); }
+function renderDeskSw() { let el = $('deskSw'); if (!el) { el = document.createElement('div'); el.id = 'deskSw'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Screen layout'); $('app').appendChild(el);
+    el.addEventListener('click', (e) => { const b = e.target.closest('[data-dv]'); if (b) setDeskView(b.dataset.dv); }); }
+  const v = S.settings.deskView || 'split'; el.innerHTML = [['split', '◧', 'Chart and gauges'], ['chart', '▢', 'Chart with buttons'], ['bare', '⛶', 'Chart only, no buttons']].map(([k, ic, t]) => '<button type="button" data-dv="' + k + '" class="' + (v === k ? 'on' : '') + '" title="' + t + '" aria-label="' + t + '">' + ic + '</button>').join(''); }
+document.documentElement.dataset.desk = S.settings.deskView || 'split'; setTimeout(renderDeskSw, 300);
+document.addEventListener('keydown', (e) => { if (e.target.closest && e.target.closest('input, textarea, select')) return; if (e.key === 'v' && !e.metaKey && !e.ctrlKey) { const o = ['split', 'chart', 'bare'], v = S.settings.deskView || 'split'; setDeskView(o[(o.indexOf(v) + 1) % 3]); } });
+window.Tideline = { setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();
