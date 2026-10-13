@@ -2514,6 +2514,7 @@ if (!S.settings.sideWidth && DESK) { S.settings.sideWidth = 'custom'; S.settings
 function applySideWidth() { const w = S.settings.sideWidth || 'normal', root = document.documentElement;
   if (w === 'custom') { root.dataset.side = 'third'; root.style.setProperty('--sideW', Math.round((S.settings.sideFrac || 0.4) * 1000) / 10 + 'vw'); } else { root.dataset.side = w; root.style.removeProperty('--sideW'); }
   setTimeout(() => { try { map.invalidateSize(); } catch (e) { /* not ready */ } }, 60); }
+if (window.ResizeObserver) { let raf = 0; new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { try { map.invalidateSize({ pan: false, debounceMoveend: true }); } catch (e) { /* */ } }); }).observe($('map')); }
 (() => { const g = document.createElement('div'); g.id = 'sideGrip'; g.setAttribute('role', 'separator'); g.setAttribute('aria-label', 'Drag to resize the chart and the gauges'); g.innerHTML = '<i></i>'; ($('app') || document.body).appendChild(g);
   let on = false; const SN = [0.25, 1 / 3, 0.4, 0.5, 0.6];
   g.addEventListener('pointerdown', (e) => { on = true; g.setPointerCapture(e.pointerId); g.classList.add('drag'); e.preventDefault(); });
@@ -2869,7 +2870,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('tour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 164. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 165. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -2881,7 +2882,7 @@ document.addEventListener('change', async (e) => {
 $('panelMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mact]'); if (!b) return;
   const a = b.dataset.mact;
-  if (a === 'firstmate') { openFirstMate(); return; }
+  if (a === 'firstmate') { setTab('chart'); setTimeout(ftStart, 60); return; }
   if (a === 'closures') { openCgNotices(); return; }
   if (a === 'rules') { setTab('search'); categorySearch('rules'); return; }
   if (a === 'cockpit' || a === 'dash') { setTab('chart'); setCockpit(true); return; }
@@ -5663,6 +5664,32 @@ function gaugeArt(id, cx, r) {
     '<g class="g-art" clip-path="url(#' + id + 'K)"><g class="ga-woods">' + wood + '</g><g class="ga-carbons">' + weave + '</g><g class="ga-deeps">' + deep + '</g><g class="ga-swirl"><g filter="url(#' + id + 'B)">' + sw + '</g>' + sw + '</g><g class="ga-topos">' + topo + '</g><g class="ga-roses">' + rose + '</g><g class="ga-hzs">' + hz + '</g><g class="ga-swells">' + sl + '</g></g>';
 }
 let BZN = 0; // each gauge gets its own gradient ids: a gradient inside a hidden panel would otherwise blank every bezel that points at it
+// a traditional ship's compass: a domed card floating in a bowl, turning under a lubber line, brass ring and a glass highlight
+// the chart's speed / course / depth dial as a full-size gauge, in the gauge look you picked
+function comboGauge() {
+  const f = S.fix, mv = (S.sog || 0) > 0.6, cog = mv ? S.cog : null, mr = mapRot(); let t = '';
+  for (let d = 0; d < 360; d += 10) { const a = (d - 90) * Math.PI / 180, big = d % 30 === 0, r0 = big ? 76 : 82; t += '<line x1="' + (100 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (100 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (100 + 88 * Math.cos(a)).toFixed(1) + '" y2="' + (100 + 88 * Math.sin(a)).toFixed(1) + '" style="stroke:var(--g-muted,#8FA2B4);stroke-width:' + (big ? 2.4 : 1.2) + '"/>'; }
+  const L = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([l, d]) => { const a = (d - 90) * Math.PI / 180; return '<text x="' + (100 + 66 * Math.cos(a)).toFixed(1) + '" y="' + (100 + 66 * Math.sin(a) + 6).toFixed(1) + '" text-anchor="middle" style="font:700 17px var(--f-ui,system-ui);fill:' + (l === 'N' ? 'var(--g-red,#E5484D)' : 'var(--g-muted,#8FA2B4)') + '">' + l + '</text>'; }).join('');
+  maybeDepth(); const d = DEP.v, ok = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000, dft = ok ? d.d1 / 0.3048 : null;
+  const svg = '<g transform="rotate(' + mr.toFixed(1) + ' 100 100)">' + t + L + '</g>' + (cog != null ? '<g transform="rotate(' + (cog + mr).toFixed(0) + ' 100 100)"><path d="M100 4 L109 22 L100 17 L91 22 Z" style="fill:var(--g-acc,#2CD3C5)"/></g>' : '') +
+    '<text x="100" y="66" text-anchor="middle" style="font:700 15px var(--f-num,system-ui);fill:var(--g-ink,#EAF4F8)">' + (cog != null ? fmtBrg(cog) + '° ' + compass16(cog) : 'COURSE –') + '</text>' +
+    '<text x="100" y="116" text-anchor="middle" style="font:700 46px var(--f-num,system-ui);fill:var(--g-ink,#EAF4F8)">' + (f ? fmtSpeed(S.sog || 0) : '–') + '</text><text x="100" y="132" text-anchor="middle" style="font:600 11px var(--f-ui,system-ui);fill:var(--g-muted,#8FA2B4)">' + SPEED_LBL[S.settings.speedUnit] + '</text>' +
+    '<line x1="74" x2="126" y1="140" y2="140" style="stroke:var(--g-muted,#8FA2B4);stroke-width:1"/><text x="100" y="160" text-anchor="middle" style="font:700 19px var(--f-num,system-ui);fill:var(--g-acc,#2CD3C5)">' + (dft != null ? Math.round(ftToLen(dft)) + ' ' + lenUnit() : '– ' + lenUnit()) + '</text>';
+  return gWrap('SPEED · COURSE · DEPTH', svg, ok ? 'Charted depth' : f && mv ? 'Course over ground' : 'Not moving', 'g-combo');
+}
+function binnacleGauge() {
+  let hd = null, src = ''; try { if (compassHeading != null) { hd = compassHeading; src = 'phone compass'; } } catch (e) { /* */ } if (S.fix && (S.sog || 0) > 0.6) { hd = S.cog; src = 'course over ground'; }
+  const rot = -(hd || 0); let t = '';
+  for (let d = 0; d < 360; d += 5) { const a = (d - 90) * Math.PI / 180, big = d % 30 === 0, mid = d % 10 === 0, r0 = big ? 64 : mid ? 68 : 71; t += '<line x1="' + (100 + r0 * Math.cos(a)).toFixed(1) + '" y1="' + (100 + r0 * Math.sin(a)).toFixed(1) + '" x2="' + (100 + 75 * Math.cos(a)).toFixed(1) + '" y2="' + (100 + 75 * Math.sin(a)).toFixed(1) + '" stroke-width="' + (big ? 2 : 1) + '"/>'; if (big && d % 90) t += '<text x="' + (100 + 55 * Math.cos(a)).toFixed(1) + '" y="' + (100 + 55 * Math.sin(a) + 3.5).toFixed(1) + '" transform="rotate(' + d + ' ' + (100 + 55 * Math.cos(a)).toFixed(1) + ' ' + (100 + 55 * Math.sin(a)).toFixed(1) + ')" class="bn-num">' + d + '</text>'; }
+  const pt = (d, r) => { const a = (d - 90) * Math.PI / 180; return (100 + r * Math.cos(a)).toFixed(1) + ',' + (100 + r * Math.sin(a)).toFixed(1); };
+  let rose = ''; for (let d = 0; d < 360; d += 45) { const main = d % 90 === 0, r = main ? 44 : 30, w = main ? 7 : 5; rose += '<polygon points="' + pt(d, r) + ' ' + pt(d + 90, w) + ' 100,100" class="bn-r1"/><polygon points="' + pt(d, r) + ' ' + pt(d - 90, w) + ' 100,100" class="bn-r2"/>'; }
+  const L = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([l, d]) => '<text x="' + pt(d, 52).split(',')[0] + '" y="' + (+pt(d, 52).split(',')[1] + 5) + '" transform="rotate(' + d + ' ' + pt(d, 52).replace(',', ' ') + ')" class="bn-c' + (l === 'N' ? ' n' : '') + '">' + l + '</text>').join('');
+  const svg = '<defs><radialGradient id="bnBowl" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#F7F1DF"/><stop offset=".75" stop-color="#E4D7B4"/><stop offset="1" stop-color="#B9A57A"/></radialGradient><linearGradient id="bnBrass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FCE6A4"/><stop offset=".45" stop-color="#C9A04A"/><stop offset=".7" stop-color="#8A6420"/><stop offset="1" stop-color="#E0BF6E"/></linearGradient><radialGradient id="bnGlass" cx=".35" cy=".25" r=".6"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>' +
+    '<circle cx="100" cy="100" r="96" fill="url(#bnBrass)"/><circle cx="100" cy="100" r="86" fill="#2A2116"/><circle cx="100" cy="100" r="82" fill="url(#bnBowl)"/>' +
+    '<g transform="rotate(' + rot.toFixed(1) + ' 100 100)" class="bn-card"><g class="bn-t">' + t + '</g>' + rose + L + '<circle cx="100" cy="100" r="4" fill="#8A6420"/></g>' +
+    '<path d="M100 14 L106 28 L94 28 Z" fill="#C0392B"/><line x1="100" y1="28" x2="100" y2="40" stroke="#C0392B" stroke-width="2"/><ellipse cx="80" cy="66" rx="58" ry="38" fill="url(#bnGlass)" transform="rotate(-25 80 66)"/>';
+  return '<div class="gauge g-binnacle"><div class="g-lbl">COMPASS</div><svg viewBox="0 0 200 200" aria-hidden="true">' + svg + '</svg><div class="g-foot">' + (hd != null ? fmtBrg(hd) + '° ' + compass16(hd) + ' · ' + src : 'Move, or allow the phone compass') + '</div></div>';
+}
 function gWrap(label, svg, foot, cls, tip) { svg = sqRings(svg); return '<div class="gauge' + (cls ? ' ' + cls : '') + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '><div class="g-lbl">' + label + '</div><svg viewBox="0 0 200 200" aria-hidden="true"' + (gsq() ? ' data-gsqc="1"' : '') + '>' + bezelSvg('gb' + (++BZN % 100000), 100, 100) + '<g class="g-cont"><circle cx="100" cy="100" r="95" class="g-faceov"/><rect x="5.5" y="5.5" width="189" height="189" rx="17" class="g-faceov g-fsq"/>' + svg + '</g></svg><div class="g-foot">' + (foot || '&nbsp;') + '</div></div>'; }
 function speedGauge(v, max, top) {
   const A0 = -135, A1 = 135, f = (x) => A0 + (A1 - A0) * Math.min(1, Math.max(0, x / top));
@@ -5716,7 +5743,7 @@ function anchorGauge(ft, radius) {
   return '<path d="' + arcPath(84, A0, A1) + '" class="g-track"/><path d="' + arcPath(84, lim, A1) + '" class="g-danger"/><path d="' + arcPath(84, A0, a) + '" class="g-fill' + (frac > 1 ? ' bad' : '') + '"/>' +
     '<text x="100" y="112" class="g-big sm">' + (ft == null ? '–' : Math.round(ftToLen(ft))) + '</text><text x="100" y="134" class="g-unit">' + lenUnit() + ' of ' + fmtLen(radius) + '</text>';
 }
-const CK_OPTS = [['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['eta', 'Time to go (whole route)'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['feels', 'Temperature and feels like'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
+const CK_OPTS = [['combo', 'Speed, course and depth (one dial)'], ['binnacle', 'Traditional compass'], ['speed', 'Speed'], ['depth', 'Depth'], ['course', 'Course (compass)'], ['wind', 'Wind'], ['tide', 'Tide'], ['dest', 'To destination'], ['anchor', 'Anchor watch'], ['position', 'GPS position'], ['eta', 'Time to go (whole route)'], ['time', 'Time and sun'], ['waves', 'Waves'], ['trip', 'Trip distance and time'], ['temps', 'Air and water temperature'], ['feels', 'Temperature and feels like'], ['baro', 'Barometer'], ['weather', 'Weather now and next'], ['photo', 'Boat photo'], ['alerts', 'Weather warnings'], ['chart', 'Small chart'], ['off', 'Off']];
 if (!S.settings.depthIn) { ['sideSlots', 'ckSlots'].forEach((k) => { const a = S.settings[k]; if (Array.isArray(a) && !a.includes('depth')) a.splice(1, 0, 'depth'); }); S.settings.depthIn = 1; try { saveSettings(); } catch (e) { /* later */ } }
 (() => { const a = S.settings.ckSlots; if (Array.isArray(a) && a.filter((x) => x === 'chart').length > 1) { let seen = false; S.settings.ckSlots = a.filter((x) => { if (x !== 'chart') return true; if (seen) return false; seen = true; return true; }); saveSettings(); } })();
 function ckSlots() { const sl = S.settings.ckSlots; return Array.isArray(sl) && sl.length ? sl : ['speed', 'depth', 'wind', 'auto']; }
@@ -5898,6 +5925,8 @@ function ckGauge(id) {
   }
   if (id === 'speed') { const hs = hullSpeed(); const top = S.settings.boatType === 'power' ? (S.trip && S.trip.max > 30 ? 50 : 40) : hs ? Math.max(8, Math.ceil(hs.kn * 1.4 / 2) * 2) : 10; return gWrap('SPEED', speedGauge(S.fix ? S.sog || 0 : null, S.trip && S.trip.max, top), S.trip && S.trip.max ? 'Max ' + fmtSpeed(S.trip.max) + ' · GPS' : 'Speed over ground · GPS'); }
   if (id === 'depth') { maybeDepth(); return depthGauge(); }
+  if (id === 'combo') return comboGauge();
+  if (id === 'binnacle') return binnacleGauge();
   if (id === 'baro') { const b = baroTrend(), bm = baroMeaning(b); return b ? gWrap('BAROMETER', baroGauge(b), '<b class="' + (b.warn ? 'warn-t' : '') + '">' + esc(bm.short || 'Sea-level pressure') + '</b> · model, Open-Meteo', b.warn ? 'g-alarm' : '', bm.long) : gWrap('BAROMETER', '<text x="100" y="108" class="g-unit">Waiting for pressure data</text>', ''); }
   if (id === 'weather') {
     const c = w && w.cur; if (!c) return gWrap('WEATHER', '<text x="100" y="108" class="g-unit">' + (offNow() ? 'No signal' : 'Waiting for the forecast') + '</text>', '');
@@ -6275,6 +6304,7 @@ function renderMini() {
   const d = DEP.v, validDepth = f && d && DEP.pos && distNm(DEP.pos, f) < 0.03 && Date.now() - DEP.at < 600000;
   const need = S.boat.draftFt ? S.boat.draftFt + (S.boat.safetyFt == null ? 2 : S.boat.safetyFt) : null, dft = validDepth ? d.d1 / 0.3048 : null, shallow = need && dft != null && dft < need;
   const depthText = validDepth ? Math.round(ftToLen(dft)) + '<tspan class="mi-du"> ' + lenUnit() + '</tspan>' : '–<tspan class="mi-du"> ' + lenUnit() + '</tspan>';
+  S.miniHtml = svg + '<line x1="38" x2="62" y1="64.5" y2="64.5" class="mi-div"/><text x="50" y="75" class="mi-dep' + (shallow ? ' shallow' : '') + '">' + depthText + '</text></g></svg>';
   if ((S.settings.chartGauges || 'dial') === 'bar') { // flat data tiles, like a chartplotter's data bar; tap opens the instruments
     el.classList.add('as-bar'); el.setAttribute('aria-label', 'Speed, course and depth. Tap for the instruments.');
     el.innerHTML = '<span class="mb-t"><small>SPEED</small><b>' + (f ? fmtSpeed(S.sog || 0) : '–') + '</b><i>' + SPEED_LBL[S.settings.speedUnit] + '</i></span>' +
@@ -6432,6 +6462,7 @@ const FM_KNOWN = [
 ];
 async function fmPlace(q, near) {
   q = q.replace(/^(the|a)\s+/i, '').replace(/[.?!]+$/, '').trim();
+  if (q.toLowerCase() === 'fmpick' && FM.lastPicked) return Object.assign({}, FM.lastPicked);
   if (/^(here|me|my boat|my location|where i am|current location)$/i.test(q)) return S.fix ? { name: boatLabel(), lat: S.fix.lat, lon: S.fix.lon } : null;
   if (/^(home|home port|my (home )?port|my dock|my slip)$/i.test(q) && homePort()) return Object.assign({}, homePort());
   const hp = homePort(); if (hp && q.toLowerCase() === hp.name.toLowerCase()) return Object.assign({}, hp);
@@ -6540,6 +6571,7 @@ sheet.addEventListener('click', e => {
   const b = e.target.closest('[data-fm]'); if (!b) return;
   if (b.dataset.fm === 'listen') firstMateListen();
   if (b.dataset.fm === 'send') askFirstMate();
+  if (b.dataset.fm === 'aisave') { const u = ($('fmAiUrl').value || '').trim(), k = ($('fmAiKey').value || '').trim(); if (u) { try { const url = new URL(u); if (url.protocol !== 'https:') throw new Error(); S.settings.aiUrl = url.href.replace(/\/$/, ''); } catch (err) { firstMateMessage('That relay address does not look right. It starts with https://'); return; } } else S.settings.aiUrl = ''; S.settings.aiKey = k; saveSettings(); firstMateMessage(S.settings.aiUrl ? 'Saved. Ask me anything.' : 'AI connection removed.'); return; }
   if (b.dataset.fm === 'setup') { try { const url = new URL($('firstMateEndpoint').value.trim()); if (url.protocol !== 'https:' || url.username || url.password) throw new Error(); S.settings.assistantUrl = url.href; saveSettings(); firstMateMessage('Connection saved. Sign in and try a request.'); } catch (e) { firstMateMessage('Enter the HTTPS backend URL, not an API key.'); } }
 });
 sheet.addEventListener('keydown', e => { if (e.target.id === 'firstMateRequest' && e.key === 'Enter') { e.preventDefault(); askFirstMate(); } });
@@ -7844,10 +7876,29 @@ async function fmUnderstand(text) {
   if (has(/\b(man|person|crew|someone|somebody|child|kid|dog|guy|woman|girl|boy) (is |went |fell )?overboard\b|^mob$|\bman overboard\b/)) { closeSheet(); triggerMob(); return { say: S.mob ? 'Man overboard marked. Steering back to the spot. Keep pointing at them and call the Coast Guard on channel 16.' : 'No GPS position, so I could not mark the spot. Keep pointing at them.' }; }
   if (has(/\b(stop|quit|pause) listening\b|\bgo to sleep\b/)) { wakeStop(); return { say: 'Stopped listening.' }; }
   if (has(/\b(what'?s|what is|whats|how)\b.*\b(my |our |the boat'?s? )?(speed|fast|heading|course)\b|^(speed|heading|course)$|\bhow fast\b/) && !has(/\b(wind|current|tide)\b/)) { const mv = (S.sog || 0) > 0.6; return { say: !S.fix ? 'No GPS fix yet.' : mv ? fmtSpeed(S.sog) + ' ' + SPEED_LBL[S.settings.speedUnit] + ', heading ' + fmtBrg(S.cog) + ' degrees, ' + compass16(S.cog) + '.' : 'Stopped. Speed under half a knot.' }; }
+  // follow-ups to a list I just gave you: "yes", "take me there", "the second one", "go to Dobbins"
+  if (FM.pick && Date.now() - FM.pick.at < 5 * 60000) { const has = (re) => re.test(c) || re.test(f); // spoken follow-ups before spell-fixing (it turns 'there' into 'where')
+    const L0 = FM.pick.list, ord = { first: 0, one: 0, '1': 0, second: 1, two: 1, '2': 1, third: 2, three: 2, '3': 2, fourth: 3, '4': 3, fifth: 4, '5': 4, last: L0.length - 1, closest: 0, nearest: 0 };
+    const om = c.match(/\b(first|second|third|fourth|fifth|last|closest|nearest|one|two|three|1|2|3|4|5)\b/), byName = L0.find((x) => c.includes(x.name.toLowerCase().split(' ')[0]) && x.name.split(' ')[0].length > 3);
+    const yes = has(/^(yes|yeah|yep|sure|ok|okay|do it|let'?s (go|do it)|go( there)?|take me( there)?|that one|sounds good|perfect|please)\b/) || has(/\b(take|bring|get|lead|navigate|route|go|head) (me |us )?(there|to it|to that)\b/);
+    const pickI = byName ? L0.indexOf(byName) : om && (yes || has(/\b(take|go|navigate|route|head|the)\b/)) ? ord[om[1]] : yes ? 0 : -1;
+    if (pickI >= 0 && L0[pickI]) { const d = L0[pickI]; FM.pick = null; FM.lastPicked = d; await fmLocal('take me to fmpick'); return { say: 'Course to ' + d.name + ' plotted, ' + fmtDist(distNm(fmHere(), d)) + '. Review it, then say start.', close: true }; }
+    if (has(/^(no|nope|never ?mind|cancel|not now)\b/)) { FM.pick = null; return { say: 'OK.' }; } }
+  // "find me an island nearby", "any anchorages close by?", "where's the nearest boat ramp", "beaches near here"
+  { const kinds = [[/\bislands?|islets?\b/, 'island', 'islands'], [/\banchorages?|anchor(ing)? spots?|places? to anchor|good spot to anchor\b/, 'anchorage', 'anchorages'], [/\bbeach(es)?\b/, 'beach', 'beaches'],
+      [/\bmarinas?|yacht clubs?|slips?\b/, 'marina', 'marinas'], [/\b(boat |launch )?ramps?|slipways?|launch(es)?\b/, 'ramp', 'boat ramps'], [/\bfuel|gas (dock|station)|diesel\b/, 'fuel', 'fuel docks'],
+      [/\b(waterfront )?(restaurants?|places? to eat|crab ?houses?|food|lunch|dinner|bars?)\b/, 'food', 'waterfront places to eat'], [/\b(lighthouses?|lights)\b/, 'lighthouse', 'lighthouses'], [/\b(creeks?|coves?)\b/, 'cove', 'creeks and coves']];
+    const k = kinds.find(([re]) => re.test(f)), near = has(/\b(near|nearby|close|closest|nearest|around|any|find|where|local|within|good)\b/);
+    if (k && near && !has(/\b(take|navigate|route) (me )?to\b/)) { const list = await fmNearby(k[1]); if (list == null) return { say: 'I need a signal to look that up.' };
+      if (!list.length) return { say: 'I did not find any ' + k[2] + ' within about 10 miles.' };
+      FM.pick = { list, at: Date.now() }; const here = fmHere(), w = (d) => d.name + ', ' + fmtDist(distNm(here, d)) + ' ' + compass16(bearing(here, d)).replace(/^N$/, 'north').replace(/^S$/, 'south').replace(/^E$/, 'east').replace(/^W$/, 'west');
+      try { fmShowPicks(list); } catch (e) { /* no map */ }
+      return { say: 'The closest ' + k[2].replace(/s$/, '').replace(/ie$/, 'y') + ' is ' + w(list[0]) + '.' + (list.length > 1 ? ' Also ' + list.slice(1, 3).map(w).join(', and ') + '.' : '') + ' Want me to take you to ' + list[0].name + '?' }; }
+  }
   // tour guide: on, off, read aloud, and "what's that island" / "tell me about Poplar Island"
   if (has(/\btour( guide)?\b/) && has(/\b(on|start|turn on|switch on)\b/) && !off) { S.settings.tourMode = has(/\b(aloud|out loud|talk|voice|read)\b/) ? 'voice' : 'cards'; saveSettings(); tgDraw(); TG.lastAt = 0; return { say: 'Tour guide on. I will tell you about places as we pass them.' }; }
   if (has(/\btour( guide)?\b/) && off) { S.settings.tourMode = 'off'; saveSettings(); tgDraw(); return { say: 'Tour guide off.' }; }
-  if (has(/\b(what'?s|what is|whats|tell me about|what am i looking at|tell me the history of|history of|story of|what do you know about)\b/) && !has(/\b(wind|weather|tide|depth|current|forecast|waves?)\b/)) {
+  if (!(S.settings.aiUrl && !offNow()) && has(/\b(what'?s|what is|whats|tell me about|what am i looking at|tell me the history of|history of|story of|what do you know about)\b/) && !has(/\b(wind|weather|tide|depth|current|forecast|waves?)\b/)) {
     await tgLoad(); const at = S.fix || refPos(); try { await Promise.race([tgWikiNear(at.lat, at.lon), new Promise((r) => setTimeout(r, 3500))]); } catch (e) { /* offline */ }
     const all = tgAll(), q = f.replace(/^.*?\b(about|of|is|whats|what'?s)\s+/, '').replace(/^(the|that|this)\s+/, '').trim();
     const deictic = !q || /^(that|this|it|here|there|around( here)?|nearby|(that|this|the) (island|lighthouse|light|point|place|town|river|bridge))$/.test(q) || /\b(looking at|around here|near here|that island|that lighthouse|this place)\b/.test(f);
@@ -7927,8 +7978,22 @@ async function fmUnderstand(text) {
 }
 /* the conversation */
 function firstMateMessage(text) { FM.last = String(text || ''); const el = $('firstMateReply'); if (el) el.textContent = text; else if (text) toast(text, 5000); }
+const FMA = { el: null, playing: false };
+function fmAudioUnlock() { try { if (!FMA.el) { FMA.el = new Audio(); FMA.el.playsInline = true; } FMA.el.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tAwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRBqpAAAAAAD/+xDEAAPAAAGkAAAAIAAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV'; FMA.el.play().catch(() => {}); } catch (e) { /* */ } }
+async function fmVoice(text) { // the relay's natural voice; false if it is not set up or fails
+  if (!S.settings.aiUrl || S.settings.aiVoice === false || offNow()) return false;
+  try { const r = await fetch(S.settings.aiUrl + '/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tideline-Key': S.settings.aiKey || '' }, signal: AbortSignal.timeout(15000), body: JSON.stringify({ text }) });
+    if (!r.ok || !/audio/.test(r.headers.get('content-type') || '')) { if (r.status === 501) S.settings.aiVoice = false; return false; }
+    const url = URL.createObjectURL(await r.blob()); if (!FMA.el) FMA.el = new Audio(); const a = FMA.el; a.src = url; FMA.playing = true;
+    a.onended = a.onerror = () => { FMA.playing = false; URL.revokeObjectURL(url); }; await a.play(); return true; } catch (e) { FMA.playing = false; return false; }
+}
 function fmSay(text) {
-  if (!text || S.settings.mateVoice === false || !('speechSynthesis' in window)) return;
+  if (!text || S.settings.mateVoice === false) return;
+  if (S.settings.aiUrl && S.settings.aiVoice !== false && !offNow()) { FMA.playing = true; fmVoice(String(text).replace(/[“”]/g, '')).then((ok) => { if (!ok) { FMA.playing = false; fmSayLocal(text); } }); return; }
+  fmSayLocal(text);
+}
+function fmSayLocal(text) {
+  if (!text || !('speechSynthesis' in window)) return;
   const CW = { N: 'north', NNE: 'north-northeast', NE: 'northeast', ENE: 'east-northeast', E: 'east', ESE: 'east-southeast', SE: 'southeast', SSE: 'south-southeast', S: 'south', SSW: 'south-southwest', SW: 'southwest', WSW: 'west-southwest', W: 'west', WNW: 'west-northwest', NW: 'northwest', NNW: 'north-northwest' };
   text = String(text).replace(/[“”]/g, '').replace(/\b(\d+(?:\.\d+)?) kn\b/g, '$1 knots').replace(/\b(\d+(?:\.\d+)?) nm\b/g, '$1 nautical miles').replace(/\b(\d+(?:\.\d+)?) ft\b/g, '$1 feet').replace(/\b(\d+(?:\.\d+)?) m\b/g, '$1 meters').replace(/°T\b/g, ' degrees true').replace(/\b([NSEW]{1,3})\b/g, (k) => CW[k] || k);
   try { if (text.length > 900) { const cut = text.lastIndexOf('. ', 900); text = text.slice(0, cut > 200 ? cut + 1 : 900); } const u = new SpeechSynthesisUtterance(text); u.rate = 0.97; u.lang = 'en-US'; const v = bestVoice(); if (v) { u.voice = v; u.lang = v.lang; } speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* no speech */ }
@@ -7952,11 +8017,11 @@ async function askFirstMate(voice) {
   if (FM.busy) return; const inp = $('firstMateRequest'), request = ((inp && inp.value) || '').trim(); if (!request) return;
   FM.voiceTurn = voice === true || (!!FM.heard && FM.heard === request); FM.heard = null; FM.last = '';
   FM.busy = true; let handled = false;
-  try { const r = await fmUnderstand(request); if (r) { if (r.say) fmReply(r); handled = true; } else handled = await fmLocal(request); }
+  try { const r = await fmUnderstand(request); if (r) { if (r.say) { fmReply(r); FM.chat.push({ role: 'user', content: request }, { role: 'assistant', content: r.say }); } handled = true; } else if (S.settings.aiUrl && !offNow()) handled = await fmAI(request); if (!handled) handled = await fmLocal(request); }
   catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); handled = true; } finally { FM.busy = false; }
   if (!handled && S.settings.assistantUrl) { FM.busy = true; try { await fmRelay(request); } finally { FM.busy = false; } handled = true; }
   if (!handled) firstMateMessage(FM.voiceTurn ? 'I did not catch that one yet. Try: take me home, what’s the wind, when is high tide, or tell me about that island.' : 'I did not understand “' + request + '” yet. The full AI is not switched on in this test version, so I understand everyday boating requests: “take me home”, “what’s the wind”, “when is high tide”, “mark this spot”, “tell me about that island”, “what’s going on this weekend”.');
-  if (FM.voiceTurn && FM.last && !(window.speechSynthesis && speechSynthesis.speaking)) fmSay(FM.last);
+  if (FM.voiceTurn && FM.last && !(window.speechSynthesis && speechSynthesis.speaking) && !FMA.playing) fmSay(FM.last);
 }
 function openFirstMate() {
   FM.view++; if (FM.recognition) FM.recognition.stop();
@@ -7970,7 +8035,7 @@ function openFirstMate() {
     '<div class="row-btns">' + (R ? '<button class="btn' + (live ? '' : ' primary') + '" data-mate="wake">' + (live ? 'Stop listening' : 'Start listening for “' + esc(call) + '”') + '</button>' : '') + '</div>' +
     '<label class="air-ok"><input type="checkbox" id="fmVoice"' + (S.settings.mateVoice !== false ? ' checked' : '') + '> Answer out loud when I talk to it</label>' +
     '<p class="hint fm-honest">' + (R ? 'Hands-free listening works only while Tideline is open on the screen and the screen stays on (Tideline keeps it awake while navigating). It stops if you switch apps or lock the screen. On iPhone and iPad, Safari needs one tap to turn the microphone on each time the app opens: tap Start listening or the sparkle button. Your browser turns speech into text; Apple or Google may process it.' : 'This browser cannot listen hands-free. Use Talk, or the microphone on your keyboard. On iPhone and iPad, open Tideline in Safari for hands-free listening.') + '</p></details>' +
-    '<details><summary>AI connection</summary><div class="field"><label for="firstMateEndpoint">Assistant backend URL</label><input id="firstMateEndpoint" type="url" value="' + esc(S.settings.assistantUrl || '') + '" placeholder="https://tideline-first-mate.…workers.dev"></div><button class="btn small" data-fm="setup">Save connection</button><p class="hint">' + (S.settings.assistantUrl ? 'Connected: anything ' + esc(nm) + ' does not understand on its own goes to the AI. Sign in through Account.' : 'Not connected yet: ' + esc(nm) + ' understands everyday boating requests on the phone, with no signal needed. Once the AI backend is deployed, anything else goes to it. Never paste an AI API key here.') + '</p></details>' +
+    '<details' + (S.settings.aiUrl ? '' : ' open') + '><summary>AI connection (makes it conversational)</summary><div class="field"><label for="fmAiUrl">First Mate relay URL</label><input id="fmAiUrl" type="url" value="' + esc(S.settings.aiUrl || '') + '" placeholder="https://tideline-first-mate.….workers.dev" autocomplete="off"></div><div class="field"><label for="fmAiKey">Passcode</label><input id="fmAiKey" type="text" value="' + esc(S.settings.aiKey || '') + '" placeholder="the passcode set on the relay" autocomplete="off"></div><button class="btn small" data-fm="aisave">Save connection</button><p class="hint">' + (S.settings.aiUrl ? 'Connected: anything ' + esc(nm) + ' does not know on its own goes to the AI, and it remembers the last few things you said.' : 'Not connected: ' + esc(nm) + ' only understands everyday boating requests. The relay keeps the AI key off the phone; never paste an API key here.') + '</p></details>' +
     '<p class="hint">Sending to the AI shares your words and limited boat context. This assistant works the app, not the boat.</p><button class="btn ghost" data-act="close">Close</button>');
 }
 function firstMateListen() {
@@ -8904,7 +8969,7 @@ async function tgSummary(st) { // text and photo for a stop: hand-written text w
 }
 function tgCardHtml(st, sm, depth) {
   const full = depth === 'full';
-  return (sm.img ? '<img class="tg-img" src="' + esc(sm.img) + '" alt="" loading="lazy">' : '') + '<div class="tg-txt"><small>' + (st.from === 'guide' ? 'ALONG THE WAY' : 'NEARBY · WIKIPEDIA') + (S.fix ? ' · ' + fmtDist(distNm(S.fix, st)) + ' ' + compass16(bearing(S.fix, st)) : '') + '</small><b>' + esc(st.name) + '</b><p>' + esc(full ? sm.full || sm.brief : sm.brief || sm.full) + '</p>' +
+  return (sm.img ? '<img class="tg-img" src="' + esc(sm.img) + '" alt="' + esc(st.name) + '" loading="lazy" data-zoomimg>' : '') + '<div class="tg-txt"><small>' + (st.from === 'guide' ? 'ALONG THE WAY' : 'NEARBY · WIKIPEDIA') + (S.fix ? ' · ' + fmtDist(distNm(S.fix, st)) + ' ' + compass16(bearing(S.fix, st)) : '') + '</small><b>' + esc(st.name) + '</b><p>' + esc(full ? sm.full || sm.brief : sm.brief || sm.full) + '</p>' +
     (full && st.photo ? '<p class="tg-note">📷 ' + esc(st.photo) + '</p>' : '') + (st.watch ? '<p class="tg-note">⚓ ' + esc(st.watch) + '</p>' : '') + (full && st.song ? '<p class="tg-note">♪ ' + esc(st.song) + '</p>' : '') + (tgEventsLine(st) ? '<p class="tg-note">📅' + esc(tgEventsLine(st).replace(' Coming up here:', '')) + '</p>' : '') + '</div>';
 }
 async function tgShow(st) {
@@ -8971,7 +9036,7 @@ function tgEventsLine(st) {
 // bubble and out loud, then listens again for a follow-up. The keyboard button opens the full sheet.
 const FT = { on: false, rec: null, turns: 0, fin: '' };
 function ftEl() {
-  let el = $('fmTalk'); if (el) return el; el = document.createElement('div'); el.id = 'fmTalk'; el.className = 'fm-talk';
+  document.querySelectorAll('.fm-talk').forEach((x, i) => { if (i) x.remove(); }); let el = $('fmTalk'); if (el) return el; el = document.createElement('div'); el.id = 'fmTalk'; el.className = 'fm-talk';
   el.innerHTML = '<div class="ft-orb" aria-hidden="true"><i></i><i></i><b>' + AI_ICON + '</b></div><div class="ft-body"><small class="ft-st"></small><p class="ft-heard"></p><p id="firstMateReply" class="ft-reply" role="status" aria-live="polite"></p><div id="firstMateResults" class="ft-res"></div><input id="firstMateRequest" type="hidden"></div>' +
     '<div class="ft-btns"><button type="button" data-ft="again" aria-label="Talk again">🎙</button><button type="button" data-ft="kbd" aria-label="Type instead">⌨</button><button type="button" data-ft="x" aria-label="Stop">×</button></div>';
   $('app').appendChild(el); return el;
@@ -8979,8 +9044,9 @@ function ftEl() {
 function ftState(st, txt) { const el = $('fmTalk'); if (!el) return; el.dataset.st = st; el.querySelector('.ft-st').textContent = txt; }
 function ftStart() {
   const R = window.SpeechRecognition || window.webkitSpeechRecognition; if (!R) { openFirstMate(); return; }
+  if (FT.on && $('fmTalk')) { FT.turns = 0; if (!FT.rec) ftListen(); return; }
   closeSheet(); { const tc = $('tourCard'); if (tc) tc.hidden = true; } if (WAKE.rec) { WAKE.pause = true; try { WAKE.rec.stop(); } catch (e) { /* stopped */ } }
-  ftEl(); FT.on = true; FT.turns = 0; try { speechSynthesis.cancel(); } catch (e) { /* none */ } ftListen();
+  ftEl(); FT.on = true; FT.turns = 0; try { speechSynthesis.cancel(); } catch (e) { /* none */ } fmAudioUnlock(); ftListen();
 }
 function ftListen() {
   const R = window.SpeechRecognition || window.webkitSpeechRecognition, el = $('fmTalk'); if (!FT.on || !el || !R) return;
@@ -8998,15 +9064,70 @@ async function ftRun(said) {
   const inp = $('firstMateRequest'); inp.value = fmWakeSplit(said) || said; FM.heard = inp.value; $('firstMateReply').textContent = ''; $('firstMateResults').innerHTML = '';
   try { await askFirstMate(true); } catch (e) { firstMateMessage('Something went wrong: ' + (e.message || e)); }
   if (!FT.on || !$('fmTalk')) return;
-  ftState('speak', 'Tap 🎙 to ask a follow-up'); const wait = () => { if (!FT.on) return; if (window.speechSynthesis && speechSynthesis.speaking) { setTimeout(wait, 300); return; } if (FT.turns < 4 && !$('firstMateResults').innerHTML) setTimeout(ftListen, 350); else ftState('idle', 'Tap 🎙 to ask something else.'); };
+  ftState('speak', 'Tap 🎙 to ask a follow-up'); const wait = () => { if (!FT.on) return; if ((window.speechSynthesis && speechSynthesis.speaking) || FMA.playing) { setTimeout(wait, 300); return; } if (FT.turns < 4 && !$('firstMateResults').innerHTML) setTimeout(ftListen, 350); else ftState('idle', 'Tap 🎙 to ask something else.'); };
   setTimeout(wait, 600);
 }
-function ftStop() { FT.on = false; clearTimeout(FT.hide); if (FT.rec) { try { FT.rec.abort(); } catch (e) { /* */ } FT.rec = null; } try { speechSynthesis.cancel(); } catch (e) { /* */ } const el = $('fmTalk'); if (el) el.remove(); if (WAKE.pause) { WAKE.pause = false; WAKE.rec = null; if (S.settings.wakeOn) setTimeout(wakeStart, 300); } }
+function ftStop() { try { if (FMA.el) FMA.el.pause(); FMA.playing = false; } catch (e) { /* */ } FT.on = false; clearTimeout(FT.hide); if (FT.rec) { try { FT.rec.abort(); } catch (e) { /* */ } FT.rec = null; } try { speechSynthesis.cancel(); } catch (e) { /* */ } const el = $('fmTalk'); if (el) el.remove(); if (WAKE.pause) { WAKE.pause = false; WAKE.rec = null; if (S.settings.wakeOn) setTimeout(wakeStart, 300); } }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-ft]'); if (!b) return; const k = b.dataset.ft;
   if (k === 'x') ftStop(); if (k === 'again') { FT.on = true; FT.turns = 0; try { speechSynthesis.cancel(); } catch (err) { /* */ } ftListen(); } if (k === 'kbd') { ftStop(); openFirstMate(); setTimeout(() => { const i = $('firstMateRequest'); if (i) i.focus(); }, 80); } });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-pclose]')) setTab('chart'); });
 document.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; if (!sheet.hidden) { closeSheet(); return; } if ($('cockpit') && !$('cockpit').hidden) { setCockpit(false); return; } if (!$('quick').hidden) { toggleQuick(false); return; } if (S.tab !== 'chart') setTab('chart'); });
-window.Tideline = { setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
+// where "near" means: the boat, else the saved home spot, else the middle of the chart
+function fmHere() { if (S.fix) return { lat: S.fix.lat, lon: S.fix.lon }; const h = typeof homePort === 'function' ? homePort() : null; if (h && h.lat != null) return h; const c = map.getCenter(); return { lat: c.lat, lon: c.lng }; }
+const FMN = new Map();
+async function fmNearby(kind) { // OpenStreetMap via Overpass: named places of one kind within about 10 nm, nearest first
+  const at = fmHere(), key = kind + Math.round(at.lat * 50) + ',' + Math.round(at.lon * 50); if (FMN.has(key)) return FMN.get(key); if (offNow()) return null;
+  const r = kind === 'food' || kind === 'fuel' || kind === 'ramp' ? 9000 : 18500, A = '(around:' + r + ',' + at.lat.toFixed(4) + ',' + at.lon.toFixed(4) + ')';
+  const Q = { island: 'nwr["place"~"^(island|islet)$"]["name"]' + A, anchorage: 'nwr["seamark:type"="anchorage"]' + A + ';nwr["leisure"="anchorage"]' + A, beach: 'nwr["natural"="beach"]["name"]' + A,
+    marina: 'nwr["leisure"="marina"]["name"]' + A + ';nwr["club"="sailing"]["name"]' + A, ramp: 'nwr["leisure"="slipway"]' + A, fuel: 'nwr["waterway"="fuel"]' + A + ';nwr["amenity"="fuel"]["boat"="yes"]' + A,
+    food: 'nwr["amenity"~"^(restaurant|bar|pub)$"]["name"]' + A, lighthouse: 'nwr["man_made"="lighthouse"]' + A + ';nwr["seamark:type"~"light_major|landmark"]["name"]' + A, cove: 'nwr["natural"~"^(bay|cove)$"]["name"]' + A + ';nwr["waterway"="stream"]["name"~"Creek"]' + A }[kind];
+  try { const j = await fetchT(OVERPASS + encodeURIComponent('[out:json][timeout:15];(' + Q + ';);out center 80;'), 16000).then((x) => x.json());
+    const seen = new Set(), list = (j.elements || []).map((e) => ({ name: (e.tags && (e.tags.name || e.tags['seamark:name'])) || (kind === 'ramp' ? 'Boat ramp' : kind === 'anchorage' ? 'Anchorage' : kind === 'fuel' ? 'Fuel dock' : ''), lat: e.lat != null ? e.lat : e.center && e.center.lat, lon: e.lon != null ? e.lon : e.center && e.center.lon }))
+      .filter((x) => x.name && x.lat != null && !seen.has(x.name) && seen.add(x.name)).map((x) => Object.assign(x, { d: distNm(at, x) })).sort((a, b) => a.d - b.d).slice(0, 6);
+    FMN.set(key, list); return list; } catch (e) { return null; }
+}
+function fmShowPicks(list) { resultsLayer.clearLayers(); list.forEach((d, i) => L.marker([d.lat, d.lon], { icon: L.divIcon({ className: 'rc-mark', iconSize: [24, 24], iconAnchor: [12, 12], html: '<b>' + (i + 1) + '</b>' }) }).bindTooltip(esc(d.name), { permanent: i < 3, direction: 'right', offset: [12, 0] }).addTo(resultsLayer));
+  try { const here = fmHere(); map.fitBounds(L.latLngBounds(list.slice(0, 3).map((d) => [d.lat, d.lon]).concat([[here.lat, here.lon]])).pad(0.25)); } catch (e) { /* */ } }
+// the conversational first mate: sends what you said, a little context and the last few exchanges to the Claude relay
+FM.chat = [];
+function fmContext() {
+  const at = fmHere(), w = S.weather && S.weather.cur, tn = (() => { try { return tideNow(); } catch (e) { return null; } })();
+  const near = (TG.stops || []).map((x) => ({ n: x.name, d: +distNm(at, x).toFixed(1), b: Math.round(bearing(at, x)), info: (x.brief || '').slice(0, 160) })).filter((x) => x.d < 8).sort((a, b) => a.d - b.d).slice(0, 8);
+  let ev = []; try { ev = upcoming(21).slice(0, 4).map((e) => e.n + ' (' + new Date(e.a).toDateString() + (e.where ? ', ' + e.where : '') + ')'); } catch (e) { /* */ }
+  return { now: new Date().toString().slice(0, 24), where: { lat: +at.lat.toFixed(3), lon: +at.lon.toFixed(3), source: S.fix ? 'GPS' : 'chart centre or home (no GPS)' }, moving: S.fix ? (S.sog || 0) > 1 : false,
+    speedKn: S.fix ? +(S.sog || 0).toFixed(1) : null, courseDeg: S.fix && (S.sog || 0) > 1 ? Math.round(S.cog || 0) : null, boat: { name: S.settings.boatName || '', type: S.settings.boatType || '', lengthFt: S.boat && S.boat.lenFt, draftFt: S.boat && S.boat.draftFt },
+    destination: S.goto ? S.goto.name : null, wind: w ? { kn: Math.round(w.spd), from: compass16(w.dir), gust: Math.round(w.gust) } : null, tide: tn ? { ft: +tn.v.toFixed(1), rising: tn.rising, next: tn.next ? (tn.next.type === 'H' ? 'high ' : 'low ') + fmtClock(tn.next.t) : null } : null,
+    nearbyPlaces: near, events: ev, units: S.settings.speedUnit || 'kn', mateName: mateName() };
+}
+async function fmAI(request) {
+  if (!S.settings.aiUrl || offNow()) return false;
+  firstMateMessage('Thinking…');
+  try {
+    const r = await fetch(S.settings.aiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Tideline-Key': S.settings.aiKey || '' }, signal: AbortSignal.timeout(30000), body: JSON.stringify({ request, history: FM.chat.slice(-8), context: fmContext() }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.say) { firstMateMessage(j.error || 'The AI did not answer. Try again.'); return true; }
+    FM.chat.push({ role: 'user', content: request }, { role: 'assistant', content: j.say }); FM.chat = FM.chat.slice(-12);
+    firstMateMessage(j.say);
+    for (const a of j.actions || []) { try { await fmDo(a); } catch (e) { /* one action failing should not stop the reply */ } }
+    if (!(j.actions || []).some((a) => a.type === 'find_nearby')) firstMateMessage(j.say);
+    return true;
+  } catch (e) { firstMateMessage('I could not reach the AI just now. ' + (offNow() ? 'No signal.' : 'Try again.')); return true; }
+}
+async function fmDo(a) {
+  const L0 = { wind: 'wind', waves: 'waves', rain: 'rain' };
+  if (a.type === 'show_layer' || a.type === 'hide_layer') { const on = a.type === 'show_layer';
+    if (L0[a.layer]) { setTab('chart'); setWxL(L0[a.layer], on); } else if (a.layer === 'currents') setCurrents(on); else if (a.layer === 'ais') { S.settings.aisShow = on; saveSettings(); updateAis(); renderAisBtn(); } else if (a.layer === 'satellite') { S.settings.satOver = on; saveSettings(); applyChart(); } else if (a.layer === 'tide') { S.tideCardOn = on; try { renderTideCard(); } catch (e) { /* */ } } return; }
+  if (a.type === 'navigate' && a.place) { await fmLocal('take me to ' + a.place); return; }
+  if (a.type === 'find_nearby' && a.kind) { const list = await fmNearby(a.kind); if (list && list.length) { FM.pick = { list, at: Date.now() }; fmShowPicks(list); const here = fmHere(); const extra = 'Closest: ' + list.slice(0, 3).map((d) => d.name + ', ' + fmtDist(distNm(here, d)) + ' ' + compass16(bearing(here, d))).join('; ') + '. Want me to take you to ' + list[0].name + '?'; firstMateMessage((FM.last ? FM.last + ' ' : '') + extra); FM.chat.push({ role: 'assistant', content: extra }); } else firstMateMessage((FM.last ? FM.last + ' ' : '') + 'I did not find any close by.'); return; }
+  if (a.type === 'zoom_in') { map.zoomIn(1); return; } if (a.type === 'zoom_out') { map.zoomOut(1); return; }
+  if (a.type === 'theme' && /^(day|dusk|night)$/.test(a.value || '')) { S.settings.theme = a.value; saveSettings(); applyNight(); return; }
+  if (a.type === 'tour_on' || a.type === 'tour_off') { S.settings.tourMode = a.type === 'tour_on' ? 'cards' : 'off'; saveSettings(); tgDraw(); }
+}
+// tap a photo to see it big; pinch to zoom; tap again or × to close
+document.addEventListener('click', (e) => { const im = e.target.closest('img[data-zoomimg]'); if (!im) return; e.stopPropagation();
+  const big = im.src.replace(/\/(\d{2,4})px-/, '/1280px-'), o = document.createElement('div'); o.className = 'img-zoom'; o.innerHTML = '<img src="' + esc(big) + '" alt=""><b>' + esc(im.alt || '') + '</b><button type="button" aria-label="Close">×</button>';
+  o.querySelector('img').onerror = function () { this.onerror = null; this.src = im.src; }; o.addEventListener('click', () => o.remove()); document.body.appendChild(o); }, true);
+window.Tideline = { FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();

@@ -2503,3 +2503,15 @@ html.looktry-ck #lookTry { z-index: 1300; }
 html[data-side="normal"] #app.wide:has(#panelSide:not([hidden])) #sideGrip, html:not([data-side]) #app.wide:has(#panelSide:not([hidden])) #sideGrip { right: 391px; }
 html:is([data-side="third"],[data-side="half"]) #app.wide:has(#panelSide:not([hidden])) :is(.lx-chip, #offPill, #mChip, .wx-legend) { left: calc((100% - var(--sideW)) / 2) !important; }
 html:not([data-side="third"]):not([data-side="half"]) #app.wide:has(#panelSide:not([hidden])) :is(.lx-chip, #offPill, .wx-legend) { left: calc((100% - 400px) / 2) !important; }
+
+#tourCard .tg-img { max-height: 170px !important; cursor: zoom-in; } @media (min-width: 900px) { #tourCard .tg-img { max-height: 240px !important; } }
+.img-zoom { position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; touch-action: pinch-zoom; }
+.img-zoom img { max-width: 100%; max-height: 82vh; object-fit: contain; border-radius: 8px; } .img-zoom b { color: #fff; font: 600 15px system-ui; }
+.img-zoom button { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 24px; }
+
+/* the speed/course/depth dial as a gauge, and the traditional compass */
+.g-binnacle svg { filter: drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+.g-binnacle .bn-t line { stroke: #2A2116; } .g-binnacle .bn-num { font: 600 8px Georgia, serif; fill: #2A2116; text-anchor: middle; }
+.g-binnacle .bn-c { font: 700 15px Georgia, serif; fill: #1E1A14; text-anchor: middle; } .g-binnacle .bn-c.n { fill: #A7261C; }
+.g-binnacle .bn-r1 { fill: #1E2C44; } .g-binnacle .bn-r2 { fill: #C9B98E; stroke: #1E2C44; stroke-width: .5; }
+.g-binnacle .bn-card { transition: transform 1s ease; }

@@ -1,0 +1,7 @@
+name = "tideline-first-mate"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://olbucky1.github.io"
+# MODEL = "claude-haiku-5-5"   # fast and cheap; "claude-sonnet-5-5" for richer answers
