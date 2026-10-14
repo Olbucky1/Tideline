@@ -2,7 +2,7 @@
 
 Live app: https://olbucky1.github.io/Tideline/ · repo: github.com/Olbucky1/Tideline (branch main).
 Owner: Andy Brickman (andy.brickman@gmail.com), Annapolis. Sails a 1976 Catalina 27. Tests mostly on a MacBook in Safari, also on an iPad Pro and an iPhone. Most users will be on iPhones.
-Current build: 183 (13 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
+Current build: 184 (13 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
 
 ## Working rules (standing orders from Andy)
 1. **Queue, don't build.** When Andy gives feedback while testing, add it to the queue below and reply briefly. Change no code until he says **"now execute the changes"**. "Go" alone is not the trigger.
@@ -53,12 +53,7 @@ Current build: 183 (13 Oct 2026). History, file layout and data sources are in H
 - **Radar gauge:** a rain radar tile in Batch A; the wind/everything weather window stays in the backlog.
 
 ### Batch A leftovers
-- **Relabel the "Watermen / workboats" use (Andy 13 Oct):** the capitalization was inconsistent. Andy likes tugs and barges and "commercial work" as wording. Proposed label: "Commercial and workboats" with a small hint line "Tugs, barges, watermen". Change the label only; keep the internal key (`watermen`) so saved choices and the events filter keep working. Also check the matching event category "Watermen & docking" reads consistently. Build on "now execute the changes".
-- **Notes 2 (Andy, 13 Oct night; Batch A, Sonnet):** pictures for these were not received; ask Andy to re-attach.
-  - **Undo/redo buttons look wrong:** they should look like the standard curved U-turn undo and redo arrows, and hovering (or long-press on iPad) must show a tooltip "Undo" / "Redo". Currently plain ↶ ↷ text in square buttons in the Gauge look header.
-  - **Weather alert flash:** when an alert is flashing, a big vertical oval pulse draws over all the chart buttons. It should pulse only on the alert itself, never over other icons (`.alert-bar.is-new` / `weather-attention` in app.css).
-  - **Console look (Andy confirmed: gauges):** let the console be customized to look like the bridge of a yacht or ship, plus a battleship theme for the console gauges. Reference sheets are in `design-refs/`: industrial-naval-bridge (bridge), military-battleship-tactical (battleship), gps-hybrid-electronic (yacht helm). They are concept art, Andy chose: cut new skins from those sheets (like `skins/*.webp`), not CSS-only.
-- **Icon centering sweep (Andy 13 Oct night):** every icon with a graphic must be centered and symmetrical in every theme. Known case: the First Mate anchor was off-center (fixed in build 182 for the main icon); check the others across all looks: First Mate badge, alert, MOB, anchor tab, helm/wheel icons, gauge face symbols, and the compass rose.
+- **Built in build 184:** undo/redo arrows, alert pulse, six bridge/battleship/yacht console looks, workboats label, icon sweep. Waiting on Andy's test on the iPhone, iPad and Mac.
 - **Notes 3 (Andy, 13 Oct 22:12), Batch A unless noted. Needs clarification before building:**
   - **Guided tour, weather icon (Andy clarified 13 Oct):** when the walk-through tour highlights the weather icon it must then animate and show how the icons expand, revealing all the options (radar, rain, current, and so on) during the introduction tour.
   - **Compass as a measuring tool:** use the compass for measurement (bearing and distance?). Confirm.
@@ -89,6 +84,8 @@ Current build: 183 (13 Oct 2026). History, file layout and data sources are in H
 
 ### Backlog
 - Account sign-in, crew sharing.
+- More bridge/battleship/yacht looks: 12 bezels on the three design-refs sheets are still uncut (same method as build 183). The square bezels (Navsuite, Integrated Bridge Module, Armored Console) would need square skins.
+- Undo/redo arrows in the console's Customize bar (today only ⌘Z there, no redo).
 - Hints for the Solid / Soft / Blending / Ghost looks.
 - A combined weather window (wind, rain, everything at once) and a meteogram-style graph like the point forecast Andy likes. The app links to it for now.
 

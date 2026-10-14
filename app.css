@@ -2857,3 +2857,44 @@ html:root .fab-col .fab:hover, html:root .fab-col .fab:focus-visible, html:root 
 .lk-top { display: flex; align-items: center; justify-content: space-between; padding-right: 44px; }
 .lk-undo { display: inline-flex; gap: 6px; } .lk-undo button { width: 36px; height: 34px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface2); color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; }
 html[data-mimode="off"] #miniInst { display: none !important; }
+/* build 184: the alert pulse stays on the alert. In the button column the alert was position:static, so its ring (inset:-4px) wrapped the whole column as a big oval over every button. */
+#app .fab-col > .alert-bar.mini:not(.fab-free), #fabs > .alert-bar.mini:not(.fab-free), #fabsR > .alert-bar.mini:not(.fab-free) { position: relative !important; top: auto !important; right: auto !important; bottom: auto !important; left: auto !important; }
+#app .alert-bar.mini.pulse::after { inset: -4px; border-radius: inherit; }
+#app .alert-bar.mini.is-new, #app .alert-bar.mini.pulse { transform: none !important; }
+/* build 184: undo / redo are the standard U-turn arrows; the name shows below on hover */
+.lk-undo .ur-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 0; -webkit-touch-callout: none; user-select: none; }
+.lk-undo .ur-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+@media (hover: hover) and (pointer: fine) { .lk-undo .ur-btn[data-tip]:hover::after { right: auto; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); } }
+.uses button .use-hint { display: block; font-size: 11px; font-weight: 400; opacity: .75; margin-top: 1px; }
+/* build 184: consoles for the bridge, battleship and yacht-helm looks */
+/* ship's bridge: riveted gunmetal plate */
+html:is([data-gtheme="shipgun"],[data-gtheme="shipport"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid {
+  background:
+    radial-gradient(circle at 18px 18px, #8A8378 0 3px, #2A2724 3.5px 5px, transparent 5.5px) 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle at calc(100% - 18px) 18px, #8A8378 0 3px, #2A2724 3.5px 5px, transparent 5.5px) 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle at 18px calc(100% - 18px), #8A8378 0 3px, #2A2724 3.5px 5px, transparent 5.5px) 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle at calc(100% - 18px) calc(100% - 18px), #8A8378 0 3px, #2A2724 3.5px 5px, transparent 5.5px) 0 0 / 100% 100% no-repeat,
+    radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,.10), transparent 55%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.018) 0 2px, rgba(0,0,0,.03) 2px 5px),
+    linear-gradient(180deg, #3A3A3C, #1C1D1F) !important;
+  box-shadow: inset 0 0 0 2px #55514B, inset 0 0 0 5px rgba(0,0,0,.45), inset 0 10px 24px rgba(0,0,0,.6), 0 8px 24px rgba(0,0,0,.5) !important;
+}
+/* battleship: dark armour plate with a stencilled edge */
+html:is([data-gtheme="bshiptac"],[data-gtheme="bshipwatch"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid {
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(255,255,255,.07), transparent 55%),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,.22) 0 1px, transparent 1px 96px),
+    linear-gradient(180deg, #2A2E31, #121416) !important;
+  box-shadow: inset 0 0 0 3px #3C4246, inset 0 0 0 6px rgba(0,0,0,.5), inset 0 12px 26px rgba(0,0,0,.65), 0 8px 24px rgba(0,0,0,.5) !important;
+}
+/* yacht helm: black glass with a brushed-chrome trim */
+html:is([data-gtheme="yachtapex"],[data-gtheme="yachtcarbon"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid {
+  background: radial-gradient(120% 60% at 50% -10%, rgba(120,170,230,.10), transparent 55%), linear-gradient(180deg, #0A111A, #02050A) !important;
+  box-shadow: inset 0 0 0 2px #C9D1D8, inset 0 0 0 4px #5E6872, inset 0 0 0 6px rgba(0,0,0,.6), inset 0 10px 24px rgba(0,0,0,.6), 0 8px 24px rgba(0,0,0,.5) !important;
+}
+html:is([data-gtheme="bshiptac"],[data-gtheme="bshipwatch"],[data-gtheme="yachtapex"],[data-gtheme="yachtcarbon"],[data-gtheme="shipgun"],[data-gtheme="shipport"])[data-ck="console"] .cockpit:not(.lt-ck) .ck-grid::before { display: none; }
+/* build 184 icon sweep: icons wider than the button's inner box overflowed to the right (First Mate +3px, compass rose +2px at night); centre the grid track instead */
+#app .fab.ai, #app .fab.orient, #app #btnFM, #app #btnOrient { justify-content: center !important; align-content: center !important; justify-items: center !important; }
+/* the weather button's cloud sat 5px high over an empty wind-speed slot */
+#app #btnWx > b:empty { display: none !important; }
