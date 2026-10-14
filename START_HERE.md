@@ -2,7 +2,7 @@
 
 Live app: https://olbucky1.github.io/Tideline/ · repo: github.com/Olbucky1/Tideline (branch main).
 Owner: Andy Brickman (andy.brickman@gmail.com), Annapolis. Sails a 1976 Catalina 27. Tests mostly on a MacBook in Safari, also on an iPad Pro and an iPhone. Most users will be on iPhones.
-Current build: 182 (13 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
+Current build: 183 (13 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
 
 ## Working rules (standing orders from Andy)
 1. **Queue, don't build.** When Andy gives feedback while testing, add it to the queue below and reply briefly. Change no code until he says **"now execute the changes"**. "Go" alone is not the trigger.
@@ -57,14 +57,13 @@ Current build: 182 (13 Oct 2026). History, file layout and data sources are in H
 - **Notes 2 (Andy, 13 Oct night; Batch A, Sonnet):** pictures for these were not received; ask Andy to re-attach.
   - **Undo/redo buttons look wrong:** they should look like the standard curved U-turn undo and redo arrows, and hovering (or long-press on iPad) must show a tooltip "Undo" / "Redo". Currently plain ↶ ↷ text in square buttons in the Gauge look header.
   - **Weather alert flash:** when an alert is flashing, a big vertical oval pulse draws over all the chart buttons. It should pulse only on the alert itself, never over other icons (`.alert-bar.is-new` / `weather-attention` in app.css).
-  - **Console look (Andy confirmed: gauges):** let the console be customized to look like the bridge of a yacht or ship, plus a battleship theme for the console gauges. Reference sheets are in `design-refs/`: industrial-naval-bridge (bridge), military-battleship-tactical (battleship), gps-hybrid-electronic (yacht helm). They are concept art, so building them needs new skins cut from those sheets (like `skins/*.webp`) or CSS-only approximations; decide which when building and tell Andy.
+  - **Console look (Andy confirmed: gauges):** let the console be customized to look like the bridge of a yacht or ship, plus a battleship theme for the console gauges. Reference sheets are in `design-refs/`: industrial-naval-bridge (bridge), military-battleship-tactical (battleship), gps-hybrid-electronic (yacht helm). They are concept art, Andy chose: cut new skins from those sheets (like `skins/*.webp`), not CSS-only.
 - **Icon centering sweep (Andy 13 Oct night):** every icon with a graphic must be centered and symmetrical in every theme. Known case: the First Mate anchor was off-center (fixed in build 182 for the main icon); check the others across all looks: First Mate badge, alert, MOB, anchor tab, helm/wheel icons, gauge face symbols, and the compass rose.
-- **BUG, top priority (Andy 13 Oct 22:10, testing in a car): speed and course never appear while moving.** Likely cause, found by reading `plausible()` and `onFix()` in app.js (~line 1553): the GPS "jump" filter rejects any fix that implies more than 12 kn AND an acceleration over 2.5 kn/s. Speed starts at 0, so the first fast fixes (a car, or any fast boat leaving a standstill) are rejected as jumps; a rejected fix never updates `S.sog` or `S.fix`, and the 3-fixes-agree rescue fails because each new fix is far from the last candidate. Result: stuck at 0.0 kn with no course. Proposed fix: trust the device's own reported speed (`coords.speed`) when it is present and roughly matches distance/time, skip the jump test in that case, and make the rescue accept fixes that agree with each other's direction and speed. Add a test with a simulated 0 to 40 mph start. Not a regression from build 182.
 - **Notes 3 (Andy, 13 Oct 22:12), Batch A unless noted. Needs clarification before building:**
-  - **Weather and current tool:** "should show how it expands into other icons and share the function really quickly, wind in the air, everything comes up." Unclear: confirm what should expand from what.
+  - **Guided tour, weather icon (Andy clarified 13 Oct):** when the walk-through tour highlights the weather icon it must then animate and show how the icons expand, revealing all the options (radar, rain, current, and so on) during the introduction tour.
   - **Compass as a measuring tool:** use the compass for measurement (bearing and distance?). Confirm.
   - **Highlights / guided tips:** the callout box should be smaller and able to sit closer to the highlighted item; "Plan a trip" and similar tips should show a small thumbnail picture of what they do (e.g. a route).
-  - **INCOMPLETE NOTE:** "I tried to plan a trip from Edge" (message cut off). Ask Andy for the rest.
+  - (Andy: skip the cut-off note "I tried to plan a trip from Edge".)
 - **Batch B (new session, Opus), from Notes 3:**
   - **Distress button:** one press sends a distress message or beacon when there is a connection. Research best practice first. A web app cannot replace a VHF radio, a PLB or an EPIRB; plan the honest version (clear instructions: VHF 16 / 911, share exact position by text, mayday script).
   - **Boat name/model autofill:** typing a maker and model (e.g. Sabre power) suggests known makes and models and fills draft, air draft, length and so on once chosen. Needs a data source; check licensing.

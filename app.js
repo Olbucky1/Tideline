@@ -1557,13 +1557,18 @@ function plausible(f, prev) {
   const dM = distNm(prev, f) * M_PER_NM, noise = (f.acc || 10) + (prev.acc || 10);
   if (dM <= noise) return true;
   const kn = (dM / M_PER_NM) / (dt / 3600), accel = Math.abs(kn - (S.sog || 0)) / dt; // knots per second
+  // the phone's own speed (from the GPS signal, not from positions) agreeing with distance over time means the move is real: a car, or a fast boat leaving a standstill, is not a jump
+  if (f.speed != null && !Number.isNaN(f.speed) && f.speed >= 0 && kn < 150) { const dev = f.speed * KN_PER_MS; if (Math.abs(kn - dev) <= Math.max(4, dev * 0.35) + (noise / dt) * KN_PER_MS) return true; }
   return kn < 70 && (kn < 12 || accel < 2.5);
 }
 function onFix(f) {
   const prev = S.fix;
   if (!plausible(f, prev)) {
     // A sudden jump: accept it only after three fixes agree on the new spot.
-    if (jump.cand && distNm(jump.cand, f) * M_PER_NM < (f.acc || 10) * 2) jump.n++; else { jump.cand = f; jump.n = 1; }
+    const dj = jump.cand ? distNm(jump.cand, f) * M_PER_NM : 0, dtj = jump.cand ? (f.t - jump.cand.t) / 1000 : 0, knj = dtj > 0 ? (dj / M_PER_NM) / (dtj / 3600) : 0;
+    if (jump.cand && dj < (f.acc || 10) * 2) jump.n++; // fixes that agree on a new spot
+    else if (jump.cand && jump.kn > 6 && knj < 150 && Math.abs(knj - jump.kn) <= jump.kn * 0.4 + 4) { jump.n++; jump.cand = f; } // fixes that agree on a steady speed: a real move, not a jump
+    else { jump.cand = f; jump.n = 1; jump.kn = prev ? (distNm(prev, f) / ((f.t - prev.t) / 3600000 || 1e9)) : 0; }
     S.lastFixAt = Date.now(); S.jumps = (S.jumps || 0) + 1;
     if (jump.n < 3) return;
   }
@@ -1574,7 +1579,8 @@ function onFix(f) {
 
   // speed over ground
   let kn = null;
-  if (f.speed != null && !Number.isNaN(f.speed) && f.speed >= 0) kn = f.speed * KN_PER_MS;
+  const fromDev = f.speed != null && !Number.isNaN(f.speed) && f.speed >= 0;
+  if (fromDev) kn = f.speed * KN_PER_MS;
   else {
     const r = ref(4000);
     if (r) {
@@ -1582,7 +1588,7 @@ function onFix(f) {
       kn = dM < Math.max(f.acc, r.acc) * 0.6 ? 0 : (dM / M_PER_NM) / dtH;
     }
   }
-  if (kn != null && (kn > 70 || (kn > 40 && kn > (S.sog || 0) * 3 + 10))) kn = null; // ignore impossible speeds
+  if (kn != null && (fromDev ? kn > 150 : (kn > 70 || (kn > 40 && kn > (S.sog || 0) * 3 + 10)))) kn = null; // ignore impossible speeds (the phone's own speed is trusted up to car speeds)
   if (kn != null && isFinite(kn)) S.sog =S.sog == null ? kn : S.sog * 0.45 + kn * 0.55;
   const moving = (S.sog || 0) > 0.6;
 
@@ -2966,7 +2972,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('apptour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 182. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 183. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
