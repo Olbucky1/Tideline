@@ -54,6 +54,10 @@ Current build: 182 (13 Oct 2026). History, file layout and data sources are in H
 
 ### Batch A leftovers
 - **Relabel the "Watermen / workboats" use (Andy 13 Oct):** the capitalization was inconsistent. Andy likes tugs and barges and "commercial work" as wording. Proposed label: "Commercial and workboats" with a small hint line "Tugs, barges, watermen". Change the label only; keep the internal key (`watermen`) so saved choices and the events filter keep working. Also check the matching event category "Watermen & docking" reads consistently. Build on "now execute the changes".
+- **Notes 2 (Andy, 13 Oct night; Batch A, Sonnet):** pictures for these were not received; ask Andy to re-attach.
+  - **Undo/redo buttons look wrong:** they should look like the standard curved U-turn undo and redo arrows, and hovering (or long-press on iPad) must show a tooltip "Undo" / "Redo". Currently plain ↶ ↷ text in square buttons in the Gauge look header.
+  - **Weather alert flash:** when an alert is flashing, a big vertical oval pulse draws over all the chart buttons. It should pulse only on the alert itself, never over other icons (`.alert-bar.is-new` / `weather-attention` in app.css).
+  - **Console look:** let the console be customized to look like a yacht or ship's bridge, and add a battleship theme for the console gauges (Andy wrote "cages"; read as gauges). Scope to confirm: colors, frame and background styling by CSS, no new artwork.
 - **Parked (Andy: "don't worry about the others", 13 Oct):** full-screen chart switcher; settings sheets other than Gauge look covering the chart; customize gauge face; rope/Polynesian/Chrome frames and surf designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger.
 
 ### Batch B: routing and safety (new session, top model)
