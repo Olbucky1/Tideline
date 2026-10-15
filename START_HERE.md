@@ -65,6 +65,25 @@ Current build: 184 (13 Oct 2026). History, file layout and data sources are in H
   - **Propulsion options:** outboard manufacturer choice; inboard options including IPS pods. For IPS pods add extra caution warnings at speed and when entering shallow water (hard grounding damage).
 - **Parked (Andy: "don't worry about the others", 13 Oct):** full-screen chart switcher; settings sheets other than Gauge look covering the chart; customize gauge face; rope/Polynesian/Chrome frames and surf designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger.
 
+### Stabilization pass (independent audit by ChatGPT, build 184, Andy 15 Oct). Reproduce each finding first, keep changes small, keep the round gauges.
+Confirmed by reading the code (not yet run): #1 header says "GPS live" even in demo (`.ck-gps`, ~line 6364 ignores `S.settings.sim`); #5 closures list is only sliced, never filtered by region or date (~line 773); #6 the fishing debrief reuses the race debrief text (`rcDebriefHtml`, ~line 9286).
+**Small fixes, Sonnet, one session (safety-critical, suggest building soon):**
+1. **Demo labeling:** persistent DEMO label wherever simulated position, speed or depth shows; the emergency VHF script and float plan must never contain simulated coordinates (show "Position unavailable (demo)"); keep simulated voyage records separate.
+2. **AIS "NaN nm at NaN°":** validate own-ship and target positions before range/bearing; show "Position unavailable" otherwise (Boat > Identify > A single white light).
+3. **Depth meaning:** label live sounder vs charted vs tide-adjusted vs preview-location depth, with datum, place and time; never a bare "DEPTH" for chart-derived values.
+5. **Closures:** filter by area (no Michigan or Boston under Chesapeake) and by effective dates; separate current, upcoming and archived; say which notices routing does not use.
+6. **Fishing debrief:** remove race wording; give a fishing-specific debrief or an honest "not available yet".
+11. **Version label:** Menu and Settings must read one build source.
+**Later (Opus / Batch B, they touch routing and coaches):**
+4. Route assumptions and time zones: power vs sail, speed and polar assumptions, currents shown the same on every screen; label the voyage timezone on departure, arrival, daylight and tide times.
+7. Race Coach: competing trim advice, J/105 and J/24 advice shown for a Catalina 27.
+8. Route generation waits: progress, cancel, retry, stale-result protection; a route warning appeared after leaving the planner.
+9. Destination search: rank nearby navigable marine places first, separate general place matches.
+10. Events: remove duplicates, show confirmed vs estimated dates, unambiguous date format.
+**Design direction from the audit (keep as backlog):** chart-first default screen, one primary panel open at a time, separate Planning / Underway / Demo states, coach advice shown as action + reason + assumptions + source + exceptions, weather model + time + place + freshness together, tour stories subordinate to warnings.
+**First Mate:** missing AI connection is planned work, not a defect. When connected: constrained app actions, validated parameters, route-change preview before applying, deterministic navigation math; the model explains, never invents clearance, depth or collision conclusions.
+**Still needs real-world validation:** real GPS and sensors, Safari and Android, locked-screen alarms, offline, voice, multi-device sync, backup/restore, GPX, photos, route-edit regression, accessibility, performance, on-water accuracy.
+
 ### Batch B: routing and safety (new session, top model)
 18. **Routing overhaul (top priority):**
     - Follow the chart's own channels: dredged areas, fairways, recommended tracks.
