@@ -2,7 +2,7 @@
 
 Live app: https://olbucky1.github.io/Tideline/ · repo: github.com/Olbucky1/Tideline (branch main).
 Owner: Andy Brickman (andy.brickman@gmail.com), Annapolis. Sails a 1976 Catalina 27. Tests mostly on a MacBook in Safari, also on an iPad Pro and an iPhone. Most users will be on iPhones.
-Current build: 184 (13 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
+Current build: 185 (15 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
 
 ## Working rules (standing orders from Andy)
 1. **Queue, don't build.** When Andy gives feedback while testing, add it to the queue below and reply briefly. Change no code until he says **"now execute the changes"**. "Go" alone is not the trigger.
@@ -44,6 +44,12 @@ Current build: 184 (13 Oct 2026). History, file layout and data sources are in H
 
 ## Queue (not started; build only on "now execute the changes")
 
+### Settled answers (15 Oct, Batch B)
+- **Order:** safety build first (185, done), then routing overhaul + route undo + test set (186), then time zones, Race Coach, route waits, destination search, events (187).
+- **New router ships behind a "new router (testing)" switch;** the old router stays default until it passes Andy's test runs on the Mac against live charts (the sandbox has no internet). Ask Andy for GPX tracks of the test trips.
+- **Boat autofill data:** hand-built list of about 100 common sail and power models from builders' published specs, each marked "check these"; free typing for anything else. No scraped databases (sailboatdata.com etc. don't license reuse).
+- **Distress:** honest version only (built in 185).
+
 ### Settled answers (13 Oct)
 - **Top slot default:** the combined compass/speed/depth gauge. Plain compass and "nothing" are options.
 - **Undo/redo:** multi-level, for nearly everything, including moving a route line by accident. Small curved arrows that appear only while editing (layout, looks, route plotting), never on the chart while navigating. ⌘Z / ⇧⌘Z on a computer.
@@ -59,17 +65,17 @@ Current build: 184 (13 Oct 2026). History, file layout and data sources are in H
   - **Compass as a measuring tool:** use the compass for measurement (bearing and distance?). Confirm.
   - **Highlights / guided tips:** the callout box should be smaller and able to sit closer to the highlighted item; "Plan a trip" and similar tips should show a small thumbnail picture of what they do (e.g. a route).
   - (Andy: skip the cut-off note "I tried to plan a trip from Edge".)
-- **Batch B (new session, Opus), from Notes 3:**
-  - **Distress button:** one press sends a distress message or beacon when there is a connection. Research best practice first. A web app cannot replace a VHF radio, a PLB or an EPIRB; plan the honest version (clear instructions: VHF 16 / 911, share exact position by text, mayday script).
-  - **Boat name/model autofill:** typing a maker and model (e.g. Sabre power) suggests known makes and models and fills draft, air draft, length and so on once chosen. Needs a data source; check licensing.
-  - **Propulsion options:** outboard manufacturer choice; inboard options including IPS pods. For IPS pods add extra caution warnings at speed and when entering shallow water (hard grounding damage).
+- **Batch B, from Notes 3:**
+  - ~~Distress button~~ built in 185 (hold SOS 2 s; honest version).
+  - **Boat name/model autofill (186/187):** typing a maker and model (e.g. Sabre power) suggests known makes and models and fills draft, air draft, length and so on. Today BOAT_DB has 4 boats and no typeahead. Data: hand-built list (see settled answers).
+  - ~~Propulsion options and IPS cautions~~ built in 185 (type first, then makers for every type; pod cautions). Pod cautions only work where the shallow-tint depth tiles are loaded; later read depth along the route too.
 - **Parked (Andy: "don't worry about the others", 13 Oct):** full-screen chart switcher; settings sheets other than Gauge look covering the chart; customize gauge face; rope/Polynesian/Chrome frames and surf designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger.
 
 ### Stabilization pass (independent audit by ChatGPT, build 184, Andy 15 Oct). Reproduce each finding first, keep changes small, keep the round gauges.
 Confirmed by reading the code (not yet run): #1 header says "GPS live" even in demo (`.ck-gps`, ~line 6364 ignores `S.settings.sim`); #5 closures list is only sliced, never filtered by region or date (~line 773); #6 the fishing debrief reuses the race debrief text (`rcDebriefHtml`, ~line 9286).
 **Small fixes, Sonnet, one session (safety-critical, suggest building soon):**
-1. **Demo labeling:** persistent DEMO label wherever simulated position, speed or depth shows; the emergency VHF script and float plan must never contain simulated coordinates (show "Position unavailable (demo)"); keep simulated voyage records separate.
-2. **AIS "NaN nm at NaN°":** validate own-ship and target positions before range/bearing; show "Position unavailable" otherwise (Boat > Identify > A single white light).
+1. ~~**Demo labeling**~~ (built 185): persistent DEMO label wherever simulated position, speed or depth shows; the emergency VHF script and float plan must never contain simulated coordinates (show "Position unavailable (demo)"); keep simulated voyage records separate.
+2. ~~**AIS "NaN nm at NaN°"**~~ (built 185): validate own-ship and target positions before range/bearing; show "Position unavailable" otherwise (Boat > Identify > A single white light).
 3. **Depth meaning:** label live sounder vs charted vs tide-adjusted vs preview-location depth, with datum, place and time; never a bare "DEPTH" for chart-derived values.
 5. **Closures:** filter by area (no Michigan or Boston under Chesapeake) and by effective dates; separate current, upcoming and archived; say which notices routing does not use.
 6. **Fishing debrief:** remove race wording; give a fishing-specific debrief or an honest "not available yet".
@@ -92,7 +98,7 @@ Confirmed by reading the code (not yet run): #1 header says "GPS live" even in d
     - Offer alternatives with trade-offs, e.g. Cape May inside through the canal (fixed bridges about 55 ft; verify) versus outside around the point.
     - Fix the weak spots around Cape May and the run offshore.
 19. **Boat profile:** power or sail, draft, air draft, cruising speed. Power boats route point to point at steady speed.
-20. **Narrow-channel safety:**
+20. **Narrow-channel safety:** C&D brief and canal ship-meeting alert built in 185. Still to do with the overhaul: the same meeting alert for any narrow channel read from the chart (dredged areas, fairways), and briefs for other cuts.
     - C&D Canal brief: ship traffic and wake, passing port to port, bank effect and ship suction, hand-steer instead of autopilot, current, canal rules (33 CFR 162.40; verify).
     - AIS alert when a large ship or tug and barge will meet you in a canal or narrow channel.
 21. **Route undo/redo:** multi-level undo for route edits (e.g. a line moved by accident snaps back), small curved arrows shown only while plotting.

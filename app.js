@@ -93,12 +93,14 @@ function distParts(nm) {
   if (u === 'mi') { const mi = nm * 1.150779; return mi < 0.1 ? [Math.round(mi * 5280), 'ft'] : [mi.toFixed(mi < 10 ? 2 : 1), 'mi']; }
   return nm < 0.1 ? [Math.round(nm * FT_PER_NM), 'ft'] : [nm.toFixed(nm < 10 ? 2 : 1), 'nm'];
 }
-const fmtDist = (nm) => distParts(nm).join(' ');
+const fmtDist = (nm) => (Number.isFinite(nm) ? distParts(nm).join(' ') : 'distance unknown');
+// A usable position: finite numbers in range. AIS static-only messages arrive with no position, and must never feed range or bearing maths.
+const okPos = (p) => !!p && Number.isFinite(+p.lat) && Number.isFinite(+p.lon) && Math.abs(+p.lat) <= 90 && Math.abs(+p.lon) <= 180 && !(+p.lat === 0 && +p.lon === 0);
 const lenUnit = () => (S.settings.distUnit === 'km' ? 'm' : 'ft');
 const ftToLen = (ft) => (lenUnit() === 'm' ? ft * 0.3048 : ft);
 const lenToFt = (v) => (lenUnit() === 'm' ? v / 0.3048 : v);
 const fmtLen = (ft) => Math.round(ftToLen(ft)) + ' ' + lenUnit();
-const fmtBrg = (d) => (d == null ? '–' : String(Math.round((d + 360) % 360) % 360).padStart(3, '0'));
+const fmtBrg = (d) => (d == null || !Number.isFinite(d) ? '–' : String(Math.round((d + 360) % 360) % 360).padStart(3, '0'));
 function fmtDur(hours) {
   if (!isFinite(hours) || hours < 0) return '–';
   const m = Math.round(hours * 60);
@@ -1281,6 +1283,7 @@ async function routeByWater(stops) {
     }
     const o = Object.assign({}, p, { stop: true }); delete o.__ok; delete o.__why; delete o.unchecked; delete o.caution; if (p.__sh) o.caution = 1; delete o.__sh; if (i && p.__ok === false) o.unchecked = p.__why || 'net'; else if (i && p.__land > 0.15) { o.unchecked = 'land'; o.land = p.__land; } delete o.__land; out.push(o);
   }
+  if (S.boat.engineKind === 'pod' && out.length > 1) notes.push('Pod drive: the route keeps your draft plus buffer, but pods are the deepest point of the boat. Idle through channels and anything near the shallow tint.');
   if (failed) toast(wrWhy((out.find((q) => q.unchecked) || {}).unchecked), 8000);
   else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
   return out;
@@ -1531,8 +1534,17 @@ let watchId = null;
 const DESK = window.matchMedia('(hover: hover) and (pointer: fine)').matches && !('ontouchstart' in window);
 function deskNoGps(msg) { if (DESK) { setGps('desk', 'Planning on this computer · no GPS'); document.documentElement.classList.add('nogps'); return true; } setGps('bad', msg); return false; }
 function stopGPS() { if (watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId); watchId = null; stopSim(); }
+// Demo mode is labeled everywhere: a persistent DEMO badge, the console GPS label, and no simulated coordinates in safety messages.
+function applyDemoFlag() { document.documentElement.classList.toggle('is-demo', !!S.settings.sim); }
+// The position to put in anything sent to a person (mayday script, float plan, distress text). Never a demo position.
+function safetyPos() {
+  if (S.settings.sim) return { ok: false, text: 'Position unavailable (demo mode is on, so Tideline has no real position)' };
+  if (!okPos(S.fix)) return { ok: false, text: 'Position unavailable (no GPS fix)' };
+  const age = S.lastFixAt ? Math.round((Date.now() - S.lastFixAt) / 1000) : null;
+  return { ok: true, lat: S.fix.lat, lon: S.fix.lon, acc: S.fix.acc, age, text: ddm(S.fix.lat, true) + ' ' + ddm(S.fix.lon, false) };
+}
 function startGPS() {
-  stopGPS();
+  stopGPS(); applyDemoFlag();
   S.hist = []; S.firstFix = true;
   if (S.settings.sim) { startSim(); return; }
   if (!('geolocation' in navigator)) { deskNoGps('This browser has no GPS'); return; }
@@ -1613,6 +1625,7 @@ function onFix(f) {
   else setGps(f.acc <= 12 ? 'good' : f.acc <= 35 ? 'fair' : 'bad', 'GPS ' + accTxt);
 
   updateBoat(); updateGoto(); checkAnchor(f); updateMob();
+  try { canalWatch(); podWatch(); } catch (e) { /* safety extras must never break the fix loop */ }
   if (S.settings.sim) simAis();
   if (Date.now() - (S.aisFixAt || 0) > 2000) { S.aisFixAt = Date.now(); updateAis(); } renderStrip(); renderLive();
   maybeWeather(); maybeTide(); maybeObsWind();
@@ -2972,7 +2985,7 @@ function renderMenu() {
       menuTile('gaugelook', 'dash', 'Gauge look', 'Chrome, brass, glass and more; analog or digital') +
       menuTile('apptour', 'help', 'Take the tour', 'A one-minute walk around the app') +
       menuTile('help', 'help', 'Help', 'Ask how to do anything')) +
-    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 184. A navigation aid: keep a proper lookout and carry official charts.</p>';
+    '<div class="row-btns" style="margin-top:12px"><button type="button" class="btn" data-mact="backup">Back up my data</button><button type="button" class="btn" data-mact="restore">Restore from a backup</button></div><input type="file" id="restoreIn" accept=".json,application/json" hidden>' + '<button type="button" class="btn" data-mact="update" style="margin-top:8px">Get the latest version</button><p class="hint" style="margin-top:14px">Tideline prototype 0.6 · build 185. A navigation aid: keep a proper lookout and carry official charts.</p>';
 }
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'restoreIn') return; const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -3175,10 +3188,11 @@ $('panelNav').addEventListener('click', (e) => {
 /* ---------- Safety and education (secondary to the coach; kept short) ---------- */
 const VSC = ['State registration and numbers displayed', 'A wearable life jacket for everyone aboard, the right size', 'A throwable device (boats 16 ft and over)', 'Fire extinguishers, charged and in date', 'Visual distress signals, in date (coastal waters)', 'Horn or whistle', 'Navigation lights working', 'Engine-space ventilation and backfire flame arrester (gas engines)', 'Oil pollution and garbage placards (boats 26 ft and over)', 'Marine head with a legal holding tank or treatment system'];
 function renderSafety() {
-  const done = store.get('vsc', {}), pos = S.fix ? ddm(S.fix.lat, true) + ' ' + ddm(S.fix.lon, false) : '[your position]';
+  const done = store.get('vsc', {}), sp = safetyPos(), pos = sp.ok ? sp.text : '[your position: ' + sp.text.replace(/^Position unavailable /, '').replace(/[()]/g, '') + ']';
   const boat = S.settings.boatName || '[boat name]';
   const fp = store.get('floatplan', { who: '', back: '', where: '', contact: '' });
   $('panelSafety').innerHTML = '<div class="p-head"><div><div class="eyebrow">Safety and education</div><h2>Be ready</h2></div><button class="btn small" data-act="sfback">Menu</button></div>' +
+    '<div class="card sos-entry"><h4>Distress screen</h4><p class="hint" style="margin:0 0 8px">Your position large, a filled-in mayday script, call 911 and text your position. Also opens by holding the red SOS button on the chart for two seconds.</p><button class="btn primary" data-act="opensos" style="background:var(--red)">Open distress screen</button></div>' +
     '<div class="card"><h4>Emergency on VHF channel 16</h4><div class="script tnum">MAYDAY, MAYDAY, MAYDAY. This is ' + esc(boat) + ', ' + esc(boat) + ', ' + esc(boat) + '. MAYDAY ' + esc(boat) + '. My position is ' + esc(pos) + '. [What is wrong.] [How many people aboard.] [Boat description.] Over.</div>' +
     '<p class="hint">Use MAYDAY for danger to life or the boat; PAN-PAN for urgent but not life-threatening. On shore, call 911.</p></div>' +
     '<div class="card"><h4>VHF channels</h4><div class="facts" style="margin:0"><span>16</span><span>Distress, safety and calling. Monitor it underway.</span><span>9</span><span>Calling for recreational boats; many marinas.</span><span>13</span><span>Bridge to bridge: ships, tugs and drawbridges.</span><span>22A</span><span>Coast Guard working channel, when they ask you to switch.</span><span>68, 69, 71, 72</span><span>Boat to boat chatter.</span><span>WX 1–7</span><span>NOAA Weather Radio.</span></div></div>' +
@@ -3186,6 +3200,7 @@ function renderSafety() {
     '<div class="field"><label for="fpWho">Who is aboard</label><input id="fpWho" value="' + esc(fp.who) + '"></div><div class="field"><label for="fpWhere">Where you are going</label><input id="fpWhere" value="' + esc(fp.where) + '"></div>' +
     '<div class="grid2"><div class="field"><label for="fpBack">Back by</label><input id="fpBack" type="datetime-local" value="' + esc(fp.back) + '"></div><div class="field"><label for="fpContact">Who to call if late</label><input id="fpContact" value="' + esc(fp.contact) + '"></div></div>' +
     '<div class="row-btns"><button class="btn primary" data-act="fpcopy">Copy float plan</button></div></div>' +
+    '<div class="card">' + canalBriefHtml() + '</div>' +
     '<div class="card"><h4>Vessel safety check</h4><p class="hint" style="margin:0 0 6px">The basics the Coast Guard Auxiliary checks. Tap each one as you confirm it.</p>' +
     VSC.map((t, i) => '<label class="opt"><input type="checkbox" data-vsc="' + i + '"' + (done[i] ? ' checked' : '') + '><span>' + t + '</span></label>').join('') +
     '<p class="hint">A free check from the Coast Guard Auxiliary covers state rules too: <a href="https://www.uscgboating.org" target="_blank" rel="noopener">uscgboating.org</a>.</p></div>' +
@@ -3194,10 +3209,11 @@ function renderSafety() {
 $('panelSafety').addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   if (b.dataset.act === 'sfback') setTab('menu');
+  if (b.dataset.act === 'opensos') openSos();
   if (b.dataset.act === 'fpcopy') {
     const fp = { who: $('fpWho').value, where: $('fpWhere').value, back: $('fpBack').value, contact: $('fpContact').value }; store.set('floatplan', fp);
     const bk = fp.back ? new Date(fp.back).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '[time]';
-    const txt = 'Float plan: ' + (S.settings.boatName || 'our boat') + ' (' + boatSummary() + '). Aboard: ' + (fp.who || '?') + '. Going: ' + (fp.where || '?') + '. Back by ' + bk + '. If we are not back or in touch by then, call ' + (fp.contact || 'the Coast Guard') + ' and give them this message.' + (S.fix ? ' Last position ' + ddm(S.fix.lat, true) + ' ' + ddm(S.fix.lon, false) + '.' : '');
+    const txt = 'Float plan: ' + (S.settings.boatName || 'our boat') + ' (' + boatSummary() + '). Aboard: ' + (fp.who || '?') + '. Going: ' + (fp.where || '?') + '. Back by ' + bk + '. If we are not back or in touch by then, call ' + (fp.contact || 'the Coast Guard') + ' and give them this message.' + (safetyPos().ok ? ' Last position ' + safetyPos().text + '.' : '');
     const done = () => toast('Float plan copied. Paste it into a text message.');
     try { navigator.clipboard.writeText(txt).then(done, () => toast(txt, 9000)); } catch (err) { toast(txt, 9000); }
   }
@@ -3534,7 +3550,7 @@ $('panelLog').addEventListener('click', (e) => {
   if (act === 'recstop') {
     const pts = S.rec.pts;
     if (pts.length > 1) {
-      const t = { id: Date.now(), name: new Date(S.rec.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + fmtClock(S.rec.start), start: S.rec.start, end: Date.now(), dist: trackDist(pts), pts };
+      const t = { id: Date.now(), name: (S.settings.sim ? 'DEMO · ' : '') + new Date(S.rec.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + fmtClock(S.rec.start), start: S.rec.start, end: Date.now(), dist: trackDist(pts), pts, demo: !!S.settings.sim };
       S.tracks.push(t); store.set('tracks', S.tracks); toast('Track saved');
     } else toast('Track was too short to save');
     S.rec = { on: false, pts: [], start: null }; store.set('rec', S.rec); trackLine.setLatLngs([]); renderLog();
@@ -3895,7 +3911,7 @@ function cpaOf(o, t) {
   return { cpa: Math.hypot(rx + vx * Math.max(tc, 0), ry + vy * Math.max(tc, 0)), tcpa: tc, range: Math.hypot(rx, ry) };
 }
 function evaluate(t) {
-  const f = S.fix; if (!f) return null;
+  const f = S.fix; if (!okPos(f) || !okPos(t)) return null;
   const o = { lat: f.lat, lon: f.lon, sog: S.sog || 0, cog: S.cog == null ? 0 : S.cog };
   const c = cpaOf(o, t);
   const rbT = relBearing(o, o.cog, t), rbO = relBearing(t, t.cog, o);
@@ -4358,18 +4374,37 @@ function boatSummary() {
   return bits.join(' · ');
 }
 const OUTBOARD_MAKES = ['Yamaha', 'Mercury', 'Honda', 'Suzuki', 'Tohatsu', 'Evinrude', 'Johnson', 'Nissan', 'Force', 'British Seagull', 'Torqeedo', 'ePropulsion'];
-function outboardMakeChoice(make) {
-  const value = (make || '').trim();
-  return OUTBOARD_MAKES.find((name) => name.toLowerCase() === value.toLowerCase()) || (value ? 'other' : '');
+// Propulsion first, then the makers that build that kind. Any type can be "Other — enter a name".
+const PROP_KINDS = [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive (inboard/outboard)'], ['pod', 'Pod drive (Volvo Penta IPS, Zeus)'], ['jet', 'Jet drive'], ['electric', 'Electric inboard'], ['none', 'No engine']];
+const PROP_LABEL = Object.fromEntries(PROP_KINDS);
+const ENGINE_MAKES = {
+  outboard: OUTBOARD_MAKES,
+  'inboard-diesel': ['Yanmar', 'Volvo Penta', 'Westerbeke', 'Universal', 'Beta Marine', 'Perkins', 'Cummins', 'Caterpillar', 'John Deere', 'MAN', 'MTU', 'Nanni', 'Kubota', 'Mercury Diesel', 'Vetus'],
+  'inboard-gas': ['MerCruiser', 'Indmar', 'PCM (Pleasurecraft Marine)', 'Ilmor', 'Crusader', 'Volvo Penta', 'Universal Atomic 4', 'Chris-Craft'],
+  sterndrive: ['MerCruiser', 'Volvo Penta', 'Ilmor', 'OMC'],
+  pod: ['Volvo Penta (IPS)', 'Cummins (Zeus)', 'Mercury (Zeus)', 'ZF (Pod 4000)'],
+  jet: ['Hamilton Jet', 'Yamaha', 'Rotax (Sea-Doo)', 'Mercury', 'Castoldi', 'Kodiak'],
+  electric: ['Torqeedo', 'ePropulsion', 'Elco', 'Oceanvolt', 'Vetus', 'Flux Marine', 'Pure Watercraft', 'Mercury Avator'],
+};
+function engineMakeChoice(kind, make) {
+  const value = (make || '').trim(), list = ENGINE_MAKES[kind] || [];
+  return list.find((name) => name.toLowerCase() === value.toLowerCase()) || (value ? 'other' : '');
+}
+const outboardMakeChoice = (make) => engineMakeChoice('outboard', make);
+function engineMakeOpts(kind, make) {
+  const cur = engineMakeChoice(kind, make);
+  return [['', 'Choose / Not sure'], ...(ENGINE_MAKES[kind] || []).map((n) => [n, n]), ['other', 'Other — enter a name']].map(([v, l]) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
 }
 function updateEngineMakeFields() {
   const kind = $('bEngKind'), make = $('bEngMake'), pick = $('bEngManufacturer');
   if (!kind || !make || !pick) return;
-  const outboard = kind.value === 'outboard';
-  $('bEngManufacturerField').hidden = !outboard;
-  $('bEngMakeField').hidden = outboard && pick.value !== 'other';
-  $('bEngMakeLabel').textContent = outboard ? 'Other manufacturer (optional)' : 'Engine make';
-  $('bShaftRow').hidden = !outboard;
+  const k = kind.value, none = k === 'none';
+  $('bEngManufacturerField').hidden = none;
+  $('bEngMakeField').hidden = none || pick.value !== 'other';
+  $('bEngMakeLabel').textContent = 'Manufacturer name';
+  $('bShaftRow').hidden = k !== 'outboard';
+  ['bEngDetail', 'bHpField'].forEach((id) => { if ($(id)) $(id).hidden = none; });
+  if ($('bPodNote')) $('bPodNote').hidden = k !== 'pod';
 }
 function profileHtml() {
   const b = S.boat, st = S.settings;
@@ -4379,7 +4414,7 @@ function profileHtml() {
     return '<div class="card" style="padding:14px"><label style="display:block;cursor:pointer">' + photo + '<input type="file" accept="image/*" id="boatPhoto" style="display:none"></label>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-top:12px"><div style="min-width:0"><div style="font-size:20px;font-weight:600">' + esc(st.boatName || 'Your boat') + '</div>' +
       '<div class="sub" style="margin:2px 0 0">' + esc(boatSummary()) + '</div>' +
-      (b.engineMake || b.engineHp ? '<div class="sub" style="margin:2px 0 0">' + esc([b.engineMake, b.engineModel, b.engineHp ? b.engineHp + ' hp' : '', b.engineKind].filter(Boolean).join(' · ')) + ' · ' + Math.round(b.engineHours || 0) + ' engine hours</div>' : '') +
+      (b.engineMake || b.engineHp ? '<div class="sub" style="margin:2px 0 0">' + esc([b.engineMake, b.engineModel, b.engineHp ? b.engineHp + ' hp' : '', PROP_LABEL[b.engineKind] || b.engineKind].filter(Boolean).join(' · ')) + ' · ' + Math.round(b.engineHours || 0) + ' engine hours</div>' : '') +
       '</div><button class="btn small" data-act="editboat">Edit</button></div></div>';
   }
   const f = (id, label, val, type = 'text', extra = '') => '<div class="field"><label for="' + id + '">' + label + '</label><input id="' + id + '" type="' + type + '" ' + (type === 'number' ? 'inputmode="decimal" step="any" min="0" ' : '') + 'value="' + (val == null ? '' : esc(val)) + '" ' + extra + '></div>';
@@ -4395,10 +4430,12 @@ function profileHtml() {
     '<p class="hint" id="bDbNote" style="margin:-2px 0 4px">Enter make and model: known boats fill in their specs for you to check.</p>' +
     '<div class="grid2">' + f('bDraft', 'Draft (' + lenUnit() + ')', L2(b.draftFt), 'number') + f('bAir', 'Air draft (' + lenUnit() + ')' + (st.boatType === 'sail' ? ', masthead and antennas' : ', highest point'), L2(b.airDraftFt), 'number') + '</div>' +
     '<label class="air-ok"><input type="checkbox" id="bAirOk"' + (b.airVerified ? ' checked' : '') + '> Air draft verified (I measured it, or it is from the builder for my rig)</label>' +
-    '<div class="grid2">' + sel('bEngKind', 'Engine', b.engineKind, [['outboard', 'Outboard'], ['inboard-diesel', 'Inboard diesel'], ['inboard-gas', 'Inboard gas'], ['sterndrive', 'Sterndrive'], ['pod', 'Pod drive (IPS etc.)'], ['none', 'No engine']]) + f('bHp', 'Horsepower', b.engineHp, 'number') + '</div>' +
-    '<div id="bShaftRow" class="grid2"' + (b.engineKind && b.engineKind !== 'outboard' ? ' hidden' : '') + '>' + sel('bShaft', 'Outboard shaft length', b.shaft || '', [['', 'Not sure'], ['short', 'Short (15 in)'], ['long', 'Long (20 in)'], ['xl', 'Extra long (25 in)'], ['ul', 'Ultra long (30 in)']]) + '<p class="hint" style="align-self:end">Measured from the top of the mounting bracket to the anti-ventilation plate. It decides which replacement or spare fits your transom.</p></div>' +
-    '<div id="bEngManufacturerField"' + (b.engineKind && b.engineKind !== 'outboard' ? ' hidden' : '') + '>' + sel('bEngManufacturer', 'Outboard manufacturer', outboardMakeChoice(b.engineMake), [['', 'Choose / Not sure'], ...OUTBOARD_MAKES.map((name) => [name, name]), ['other', 'Other — enter a name']]) + '</div>' +
-    '<div class="grid2"><div class="field" id="bEngMakeField"' + ((!b.engineKind || b.engineKind === 'outboard') && outboardMakeChoice(b.engineMake) !== 'other' ? ' hidden' : '') + '><label id="bEngMakeLabel" for="bEngMake">' + ((!b.engineKind || b.engineKind === 'outboard') ? 'Other manufacturer (optional)' : 'Engine make') + '</label><input id="bEngMake" type="text" value="' + esc(b.engineMake || '') + '" placeholder="Enter manufacturer"></div>' + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
+    '<h4 style="margin:14px 0 6px">Propulsion</h4>' +
+    '<div class="grid2">' + sel('bEngKind', 'Type', b.engineKind || 'outboard', PROP_KINDS) + '<div id="bHpField"' + ((b.engineKind === 'none') ? ' hidden' : '') + '>' + f('bHp', 'Horsepower (total)', b.engineHp, 'number') + '</div></div>' +
+    '<p class="hint sos-pod" id="bPodNote"' + (b.engineKind === 'pod' ? '' : ' hidden') + '>Pod drives hang below the hull and are often the deepest, most expensive part of the boat. Tideline adds extra shallow-water and speed cautions for pod boats. Set your draft to the bottom of the pods.</p>' +
+    '<div id="bEngManufacturerField" class="field"' + ((b.engineKind === 'none') ? ' hidden' : '') + '><label for="bEngManufacturer">Manufacturer</label><select id="bEngManufacturer">' + engineMakeOpts((b.engineKind || 'outboard'), b.engineMake) + '</select></div>' +
+    '<div id="bShaftRow" class="grid2"' + ((b.engineKind || 'outboard') !== 'outboard' ? ' hidden' : '') + '>' + sel('bShaft', 'Outboard shaft length', b.shaft || '', [['', 'Not sure'], ['short', 'Short (15 in)'], ['long', 'Long (20 in)'], ['xl', 'Extra long (25 in)'], ['ul', 'Ultra long (30 in)']]) + '<p class="hint" style="align-self:end">Measured from the top of the mounting bracket to the anti-ventilation plate. It decides which replacement or spare fits your transom.</p></div>' +
+    '<div class="grid2" id="bEngDetail"' + ((b.engineKind === 'none') ? ' hidden' : '') + '><div class="field" id="bEngMakeField"' + (engineMakeChoice((b.engineKind || 'outboard'), b.engineMake) !== 'other' ? ' hidden' : '') + '><label id="bEngMakeLabel" for="bEngMake">Manufacturer name</label><input id="bEngMake" type="text" value="' + esc(b.engineMake || '') + '" placeholder="Enter manufacturer"></div>' + f('bEngModel', 'Engine model', b.engineModel) + '</div>' +
     '<div class="grid2">' + f('bEngYear', 'Engine year', b.engineYear, 'number') + f('bEngSerial', 'Engine serial number', b.engineSerial) + '</div>' +
     '<div class="grid2">' + f('bHull', 'Hull ID (HIN)', b.hin) + f('bReg', 'Registration or documentation no.', b.reg) + '</div>' +
     '<div class="grid2">' + f('bHours', 'Engine hours now', b.engineHours, 'number') + sel('bIcon', 'Chart icon', st.iconStyle, [['boat', 'Boat outline'], ['arrow', 'Arrow']]) + '</div>' +
@@ -4537,9 +4574,10 @@ function openIdentify() {
   openSheet(h);
 }
 function aisMatches(o) {
-  if (!S.fix || !ais.size) return [];
+  if (!okPos(S.fix) || !ais.size) return [];
   const list = [];
   ais.forEach((t) => {
+    if (!okPos(t)) return;
     const d = distNm(S.fix, t); if (d > 3) return;
     const brg = bearing(S.fix, t);
     let score = 0;
@@ -4555,7 +4593,8 @@ function showIdResult(o) {
   let h = '<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">' + lightPic(o) + '<div><h3 style="margin:0">' + esc(o.name) + '</h3><div class="sub" style="margin:2px 0 0">Rule ' + esc(o.cite) + '</div></div></div>' +
     '<p style="font-size:15px;line-height:1.5;margin:0 0 12px">' + esc(o.advice) + '</p>';
   h += '<div class="lbl" style="margin-bottom:6px">AIS CHECK' + (compassHeading != null ? ' · AIMED AT ' + fmtBrg(compassHeading) + '°' : '') + '</div>';
-  if (!m.length) h += '<p class="sub">No AIS targets nearby. Many small boats, fishing boats and tows don\'t transmit AIS, so trust your eyes.</p>';
+  if (!okPos(S.fix)) h += '<p class="sub">Position unavailable: Tideline has no GPS fix, so it cannot give range or bearing to AIS targets. Trust your eyes.</p>';
+  else if (!m.length) h += '<p class="sub">No AIS targets nearby. Many small boats, fishing boats and tows don\'t transmit AIS, so trust your eyes.</p>';
   else h += m.map((x) => '<div class="li"><div class="li-main"><b>' + esc(x.t.name || 'AIS target') + '</b><span>' + esc((x.t.type === 'ship' ? 'Ship' : x.t.type === 'sail' ? 'Sailing vessel' : x.t.type === 'fishing' ? 'Fishing vessel' : 'Power vessel') + (NAV_STATUS[x.t.status] ? ' · ' + NAV_STATUS[x.t.status] : '')) + ' · ' + fmtDist(x.d) + ' at ' + fmtBrg(x.brg) + '°' + (x.score >= 4 ? ' · likely match' : '') + '</span></div><button class="btn small" data-aisid="' + esc(x.t.id) + '">Details</button></div>').join('');
   h += '<div class="row-btns" style="margin-top:12px"><button class="btn" data-act="aim">' + (compassHeading == null ? 'Aim phone at it' : 'Re-aim') + '</button><button class="btn" data-rule="' + esc(o.cite.split(',')[0].trim()) + '">Read the rule</button><button class="btn ghost" data-act="identify">Back</button></div>' +
     '<p class="disclaim">' + DISCLAIMER + '</p>';
@@ -4860,13 +4899,13 @@ $('panelBoat').addEventListener('click', async (e) => {
 });
 $('panelBoat').addEventListener('change', async (e) => {
   if (e.target.id === 'bEngKind') {
-    $('bEngManufacturer').value = outboardMakeChoice($('bEngMake').value);
+    $('bEngManufacturer').innerHTML = engineMakeOpts(e.target.value, $('bEngMake').value);
     updateEngineMakeFields();
   }
   if (e.target.id === 'bEngManufacturer') {
-    const make = $('bEngMake');
-    if (e.target.value === 'other') make.value = make.dataset.customMake || (outboardMakeChoice(make.value) === 'other' ? make.value : '');
-    else { if (outboardMakeChoice(make.value) === 'other') make.dataset.customMake = make.value; make.value = e.target.value; }
+    const make = $('bEngMake'), kind = $('bEngKind').value;
+    if (e.target.value === 'other') make.value = make.dataset.customMake || (engineMakeChoice(kind, make.value) === 'other' ? make.value : '');
+    else { if (engineMakeChoice(kind, make.value) === 'other') make.dataset.customMake = make.value; make.value = e.target.value; }
     updateEngineMakeFields();
     if (e.target.value === 'other') make.focus();
   }
@@ -6360,8 +6399,8 @@ function renderCockpit(why) {
   ckRadars(el);
   const acc = S.fix && S.fix.acc != null ? '±' + Math.round(ftToLen(S.fix.acc * 3.28084)) + ' ' + lenUnit() : '';
   const age = S.lastFixAt ? Math.round((Date.now() - S.lastFixAt) / 1000) : null;
-  el.querySelector('.ck-gps').className = 'ck-gps ' + (age != null && age < 10 ? 'ok' : 'bad');
-  el.querySelector('.ck-gps').textContent = DESK && !S.fix ? 'No GPS on this computer' : 'GPS ' + (age == null ? 'searching' : age < 10 ? 'live ' + acc : 'no fix for ' + age + ' s');
+  el.querySelector('.ck-gps').className = 'ck-gps ' + (S.settings.sim ? 'demo' : age != null && age < 10 ? 'ok' : 'bad');
+  el.querySelector('.ck-gps').textContent = S.settings.sim ? 'DEMO GPS · simulated position' : DESK && !S.fix ? 'No GPS on this computer' : 'GPS ' + (age == null ? 'searching' : age < 10 ? 'live ' + acc : 'no fix for ' + age + ' s');
   el.querySelector('.ck-time').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   el.querySelector('.ck-edit').textContent = ckEdit ? 'Done' : 'Customize';
 }
@@ -6561,7 +6600,7 @@ function firstMateListen() {
 }
 function firstMateAheadTargets() {
   if (!S.fix || (S.sog || 0) < 0.6 || !Number.isFinite(S.cog) || Date.now() - S.lastFixAt > 30000) return null;
-  return [...ais.values()].filter(t => Date.now() - (t.seen || 0) < 180000 && Math.abs(((bearing(S.fix, t) - S.cog + 540) % 360) - 180) <= 35).sort((a,b) => (b.len || 0) - (a.len || 0) || distNm(S.fix, a) - distNm(S.fix, b));
+  return [...ais.values()].filter(t => okPos(t) && Date.now() - (t.seen || 0) < 180000 && Math.abs(((bearing(S.fix, t) - S.cog + 540) % 360) - 180) <= 35).sort((a,b) => (b.len || 0) - (a.len || 0) || distNm(S.fix, a) - distNm(S.fix, b));
 }
 function firstMateSpotDistance(p, a, b) {
   const scale = Math.cos((a.lat + b.lat) * Math.PI / 360), x = (b.lon-a.lon)*scale, y = b.lat-a.lat, px = (p.lon-a.lon)*scale, py = p.lat-a.lat;
@@ -8181,7 +8220,7 @@ async function fmUnderstand(text) {
   }
   if (has(/\b(stop|end|finish|turn off|save)\b.*\b(record|recording|track|tracking|logging)\b/)) {
     if (!S.rec.on) return { say: 'Not recording right now.' };
-    const pts = S.rec.pts, ok = pts.length > 1; if (ok) { S.tracks.push({ id: Date.now(), name: new Date(S.rec.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + fmtClock(S.rec.start), start: S.rec.start, end: Date.now(), dist: trackDist(pts), pts }); store.set('tracks', S.tracks); }
+    const pts = S.rec.pts, ok = pts.length > 1; if (ok) { S.tracks.push({ id: Date.now(), demo: !!S.settings.sim, name: (S.settings.sim ? 'DEMO · ' : '') + new Date(S.rec.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + fmtClock(S.rec.start), start: S.rec.start, end: Date.now(), dist: trackDist(pts), pts }); store.set('tracks', S.tracks); }
     S.rec = { on: false, pts: [], start: null }; store.set('rec', S.rec); trackLine.setLatLngs([]); $('recDot').hidden = true; return { say: ok ? 'Track saved.' : 'Stopped. The track was too short to save.' };
   }
   if (has(/\b(mark|save|drop|remember|pin|flag|tag|add)\b.*\b(spot|place|location|position|here|this|waypoint|pin|it)\b|\bwaypoint\b|\bdrop a pin\b|^mark( it)?$/)) {
@@ -8939,7 +8978,7 @@ async function openBriefing() {
 // what a skipper would tell you at each named waypoint of a passage
 const PN_NOTE = {
   bbr: 'Go under the Bay Bridge through the marked main channel spans; current runs hard between the piers.',
-  cdw: 'Into the C&D Canal: big ships and tugs use it day and night and have right of way. The current runs 2 to 3 knots, so time it to go with you. No anchoring in the canal; Chesapeake City has a free basin.',
+  cdw: 'Into the C&D Canal: motor through (no sailing), keep to the right side, hand-steer, and listen on VHF 13. Big ships and tugs use it day and night and have right of way. The current runs 2 to 3 knots, so time it to go with you. No anchoring in the canal; Chesapeake City has a free basin.',
   cdc: 'Chesapeake City: the free town basin on the south side is the usual stop before or after the canal.',
   cde: 'Reedy Point: out of the canal into the Delaware River. Ships, strong current, and the tide matters from here to Cape May.',
   sjs: 'Delaware Bay: stay just outside the ship channel. Wind against tide here builds a short, steep sea, so ride the ebb going down.',
@@ -9258,7 +9297,7 @@ function rcStart(kind) {
   if (RC.quietToast) { RC.quietToast = 0; } else toast(RC.kind === 'race' ? (S.settings.rcLive ? 'Recording, with live tips on. Check your class rules allow it.' : 'Recording the race. Tap Stop when you finish for the debrief.') : 'Fishing coach on. I will speak up only when something changes and it matters.', 3500);
 }
 function rcStop() { RC.on = false; clearInterval(RC.t); clearInterval(RC.ct); const el = $('rcCard'); if (el) el.hidden = true;
-  if (RC.kind === 'race' && RC.trk && RC.trk.length > 20) { const sm = rcSummary(); if (sm) { const all = store.get('rcRaces', []); all.unshift(sm); store.set('rcRaces', all.slice(0, 12)); } } }
+  if (RC.kind === 'race' && RC.trk && RC.trk.length > 20) { const sm = rcSummary(); if (sm) { if (S.settings.sim) sm.demo = true; const all = store.get('rcRaces', []); all.unshift(sm); store.set('rcRaces', all.slice(0, 12)); } } }
 // the debrief: what the recording says, in plain words, a few things to work on. Legal everywhere because it happens after the race.
 function rcSummary() {
   const tk = RC.trk || []; if (tk.length < 20) return null; let dist = 0; for (let i = 1; i < tk.length; i++) dist += distNm(tk[i - 1], tk[i]);
@@ -9281,8 +9320,8 @@ function rcSummaryHtml(sm) {
 }
 function rcDebriefHtml() {
   const races = store.get('rcRaces', []), live = RC.on && RC.kind === 'race' ? rcSummary() : null;
-  let top = live ? '<p class="sub">Recording now. This is the debrief so far.</p>' + rcSummaryHtml(live) : races[0] ? rcSummaryHtml(races[0]) : '';
-  if (races.length > 1) top += '<h4>Earlier races</h4><ul class="rc-list">' + races.slice(live ? 0 : 1, 8).map((r) => '<li><b>' + new Date(r.t0).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '</b> ' + fmtDist(r.dist) + (r.up ? ' · upwind ' + Math.round(r.up.p * 100) + '%' : '') + (r.dn ? ' · downwind ' + Math.round(r.dn.p * 100) + '%' : '') + ' · ' + r.tacks + ' tacks</li>').join('') + '</ul>';
+  let top = live ? '<p class="sub">Recording now. This is the debrief so far.</p>' + rcSummaryHtml(live) : races[0] ? (races[0].demo ? '<p class="demo-note">DEMO RACE · simulated GPS, not a real result</p>' : '') + rcSummaryHtml(races[0]) : '';
+  if (races.length > 1) top += '<h4>Earlier races</h4><ul class="rc-list">' + races.slice(live ? 0 : 1, 8).map((r) => '<li><b>' + (r.demo ? 'DEMO · ' : '') + new Date(r.t0).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '</b> ' + fmtDist(r.dist) + (r.up ? ' · upwind ' + Math.round(r.up.p * 100) + '%' : '') + (r.dn ? ' · downwind ' + Math.round(r.dn.p * 100) + '%' : '') + ' · ' + r.tacks + ' tacks</li>').join('') + '</ul>';
   if (!top && !RC.log.length && !RC.held.length) return '<p class="sub">Record a race (Live tab, Record the race) and the breakdown shows up here when you stop: speed against target upwind and down, tacks, headers you sailed through, and what to work on.</p>';
   const all = RC.log.map((x) => ({ ...x, said: true })).concat(RC.held.map((x) => ({ ...x, said: false }))).sort((a, b) => a.t - b.t);
   if (!all.length) return top;
@@ -9684,7 +9723,237 @@ function settingsLink() { const o = {}; Object.keys(S.settings).forEach((k) => {
 document.addEventListener('click', async (e) => { if (!e.target.closest('[data-act="copyset"]')) return; const u = settingsLink(); try { await navigator.clipboard.writeText(u); toast('Settings link copied. Open it on the other device.', 3000); } catch (err) { openSheet('<h3>Your settings link</h3><div class="field"><textarea readonly rows="4" style="width:100%" onfocus="this.select()">' + esc(u) + '</textarea></div><p class="hint">Copy this link and open it in Tideline on the other device.</p>'); } });
 (function applySharedSettings() { const m = /^#s=(.+)$/.exec(location.hash); if (!m) return; let o; try { o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); } catch (err) { return; } history.replaceState(null, '', location.pathname + location.search);
   setTimeout(() => { if (!o || typeof o !== 'object') return; if (!confirm('Apply the Tideline settings from this link? Your trips and account are not changed.')) return; Object.keys(o).forEach((k) => { if (!SET_SKIP.test(k)) S.settings[k] = o[k]; }); saveSettings(); location.reload(); }, 800); })();
-window.Tideline = { openBriefing, BRF, FLY, pnPath, flyStart, legSay, setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L, ALR, renderAlertBar }; // debugging and demo recording
+/* ---------- Distress (build 185) ----------
+   Best practice (USCG): VHF channel 16 is the primary way to call for help on the water; a DSC radio's red DISTRESS button sends your MMSI
+   and GPS position automatically. A cell phone (911) is an acceptable secondary means. Text-to-911 is not available everywhere.
+   A web app cannot transmit on VHF, send a DSC alert or fire a beacon, and cannot send a text by itself: you always tap Send.
+   So this screen is the honest version: your real position, large; a filled-in mayday script to read on channel 16; call 911; and a
+   pre-filled text you send yourself. It never shows a demo position. */
+const SOS_NATURE = [['', 'Choose what is wrong'], ['sinking', 'Taking on water / sinking'], ['fire', 'Fire'], ['medical', 'Medical emergency'], ['mob', 'Person overboard'], ['aground', 'Aground and in danger'], ['disabled', 'Disabled, drifting into danger'], ['collision', 'Collision'], ['other', 'Other danger']];
+const SOS_SAY = { sinking: 'taking on water and sinking', fire: 'on fire', medical: 'a medical emergency aboard', mob: 'a person overboard', aground: 'aground and in danger', disabled: 'disabled and drifting into danger', collision: 'in a collision', other: 'in grave and imminent danger' };
+const SOS = { el: null, timer: null, lock: null, pan: false };
+function sosCfg() { return Object.assign({ people: '', nature: '', color: '', jackets: true }, store.get('sos', {})); }
+function sosBoatDesc() {
+  const b = S.boat, st = S.settings, bits = [];
+  if (st.boatLen) bits.push(Math.round(st.boatLen) + ' foot');
+  if (sosCfg().color) bits.push(sosCfg().color);
+  bits.push(st.boatType === 'sail' ? 'sailboat' : 'powerboat');
+  if (b.make || b.model) bits.push('(' + [b.make, b.model].filter(Boolean).join(' ') + ')');
+  return bits.join(' ');
+}
+function sosScript(p) {
+  const c = sosCfg(), boat = S.settings.boatName || '[boat name]', mmsi = S.boat.mmsi && /^\d{9}$/.test(String(S.boat.mmsi)) ? String(S.boat.mmsi) : '';
+  const word = SOS.pan ? 'PAN-PAN' : 'MAYDAY', three = word + ', ' + word + ', ' + word + '.';
+  const what = c.nature ? SOS_SAY[c.nature] : '[what is wrong]';
+  return three + ' This is ' + boat + ', ' + boat + ', ' + boat + (mmsi ? ', MMSI ' + mmsi.split('').join(' ') : '') + '. ' + word + ' ' + boat + '. ' +
+    'My position is ' + (p.ok ? sosSpoken(p) : '[read your position from a chartplotter or GPS]') + '. ' +
+    'We are ' + what + '. ' + (SOS.pan ? 'We need assistance. ' : 'We need immediate assistance. ') +
+    (c.people ? c.people + ' ' + (+c.people === 1 ? 'person' : 'people') + ' aboard' : '[how many people] aboard') + (c.jackets ? ', wearing life jackets' : '') + '. ' +
+    'We are a ' + sosBoatDesc() + '. Over.';
+}
+function sosSpoken(p) { // lat/long read as words a radio operator writes down: "38 degrees 58.123 minutes north"
+  const part = (v, lat) => { const a = Math.abs(v), d = Math.floor(a), m = ((a - d) * 60).toFixed(3); return d + ' degrees ' + m + ' minutes ' + (lat ? (v >= 0 ? 'north' : 'south') : (v >= 0 ? 'east' : 'west')); };
+  return part(p.lat, true) + ', ' + part(p.lon, false);
+}
+function sosText(p) {
+  const c = sosCfg(), boat = S.settings.boatName || 'our boat';
+  return (SOS.pan ? 'URGENT (not life-threatening): ' : 'EMERGENCY: ') + boat + (c.nature ? ' is ' + SOS_SAY[c.nature] : ' needs help') + '. ' +
+    (p.ok ? 'Position ' + p.text + ' (' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + ')' + (p.acc != null ? ' ±' + Math.round(p.acc) + ' m' : '') + ' at ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '. Map: https://maps.google.com/?q=' + p.lat.toFixed(5) + ',' + p.lon.toFixed(5) + '. ' : 'Position unknown. ') +
+    (c.people ? c.people + ' aboard. ' : '') + sosBoatDesc() + '. Please call 911 and ask for the Coast Guard, then call me.';
+}
+function sosSmsHref(p) {
+  const fp = store.get('floatplan', {}), num = String(fp.contact || '').replace(/[^\d+]/g, '');
+  return 'sms:' + (num.length >= 7 ? num : '') + '?&body=' + encodeURIComponent(sosText(p));
+}
+function sosRender() {
+  if (!SOS.el) return;
+  const p = safetyPos(), c = sosCfg(), demo = !!S.settings.sim;
+  const stale = p.ok && p.age != null && p.age > 30;
+  const posHtml = p.ok
+    ? '<div class="sos-pos tnum">' + esc(ddm(p.lat, true)) + '<br>' + esc(ddm(p.lon, false)) + '</div><div class="sos-sub tnum">' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + (p.acc != null ? ' · ±' + Math.round(ftToLen(p.acc * 3.28084)) + ' ' + lenUnit() : '') + (p.age != null ? ' · ' + (p.age < 5 ? 'live' : p.age + ' s old') : '') + '</div>' + (stale ? '<div class="sos-warn">This fix is ' + p.age + ' seconds old. Read your position from a chartplotter or VHF if you have one.</div>' : '')
+    : '<div class="sos-pos sos-none">' + esc(p.text) + '</div>' + (demo ? '<div class="sos-warn">Demo mode is on. Turn it off in Settings so Tideline uses your real GPS.</div>' : '<div class="sos-warn">Read your position from a chartplotter, GPS or the VHF screen. A DSC radio sends it for you.</div>');
+  SOS.el.querySelector('.sos-body').innerHTML =
+    (demo ? '<div class="demo-note">DEMO MODE · not a real position</div>' : '') +
+    '<div class="sos-card"><h3>Your position</h3>' + posHtml + '</div>' +
+    '<div class="sos-card sos-first"><h3>1 · Call on VHF channel 16</h3>' +
+    '<p><b>DSC radio:</b> lift the red DISTRESS cover and hold the button until it sends (about 5 seconds). It sends your MMSI and position automatically. Then call by voice.</p>' +
+    '<p><b>Voice:</b> channel 16, high power, hold the mic button and read this slowly. Release, wait 10 seconds, repeat if no answer.</p>' +
+    '<div class="seg sos-seg" role="group"><button type="button" data-sos="mayday" class="' + (SOS.pan ? '' : 'on') + '">MAYDAY · life in danger</button><button type="button" data-sos="pan" class="' + (SOS.pan ? 'on' : '') + '">PAN-PAN · urgent</button></div>' +
+    '<div class="sos-script">' + esc(sosScript(p)) + '</div>' +
+    '<div class="grid2"><div class="field"><label for="sosNature">What is wrong</label><select id="sosNature">' + SOS_NATURE.map(([v, l]) => '<option value="' + v + '"' + (c.nature === v ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label for="sosPeople">People aboard</label><input id="sosPeople" type="number" inputmode="numeric" min="1" value="' + esc(c.people) + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label for="sosColor">Hull color (for searchers)</label><input id="sosColor" type="text" value="' + esc(c.color) + '" placeholder="e.g. white hull, blue canvas"></div>' +
+    '<label class="opt" style="align-self:end"><input type="checkbox" id="sosJackets"' + (c.jackets ? ' checked' : '') + '><span>Everyone in life jackets</span></label></div></div>' +
+    '<div class="sos-card"><h3>2 · No radio, or no answer? Phone</h3>' +
+    '<a class="btn sos-big" href="tel:911">Call 911</a><p class="sos-sub">Say you are on the water and ask for the Coast Guard. Give your position from above. If you cannot talk, you can try texting 911; it is not available everywhere, so call if you can.</p>' +
+    '<div class="row-btns"><a class="btn" id="sosSms" href="' + esc(sosSmsHref(p)) + '">Text my position</a><button type="button" class="btn" data-sos="share">Share…</button><button type="button" class="btn" data-sos="copy">Copy</button></div>' +
+    '<p class="sos-sub">The text goes to your float-plan contact if a phone number is saved (Menu › Safety). It is only sent when you tap Send in Messages.</p></div>' +
+    '<div class="sos-card sos-honest"><h3>What Tideline cannot do</h3><ul>' +
+    '<li>It cannot send a DSC alert, transmit on VHF or fire a beacon. Your VHF radio, a PLB or an EPIRB do that.</li>' +
+    '<li>It cannot call or text anyone by itself. Calls and texts need cell signal, which often fails offshore.</li>' +
+    '<li>It does not tell the Coast Guard anything. Only your radio, a phone call or a beacon does.</li></ul>' +
+    '<p class="sos-sub">If you carry a PLB or EPIRB and life is in danger, activate it. Stay with the boat if you can.</p></div>';
+}
+function openSos() {
+  if (!SOS.el) {
+    SOS.el = document.createElement('div'); SOS.el.id = 'sosScreen'; SOS.el.className = 'sos-screen'; SOS.el.setAttribute('role', 'dialog'); SOS.el.setAttribute('aria-label', 'Distress');
+    SOS.el.innerHTML = '<div class="sos-head"><b>DISTRESS</b><button type="button" class="btn small" data-sos="close">Close</button></div><div class="sos-body"></div>';
+    document.body.appendChild(SOS.el);
+    SOS.el.addEventListener('click', sosClick);
+    SOS.el.addEventListener('change', sosChange); SOS.el.addEventListener('input', sosChange);
+  }
+  SOS.el.hidden = false; document.documentElement.classList.add('sos-open');
+  sosRender(); clearInterval(SOS.timer); SOS.timer = setInterval(sosRefresh, 2000);
+  try { if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then((l) => { SOS.lock = l; }).catch(() => {}); } catch (e) { /* not allowed */ }
+}
+function sosRefresh() { // update position and script without wiping what is being typed
+  if (!SOS.el || SOS.el.hidden) return;
+  const a = document.activeElement; if (a && SOS.el.contains(a) && /INPUT|SELECT/.test(a.tagName)) return;
+  sosRender();
+}
+function closeSos() { if (!SOS.el) return; SOS.el.hidden = true; document.documentElement.classList.remove('sos-open'); clearInterval(SOS.timer); SOS.timer = null; try { SOS.lock && SOS.lock.release(); } catch (e) { /* */ } SOS.lock = null; }
+function sosChange(e) {
+  const t = e.target, c = sosCfg();
+  if (t.id === 'sosNature') c.nature = t.value; else if (t.id === 'sosPeople') c.people = t.value.replace(/[^\d]/g, '').slice(0, 3); else if (t.id === 'sosColor') c.color = t.value.slice(0, 60); else if (t.id === 'sosJackets') c.jackets = t.checked; else return;
+  store.set('sos', c);
+  const p = safetyPos(), sc = SOS.el.querySelector('.sos-script'); if (sc) sc.textContent = sosScript(p);
+  const sm = $('sosSms'); if (sm) sm.href = sosSmsHref(p);
+}
+function sosClick(e) {
+  const b = e.target.closest('[data-sos]'); if (!b) return;
+  const k = b.dataset.sos, p = safetyPos();
+  if (k === 'close') closeSos();
+  else if (k === 'mayday' || k === 'pan') { SOS.pan = k === 'pan'; sosRender(); }
+  else if (k === 'share') { const txt = sosText(p); if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else { try { navigator.clipboard.writeText(txt).then(() => toast('Copied. Paste it into a message.')); } catch (err) { toast(txt, 9000); } } }
+  else if (k === 'copy') { const txt = sosText(p); try { navigator.clipboard.writeText(txt).then(() => toast('Copied. Paste it into a message.'), () => toast(txt, 9000)); } catch (err) { toast(txt, 9000); } }
+}
+// the SOS button sits beside MOB; press and hold 2 seconds so it can't open by accident
+(() => {
+  const b = document.createElement('button'); b.id = 'btnSOS'; b.type = 'button'; b.className = 'sos-btn'; b.setAttribute('aria-label', 'Distress: press and hold');
+  b.innerHTML = '<span class="mob-ring"></span><span>SOS</span>'; document.body.appendChild(b);
+  let hold = null;
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.classList.add('holding'); hold = setTimeout(() => { hold = null; b.classList.remove('holding'); try { navigator.vibrate && navigator.vibrate(80); } catch (err) { /* */ } openSos(); }, 2000); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => { if (hold) { clearTimeout(hold); hold = null; } if (b.classList.contains('holding')) { b.classList.remove('holding'); toast('Press and hold SOS for two seconds to open the distress screen.'); } }));
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSos(); } });
+  const place = () => { // follow MOB wherever the layout puts it
+    const m = $('btnMOB'); const sh = document.querySelector('.sheet'); if (!m || m.offsetParent === null || !m.offsetWidth || document.documentElement.classList.contains('trip') || (sh && !sh.hidden)) { b.hidden = true; return; }
+    const r = m.getBoundingClientRect(); b.hidden = false;
+    b.style.left = Math.round(r.right + 10) + 'px'; b.style.top = Math.round(r.top + (r.height - 40) / 2) + 'px';
+  };
+  setInterval(place, 400); window.addEventListener('resize', () => setTimeout(place, 200)); setTimeout(place, 300);
+})();
+
+/* ---------- Narrow channels: C&D Canal brief and ship-meeting alert (build 185) ----------
+   Rules from 33 CFR 162.40 (checked Oct 2026): no sailing and no water skiing between Reedy Point and Welch Point; safe speed, you are
+   responsible for wake and suction damage; no stopping or anchoring in the channel; small pleasure craft give way to deeper-draft vessels;
+   vessels going with the current have right of way over those going against it. VHF 13 is the canal's ship traffic channel and the
+   dispatcher at Chesapeake City. Seamanship points (port-to-port passing, bank effect, suction, hand-steering) are general practice,
+   not regulation. Other narrow channels come with the routing overhaul, which will read channels from the chart. */
+const CANAL = { name: 'C&D Canal', line: ['cdw', 'cdc', 'cds', 'cdg', 'cde'], halfNm: 0.35, marks: [['cdw', 'the Back Creek entrance'], ['cdc', 'Chesapeake City'], ['cds', 'Summit Bridge'], ['cdg', 'St. Georges Bridge'], ['cde', 'Reedy Point']] };
+function canalPts() { return CANAL.line.map((k) => ({ lat: PN[k][0], lon: PN[k][1] })); }
+function canalBriefHtml() {
+  const sail = S.settings.boatType === 'sail', pod = S.boat.engineKind === 'pod';
+  const li = (t) => '<li>' + t + '</li>';
+  return '<div class="canal-brief"><h4>C&D Canal brief</h4><ul>' +
+    (sail ? li('<b>Motor through.</b> Sailing is not allowed between Reedy Point and Welch Point (33 CFR 162.40). Have the engine running and checked before you enter.') : '') +
+    li('<b>Big ships and tug-and-barge tows use it day and night.</b> You give way to them: they can\'t stop or turn. Vessels going with the current also have right of way over those going against it.') +
+    li('<b>Keep to the starboard (right) side</b> so ships pass port to port, and give them all the room you can. Don\'t meet or overtake a ship in a bend.') +
+    li('<b>Hand-steer, not autopilot.</b> As a ship passes, its bow wave pushes you away, then suction along its side pulls you in toward it and its stern. Near the bank, bank effect pushes your bow away from the bank and pulls your stern toward it.') +
+    li('<b>Listen on VHF 13</b> (ships and the canal dispatcher at Chesapeake City) as well as 16. Ships often announce themselves at the bends.') +
+    li('<b>Current runs about 2 to 2.5 knots,</b> more after storms: flood sets east, ebb sets west. A slow boat should go with it.') +
+    li('<b>Never stop or anchor in the channel.</b> Chesapeake City\'s basin is the usual place to wait. Watch your wake: you are responsible for damage it does.') +
+    li('<b>Traffic lights</b> at Reedy Point and Old Town Point Wharf. Flashing red means the canal is closed. In thick fog, wait.') +
+    (pod ? li('<b>Pod drive:</b> stay in the dredged channel; the banks shoal quickly and pods are the deepest point of your boat.') : '') +
+    '</ul><p class="hint">Fixed bridges clear about 135 ft; the railroad lift bridge is normally up, about 45 ft when down. Check NOAA Coast Pilot 3, chapter 7, and Local Notices before you go.</p></div>';
+}
+// along-canal geometry on a flat local projection (nm)
+function canalProj(p) {
+  const pts = canalPts(), lat0 = 39.54, kx = Math.cos(lat0 * Math.PI / 180) * 60, xy = (q) => [q.lon * kx, q.lat * 60];
+  const P = xy(p); let best = null, run = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const A = xy(pts[i]), B = xy(pts[i + 1]), dx = B[0] - A[0], dy = B[1] - A[1], L2 = dx * dx + dy * dy, L = Math.sqrt(L2);
+    const u = Math.max(0, Math.min(1, ((P[0] - A[0]) * dx + (P[1] - A[1]) * dy) / L2)), cx = A[0] + u * dx, cy = A[1] + u * dy, off = Math.hypot(P[0] - cx, P[1] - cy);
+    if (!best || off < best.off) best = { off, s: run + u * L, dir: Math.atan2(dx, dy) * 180 / Math.PI };
+    run += L;
+  }
+  best.len = run; return best;
+}
+function canalAlong(t, pr) { // speed along the canal, + toward Reedy Point (east)
+  if (!Number.isFinite(t.sog) || !Number.isFinite(t.cog)) return 0;
+  return t.sog * Math.cos((t.cog - pr.dir) * Math.PI / 180);
+}
+const BIGSHIP = (t) => t.type === 'ship' || t.type === 'tug' || t.type === 'passenger' || (t.len || 0) >= 45 || t.status === 3 || t.status === 4;
+const CNL = { inside: false, briefAt: 0, warned: new Map() };
+function canalMeetName(s) { // nearest named point to a spot along the canal
+  const pts = canalPts(); let run = 0, best = null;
+  pts.forEach((q, i) => { if (i) run += distNm(pts[i - 1], q); const d = Math.abs(run - s); if (!best || d < best.d) best = { d, name: CANAL.marks[i][1] }; });
+  return best && best.d < 1.5 ? 'near ' + best.name : 'in the canal';
+}
+function canalWatch() {
+  const f = S.fix; if (!okPos(f)) return;
+  if (distNm(f, PN.cdc ? { lat: PN.cdc[0], lon: PN.cdc[1] } : f) > 20) { CNL.inside = false; return; }
+  const me = canalProj(f), near = me.off < CANAL.halfNm + 1.2, inside = me.off < CANAL.halfNm && me.s > 0.05 && me.s < me.len - 0.05;
+  // one-time brief as you approach or enter (once every 6 hours)
+  if ((inside || (near && (S.sog || 0) > 1)) && Date.now() - CNL.briefAt > 6 * 3600000) {
+    CNL.briefAt = Date.now(); store.set('canalBriefAt', CNL.briefAt);
+    headsUp('Entering the C and D Canal. Ships have right of way. Keep to the right side and hand-steer.');
+    openSheet('<h3>Entering the C&D Canal</h3>' + canalBriefHtml() + '<div class="row-btns"><button class="btn primary" data-sheetx>Got it</button></div>');
+  }
+  CNL.inside = inside;
+  if (!near) return;
+  const myV = canalAlong({ sog: S.sog || 0, cog: S.cog == null ? 0 : S.cog }, me);
+  ais.forEach((t) => {
+    if (!okPos(t) || !BIGSHIP(t) || Date.now() - (t.seen || 0) > 300000) return;
+    const tp = canalProj(t); if (tp.off > CANAL.halfNm + 0.8) return;
+    const tv = canalAlong(t, tp), gap = tp.s - me.s, closing = gap * (myV - tv) > 0 ? Math.abs(myV - tv) : 0;
+    if (closing < 0.5) return;
+    const mins = Math.abs(gap) / closing * 60; if (mins > 25) return;
+    const at = me.s + myV * (mins / 60); if (at < -0.3 || at > me.len + 0.3) return; // meets outside the canal
+    const meeting = Math.sign(tv) !== Math.sign(myV) || Math.abs(myV) < 0.5, fromAstern = !meeting && Math.sign(gap) !== Math.sign(myV), kind = meeting ? 'meet' : fromAstern ? 'pass' : 'catch';
+    const key = t.id + kind, last = CNL.warned.get(key) || 0; if (Date.now() - last < 8 * 60000) return; CNL.warned.set(key, Date.now());
+    const who = (t.name || (t.type === 'tug' ? 'A tug and tow' : 'A large ship')) + (t.len ? ' (' + Math.round(t.len * 3.28084) + ' ft)' : '');
+    const where = canalMeetName(at), m = Math.max(1, Math.round(mins));
+    const msg = meeting ? who + ' will meet you ' + where + ' in about ' + m + ' min. Keep to the starboard side, slow down, hand-steer.'
+      : fromAstern ? who + ' is overtaking you from astern, ' + where + ', in about ' + m + ' min. Keep right and let it by; expect suction as it passes.'
+      : 'You are catching up with ' + who + ' ahead, ' + where + '. Don\'t overtake a ship in the canal unless it agrees on VHF 13 and there is room.';
+    toast(msg, 9000); headsUp(meeting ? 'Ship meeting you in the canal in about ' + m + ' minutes. Keep right.' : fromAstern ? 'Ship overtaking you in the canal. Keep right.' : 'Ship ahead in the canal. Do not overtake.');
+    try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) { /* */ }
+  });
+}
+CNL.briefAt = store.get('canalBriefAt', 0) || 0;
+/* Pod drives (Volvo Penta IPS, Zeus): pods hang below the hull, so a grounding hits them first and at speed can tear one off and
+   damage the hull. Extra cautions from the charted depth areas Tideline already loads for the shallow tint. */
+const POD = { at: 0, last: '' };
+function encDepthAt(p) { // shallowest charted depth area (m) containing p, from the shallow-tint cache; null if unknown
+  let best = null;
+  SH.tiles.forEach((fs) => (fs || []).forEach((f) => {
+    if (f.d1 == null || !f.rings || !f.rings[0]) return;
+    let inside = false; const r = f.rings[0];
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if (((yi > p.lat) !== (yj > p.lat)) && (p.lon < (xj - xi) * (p.lat - yi) / (yj - yi) + xi)) inside = !inside; }
+    if (inside && (best == null || f.d1 < best)) best = f.d1;
+  }));
+  return best;
+}
+function podWatch() {
+  if (S.boat.engineKind !== 'pod' || Date.now() - POD.at < 5000) return; POD.at = Date.now();
+  const f = S.fix; if (!okPos(f)) return;
+  const kn = S.sog || 0, need = wrNeedM(), ahead = [f];
+  if (kn > 1 && S.cog != null) [30, 60, 90].forEach((s) => ahead.push(destination(f, S.cog, kn * s / 3600)));
+  const ds = ahead.map(encDepthAt).filter((d) => d != null); if (!ds.length) return;
+  const min = Math.min(...ds), ft = Math.round(min / 0.3048);
+  let lvl = '';
+  if (min < need + 0.6) lvl = kn > 7 ? 'shoalFast' : 'shoal';
+  else if (kn > 18 && min < need + 2.5) lvl = 'fast';
+  if (!lvl) { POD.last = ''; return; }
+  if (lvl === POD.last && Date.now() - (POD.lastAt || 0) < 120000) return;
+  POD.last = lvl; POD.lastAt = Date.now();
+  const msg = lvl === 'fast' ? 'Pod drive: ' + Math.round(kn) + ' kn with about ' + ft + ' ft charted ahead. At planing speed a grounding or debris strike can tear off a pod. Slow down in thin or unfamiliar water.'
+    : 'Pod drive: charted depth ahead about ' + ft + ' ft, close to the bottom of your pods. ' + (lvl === 'shoalFast' ? 'Come off plane now and go to idle.' : 'Idle speed, watch the sounder, stay in the channel.');
+  toast(msg, 9000); headsUp(lvl === 'fast' ? 'Pod drive caution. Fast in shallow water. Slow down.' : 'Pod drive caution. Shallow water ahead.');
+  try { navigator.vibrate && navigator.vibrate(150); } catch (e) { /* */ }
+}
+
+window.Tideline = { SH, canalWatch, canalProj, podWatch, encDepthAt, CNL, POD, openSos, closeSos, safetyPos, okPos, openBriefing, BRF, FLY, pnPath, flyStart, legSay, setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L, ALR, renderAlertBar }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();

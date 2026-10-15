@@ -2898,3 +2898,43 @@ html:is([data-gtheme="bshiptac"],[data-gtheme="bshipwatch"],[data-gtheme="yachta
 #app .fab.ai, #app .fab.orient, #app #btnFM, #app #btnOrient { justify-content: center !important; align-content: center !important; justify-items: center !important; }
 /* the weather button's cloud sat 5px high over an empty wind-speed slot */
 #app #btnWx > b:empty { display: none !important; }
+
+/* build 185: demo mode is always labeled */
+.ck-gps.demo { color: #FFB74D; font-weight: 800; letter-spacing: .04em; }
+html.is-demo body::after { content: 'DEMO · simulated position'; position: fixed; top: calc(env(safe-area-inset-top, 0px) + 4px); left: 50%; transform: translateX(-50%); z-index: 99999; pointer-events: none; background: #E65100; color: #fff; font: 800 11px/1 system-ui, -apple-system, sans-serif; letter-spacing: .08em; padding: 5px 10px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.demo-note { display: inline-block; background: #E65100; color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .05em; padding: 4px 9px; border-radius: 6px; margin: 0 0 8px; }
+
+/* build 185: distress */
+.sos-btn { position: fixed; z-index: 501; width: 64px; height: 40px; border-radius: 12px; border: 3px solid #fff; background: #B71C1C; color: #fff; font-weight: 800; font-size: 14px; letter-spacing: .08em; box-shadow: var(--shadow); display: grid; place-items: center; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; padding: 0; }
+.sos-btn[hidden] { display: none; }
+.sos-btn span:last-child { position: relative; }
+.sos-btn.holding .mob-ring { transform: scaleY(1); transition: transform 2s linear; }
+html.sos-open .sos-btn { display: none; }
+.sos-screen { position: fixed; inset: 0; z-index: 100000; background: #120404; color: #fff; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px); }
+.sos-screen[hidden] { display: none; }
+.sos-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #B71C1C; margin: 0 -16px 12px; padding: 10px 16px; font-size: 20px; letter-spacing: .12em; z-index: 1; }
+.sos-body { max-width: 640px; margin: 0 auto; }
+.sos-card { background: #1f0b0b; border: 1px solid #5a1d1d; border-radius: 14px; padding: 14px; margin: 0 0 12px; }
+.sos-card h3 { margin: 0 0 8px; font-size: 17px; }
+.sos-card p { margin: 0 0 8px; line-height: 1.45; font-size: 15px; }
+.sos-first { border-color: #E53935; }
+.sos-script { background: #fff; color: #111; border-radius: 10px; padding: 12px; font-size: 18px; line-height: 1.5; margin: 10px 0; font-weight: 600; }
+.sos-pos { font-size: 34px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.sos-pos.sos-none { font-size: 20px; color: #FFB74D; }
+.sos-sub { color: #f2c9c9; font-size: 13.5px; margin-top: 6px; }
+.sos-warn { margin-top: 8px; color: #FFB74D; font-weight: 700; font-size: 14px; }
+.sos-big { display: block; text-align: center; background: #E53935; color: #fff; font-size: 22px; font-weight: 800; padding: 16px; border-radius: 12px; text-decoration: none; margin-bottom: 6px; }
+.sos-screen .btn { color: inherit; }
+.sos-screen .row-btns .btn { background: #3a1414; color: #fff; border: 1px solid #7a2a2a; text-decoration: none; }
+.sos-screen .field label, .sos-screen .opt span { color: #f2c9c9; }
+.sos-screen input, .sos-screen select { background: #fff; color: #111; }
+.sos-seg button { color: #fff; }
+.sos-seg button.on { background: #E53935; color: #fff; }
+.sos-honest ul { margin: 0 0 8px; padding-left: 18px; line-height: 1.45; }
+.canal-brief h4 { margin: 0 0 6px; }
+.canal-brief ul { margin: 0 0 6px; padding-left: 18px; line-height: 1.45; font-size: 14.5px; }
+.canal-brief li { margin-bottom: 4px; }
+.sos-head .btn { background: #fff; color: #B71C1C; font-weight: 800; border: 0; }
+.sos-screen .sos-seg { background: #3a1414; border-color: #7a2a2a; }
+.sos-screen .sos-seg button { color: #f2c9c9; }
+.sos-screen .sos-seg button.on { background: #E53935; color: #fff; }
