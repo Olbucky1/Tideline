@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="app.css?v=185">
+<link rel="stylesheet" href="app.css?v=186">
 </head>
 <body>
 <!-- Tint only pale blue chart fills; keep land, dark text and nautical symbol colors. -->
@@ -101,7 +101,7 @@
       <div id="gotoRow" class="goto-row" hidden></div>
       <div class="pages" id="pages">
       <div class="strip">
-        <div class="cell"><span class="lbl">SPEED</span><span class="num" id="sSog">–</span><span class="unit" id="sSogU">kn</span></div>
+        <div class="cell"><span class="lbl">SPEED</span><span class="num" id="sSog">–</span><span class="unit spd-u" id="sSogU" data-spdunit="1" role="button" tabindex="0" aria-label="Speed unit: tap to change">kn</span></div>
         <div class="cell"><span class="lbl">COURSE</span><span class="num" id="sCog">–</span><span class="unit">°T</span></div>
         <div class="cell"><span class="lbl" id="sAL">TRIP</span><span class="num" id="sA">0.0</span><span class="unit" id="sAU">nm</span></div>
         <div class="cell"><span class="lbl" id="sBL">UNDERWAY</span><span class="num" id="sB">0:00</span><span class="unit" id="sBU">h:mm</span></div>
@@ -159,7 +159,7 @@
 </div>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/leaflet-rotate/leaflet-rotate.js"></script>
-<script src="rules.js?v=185"></script>
-<script src="app.js?v=185"></script>
+<script src="rules.js?v=186"></script>
+<script src="app.js?v=186"></script>
 </body>
 </html>

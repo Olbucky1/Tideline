@@ -2,7 +2,7 @@
 
 Live app: https://olbucky1.github.io/Tideline/ · repo: github.com/Olbucky1/Tideline (branch main).
 Owner: Andy Brickman (andy.brickman@gmail.com), Annapolis. Sails a 1976 Catalina 27. Tests mostly on a MacBook in Safari, also on an iPad Pro and an iPhone. Most users will be on iPhones.
-Current build: 185 (15 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
+Current build: 186 (17 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
 
 ## Working rules (standing orders from Andy)
 1. **Queue, don't build.** When Andy gives feedback while testing, add it to the queue below and reply briefly. Change no code until he says **"now execute the changes"**. "Go" alone is not the trigger.
@@ -23,7 +23,7 @@ Current build: 185 (15 Oct 2026). History, file layout and data sources are in H
 - **Bump three version numbers by one:**
   - `?v=N` in index.html
   - `tl-app-vN` in sw.js
-  - `build N.` in app.js
+  - `const BUILD = N` near the top of app.js (Menu and Settings both read it)
 - **Check:** run `node --check app.js` and test with Playwright. The sandbox has no internet, so NOAA, tiles and Overpass are unavailable; abort non-localhost requests and seed localStorage `tl.settings`.
 - **Commit and push:**
   - Commit as Andy Brickman <andy.brickman@gmail.com>. End the message with the Co-Authored-By and Claude-Session lines the harness provides.
@@ -43,6 +43,26 @@ Current build: 185 (15 Oct 2026). History, file layout and data sources are in H
 - **First Mate:** fmUnderstand handles phrases offline. The Claude relay in tools/claude-relay is not deployed yet; it needs Andy's keys.
 
 ## Queue (not started; build only on "now execute the changes")
+
+### Next: build 187 = routing batch (top model). Settled 16 Oct
+- Order: 186 was the design cleanup (done). 187 = routing overhaul + route-edit undo (kept, Andy 16 Oct) + test set + the items below. Time zones, Race Coach, route waits, destination search, events move to 188.
+- **Long-press routing:** long-press "Route from here", long-press another spot "Route to here", draw the water route. Move weather, tides and other options lower in that menu or behind "More". GPS app first.
+- **Course projection:** line or cone ahead of the boat; length by time (1/5/10 min) with distance as an option.
+- Undo for appearance only outside route editing (Andy 16 Oct); route-edit undo stays in 187.
+
+### Left over from build 186 (small, any batch)
+- Weather card title truncates to "W.." on phone (header buttons squeeze it, same fix as the Boat header).
+- Smaller than 44px still: Boat panel fields, Safety form inputs, lightning chip, small checkboxes.
+- `lift13()` (end of app.js) is a stopgap: a MutationObserver lifts any text under 13px. Replace with proper CSS sizes and remove it; watch iPhone performance meanwhile.
+- Expanded landmark card can cover the top chart buttons on a phone.
+- Fishing debrief: a short demo outing shows "isn't available yet"; check a real outing gives the debrief.
+- Closures: notices with no state in the title go to "Location not stated"; ended ones go to Archived.
+- Not verified offline (need Andy's real test): live depth labels, landmark photos from live Wikipedia, satellite fly-by, swipe-down on a real phone.
+
+### Idea list only, do not build (Andy 16 Oct)
+- Community tips and drone video pins (YouTube links, no storage cost), free membership for contributors, likes and flags for quality.
+- Captain mode: boat profiles, automatic sea time log for the USCG CG-719S form.
+- Partner links (hotels, marinas) on landmark cards (no money features in the beta).
 
 ### Settled answers (15 Oct, Batch B)
 - **Order:** safety build first (185, done), then routing overhaul + route undo + test set (186), then time zones, Race Coach, route waits, destination search, events (187).
@@ -69,17 +89,17 @@ Current build: 185 (15 Oct 2026). History, file layout and data sources are in H
   - ~~Distress button~~ built in 185 (hold SOS 2 s; honest version).
   - **Boat name/model autofill (186/187):** typing a maker and model (e.g. Sabre power) suggests known makes and models and fills draft, air draft, length and so on. Today BOAT_DB has 4 boats and no typeahead. Data: hand-built list (see settled answers).
   - ~~Propulsion options and IPS cautions~~ built in 185 (type first, then makers for every type; pod cautions). Pod cautions only work where the shallow-tint depth tiles are loaded; later read depth along the route too.
-- **Parked (Andy: "don't worry about the others", 13 Oct):** full-screen chart switcher; settings sheets other than Gauge look covering the chart; customize gauge face; rope/Polynesian/Chrome frames and surf designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger.
+- **Parked (13 Oct), still open:** surf gauge designs (need artwork); paid satellite list; settings-link QR; Tidy up keeping one larger gauge larger. (Full-screen switcher, theme faces and simpler frames were built in 186.)
 
 ### Stabilization pass (independent audit by ChatGPT, build 184, Andy 15 Oct). Reproduce each finding first, keep changes small, keep the round gauges.
 Confirmed by reading the code (not yet run): #1 header says "GPS live" even in demo (`.ck-gps`, ~line 6364 ignores `S.settings.sim`); #5 closures list is only sliced, never filtered by region or date (~line 773); #6 the fishing debrief reuses the race debrief text (`rcDebriefHtml`, ~line 9286).
 **Small fixes, Sonnet, one session (safety-critical, suggest building soon):**
 1. ~~**Demo labeling**~~ (built 185): persistent DEMO label wherever simulated position, speed or depth shows; the emergency VHF script and float plan must never contain simulated coordinates (show "Position unavailable (demo)"); keep simulated voyage records separate.
 2. ~~**AIS "NaN nm at NaN°"**~~ (built 185): validate own-ship and target positions before range/bearing; show "Position unavailable" otherwise (Boat > Identify > A single white light).
-3. **Depth meaning:** label live sounder vs charted vs tide-adjusted vs preview-location depth, with datum, place and time; never a bare "DEPTH" for chart-derived values.
-5. **Closures:** filter by area (no Michigan or Boston under Chesapeake) and by effective dates; separate current, upcoming and archived; say which notices routing does not use.
-6. **Fishing debrief:** remove race wording; give a fishing-specific debrief or an honest "not available yet".
-11. **Version label:** Menu and Settings must read one build source.
+3. ~~**Depth meaning**~~ (built 186): label live sounder vs charted vs tide-adjusted vs preview-location depth, with datum, place and time; never a bare "DEPTH" for chart-derived values.
+5. ~~**Closures**~~ (built 186): filter by area (no Michigan or Boston under Chesapeake) and by effective dates; separate current, upcoming and archived; say which notices routing does not use.
+6. ~~**Fishing debrief**~~ (built 186): remove race wording; give a fishing-specific debrief or an honest "not available yet".
+11. ~~**Version label**~~ (built 186): Menu and Settings must read one build source.
 **Later (Opus / Batch B, they touch routing and coaches):**
 4. Route assumptions and time zones: power vs sail, speed and polar assumptions, currents shown the same on every screen; label the voyage timezone on departure, arrival, daylight and tide times.
 7. Race Coach: competing trim advice, J/105 and J/24 advice shown for a Catalina 27.

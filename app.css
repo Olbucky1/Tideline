@@ -2482,17 +2482,17 @@ html.looktry-ck #lookTry { z-index: 1300; }
 #quick .q-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 #quick .q-t { min-height: 38px; padding: 0 7px; gap: 6px; font-size: 12.5px !important; line-height: 1.15; border-radius: 10px; }
 #quick .q-t i { width: 14px; height: 14px; border-radius: 4px; }
-#quick .q-head b { font-size: 15px; } #quick .q-h { font-size: 10.5px; margin: 8px 0 4px; } #quick .seg button { padding: 6px 4px !important; font-size: 12.5px !important; }
+#quick .q-head b { font-size: 15px; } #quick .q-h { font-size: 10.5px; margin: 8px 0 4px; } #quick .seg button { padding: 6px 4px !important; font-size: 13px !important; }
 /* settings: switches two to a row, so you see twice as much */
-.card:has(> .set-row .switch) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: stretch; }
-.card:has(> .set-row .switch) > :not(.set-row) { grid-column: 1 / -1; }
-.card:has(> .set-row .switch) > .set-row:not(:has(.switch)) { grid-column: 1 / -1; }
-.card > .set-row:has(.switch) { flex-direction: column; align-items: flex-start; gap: 6px; padding: 9px 0; border-bottom: 1px solid var(--line); }
-.card > .set-row:has(.switch) .sr-text b { font-size: 13.5px; } .card > .set-row:has(.switch) .sr-text span { font-size: 11px; line-height: 1.25; }
+.card.sw-card { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: stretch; }
+.card.sw-card > :not(.set-row) { grid-column: 1 / -1; }
+.card.sw-card > .set-row:not(.sw-row) { grid-column: 1 / -1; }
+.card > .set-row.sw-row { flex-direction: column; align-items: flex-start; gap: 6px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.card > .set-row.sw-row .sr-text b { font-size: 13.5px; } .card > .set-row.sw-row .sr-text span { font-size: 13px; line-height: 1.25; }
 /* settings: tighter cards, segmented rows full width but smaller */
 #panelSettings .card { padding: 12px 14px !important; margin-bottom: 10px; } #panelSettings .card h4 { margin: 0 0 6px; font-size: 12px; }
 #panelSettings .set-row { padding: 8px 0; } #panelSettings .set-row .sr-text b { font-size: 14px; } #panelSettings .set-row .sr-text span { font-size: 11.5px; }
-#panelSettings .seg button { padding: 7px 4px !important; font-size: 13px !important; min-height: 34px; }
+#panelSettings .seg button { padding: 7px 4px !important; font-size: 13px !important; min-height: 44px; }
 .p-close { position: sticky; top: calc(6px + env(safe-area-inset-top, 0px)); float: right; z-index: 30; width: 34px; height: 34px; margin: -4px -4px 0 6px; border-radius: 50%; border: 0; background: rgba(127,127,127,.22); color: inherit; font: 400 22px/34px system-ui; padding: 0; }
 
 /* the edge between chart and gauges on a laptop or iPad: drag it */
@@ -2622,12 +2622,12 @@ html:not([data-desk="split"]) #sideGrip { display: none !important; }
 /* build 176: weather timeline is a compact card, not half the screen; the chart stays usable around it */
 #wxBar.wxbar.tl { max-width: 560px !important; width: calc(100% - 96px) !important; margin-left: 74px !important; padding: 6px 10px 8px !important; gap: 4px !important; border-radius: 16px !important; }
 @media (min-width: 900px) { #app.wide #wxBar.wxbar.tl { margin-left: 74px !important; width: min(560px, calc(100% - 140px)) !important; } }
-#wxBar.tl .tl-heading { font-size: 12px; min-height: 0; } #wxBar.tl .tl-heading .nws-btn { font-size: 11.5px; padding: 2px 6px; }
-#wxBar.tl .tl-chips { gap: 4px !important; } #wxBar.tl .tl-chips button { min-height: 28px !important; padding: 3px 8px !important; font-size: 12.5px !important; border-width: 1px !important; border-radius: 9px !important; }
-#wxBar.tl .tl-model { min-height: 22px !important; padding: 0 6px !important; font-size: 11px !important; border: 0 !important; background: none !important; width: auto !important; align-self: flex-start; }
-#wxBar.tl .tl-sum { font-size: 12.5px; line-height: 1.3; } #wxBar.tl .tl-sky { font-size: 11px; }
+#wxBar.tl .tl-heading { font-size: 13px; min-height: 0; } #wxBar.tl .tl-heading .nws-btn { font-size: 13px; padding: 2px 6px; }
+#wxBar.tl .tl-chips { gap: 4px !important; } #wxBar.tl .tl-chips button { min-height: 44px !important; padding: 3px 8px !important; font-size: 13px !important; border-width: 1px !important; border-radius: 9px !important; }
+#wxBar.tl .tl-model { min-height: 44px !important; padding: 0 6px !important; font-size: 13px !important; border: 0 !important; background: none !important; width: auto !important; align-self: flex-start; }
+#wxBar.tl .tl-sum { font-size: 13px; line-height: 1.3; } #wxBar.tl .tl-sky { font-size: 13px; }
 #wxBar.tl .tl-links { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
-#wxBar.tl .tl-links .weather-alert-link { width: auto !important; flex: 0 0 auto !important; min-height: 26px !important; height: auto !important; padding: 3px 9px !important; font-size: 12px !important; border-radius: 8px !important; margin: 0 !important; }
+#wxBar.tl .tl-links .weather-alert-link { width: auto !important; flex: 0 0 auto !important; min-height: 44px !important; height: auto !important; padding: 3px 12px !important; font-size: 13px !important; border-radius: 10px !important; margin: 0 !important; }
 #wxBar.tl .tl-hours, #wxBar.tl .tl-cells { max-height: 96px; }
 #app:has(#wxBar.tl:not([hidden])) #wxLegend { bottom: auto !important; top: calc(env(safe-area-inset-top, 0px) + 54px); }
 #app.wide #deskSw { left: auto !important; transform: none !important; right: 14px; bottom: calc(var(--tabbar-h, 0px) + 26px); }
@@ -2776,7 +2776,7 @@ html:root:is([data-fablook="gauge"],[data-fablook="app"]):not([data-night]) .fab
 /* Events / Near me category chips: white on #2E86DE was 3.8:1 */
 .lk-cats button.on { background: #1D6FC2; border-color: #1D6FC2; }
 /* weather card: the last chip ran past the card edge on a phone; the "Now" line was cut off with "…" */
-@media (max-width: 480px) { #wxBar.tl .tl-chips button { flex: 1 1 auto; padding: 3px 4px !important; font-size: 12px !important; min-width: 0; } }
+@media (max-width: 480px) { #wxBar.tl .tl-chips button { flex: 1 1 auto; padding: 3px 4px !important; font-size: 13px !important; min-width: 0; } }
 #wxBar.tl .tl-sum { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 /* desktop view switcher sat on top of the Menu / Settings panel text */
 #app.wide:has(.panel:not([hidden]):not(#panelSide)) #deskSw { right: 414px !important; }
@@ -2845,11 +2845,6 @@ html:root .fab-col .fab:hover, html:root .fab-col .fab:focus-visible, html:root 
 .ck-slot .gauge:has(.ck-radar) { position: relative; }
 
 /* build 182: fly-by controls */
-#flyCtl { position: absolute; z-index: 900; left: 50%; transform: translateX(-50%); top: calc(var(--topbar-h, 56px) + 14px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 16px; background: rgba(10,24,38,.84); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.35); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); max-width: calc(100% - 20px); }
-#flyCtl[hidden] { display: none; }
-#flyCtl button { min-width: 38px; height: 34px; border: 0; border-radius: 10px; background: rgba(255,255,255,.12); color: #fff; font: 700 14px system-ui; padding: 0 8px; cursor: pointer; }
-#flyCtl button.on, #flyCtl button[data-fc="pause"] { background: #2CD3C5; color: #06222A; }
-#flyCtl .fc-spd { display: flex; gap: 4px; } #flyCtl input[type=range] { width: min(34vw, 240px); accent-color: #2CD3C5; }
 /* build 182: Gauge look is one scroll with jump tabs; it stays short so what you change stays in view */
 .sheet.lk-open { max-height: 46% !important; }
 .lk-cats { position: sticky; top: 0; z-index: 3; background: var(--surface); padding: 6px 0; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; }
@@ -2938,3 +2933,384 @@ html.sos-open .sos-btn { display: none; }
 .sos-screen .sos-seg { background: #3a1414; border-color: #7a2a2a; }
 .sos-screen .sos-seg button { color: #f2c9c9; }
 .sos-screen .sos-seg button.on { background: #E53935; color: #fff; }
+
+
+/* =====================================================================================================================
+   build 186 Pass A: shared UI rules (header bar and exits, nothing floating over content, sunlight readability).
+   Later rules win on purpose; everything for Pass A lives below this line.
+   ===================================================================================================================== */
+:root { --pod-h: 56px; --hit: 44px; }
+
+/* ---- A1: one header bar everywhere: [back] title [DEMO] [X], X 44x44 at the top right ---- */
+.hdr-bar { display: flex; align-items: center; gap: 8px; min-height: 56px; position: sticky; top: 0; z-index: 6; background: inherit; box-sizing: border-box; color: inherit; }
+.hdr-main { flex: 1 1 auto; min-width: 0; }
+.hdr-main .eyebrow { margin: 0; font-size: 13px; line-height: 1.2; }
+.hdr-title, .p-head.hdr-bar h2 { margin: 0 !important; padding: 0 !important; font-size: 20px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet h3.hdr-title { margin: 0; padding: 0; }
+.hdr-x, .hdr-back { flex: 0 0 var(--hit); width: var(--hit); height: var(--hit); min-width: var(--hit); min-height: var(--hit); padding: 0; border: 0; display: grid; place-items: center; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hdr-x { border-radius: 50%; background: rgba(127, 127, 127, .20); }
+.hdr-back { border-radius: 50%; background: transparent; margin-left: -10px; }
+.hdr-x svg, .hdr-back svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.hdr-x:active, .hdr-back:active { background: rgba(127, 127, 127, .35); }
+.hdr-bar .btn.small { flex: 0 0 auto; }
+.demo-chip { flex: none; background: #E65100; color: #fff; font: 800 13px/1 system-ui, -apple-system, sans-serif; letter-spacing: .06em; padding: 6px 9px; border-radius: 999px; white-space: nowrap; }
+.sheet > .hdr-bar { margin: -2px -18px 4px; padding: 2px 10px 2px 18px; }
+.sheet > .grab { margin-bottom: 4px; touch-action: none; }
+.panel > .p-head.hdr-bar { max-width: none !important; margin: calc(-16px - env(safe-area-inset-top, 0px)) -16px 10px !important; padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px 16px; }
+.panel.dark > .p-head.hdr-bar { background: var(--panel); } .panel.light > .p-head.hdr-bar { background: var(--surface2); }
+/* the old floating X (panels without a header row, the search panel) uses the same look and size */
+html:root .p-close.hdr-x { position: sticky; top: calc(6px + env(safe-area-inset-top, 0px)); float: right; z-index: 30; width: var(--hit); height: var(--hit); margin: -10px -6px 0 6px; font-size: 0; }
+html:root #panelSearch .p-close.hdr-x { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); right: 10px; margin: 0; float: none; }
+#panelSearch .search-head { padding-right: 58px; }
+#panelSearch #searchBack { display: none; }
+/* the layers card has the same header */
+#quick > .hdr-bar { margin: 0 0 6px; }
+
+/* ---- A2: nothing floats over content ---- */
+html.is-demo body::after { content: none !important; display: none !important; }
+#demoChip { position: absolute; z-index: 640; left: calc(var(--chartL, 0px) + var(--chartW, 100vw) / 2); transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 54px); pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+#demoChip[hidden] { display: none; }
+#app:has(.panel:not([hidden]):not(#panelSide)) #demoChip, #app:has(#cockpit:not([hidden])) #demoChip { display: none; }
+#offPill { top: calc(env(safe-area-inset-top, 0px) + 54px); font: 600 13px/1.2 system-ui, -apple-system, sans-serif; padding: 5px 11px; max-width: calc(100% - 160px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* messages: just above the tab bar (JS lifts them above a sheet, the cards or MOB), never over a field */
+#app > .toast { top: auto; bottom: calc(var(--tabbar-h) + 10px); max-width: min(420px, calc(100% - 24px)); z-index: 1600; font-size: 14px; padding: 9px 14px; }
+#app > .toast.top { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 60px); }
+#toast.mid { top: auto !important; }
+/* every scrolling panel and sheet leaves room under its last row for the MOB/SOS pod */
+.panel, .sheet { padding-bottom: calc(var(--pod-h) + 28px); }
+html:root #app #btnMOB.mob { z-index: 900 !important; }
+html:root .sos-btn { z-index: 901; }
+
+/* ---- A4: chart screen declutter on phones. Left: Layers, Day/Night, AIS. Right: compass (course up), locate, and zoom on mice only.
+   Measure, Weather, First Mate and the satellite switch moved into Layers (and the Menu); Arrange mode shows every button again. ---- */
+@media (max-width: 899px) { html:not(.arrange) #app :is(#btnSat, #btnMeasure, #btnWx, #btnFM, #btnRoute) { display: none !important; } }
+@media (pointer: coarse) { html:not(.arrange) #app :is(#btnZoomIn, #btnZoomOut) { display: none !important; } }
+.q-view { margin-bottom: 6px; } .q-view button { min-height: 44px; white-space: nowrap; font-size: 14px; padding: 0 4px; }
+.q-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.q-tools .q-t { min-height: 44px; justify-content: center; text-align: center; padding: 0 6px; }
+.q-tools .q-t i { display: none; }
+
+/* ---- A5: layout switcher on every device: faint until touched, never over a sheet or a full screen ---- */
+@media (max-width: 899px) {
+  #app:not(.wide) #deskSw { display: flex; position: absolute; z-index: 870; right: 12px; left: auto; transform: none; bottom: calc(var(--tabbar-h, 0px) + 30px + var(--dskLift, 0px)); gap: 2px; padding: 3px; border-radius: 14px; background: rgba(10, 20, 32, .78); opacity: .55; transition: opacity .2s; }
+  html[data-desk="bare"] #app:not(.wide) :is(#fabs, #fabsR, .fab-free, .topbar, #offPill, .lx-chip, #wxLegend, #miniInst, .mini-inst, #tourCard) { display: none !important; }
+  #app:not(.wide):has(.panel:not([hidden]):not(#panelSide)) #deskSw, #app:not(.wide):has(#cockpit:not([hidden])) #deskSw { display: none; }
+}
+#deskSw button { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; font-size: 0; }
+#deskSw button svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#deskSw:is(:hover, :active, :focus-within) { opacity: 1 !important; }
+html:root #app:has(#sheet:not([hidden])) #deskSw, html:root #app:has(#quick:not([hidden])) #deskSw { display: none !important; }
+html:root #app.wide #deskSw { opacity: .55; }
+html:root #app.wide #deskSw:is(:hover, :active, :focus-within) { opacity: 1; }
+html[data-desk="bare"] #app :is(#deskSw) { display: flex; }
+
+/* ---- A3: sunlight readability: 44px hit areas, 13px text, stronger secondary text ---- */
+:root { --ink2: #34506B; --p-muted: #34506B; }
+:root[data-dusk] { --ink2: #CFC3AC; --p-muted: #C2B59E; }
+:root[data-night] { --ink2: #A39683; --p-muted: #A39683; }
+.btn.small, .seg button, .ur-btn, .chip, .chips .chip { min-height: 44px; }
+.btn.small { min-height: 44px; font-size: 14px; }
+.seg button { font-size: 14px; }
+.tab { font-size: 13px; padding-top: 3px; }
+.tab svg { width: 22px; height: 22px; }
+html:root #app .fab { width: 44px; height: 44px; position: relative; }
+html[data-fs="s"] .fab::before { content: ''; position: absolute; inset: -5px; }
+.lx-chip, .sp-x, button.cat, .tl-model, .q-link, .tl-grab { position: relative; }
+.lx-chip { min-height: 36px; } .lx-chip::before { content: ''; position: absolute; inset: -4px 0; }
+.sp-x { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(127, 127, 127, .22); color: inherit; font-size: 24px; display: grid; place-items: center; padding: 0; }
+button.cat, .tl-model, .q-link { min-height: 44px; }
+#app :is(.eyebrow, .lx-chip span, .g-foot, .ais-n, .tl-model, .ft-st, .tl-h em, .tl-h small, .tour-n, .rt-l, .lbl, .fab.info b, .fw-cal i, .chips .chip small, .hint, .sheet .sub) { font-size: 13px; }
+#app .eyebrow { font-size: 13px; letter-spacing: .08em; }
+.ais-n { min-width: 20px; height: 20px; line-height: 20px; font-weight: 700; }
+.opt small, .field small, small.hint { font-size: 13px; }
+/* one-line labels: no wrapping in segments of Map options and the layers card */
+.mo .seg button, .q-view button, .q-cd button { white-space: nowrap; padding-left: 4px; padding-right: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mo-top { justify-content: flex-start; margin-bottom: 2px; } .mo-top .btn { flex: 1 1 0; }
+
+/* ---- A6/A7: Gauge Looks: sticky tabs under the header, 3 tiles per row, 13px names, faces right under the picked look ---- */
+.sheet.lk-open { max-height: 52% !important; }
+.lk-cats { top: 56px; padding: 6px 0 8px; margin: 0 -2px; background: var(--surface); -webkit-overflow-scrolling: touch; }
+.lk-cats button { min-height: 44px; padding: 0 16px; font: 600 14px/1 var(--f-ui); white-space: nowrap; }
+.lk-undo { display: inline-flex; gap: 2px; margin-left: auto; }
+.lk-undo button, .lk-undo .ur-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; }
+.hdr-bar .lk-undo + .demo-chip { margin-left: 0; }
+.lk-opts { margin: 4px 0 6px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; }
+.lk-opts > summary { min-height: 44px; display: flex; align-items: center; font: 600 14px var(--f-ui); cursor: pointer; }
+.lk-ctl { font-size: 13px; }
+.lk .lk-seg button { min-height: 44px !important; font-size: 13px !important; }
+@media (max-width: 899px) { .lk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } }
+.lk-grid button { font: 500 13px/1.2 var(--f-ui); padding: 6px 4px 8px; min-height: 44px; }
+.lk-grid span { font-size: 13px; max-width: 100%; white-space: normal; line-height: 1.15; max-height: 2.4em; overflow: hidden; }
+.lk-grid .gl-prev, .lk-grid .gl-prev svg { width: 84px !important; height: 84px !important; }
+.lk-grid img { width: 84px; height: 84px; }
+.lk-sec h4 { font-size: 14px; scroll-margin-top: 120px; }
+.lk-facerow { grid-column: 1 / -1; border-radius: 14px; background: rgba(127, 127, 127, .12); padding: 8px 6px 4px 12px; }
+.lk-fl { font-size: 13px; margin-bottom: 2px; } .lk-fl b { font-weight: 700; } .lk-fl span { opacity: .8; }
+.lk-fs { display: flex; gap: 0; overflow-x: auto; scrollbar-width: none; padding-right: 26px; -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent); mask-image: linear-gradient(90deg, #000 86%, transparent); }
+.lk-fs::-webkit-scrollbar { display: none; }
+.lk-fs button { flex: none; width: 44px; height: 44px; min-height: 44px; border: 0; background: transparent; padding: 0; display: grid; place-items: center; }
+.lk-fs i { display: block; width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(127, 127, 127, .55); }
+.lk-fs button.on i { border-color: #2E86DE; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px #2E86DE; }
+html:root[data-night] .lk-fs button.on i { border-color: #D39A52; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px #D39A52; }
+
+/* ---- A8: console chart frames: one thin, quiet bezel in the look's own metal; no wheel spokes, no ornate carving ---- */
+html:root:root[data-ck="console"][data-gtheme] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge { border: 0 !important; border-image: none !important; padding: 4px !important; border-radius: 12px !important; box-shadow: 0 6px 14px -6px rgba(0,0,0,.6) !important; }
+html:root:root[data-ck="console"][data-gtheme*="rope"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge, html:root[data-ck="console"][data-gtheme="sailrope"] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge { padding: 6px !important; background: linear-gradient(#05080B,#05080B) content-box, repeating-linear-gradient(45deg, #D8B67A 0 3px, #8F6B38 3px 6px) padding-box !important; }
+html:root:root[data-ck="console"][data-gtheme] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge::before, html:root[data-ck="console"][data-gtheme] .cockpit:not(.lt-ck) .ck-grid.helm .ck-slot.hero.chart .gauge::after { display: none !important; }
+
+/* ---- A9: small fixes ---- */
+@media (max-width: 899px) { html:root #cockpit .ck-lay:not([hidden]) { max-width: calc(100% - 16px); flex-wrap: wrap; border-radius: 16px; justify-content: center; top: calc(52px + env(safe-area-inset-top, 0px)); } html:root #cockpit .ck-lay > span { overflow: visible; white-space: normal; flex: 1 1 100%; text-align: center; } #cockpit .ck-lay button { min-height: 44px; } }
+.tc-foot { gap: 8px; border-top: 0; padding-top: 0; }
+.tc-foot button { flex: 1 1 0; min-height: 44px; border: 1px solid rgba(159, 211, 255, .45); border-radius: 12px; background: rgba(159, 211, 255, .12); color: #CFE8FF; font: 600 14px var(--f-ui); padding: 0 6px; }
+.tc-when { padding-right: 28px; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+.tc-when .chip-b { min-height: 44px; flex: none; white-space: nowrap; }
+.wxbar.tl .tl-heading.hdr-bar { position: static; background: transparent; min-height: 48px; margin: 0 0 2px; padding: 0; display: flex; border: 0; }
+.wxbar.tl .tl-heading .hdr-title { font-size: 18px; }
+.hdr-link { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; font-size: 22px; text-decoration: none; color: inherit; border-radius: 50%; }
+html:root:not([data-fs="s"]):not([data-fs="l"]):not([data-fs="xl"]) #app .fab.fab.fab { width: 44px !important; height: 44px !important; }
+html:root:not([data-fs="s"]):not([data-fs="l"]):not([data-fs="xl"]) #app .fab svg { width: 21px; height: 21px; }
+html[data-fs="s"] #app .fab.fab { position: relative; }
+
+/* =====================================================================================================================
+   build 186 Pass B: MOB and SOS (B3), saved tracks (B1, B2), resizable gauge (B4), small controls (B5)
+   ===================================================================================================================== */
+
+/* ---- B3: MOB and SOS are dark navy round buttons with a red outline and a red label, in a compact pod bottom-left above the tab bar
+   (clear of the layout switcher on the right and of the chart attribution along the bottom edge) ---- */
+html:root:root:root:root #app #btnMOB.mob, html:root:root:root:root #app #btnSOS.sos-btn {
+  position: absolute !important; top: auto !important; right: auto !important; width: 48px !important; height: 48px !important; min-width: 48px; border-radius: 50% !important;
+  background: #0B1B2E !important; border: 3px solid #E53935 !important; color: #FF6B63 !important; font: 800 13px/1 system-ui, -apple-system, 'Segoe UI', sans-serif !important; letter-spacing: 0 !important;
+  bottom: calc(var(--tabbar-h, 64px) + 22px + var(--stackH, 0px) + env(safe-area-inset-bottom, 0px)) !important; box-shadow: 0 2px 8px rgba(0, 0, 0, .45) !important; z-index: 900 !important;
+  overflow: hidden; display: grid; place-items: center; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+html:root:root:root:root #app #btnMOB.mob { left: calc(12px + env(safe-area-inset-left, 0px)) !important; }
+html:root:root:root:root #app #btnSOS.sos-btn { left: calc(12px + 48px + 10px + env(safe-area-inset-left, 0px)) !important; }
+html.no-mob:root:root:root:root #app #btnSOS.sos-btn { left: calc(12px + env(safe-area-inset-left, 0px)) !important; }
+html.no-mob #btnMOB, #btnSOS[hidden] { display: none !important; }
+#btnMOB .mob-ring, #btnSOS .mob-ring, .hdr-mob .mob-ring { background: rgba(229, 57, 53, .55); }
+#btnMOB.holding, #btnSOS.holding { background: #3A1018 !important; }
+html:root[data-dusk] #app #btnMOB.mob, html:root[data-dusk] #app #btnSOS.sos-btn { border-color: #D2483F !important; }
+html:root[data-night] #app #btnMOB.mob, html:root[data-night] #app #btnSOS.sos-btn { background: #0A0A0F !important; border-color: #B84A42 !important; color: #E9847C !important; }
+/* a sheet, a layers card or a full screen is open: its header bar carries MOB, so the floating pod steps aside and never covers content */
+html:root:has(#sheet:not([hidden]), #quick:not([hidden]), #wxBar.tl:not([hidden]), .panel:not([hidden]):not(#panelSide), #cockpit:not([hidden]), #sosScreen:not([hidden])) :is(#btnMOB, #btnSOS) { display: none !important; }
+html.sos-open #btnSOS { display: none !important; }
+
+/* the compact MOB in a header bar: same look, 44x44 tap area, just left of the X */
+.hdr-mob { flex: 0 0 var(--hit, 44px); width: var(--hit, 44px); height: var(--hit, 44px); position: relative; border: 0; padding: 0; background: transparent; color: #FF6B63; display: grid; place-items: center; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overflow: hidden; border-radius: 50%; }
+.hdr-mob::before { content: ''; position: absolute; inset: 2px; border-radius: 50%; background: #0B1B2E; border: 2.5px solid #E53935; box-sizing: border-box; }
+.hdr-mob .mob-ring { position: absolute; inset: 2px; border-radius: 50%; transform: scaleY(0); transform-origin: bottom; }
+.hdr-mob.holding .mob-ring { transform: scaleY(1); transition: transform 1s linear; }
+.hdr-mob span { position: relative; font: 800 13px/1 system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: -.02em; color: #FF6B63; }
+:root[data-night] .hdr-mob::before { background: #0A0A0F; border-color: #B84A42; } :root[data-night] .hdr-mob span { color: #E9847C; }
+.search-head .hdr-mob { position: absolute; right: 62px; top: calc(8px + env(safe-area-inset-top, 0px)); }
+#panelSearch .search-head { padding-right: 108px; }
+.ck-head .hdr-mob { margin: 0 6px 0 4px; } .ck-head .hdr-mob::before { border-color: #E53935; }
+.sos-head .hdr-mob { margin-right: 8px; } .sos-head .sos-sp { flex: 1 1 auto; }
+@media (prefers-reduced-motion: reduce) { .hdr-mob.holding .mob-ring { transition: none; } }
+
+@media (max-width: 600px) {
+  html:root #cockpit .ck-head { grid-template-columns: auto 1fr auto auto auto auto !important; }
+  html:root #cockpit .ck-head .hdr-mob { grid-row: 1 / 3; grid-column: 5; margin: 0; }
+  html:root #cockpit .ck-head .ck-close { grid-column: 6; }
+}
+html:root #cockpit .ck-head button.hdr-mob { padding: 0 !important; min-height: var(--hit, 44px); width: var(--hit, 44px); border: 0; background: transparent; }
+
+/* ---- B1/B2: saved tracks: a vertical row that never scrolls sideways at 390px ---- */
+.tr-row { padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
+.tr-row:first-of-type { border-top: 0; }
+.tr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tr-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface, #fff), 0 0 0 3px rgba(11, 27, 46, .55); }
+.tr-name { flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: 700 17px/1.25 var(--f-ui); text-align: left; cursor: text; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.tr-top .demo-chip { flex: none; }
+.tr-pencil { flex: none; width: 44px; height: 44px; margin-left: auto; border: 0; background: transparent; color: var(--ink2, inherit); display: grid; place-items: center; padding: 0; border-radius: 50%; }
+.tr-pencil svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tr-when { font-size: 14px; color: var(--ink2); margin: -4px 0 2px 22px; }
+.tr-route { font-size: 15px; font-weight: 600; margin: 0 0 4px 22px; overflow-wrap: anywhere; line-height: 1.3; }
+.tr-route b { font-weight: 700; color: var(--ink2); }
+.tr-foot { display: flex; align-items: center; gap: 8px; margin-left: 22px; min-width: 0; }
+.tr-meta { flex: 1 1 auto; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-replay { flex: none; min-width: 84px; justify-content: center; }
+.tr-more { flex: none; min-width: 44px; padding: 0; font-size: 22px; line-height: 1; font-weight: 700; display: grid; place-items: center; }
+.tr-edit { flex: 1 1 auto; min-width: 0; min-height: 44px; border-radius: 10px; border: 2px solid #2E86DE; background: var(--surface, #fff); color: var(--ink); font: 700 17px var(--f-ui); padding: 0 10px; }
+.tr-row.editing .tr-pencil { display: none; }
+.tr-msub { font-weight: 600; margin-bottom: 8px; overflow-wrap: anywhere; }
+.trm-list { display: flex; flex-direction: column; gap: 2px; }
+.trm { min-height: 48px; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; font: 600 16px var(--f-ui); text-align: left; padding: 0 4px; }
+.trm.danger { color: #D64545; }
+:root[data-night] .trm.danger { color: #E58A82; }
+.trm-color { padding: 8px 4px 6px; border-top: 1px solid var(--line); } .trm-color > b { display: block; font-size: 15px; margin-bottom: 2px; }
+.tr-sw { display: flex; gap: 0; flex-wrap: wrap; }
+.tr-swb { width: 48px; height: 48px; padding: 0; border: 0; background: transparent; display: grid; place-items: center; border-radius: 50%; }
+.tr-swb i { display: block; width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(11, 27, 46, .55); }
+.tr-swb.on i { box-shadow: inset 0 0 0 2px rgba(11, 27, 46, .55), 0 0 0 3px var(--surface, #fff), 0 0 0 5px #2E86DE; }
+/* a sheet opened from a full screen (the track ⋯ menu) sits above that screen and below the tab bar */
+#app:has(.panel:not([hidden]):not(#panelSide)) #sheet { z-index: 880; }
+/* titles may take two lines before they are cut, so MOB and DEMO beside them never hide the screen's name */
+html:root .hdr-title, html:root .p-head.hdr-bar h2 { white-space: normal !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.15; }
+.tr-when { margin-top: -2px; }
+
+/* ---- B4: the gauge's corner handle: a 44 px target inside the panel's corner, a small grip chip showing ---- */
+#miSizer { position: fixed; z-index: 660; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; touch-action: none; cursor: nesw-resize; display: grid; place-items: end start; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+#miSizer.free { cursor: nwse-resize; place-items: end end; }
+#miSizer[hidden] { display: none; }
+#miSizer i { display: grid; place-items: center; width: 24px; height: 24px; margin: 2px; border-radius: 8px; background: rgba(11, 27, 46, .62); box-shadow: 0 0 0 1px rgba(255, 255, 255, .35); }
+#miSizer svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; }
+#miSizer:not(.free) svg { transform: scaleX(-1); }
+#miSizer.drag i, #miSizer:focus-visible i { background: #2E86DE; }
+html:root:has(.panel:not([hidden]):not(#panelSide), #sheet:not([hidden]), #quick:not([hidden]), #cockpit:not([hidden]), #sosScreen:not([hidden])) #miSizer { display: none !important; }
+
+/* ---- B5: the speed unit is a button: dotted underline, 44 px target ---- */
+.spd-u { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+svg .spd-hit { cursor: pointer; pointer-events: all; }
+span.spd-u { position: relative; }
+span.spd-u::before { content: ''; position: absolute; inset: -14px -10px; }
+#miniInst .mi-dep .mi-ns { font: 700 10px var(--f-ui); }
+.cg-h { font: 700 15px var(--f-ui); margin: 12px 0 2px; } .cg-arc { margin: 10px 0; } .cg-arc > summary { min-height: 44px; display: flex; align-items: center; font: 700 15px var(--f-ui); cursor: pointer; }
+.cg-note { border-left: 3px solid #E8952B; padding-left: 10px; }
+/* trip planner: MOB stays one tap away, just above the trip card (SOS is left out here) */
+html.trip:root:root:root:root:root:root #app #btnMOB.mob { visibility: visible !important; bottom: calc(var(--tabbar-h, 64px) + var(--tripH, 0px) + 12px + env(safe-area-inset-bottom, 0px)) !important; }
+/* Settings, Safety: each switch gets a full-width row, the words readable, the switch at the right */
+html:root #setSafety.card { display: block; }
+html:root #setSafety.card > .set-row.sw-row { flex-direction: row; align-items: center; gap: 12px; padding: 12px 0; }
+html:root #setSafety.card > .set-row .sr-text b { font-size: 16px; } html:root #setSafety.card > .set-row .sr-text span { font-size: 13.5px; line-height: 1.35; margin-top: 2px; }
+html:root #setSafety.card > .set-row .switch { flex: none; }
+
+
+/* =====================================================================================================================
+   build 186 Pass C: landmark cards (photo first, tap for more, one chip when space is tight), the one playback bar,
+   and everything at the bottom of the chart riding above it.
+   ===================================================================================================================== */
+:root { --pb-h: 0px; --low-h: 0px; }
+
+/* ---- C5: the playback bar (fly-by, track replay, trip briefing) ---- */
+#pbar { position: absolute; z-index: 940; left: calc(var(--chartL, 0px) + var(--chartW, 100vw) / 2); transform: translateX(-50%); width: min(560px, calc(var(--chartW, 100vw) - 20px)); bottom: calc(var(--tabbar-h) + 8px); box-sizing: border-box;
+  padding: 4px 10px 4px; border-radius: 18px; background: rgba(10, 22, 36, .95); color: #fff; box-shadow: 0 4px 18px rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-family: var(--f-ui, system-ui, sans-serif); }
+#pbar[hidden] { display: none !important; }
+#pbar .pb-tl { display: flex; align-items: center; gap: 10px; height: 44px; }
+#pbar .pb-t { font: 600 13px/1 var(--f-ui, system-ui, sans-serif); min-width: 36px; color: #C9D6E2; } #pbar .pb-tot { text-align: right; }
+#pbar .pb-scrub { flex: 1 1 auto; min-width: 0; height: 44px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; touch-action: none; cursor: pointer; }
+#pbar .pb-scrub::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, #2CD3C5 var(--pb-p, 0%), rgba(255, 255, 255, .28) var(--pb-p, 0%)); }
+#pbar .pb-scrub::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .28); } #pbar .pb-scrub::-moz-range-progress { height: 6px; border-radius: 3px; background: #2CD3C5; }
+#pbar .pb-scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 0; margin-top: -8px; box-shadow: 0 1px 4px rgba(0, 0, 0, .5); }
+#pbar .pb-scrub::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .5); }
+#pbar .pb-ctl { display: flex; align-items: center; gap: 6px; height: 50px; }
+#pbar .pb-b { flex: none; width: 44px; height: 44px; min-width: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #fff; display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#pbar .pb-b svg { width: 28px; height: 28px; } #pbar .pb-ar { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } #pbar .pb-b text { font: 700 9px var(--f-ui, system-ui, sans-serif); fill: currentColor; }
+#pbar .pb-play { width: 48px; height: 48px; background: #2CD3C5; color: #06222A; } #pbar .pb-play svg { width: 24px; height: 24px; fill: currentColor; }
+#pbar .pb-gap { flex: 1 1 auto; }
+#pbar .pb-spd { flex: none; min-width: 56px; height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, .32); background: rgba(255, 255, 255, .1); color: #fff; font: 700 16px var(--f-ui, system-ui, sans-serif); cursor: pointer; }
+#pbar .pb-x { background: rgba(255, 255, 255, .16); } #pbar .pb-x svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+#pbar .pb-b:active, #pbar .pb-spd:active { background: rgba(255, 255, 255, .28); } #pbar .pb-play:active { background: #6FE6DB; }
+/* everything at the bottom of the chart rides above the bar */
+#app .bottom-stack { bottom: calc(var(--tabbar-h) + 10px + var(--pb-h, 0px)); }
+html.pb-on #deskSw { display: none !important; }
+html.pb-on #app > .toast { bottom: calc(var(--tabbar-h) + 10px + var(--pb-h, 0px)); }
+#app:has(.panel:not([hidden]):not(#panelSide), #sheet:not([hidden]), #cockpit:not([hidden]), #sosScreen:not([hidden])) #pbar { display: none; }
+/* the MOB/SOS pod stays above whatever is low: the bar, and the leg panel (which hides the nav card) */
+html.briefing { --stackH: 0px !important; }
+html:is(.pb-on, .briefing):root:root:root:root #app #btnMOB.mob, html:is(.pb-on, .briefing):root:root:root:root #app #btnSOS.sos-btn { bottom: calc(var(--tabbar-h, 64px) + 22px + var(--stackH, 0px) + var(--low-h, 0px) + env(safe-area-inset-bottom, 0px)) !important; }
+html.trip:is(.pb-on, .briefing):root:root:root:root:root:root #app #btnMOB.mob { bottom: calc(var(--tabbar-h, 64px) + 12px + var(--low-h, 0px) + env(safe-area-inset-bottom, 0px)) !important; }
+html.trip.briefing:root:root:root:root:root:root #app #btnSOS.sos-btn { bottom: calc(var(--tabbar-h, 64px) + 12px + var(--low-h, 0px) + env(safe-area-inset-bottom, 0px)) !important; }
+
+/* the briefing / leg panel sits on the bar */
+html:root #briefing { bottom: calc(var(--tabbar-h) + var(--pb-h, 0px)); max-height: min(46%, 420px, calc(100% - var(--tabbar-h) - var(--pb-h, 0px) - 200px)); }
+@media (min-width: 900px) { html:root #briefing { bottom: calc(var(--tabbar-h) + 12px + var(--pb-h, 0px)); } }
+#briefing .bf-hdr { position: static; min-height: 56px; padding: 4px 8px 0 14px; background: transparent; color: #EEF4FA; }
+#briefing .bf-hdr .hdr-title { font-size: 20px; color: #fff; } #briefing .bf-hdr .eyebrow { color: #A9BCCD; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#briefing .bf-hdr .hdr-x, #briefing .bf-hdr .hdr-back { color: #fff; } #briefing .bf-hdr .hdr-x { background: rgba(255, 255, 255, .14); }
+html:root[data-night] #briefing .bf-hdr .hdr-title { color: var(--ink); } html:root[data-night] #briefing .bf-hdr .eyebrow { color: var(--ink2); }
+#briefing .bf-btns .btn { min-height: 44px; }
+
+/* ---- C1/C2: landmark cards ---- */
+html:root:root #app #tourCard.tg-card { position: absolute; z-index: 880; display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; transform: none !important; max-width: 520px; background: rgba(10, 18, 28, .96); color: #F4F7FA; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); box-sizing: border-box; }
+#tourCard[hidden] { display: none !important; }
+#tourCard .tg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; cursor: pointer; -webkit-tap-highlight-color: transparent; outline-offset: -3px; }
+#tourCard .tg-ph { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 150px; background: #0D1A26; overflow: hidden; }
+#tourCard.tg-open .tg-ph { max-height: 190px; } @media (min-width: 900px) { #tourCard .tg-ph { max-height: 190px; } #tourCard.tg-open .tg-ph { max-height: 240px; } }
+#tourCard .tg-img { display: block; width: 100%; height: 100%; max-height: none !important; object-fit: cover; cursor: pointer; }
+.tg-cr { position: absolute; left: 8px; bottom: 8px; font: 600 13px/1 var(--f-ui, system-ui, sans-serif); color: #fff; background: rgba(0, 0, 0, .58); padding: 5px 9px; border-radius: 999px; pointer-events: none; }
+#tourCard .tg-txt { padding: 10px 14px 4px; max-height: none !important; overflow: visible; }
+#tourCard .tg-nophoto .tg-txt, #tourCard.tg-nophoto .tg-txt { padding-right: 56px; }
+html:root #tourCard .tg-txt small { display: block; font: 700 13px/1.25 var(--f-ui, system-ui, sans-serif); letter-spacing: .03em; text-transform: uppercase; color: #9DB0C2; }
+#tourCard .tg-txt b { display: block; font-size: 19px; line-height: 1.2; margin: 3px 0 4px; }
+#tourCard .tg-line { margin: 0; font-size: 15px; line-height: 1.4; color: #E4EBF2; }
+#tourCard:not(.tg-open) .tg-line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#tourCard .tg-note { font-size: 14px !important; line-height: 1.4; color: #C9D6E2; margin: 8px 0 0; }
+#tourCard .tg-more { display: flex; justify-content: flex-end; align-items: center; gap: 2px; padding: 2px 14px 10px; font: 700 14px var(--f-ui, system-ui, sans-serif); color: #8FD3FF; }
+.tg-chev { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; } #tourCard.tg-open .tg-more .tg-chev { transform: rotate(-90deg); }
+.tg-caution { margin: 10px 0 6px; padding: 9px 12px; border-radius: 10px; background: rgba(255, 179, 0, .16); border: 1px solid #FFB300; border-left-width: 6px; display: flex; flex-direction: column; gap: 3px; color: #FFEFC2; }
+.tg-caution b { display: block !important; margin: 0 !important; font: 800 13px/1.2 var(--f-ui, system-ui, sans-serif) !important; letter-spacing: .05em; text-transform: uppercase; color: #FFC233; }
+.tg-caution span { font-size: 15px !important; line-height: 1.4; color: #FFEFC2 !important; } .tg-caution em { font-style: normal; font-weight: 800; font-size: 15px; color: #fff; }
+#tourCard .tg-x { position: absolute; top: 6px; right: 6px; z-index: 3; width: 44px; height: 44px; min-width: 44px; padding: 0; border: 0; border-radius: 50%; background: rgba(8, 14, 22, .72); color: #fff; font-size: 28px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+#tourCard .tg-acts { flex: none; display: flex; gap: 8px; padding: 2px 14px 12px; }
+#tourCard .tg-acts button, #tourCard .tg-acts a { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .28); background: rgba(255, 255, 255, .08); color: #fff; font: 600 15px var(--f-ui, system-ui, sans-serif); display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; }
+/* the chip: when there is no room for a card, a single line that opens it */
+html:root:root #app #tourCard.tg-card.tg-chipmode { background: transparent; box-shadow: none; overflow: visible; border-radius: 0; flex-direction: row; align-items: center; max-width: calc(100% - 20px); }
+#tourCard .tg-chipbtn { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; max-width: 100%; padding: 0 10px 0 16px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, .34); background: rgba(10, 18, 28, .96); color: #fff; font: 700 15px var(--f-ui, system-ui, sans-serif); cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
+#tourCard .tg-chipbtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tourCard .tg-chipcaut { margin-left: -10px; margin-top: -26px; width: 22px; height: 22px; border-radius: 50%; background: #FFB300; color: #1A1200; font: 800 14px/22px system-ui; text-align: center; font-style: normal; }
+.tg-sheet .tg-ph { position: relative; border-radius: 12px; overflow: hidden; max-height: 240px; aspect-ratio: 16 / 9; } .tg-sheet .tg-img { width: 100%; height: 100%; object-fit: cover; max-height: none; }
+.tg-sheet .tg-caution { color: var(--ink); background: rgba(255, 179, 0, .18); } .tg-sheet .tg-caution span { color: var(--ink) !important; } .tg-sheet .tg-caution em { color: var(--ink); } .tg-sheet .tg-caution b { color: #8A5A00 !important; }
+html:root[data-night] .tg-sheet .tg-caution b { color: #FFC233 !important; }
+
+/* the fly-by's landmark card at the top: the same photo-first look, never taller than the room above the leg panel */
+html:root #flySight { display: block; padding: 0; overflow: hidden; top: calc(env(safe-area-inset-top, 0px) + 112px); max-height: calc(100vh - var(--tabbar-h) - var(--low-h, 0px) - 170px); } /* below the gps, DEMO and signal chips: it never hides the DEMO label */
+#flySight .fs-body { display: block; cursor: pointer; max-height: inherit; overflow-y: auto; }
+#flySight .fs-ph { position: relative; width: 100%; height: 92px; background: #0D1A26; } #flySight.open .fs-ph { height: 150px; } #flySight .fs-ph img { display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; border-radius: 0; }
+#flySight .fs-txt { padding: 8px 52px 10px 14px; } #flySight .fs-txt small { font: 700 13px/1.2 var(--f-ui, system-ui, sans-serif); letter-spacing: .06em; text-transform: uppercase; color: #FFD54F; }
+#flySight .fs-line { margin: 4px 0 0; font-size: 14px; line-height: 1.35; color: #E4EBF2; -webkit-line-clamp: 2; } #flySight.open .fs-line { -webkit-line-clamp: unset; display: block; }
+#flySight .fs-x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; font-size: 26px; background: rgba(8, 14, 22, .72); }
+#flySight .tg-caution { margin: 8px 0 0; }
+html:root[data-night] #flySight .fs-line { color: var(--ink); }
+
+/* closures: the group for notices that do not say where */
+.cg-noloc > summary { color: #B26A00; } html:root[data-night] .cg-noloc > summary { color: #FFC233; }
+
+/* ===== build 186 fix pass ===== */
+/* the layout switcher steps aside whenever something else owns the bottom of the chart: an active MOB, the measure bar, First Mate listening */
+html:root #app:is(:has(#mobBanner:not([hidden])), :has(#btnMeasure.on), :has(#mChip:not([hidden])), :has(#fmTalk)) #deskSw { display: none !important; }
+/* nothing sits over the MOB banner: while MOB is active the bars that normally cover the nav card (First Mate, the measure bar) step up above the whole stack */
+html:root #app:has(#mobBanner:not([hidden])) :is(#fmTalk, #mChip) { bottom: calc(var(--tabbar-h, 64px) + var(--stackH, 0px) + 18px + env(safe-area-inset-bottom, 0px)) !important; }
+/* a message never sets its own spot in CSS: toastPlace() puts it at the top, in the first free place */
+html:root #app > #toast.toast { bottom: auto; max-width: min(360px, calc(100% - 140px)); }
+/* measure bar and First Mate bar: 44px buttons, the standard X */
+html:root #mChip { display: grid; grid-template-columns: 1fr auto auto auto; column-gap: 6px; row-gap: 0; align-items: center; border-radius: 24px; padding: 4px 4px 4px 14px; }
+html:root #mChip[hidden] { display: none; }
+html:root #mChip > b { grid-column: 1; grid-row: 1; align-self: end; line-height: 1.1; } html:root #mChip > span { grid-column: 1; grid-row: 2; align-self: start; font-size: 13px; white-space: nowrap; }
+html:root #mChip button[data-m="boat"] { grid-column: 2; grid-row: 1 / 3; } html:root #mChip button[data-m="go"] { grid-column: 3; grid-row: 1 / 3; } html:root #mChip button[data-m="x"] { grid-column: 4; grid-row: 1 / 3; }
+html:root #mChip button { min-height: 44px; min-width: 44px; font-size: 14px; padding: 0 12px; }
+html:root #mChip button[data-m="x"] { width: 44px; padding: 0; font-size: 18px; }
+html:root .ft-btns { top: 6px; right: 6px; }
+html:root .ft-btns button.hdr-x { width: 44px; height: 44px; min-width: 44px; min-height: 44px; flex: none; background: rgba(255, 255, 255, .14); color: #fff; }
+html:root .ft-acts { display: flex; gap: 8px; margin-top: 8px; }
+html:root .ft-acts button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .12); color: #fff; font-size: 18px; }
+html:root .ft-body { padding-right: 52px; min-height: 44px; } html:root .ft-reply, html:root .ft-res { margin-right: -52px; }
+
+/* ---- exits: one size everywhere (44px) ---- */
+html:root #cockpit .ck-head .ck-close { width: 44px; height: 44px; }
+html:root #cockpit .ck-head :is(.ck-look, .ck-edit) { min-height: 44px; }
+html:root .spot-card .sp-head .sp-x { transform: none !important; width: 44px !important; height: 44px !important; font-size: 22px !important; margin: -8px -8px -8px 4px; flex: none; }
+html:root .spot-card .sp-acts .sp-btn { min-height: 44px; min-width: 44px; }
+html:root #tripTop { grid-template-columns: 44px 1fr 44px; gap: 6px 6px; }
+html:root #tripTop .tt-back { width: 44px; height: 44px; font-size: 34px; line-height: 40px; display: grid; place-items: center; }
+html:root #tripTop :is(.tt-val, #tripQ) { height: 44px; border-radius: 22px; } html:root #tripTop .tt-ic { width: 44px; height: 44px; } html:root #tripTop .tt-x { width: 44px; height: 44px; margin-right: -6px; }
+html.helm #helmX { width: 44px; height: 44px; font-size: 20px; }
+html:root .sos-head .hdr-x { background: rgba(255, 255, 255, .22); color: #fff; margin-left: 8px; }
+html:root .wl-card { position: relative; } html:root .wl-x { position: absolute; top: 8px; right: 8px; }
+html:root .bp-tools { display: flex; justify-content: flex-end; margin: 0 0 10px; } html:root .bp-tools .btn { min-height: 44px; }
+
+/* ---- sticky panel header: it is pulled up into the panel's padding, so pin it there too (otherwise it sits 16px low and covers the first card) ---- */
+html:root .panel > .p-head.hdr-bar { top: calc(-16px - env(safe-area-inset-top, 0px)); }
+
+/* ---- tap targets: 44px (segments, chips, tiles, links, inputs, rows) ---- */
+html:root .seg button, html:root .seg > * { min-height: 44px; }
+html:root .tl-chips button, html:root .tl-model, html:root .tl-tabs button, html:root .wxbar .btn.small, html:root .nws-btn, html:root .hdr-link { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+html:root .tl-grab { min-height: 44px; }
+html:root .btheme-row button, html:root .cs-row button, html:root .mo .btheme-row > * { min-height: 44px; }
+html:root .cd-more > summary, html:root summary { min-height: 44px; display: flex; align-items: center; }
+html:root .li-main input, html:root .li input[type="text"], html:root .li input:not([type]) { min-height: 44px; font-size: 16px; }
+html:root .tg-list > li > button { min-height: 44px; }
+html:root .su-row { min-height: 44px; }
+html:root #wxBar.tl .tl-chips button { min-width: 44px; }
+html.helm #app:not(.wide) #deskSw { bottom: calc(var(--tabbar-h, 0px) + 30px + 56px); }
+/* Looks: a section that is only partly drawn keeps its height without stretching the tile rows */
+html:root .lk-grid { align-content: start; }
