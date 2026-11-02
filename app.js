@@ -6,7 +6,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // build 186 B9: the one place the build number lives (Menu and Settings both read it; the coordinator sets it at release)
-const BUILD = 186, APP_VERSION = '0.6';
+const BUILD = 187, APP_VERSION = '0.6';
 const store = {
   get(k, d) { try { const v = localStorage.getItem('tl.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('tl.' + k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } if (window.__tlSync && !SYNC_SKIP.test(k)) window.__tlSync(); },
@@ -32,6 +32,7 @@ const DEFAULTS = {
   chart: 'noaa', seamarks: true, night: false, keepAwake: true, sim: false, simRate: 5,
   boatType: 'sail', underSail: true, boatName: '', aisCoach: false, aisShow: true, voice: true, skipper: '', iconStyle: 'boat',
   wx: 'none', bridges: true, bridgeMargin: 2, cockpit: false, theme: 'auto', satOver: true, chartOnSat: 0.6, sailSpeed: 5, navMode: 'engine', rings: false, easy: false, coachMode: 'off', chips: false, satSrc: 'std', curOn: true, mobOn: true, sosOn: false, trackColor: '#FF4081', gaugeSz: {},
+  newRouter: false, projMode: 'line', projBy: 'time', projMin: 10, projNm: 1,
 };
 const savedSettings = store.get('settings', {});
 if (savedSettings.coachMode == null && savedSettings.aisCoach != null) savedSettings.coachMode = !savedSettings.aisCoach ? 'off' : savedSettings.voice === false ? 'chime' : 'voice';
@@ -129,6 +130,7 @@ function toast(msg, ms = 2800) {
   if (!t.dataset.tapx) { t.dataset.tapx = 1; t.addEventListener('click', () => { t.hidden = true; }); t.title = 'Tap to dismiss'; }
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, Math.min(ms, 4000));
   try { toastPlace(); } catch (e) { /* layout not ready */ }
+  try { if (!sheet.hidden && sheet.querySelector('.rt-sheet')) { t.style.setProperty('top', 'auto', 'important'); t.style.setProperty('bottom', 'calc(84px + env(safe-area-inset-bottom, 0px))', 'important'); } } catch (e) { /* */ } // the route sheet's title row (undo/redo) stays clear
 }
 function toastDismiss(minAge) { const t = $('toast'); if (!t || t.hidden || Date.now() - toastAt < (minAge || 0)) return; t.hidden = true; clearTimeout(toastTimer); }
 // build 186 fix: a message sits at the top of the chart, in the first free spot under the top chips (a probe of what is really on screen, so it never lands on the
@@ -405,11 +407,11 @@ function openPointSheet(latlng, wp, auto) {
   let html = '<h3>' + (wp ? esc(wp.name) : auto ? 'This spot' : 'Dropped pin') + '</h3><div class="sub tnum">' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + '</div>';
   const from = S.fix || homePort();
   if (from) { const d = distNm(from, p); html += '<div class="sub tnum pt-dist">' + fmtDist(d) + ' at ' + fmtBrg(bearing(from, p)) + '°T from ' + (S.fix ? 'you' : esc(from.name)) + (S.fix && (S.sog || 0) > 1 ? ' · about ' + fmtDur(d / S.sog) : '') + '</div>'; }
-  html += '<div id="ptNow" class="pt-now"></div>';
+  html += '<div class="pt-acts main rt-lp">' + rtLpBtns('btn') + '</div>';
   html += '<div class="pt-acts main"><button class="btn primary" data-act="goto">Navigate here</button>' + (S.settings.boatType === 'sail' ? '<button class="btn primary alt" data-act="ptsail">Sail here</button>' : '') +
     (wp ? '<button class="btn" data-act="delwp">Delete</button>' : '<button class="btn" data-act="savewp">Save spot</button>') + '</div>' +
     '<details class="pt-more"><summary>More</summary><div class="pt-acts"><a class="btn" href="' + nwsGraphUrl(p) + '" target="_blank" rel="noopener">NOAA point forecast ↗</a><button class="btn" data-act="ptmeasure">Measure from here</button><button class="btn" data-act="ptwx" hidden>Weather here</button></div></details>' +
-    '<div id="ptWx"></div><div class="pm" id="pmBox"></div>' + (auto ? '<p class="hint">Tap anywhere on the chart for that spot. Turn this off in Map options.</p>' : '') + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
+    '<div id="ptNow" class="pt-now"></div><div id="ptWx"></div><div class="pm" id="pmBox"></div>' + (auto ? '<p class="hint">Tap anywhere on the chart for that spot. Turn this off in Map options.</p>' : '') + '<div class="row-btns"><button class="btn ghost" data-act="close">Close</button></div>';
   openSheet(html); setTimeout(() => placeMedia(p.lat, p.lon, wp ? wp.name : '', $('pmBox')), 30);
   { const b = sheet.querySelector('[data-act="ptwx"]'); if (b) b.disabled = true; pointWeather(p); spotNow(p); }
 }
@@ -860,6 +862,18 @@ async function openCgNotices() {
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-zone-show]'); if (b) { const z = EVENT_ZONES[+b.dataset.zoneShow]; closeSheet(); setTab('chart'); map.setView([z.lat, z.lon], 15); L.circle([z.lat, z.lon], { radius: z.r, color: '#D32F2F', weight: 2, dashArray: '5 5', fillOpacity: 0.16 }).addTo(map).bindTooltip(z.name, { permanent: true }).openTooltip(); } if (e.target.closest('[data-cg-notices]')) openCgNotices(); });
 const RT = { edit: false, pts: store.get('routeDraft', []), marks: L.layerGroup().addTo(map), line: L.polyline([], { color: '#C2185B', weight: 5, opacity: 0.9, interactive: true }).addTo(map), depart: null, drag: null };
+// route-edit undo/redo (build 187): every edit while plotting can be undone, many levels; the small arrows show only while plotting
+RT.hist = { u: [], r: [] };
+function rtPush() { RT.hist.u.push(JSON.stringify(RT.pts)); if (RT.hist.u.length > 60) RT.hist.u.shift(); RT.hist.r = []; RT.alt = null; if (RT.altLine) RT.altLine.setLatLngs([]); }
+function rtUndo(dir) {
+  if (RT.busy) { toast('Wait for the route to finish, then undo', 1600); return; }
+  const from = dir < 0 ? RT.hist.u : RT.hist.r, to = dir < 0 ? RT.hist.r : RT.hist.u; if (!from.length) { toast(dir < 0 ? 'Nothing to undo' : 'Nothing to redo', 1200); return; }
+  to.push(JSON.stringify(RT.pts)); RT.pts = JSON.parse(from.pop()); RT.alt = null; if (RT.altLine) RT.altLine.setLatLngs([]); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); toast(dir < 0 ? 'Undone' : 'Redone', 900);
+}
+function rtUrHtml() { const b = (d, lbl, path) => '<button type="button" class="ur-btn' + ((d < 0 ? RT.hist.u : RT.hist.r).length ? '' : ' off') + '" data-rtur="' + d + '" aria-label="' + lbl + '" data-tip="' + lbl + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg></button>';
+  return '<span class="lk-undo rt-ur">' + b(-1, 'Undo', '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>') + b(1, 'Redo', '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>') + '</span>'; }
+document.addEventListener('click', (e) => { const u = e.target.closest('[data-rtur]'); if (u) { e.stopPropagation(); rtUndo(+u.dataset.rtur); } });
+document.addEventListener('keydown', (e) => { if (RT.edit && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !/input|textarea|select/i.test((e.target || {}).tagName || '')) { e.preventDefault(); e.stopImmediatePropagation(); rtUndo(e.shiftKey ? 1 : -1); } }, true);
 function dragHandle(mk, onMove, onEnd) { // finger drag for a marker, with zoom-out at the screen edge
   const el = mk.getElement(); if (!el) return;
   el.style.touchAction = 'none';
@@ -894,8 +908,8 @@ function drawRoute() {
     const turn = (p.turn || p.via) && !RT.edit && !(RT.trip && TRIP.on); if (!p.turn && !p.via) sn++;
     const mk = L.marker([p.lat, p.lon], { keyboard: false, zIndexOffset: turn ? 1000 : 1100, icon: turn ? L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6], html: '<div class="rt-turn"></div>' }) : L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17], html: '<div class="rt-pt' + (RT.edit ? ' edit' : '') + (p.turn || p.via ? ' turn' : '') + '">' + (p.turn || p.via ? '' : sn) + '</div>' }) }).addTo(RT.marks);
     if (!RT.edit) mk.on('click', () => openRouteMenu());
-    if (RT.trip && !RT.edit && TRIP.on) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); tripCardRender(); rtRerouteAround(p); setTimeout(() => { const w = () => { if (RT.busy) return setTimeout(w, 400); drawRoute(); tripCardRender(); }; w(); }, 300); });
-    if (RT.edit) dragHandle(mk, (ll) => { p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtRerouteAround(p); });
+    if (RT.trip && !RT.edit && TRIP.on) dragHandle(mk, (ll) => { if (!RT.dragPushed) { RT.dragPushed = 1; rtPush(); } p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { RT.dragPushed = 0; if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); tripCardRender(); rtRerouteAround(p); setTimeout(() => { const w = () => { if (RT.busy) return setTimeout(w, 400); drawRoute(); tripCardRender(); }; w(); }, 300); });
+    if (RT.edit) dragHandle(mk, (ll) => { if (!RT.dragPushed) { RT.dragPushed = 1; rtPush(); } p.lat = ll.lat; p.lon = ll.lng; RT.line.setLatLngs(RT.pts.map((q) => [q.lat, q.lon])); }, () => { RT.dragPushed = 0; if (p.turn) { delete p.turn; p.via = true; } store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtRerouteAround(p); });
   });
 }
 setTimeout(() => RT.line.on('click', (e) => { L.DomEvent.stop(e); if (!RT.edit) openRouteMenu(); }), 0);
@@ -918,12 +932,12 @@ sheet.addEventListener('input', (e) => {
 });
 sheet.addEventListener('click', (e) => {
   const g = e.target.closest('[data-rtsug]'); if (!g) return; const o = rtList[+g.dataset.rtsug];
-  RT.pts.push({ lat: o.lat, lon: o.lon, name: o.name.replace(/\s*\(sample spot\)/, '') }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); rtAutoLeg();
+  rtPush(); RT.pts.push({ lat: o.lat, lon: o.lon, name: o.name.replace(/\s*\(sample spot\)/, '') }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); rtAutoLeg();
   setTimeout(() => { const q = $('rtQ'); if (q) q.focus(); }, 40);
 });
 function routeAdd(ll) {
   if (RT.avoidPick) { RT.avoidPick = false; addAvoidZone(ll.lat, ll.lng); renderRouteSheet(); return; }
-  RT.pts.push({ lat: ll.lat, lon: ll.lng }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtAutoLeg();
+  rtPush(); RT.pts.push({ lat: ll.lat, lon: ll.lng }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtAutoLeg();
 }
 // Each new leg follows the water on its own, so a tapped or typed route never cuts across land
 function rtQueue(fn) { RT.q = (RT.q || Promise.resolve()).then(fn).catch(() => {}); return RT.q; }
@@ -991,7 +1005,7 @@ const toLocalInput = (t) => { const d = new Date(t - new Date(t).getTimezoneOffs
 function renderRouteSheet() {
   if (!RT.edit) return;
   const st = routeStats(), n = RT.pts.length;
-  let h = '<div class="rt-sheet"><h3>Route</h3>';
+  let h = '<div class="rt-sheet"><h3 class="rt-h">Route' + rtUrHtml() + '</h3>';
   if (n < 2) {
     h += '<div class="sub">' + (n ? 'Now tap where you want to go. Add as many waypoints as you like.' : 'Tap the chart to set your start, or start from your boat.') + '</div>';
     h += rtSearchHtml(n) + '<div class="row-btns">' + (S.fix ? '<button class="btn primary" data-act="rtboat">Start from my boat</button>' : '') + (homePort() ? '<button class="btn' + (S.fix ? '' : ' primary') + '" data-act="rthome">' + (n ? 'Go to ' : 'Start from ') + esc(homePort().name) + '</button>' : '') + (n ? '<button class="btn" data-act="rtundo">Undo</button>' : '') + '<button class="btn ghost" data-act="rtclose">Close</button></div>';
@@ -1007,6 +1021,8 @@ function renderRouteSheet() {
     l.bridges.map((x) => '<div class="rt-warn v-' + x.j.level + '">' + esc(x.br.name) + ': ' + esc(x.j.text) + '</div>').join('')).join('') + '</div>';
   const bad = RT.pts.filter((p) => p.unchecked).length, zones = avoidZonesFor(RT.depart || Date.now());
   h += RT.busy ? '<p class="rt-status">Finding a route through the water…</p>' : bad ? '<p class="rt-status bad">' + bad + ' leg' + (bad > 1 ? 's are' : ' is') + ' NOT checked (dashed). ' + esc(wrWhy(RT.pts.find((p) => p.unchecked).unchecked)) + '</p>' : S.settings.autoWater !== false && RT.pts.some((p) => p.turn) ? (RT.pts.some((p) => p.caution) ? '<p class="rt-status">Follows charted water (some stretches are only charted as a depth range that may be under ' + fmtLen(wrNeedM() / 0.3048) + ', so watch the depth there)' : '<p class="rt-status ok">Follows water at least ' + fmtLen(wrNeedM() / 0.3048) + ' deep (your draft plus buffer)') + (S.boat.airDraftFt ? ', under bridges taller than your ' + fmtLen(S.boat.airDraftFt) + ' air draft' : '') + ', around closed areas' + (zones.length ? ' and ' + zones.length + ' avoid area' + (zones.length > 1 ? 's' : '') : '') + '.</p>' : '';
+  if (!RT.busy) { const cf = routeConfidence(); if (cf) h += '<p class="rt-conf c-' + cf.level + '"><b>Route confidence: ' + cf.label + (S.settings.newRouter ? ' · new router (testing)' : '') + '</b> ' + esc(cf.text) + '</p>'; }
+  h += rtAltHtml();
   h += '<p class="hint" style="margin:6px 0">Each leg follows NOAA chart depths for your boat' + (S.boat.draftFt ? '' : ' (set your draft in Boat for a better route)') + '. Drag any point to reshape it. Always keep a lookout and watch the depth; the wind shown is the forecast where you are now.</p>';
   h += '<div class="row-btns"><button class="btn primary" data-act="rtstart"' + (RT.busy ? ' disabled' : '') + '>Start</button><button class="btn" data-act="rtwater">Re-route by water</button><button class="btn" data-act="rtavoid">Avoid an area</button><button class="btn" data-scact="plan2">Best time to leave</button><button class="btn" data-act="rtautow">Auto-follow water: ' + (S.settings.autoWater === false ? 'off' : 'on') + '</button><button class="btn" data-act="rtsave">Save</button><button class="btn" data-act="rtundo">Undo</button><button class="btn" data-act="rtrev">Reverse</button><button class="btn ghost" data-act="rtclear">Clear</button><button class="btn ghost" data-act="rtclose">Close</button></div></div>';
   openSheet(h);
@@ -1015,17 +1031,17 @@ sheet.addEventListener('change', (e) => { if (e.target.id === 'rtDepart') { cons
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b || !b.dataset.act.startsWith('rt')) return;
   const act = b.dataset.act;
-  if (act === 'rtboat' && S.fix) { RT.pts.unshift({ lat: S.fix.lat, lon: S.fix.lon }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); if (RT.pts.length > 1) rtRerouteAround(RT.pts[0]); }
+  if (act === 'rtboat' && S.fix) { rtPush(); RT.pts.unshift({ lat: S.fix.lat, lon: S.fix.lon }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); if (RT.pts.length > 1) rtRerouteAround(RT.pts[0]); }
   if (act === 'rtavoid') { RT.avoidPick = true; closeSheet(); toast('Tap the chart where the route must not go.', 4000); }
   if (act === 'rtautow') { S.settings.autoWater = S.settings.autoWater === false; saveSettings(); renderRouteSheet(); }
-  if (act === 'rtundo') { RT.pts.pop(); while (RT.pts.length && RT.pts[RT.pts.length - 1].turn) RT.pts.pop(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
-  if (act === 'rtrev') { RT.pts.reverse(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
-  if (act === 'rtclear') { if (!armed(b, 'Tap again to clear')) return; RT.pts = []; store.set('routeDraft', []); drawRoute(); renderRouteSheet(); }
+  if (act === 'rtundo') { if (RT.hist.u.length) rtUndo(-1); else { RT.pts.pop(); while (RT.pts.length && RT.pts[RT.pts.length - 1].turn) RT.pts.pop(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); } }
+  if (act === 'rtrev') { rtPush(); RT.pts.reverse(); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); }
+  if (act === 'rtclear') { if (!armed(b, 'Tap again to clear')) return; rtPush(); RT.pts = []; store.set('routeDraft', []); drawRoute(); renderRouteSheet(); }
   if (act === 'rtclose') routeMode(false);
-  if (act === 'rthome' && homePort()) { const hp = homePort(); const had = RT.pts.length; if (had) RT.pts.push({ lat: hp.lat, lon: hp.lon, name: hp.name }); else RT.pts.unshift({ lat: hp.lat, lon: hp.lon, name: hp.name }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); if (had) rtAutoLeg(); }
-  if (act === 'rtwater' && RT.pts.length > 1) { b.disabled = true; (async () => { const keep = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); RT.pts = await routeByWater(keep); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); })(); }
+  if (act === 'rthome' && homePort()) { rtPush(); const hp = homePort(); const had = RT.pts.length; if (had) RT.pts.push({ lat: hp.lat, lon: hp.lon, name: hp.name }); else RT.pts.unshift({ lat: hp.lat, lon: hp.lon, name: hp.name }); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit(); if (had) rtAutoLeg(); }
+  if (act === 'rtwater' && RT.pts.length > 1) { b.disabled = true; rtPush(); (async () => { const keep = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })); RT.busy = (RT.busy || 0) + 1; try { RT.pts = await routeByWater(keep); } finally { RT.busy--; } store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); })(); }
   if (act === 'rtsave') { const r = { id: Date.now(), name: 'Route ' + (S.routes.length + 1) + ' · ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }), pts: RT.pts.map((p) => ({ lat: p.lat, lon: p.lon, name: p.name, turn: p.turn || undefined, via: p.via || undefined, unchecked: p.unchecked || undefined })) }; S.routes.push(r); store.set('routes', S.routes); toast('Saved as ' + r.name); }
-  if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { RT.pts = r.pts.map((p) => Object.assign({ lat: p.lat, lon: p.lon }, p.name ? { name: p.name } : {}, p.turn ? { turn: true } : {}, p.via ? { via: true } : {}, p.unchecked ? { unchecked: p.unchecked } : {})); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
+  if (act === 'rtload') { const r = S.routes.find((x) => String(x.id) === b.dataset.id); if (r) { rtPush(); RT.pts = r.pts.map((p) => Object.assign({ lat: p.lat, lon: p.lon }, p.name ? { name: p.name } : {}, p.turn ? { turn: true } : {}, p.via ? { via: true } : {}, p.unchecked ? { unchecked: p.unchecked } : {})); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); map.fitBounds(L.latLngBounds(RT.pts.map((p) => [p.lat, p.lon])).pad(0.2)); } }
   if (act === 'rtdel') { S.routes = S.routes.filter((x) => String(x.id) !== b.dataset.id); store.set('routes', S.routes); renderRouteSheet(); }
   if (act === 'rtstart') {
     let i = navStartIdx(RT.pts);
@@ -1047,7 +1063,7 @@ function routeLeg(pts, i) {
 
 
 /* ---------- route by water: NOAA ENC depth areas → grid → A* path that stays in water deep enough for this boat ---------- */
-const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: (() => { const o = store.get('encIds7', null); return o && Date.now() - (o.ts || 0) < 7 * 864e5 ? o.ids : {}; })(), cache: new Map(), tiles: new Map(), busy: 0, wait: [], log: [] };
+const WR = { hosts: ['https://encdirect.noaa.gov', 'https://gis.charttools.noaa.gov'], ids: (() => { const o = store.get('encIds8', null); return o && Date.now() - (o.ts || 0) < 7 * 864e5 ? o.ids : {}; })(), cache: new Map(), tiles: new Map(), busy: 0, wait: [], log: [] };
 // NOAA rate-limits bursts (HTTP 429) and times out on big boxes (504), so: at most 4 requests at a time, retry with backoff,
 // and fetch fixed tiles that are cached and reused by every grid (wide search, fine re-check, the next route).
 async function encSlot(fn) { while (WR.busy >= 4) await new Promise((r) => WR.wait.push(r)); WR.busy++; try { return await fn(); } finally { WR.busy--; const n = WR.wait.shift(); if (n) n(); } }
@@ -1076,8 +1092,8 @@ async function encLayerIds(svc) {
       try {
         const j = await encJson(h + '/arcgis/rest/services/encdirect/' + svc + '/MapServer?f=json', 15000);
         const find = (re) => { const l = (j.layers || []).find((x) => re.test(x.name)); return l ? l.id : null; };
-        const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area(_area)?$/i), slconsA: find(/\.Shoreline_Construction_area$/i), slconsL: find(/\.Shoreline_Construction_line$/i) };
-        if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds7', { ts: Date.now(), ids: WR.ids }); return ids; }
+        const ids = { host: h, wreck: find(/\.Wreck_point$/i), obstr: find(/\.Obstruction_point$/i), depth: find(/\.Depth_Area$/i), dredged: find(/\.Dredged_Area$/i), buoy: find(/\.Buoy_Lateral_point$/i), beacon: find(/\.Beacon_Lateral_point$/i), light: find(/\.Light_point$/i), bridgeL: find(/\.Bridge_line$/i), bridgeA: find(/\.Bridge_area$/i), land: find(/\.Land_Area$/i), restr: find(/\.Restricted_Area(_area)?$/i), slconsA: find(/\.Shoreline_Construction_area$/i), slconsL: find(/\.Shoreline_Construction_line$/i), fairway: find(/\.Fairway_area$/i), rtrack: find(/\.Recommended_Track_line$/i), rcl: find(/\.Recommended_Route_Centerline_line$/i) };
+        if (ids.depth != null) { WR.ids[svc] = ids; store.set('encIds8', { ts: Date.now(), ids: WR.ids }); return ids; }
       } catch (e) { WR.lastErr = e.message || String(e); }
     }
     delete WR.idsP[svc]; WR.idsFail = Date.now(); return null;
@@ -1125,12 +1141,13 @@ async function encQuery(svc, layer, bb) {
   if (trunc) out.trunc = true; return out;
 }
 function wrNeedM() { const d = S.boat.draftFt, sb = S.boat.safetyFt == null ? 2 : S.boat.safetyFt; return d ? (d + sb) * 0.3048 : 1.2; }
-async function waterGrid(a, b, padK) {
+async function waterGrid(a, b, padK, opt) {
+  opt = opt || {}; const v2 = opt.v2 != null ? !!opt.v2 : !!S.settings.newRouter; // the new router (testing): channels, depth margin and shore distance in the cost
   const lat0 = (a.lat + b.lat) / 2, cosL = Math.cos(lat0 * Math.PI / 180), span = distNm(a, b);
   const padNm = Math.max(1.5 * (padK || 1) / 0.25, span * (padK || 0.25)), dLat = padNm / 60, dLon = padNm / 60 / cosL;
   const bb = [Math.min(a.lon, b.lon) - dLon, Math.min(a.lat, b.lat) - dLat, Math.max(a.lon, b.lon) + dLon, Math.max(a.lat, b.lat) + dLat];
   const wM = (bb[2] - bb[0]) * 111320 * cosL, hM = (bb[3] - bb[1]) * 111320;
-  const cell = Math.max(30, Math.max(wM, hM) / 1400), W = Math.ceil(wM / cell), H = Math.ceil(hM / cell);
+  const cell = Math.max(v2 && opt.cellM ? opt.cellM : 30, Math.max(wM, hM) / 1400), W = Math.ceil(wM / cell), H = Math.ceil(hM / cell);
   const cLat = cell / 111320, cLon = cell / (111320 * cosL), off = (cLat / 2).toFixed(6);
   const svcs = span > 45 ? ['enc_general', 'enc_coastal', 'enc_approach'] : span > 6 ? ['enc_coastal', 'enc_approach', 'enc_harbour'] : ['enc_coastal', 'enc_approach', 'enc_harbour'];
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -1138,13 +1155,17 @@ async function waterGrid(a, b, padK) {
   const ring = (f) => { cx.beginPath(); (f.rings || []).forEach((r) => r.forEach(([lon, lat], i) => { if (i) cx.lineTo(toX(lon), toY(lat)); else cx.moveTo(toX(lon), toY(lat)); })); cx.fill('evenodd'); };
   const line = (f, w) => { cx.lineWidth = w; cx.lineCap = 'round'; cx.beginPath(); (f.paths || []).forEach((r) => r.forEach(([lon, lat], i) => { if (i) cx.lineTo(toX(lon), toY(lat)); else cx.moveTo(toX(lon), toY(lat)); })); cx.stroke(); };
   // fetch every chart scale at once, then paint coarse to fine so the most detailed chart has the last word
+  let zoned = false; // the detailed charts were read only in parts of the box (its ends, a corridor)
   const got = await Promise.all(svcs.map(async (svc) => {
     try {
-      const lim = { enc_harbour: 0.3, enc_approach: 0.9 }[svc]; // big boxes: the detailed charts only around the two ends (the middle is open water at coarse cells anyway)
-      const zones = lim && (bb[2] - bb[0] > lim || bb[3] - bb[1] > lim) ? [a, b].map((p) => [p.lon - 0.08, p.lat - 0.06, p.lon + 0.08, p.lat + 0.06]) : [bb];
-      const Q = (layer) => Promise.all(zones.map((z) => encQuery(svc, layer, z))).then((r) => { const seen = new Set(), o = []; r.forEach((arr) => arr.forEach((f) => { if (f.id != null) { if (seen.has(f.id)) return; seen.add(f.id); } o.push(f); })); o.trunc = r.some((x) => x.trunc); return o; });
-      const [d, dr, land, restr, brL, brA, slA, slL, wk, ob] = await Promise.all([Q('depth'), Q('dredged').catch(() => []), Q('land').catch(() => []), Q('restr').catch(() => []), Q('bridgeL').catch(() => []), Q('bridgeA').catch(() => []), Q('slconsA').catch(() => []), Q('slconsL').catch(() => []), span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'wreck', zones[0]).catch(() => []) : [], span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'obstr', zones[0]).catch(() => []) : []]);
-      return { svc, d, dr, land: land.concat(slA), sl: slL, restr, br: brL.concat(brA), haz: wk.concat(ob), trunc: d.trunc || land.trunc };
+      const lim = (v2 ? { enc_harbour: 0.6, enc_approach: 1.5 } : { enc_harbour: 0.3, enc_approach: 0.9 })[svc]; // new router: the detailed depths along the whole of a leg up to ~36 nm, not just its ends // big boxes: the detailed charts only around the two ends (the middle is open water at coarse cells anyway)
+      const zones = lim && (bb[2] - bb[0] > lim || bb[3] - bb[1] > lim) ? [a, b].map((p) => [p.lon - 0.08, p.lat - 0.06, p.lon + 0.08, p.lat + 0.06]).concat(opt.zones || []) : [bb];
+      if (zones.length > 1) zoned = true;
+      const Qz = (layer, zs) => Promise.all(zs.map((z) => encQuery(svc, layer, z))).then((r) => { const seen = new Set(), o = []; r.forEach((arr) => arr.forEach((f) => { if (f.id != null) { if (seen.has(f.id)) return; seen.add(f.id); } o.push(f); })); o.trunc = r.some((x) => x.trunc); return o; });
+      const Q = (layer) => Qz(layer, v2 && zones.length > 1 && /^(land|slconsA|slconsL)$/.test(layer) ? [bb] : zones); // new router: the detailed charts' LAND along the whole leg (an island the coarse chart misses), their depths only at the ends
+      const [d, dr, land, restr, brL, brA, slA, slL, wk, ob, fw, rt1, rt2] = await Promise.all([Q('depth'), Q('dredged').catch(() => []), Q('land').catch(() => []), Q('restr').catch(() => []), Q('bridgeL').catch(() => []), Q('bridgeA').catch(() => []), Q('slconsA').catch(() => []), Q('slconsL').catch(() => []), span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'wreck', zones[0]).catch(() => []) : [], span < 20 && typeof encPoints === 'function' ? encPoints(svc, 'obstr', zones[0]).catch(() => []) : [],
+        v2 ? Q('fairway').catch(() => []) : [], v2 ? Q('rtrack').catch(() => []) : [], v2 ? Q('rcl').catch(() => []) : []]);
+      return { svc, d, dr, land: land.concat(slA), sl: slL, restr, br: brL.concat(brA), haz: wk.concat(ob), fw, trk: rt1.concat(rt2), trunc: d.trunc || land.trunc };
     } catch (e) { WR.lastErr = e.message || String(e); return { svc, failed: true }; }
   }));
   if (got.every((x) => x.failed)) return null; // NOAA could not be reached at all: report it as a network problem, not as "no water"
@@ -1153,14 +1174,16 @@ async function waterGrid(a, b, padK) {
   // Inside a scale, every area is filled AND outlined in its own colour, so the seams between neighbouring depth areas don't read
   // as land; land, piers and shoals are drawn last and a little wider, so thin land is never blended away.
   const g = new Uint8Array(W * H); // 0 blocked, 1 good, 2 maybe; nothing charted = blocked
+  const ch = v2 ? new Uint8Array(W * H) : null, dp = v2 ? new Uint8Array(W * H) : null; // new router: in a charted channel (dredged area, fairway, recommended track); deep water (a good margin under the keel)
+  const deepM = need + Math.max(1.5, need * 0.5);
   const allowMaybe = S.settings.routeMaybe !== false; // "maybe" = a charted depth RANGE that includes enough water (coastal 0–18 ft bands)
   const restrAll = [], brAll = [];
   const paint = (f, col, w) => { cx.fillStyle = col; cx.strokeStyle = col; cx.lineWidth = w; cx.lineJoin = 'round'; cx.beginPath(); (f.rings || []).forEach((r) => r.forEach(([lon, lat], i) => { if (i) cx.lineTo(toX(lon), toY(lat)); else cx.moveTo(toX(lon), toY(lat)); })); cx.fill('evenodd'); cx.stroke(); };
   got.forEach((x) => {
     if (!x || x.failed) return;
     cx.clearRect(0, 0, W, H);
-    const areas = x.d.concat(x.dr).filter((f) => f.d1 != null && f.rings).map((f) => ({ f, k: f.d1 >= need ? 1 : f.d2 != null && f.d2 > need ? 2 : 0 }));
-    [1, 2, 0].forEach((k) => areas.forEach((o) => { if (o.k === k) paint(o.f, k === 1 ? '#ff0000' : k === 2 ? '#00ff00' : '#000000', 1); })); // shallower drawn last: a shared edge goes to the shallower side
+    const areas = x.d.concat(x.dr).filter((f) => f.d1 != null && f.rings).map((f) => ({ f, k: f.d1 >= need ? (v2 && f.d1 >= deepM ? 3 : 1) : f.d2 != null && f.d2 > need ? 2 : 0 }));
+    [3, 1, 2, 0].forEach((k) => areas.forEach((o) => { if (o.k === k) paint(o.f, k === 3 ? '#ff00ff' : k === 1 ? '#ff0000' : k === 2 ? '#00ff00' : '#000000', 1); })); // shallower drawn last: a shared edge goes to the shallower side
     x.land.forEach((f) => { if (f.rings) paint(f, '#000000', 1.1); }); // land and piers/jetties from the same chart wipe out any water under them
     cx.strokeStyle = '#000000'; (x.sl || []).forEach((f) => { if (f.paths) line(f, 2.5); });
     cx.fillStyle = '#000000'; (x.haz || []).forEach((h) => { const vs = h.a.VALSOU != null ? +h.a.VALSOU : null; if (vs == null || vs < need) { cx.beginPath(); cx.arc(toX(h.lon), toY(h.lat), 2.2, 0, Math.PI * 2); cx.fill(); } }); // wrecks and obstructions shallower than you need
@@ -1170,6 +1193,13 @@ async function waterGrid(a, b, padK) {
       const r0 = px[i * 4], g0 = px[i * 4 + 1], dark = r0 < 120 && g0 < 120;
       if (al < 200) { if (dark) g[i] = 0; continue; } // edge of this chart's coverage: only let it block
       g[i] = r0 > 170 && g0 < 90 ? 1 : g0 > 170 && r0 < 90 ? (allowMaybe ? 2 : 0) : 0;
+      if (dp) dp[i] = g[i] === 1 && px[i * 4 + 2] > 170 ? 1 : 0;
+    }
+    if (ch) { // the chart's own channels: dredged areas deep enough for you, fairways, and recommended tracks (drawn about 60 m wide)
+      cx.clearRect(0, 0, W, H); cx.fillStyle = '#ffffff'; cx.strokeStyle = '#ffffff';
+      x.dr.forEach((f) => { if (f.rings && f.d1 != null && f.d1 >= need) paint(f, '#ffffff', 1); }); (x.fw || []).forEach((f) => { if (f.rings) paint(f, '#ffffff', 1); });
+      (x.trk || []).forEach((f) => { if (f.paths) line(f, Math.max(2, 60 / cell)); });
+      const cp = cx.getImageData(0, 0, W, H).data; for (let i = 0; i < W * H; i++) if (cp[i * 4 + 3] > 200) ch[i] = 1;
     }
     restrAll.push(...x.restr); brAll.push(...x.br);
   });
@@ -1185,12 +1215,13 @@ async function waterGrid(a, b, padK) {
   cx.fillStyle = '#000000'; avoidZonesFor(RT.depart || Date.now()).forEach((z) => { const [x, y] = [toX(z.lon), toY(z.lat)], r = z.r / cell + 1; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill(); });
   WR.lowBridges = lowBr;
   { const px = cx.getImageData(0, 0, W, H).data; for (let i = 0; i < W * H; i++) if (px[i * 4 + 3] > 40) g[i] = 0; }
+  if (ch) for (let i = 0; i < W * H; i++) if (!g[i]) { ch[i] = 0; dp[i] = 0; }
   // distance (in cells) to the nearest blocked cell, so the path keeps off the shore and the shoals
   const dist = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) dist[i] = g[i] ? 1e6 : 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!dist[i]) continue; let m = dist[i]; if (x) m = Math.min(m, dist[i - 1] + 1); if (y) m = Math.min(m, dist[i - W] + 1); if (x && y) m = Math.min(m, dist[i - W - 1] + 1.41); if (y && x < W - 1) m = Math.min(m, dist[i - W + 1] + 1.41); dist[i] = m; }
   for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (!dist[i]) continue; let m = dist[i]; if (x < W - 1) m = Math.min(m, dist[i + 1] + 1); if (y < H - 1) m = Math.min(m, dist[i + W] + 1); if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + 1.41); if (y < H - 1 && x) m = Math.min(m, dist[i + W - 1] + 1.41); dist[i] = m; }
-  return { W, H, g, dist, bb, cLat, cLon, cell, partial, toXY: (p) => [Math.floor((p.lon - bb[0]) / cLon), Math.floor((bb[3] - p.lat) / cLat)], toLL: (x, y) => ({ lat: bb[3] - (y + 0.5) * cLat, lon: bb[0] + (x + 0.5) * cLon }) };
+  return { W, H, g, dist, bb, cLat, cLon, cell, partial, v2, ch, dp, zoned, keepM: Math.max(60, opt.keepOffM || 120), toXY: (p) => [Math.floor((p.lon - bb[0]) / cLon), Math.floor((bb[3] - p.lat) / cLat)], toLL: (x, y) => ({ lat: bb[3] - (y + 0.5) * cLat, lon: bb[0] + (x + 0.5) * cLon }) };
 }
 function wrSnap(G, x, y) {
   const ok = (i) => G.g[i] === 1 || G.g[i] === 2, maxR = Math.max(2, Math.ceil((G.snapM || 500) / G.cell)); // nudge a dock or club pin onto navigable water nearby (500 m)
@@ -1217,8 +1248,14 @@ function wrAstar(G, s, t) {
   const tx = t % G.W, ty = (t / G.W) | 0, hh = (i) => { const dx = Math.abs(i % G.W - tx), dy = Math.abs(((i / G.W) | 0) - ty); return Math.max(dx, dy) + 0.41 * Math.min(dx, dy); };
   const heap = [], push = (i, f) => { heap.push([f, i]); let k = heap.length - 1; while (k) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
-  const step = (i) => { const d = G.dist[i]; return (G.g[i] === 2 ? 4 : 1) + (d < 4 ? (4 - d) * 0.7 : 0); };
-  gs[s] = 0; push(s, hh(s));
+  // old router: distance, with a push off anything within 4 cells. New router: a channel is cheaper (0.8), water without a good margin
+  // under the keel costs a little more, and the push off the shore and shoals is measured in metres (keepM), not cells, so it is the same on any grid
+  const step = !G.v2 ? (i) => { const d = G.dist[i]; return (G.g[i] === 2 ? 4 : 1) + (d < 4 ? (4 - d) * 0.7 : 0); }
+    : (i) => { const m = G.dist[i] * G.cell, k = G.keepM, pen = m < k ? ((k - m) / k) ** 2 * 3 : 0; // inside a channel the shoals lining it are expected: a quarter of the push
+      // a channel beats thin water and shoal-lined edges, but not open deep water: small craft keep out of ship channels when there is room outside (Rule 9)
+      let c = G.g[i] === 2 ? 4 : G.ch[i] ? 0.95 + pen * 0.25 : (G.dp[i] ? 1 : 1.3) + pen; if (G.dist[i] < 2) c += 1; return c; };
+  const hk = G.v2 ? 0.95 : 1; // the heuristic must never overestimate: scale it by the cheapest step
+  gs[s] = 0; push(s, hh(s) * hk);
   const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
   let n = 0;
   while (heap.length) {
@@ -1229,7 +1266,7 @@ function wrAstar(G, s, t) {
       const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= G.W || yy >= G.H) continue;
       const j = yy * G.W + xx; if (!G.g[j] || closed[j]) continue;
       if (dx && dy && (!G.g[y * G.W + xx] || !G.g[yy * G.W + x])) continue; // no squeezing diagonally between two land cells
-      const ng = gs[i] + c * step(j); if (ng < gs[j]) { gs[j] = ng; from[j] = i; push(j, ng + hh(j)); }
+      const ng = gs[i] + c * step(j); if (ng < gs[j]) { gs[j] = ng; from[j] = i; push(j, ng + hh(j) * hk); }
     }
   }
   if (from[t] < 0 && s !== t) return null;
@@ -1238,23 +1275,37 @@ function wrAstar(G, s, t) {
 }
 function wrClear(G, i, j) { // straight line between two cells stays in water, off the edges
   let x0 = i % G.W, y0 = (i / G.W) | 0; const x1 = j % G.W, y1 = (j / G.W) | 0, dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-  let err = dx + dy, minD = Math.min(G.dist[i], G.dist[j], 2.5), maybe = G.g[i] === 2 || G.g[j] === 2;
+  let err = dx + dy, minD = Math.min(G.dist[i], G.dist[j], G.v2 ? Math.max(2.5, G.keepM * 0.5 / G.cell) : 2.5), maybe = G.g[i] === 2 || G.g[j] === 2;
+  const inCh = G.v2 && G.ch[i] && G.ch[j], fromCh = G.v2 && (G.ch[i] || G.ch[j]); let outCh = 0, thin = 0;
   for (;;) {
     const k = y0 * G.W + x0; if (!G.g[k] || G.dist[k] < minD - 0.01) return false; if (G.g[k] === 2 && !maybe) return false;
+    if (inCh && !G.ch[k] && ++outCh > 2) return false; // a straight piece between two channel points must not cut out of the channel
+    if (fromCh && !G.ch[k] && !G.dp[k] && ++thin > 2) return false; // nor leave a channel across water with little margin under the keel
     if (x0 === x1 && y0 === y1) return true;
     const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
   }
 }
-async function waterLeg(a, b) {
+async function waterLeg(a, b, opt) {
   if (distNm(a, b) < 0.15) return { ok: true, pts: [] };
+  opt = Object.assign({ v2: !!S.settings.newRouter }, opt || {}); const v2 = opt.v2;
   // try a box just around the two points first; if land closes it off (a peninsula, an island), look wider for the way around
   let G = null, path = null, s = -1, t = -1, far = 0;
   for (const k of [0.25, 0.9, 2]) {
-    G = await waterGrid(a, b, k); if (!G) return { ok: false, why: 'net' };
+    G = await waterGrid(a, b, k, opt); if (!G) return { ok: false, why: 'net' };
     const [ax, ay] = G.toXY(a), [bx, by] = G.toXY(b); s = wrSnap(G, ax, ay); t = wrSnap(G, bx, by);
     if (s < 0 || t < 0) { G.snapM = 3000; if (s < 0) s = wrSnap(G, ax, ay); if (t < 0) t = wrSnap(G, bx, by); G.snapM = 0; far = 1; } // a town or inland pin: go to the nearest navigable water
     if (s < 0 || t < 0) return { ok: false, why: 'nowater' };
-    path = wrAstar(G, s, t); if (path) break;
+    path = wrAstar(G, s, t);
+    // new router: on a big box the detailed charts were only read at the ends; read them along a corridor round this first path and search
+    // again, so a shoal the coarse chart only gives as a wide depth band pulls the route back before the close check has to reject it
+    for (let it = 0; v2 && path && G.zoned && it < 2; it++) {
+      const cz = new Map(); for (let q = 0; q < path.length; q += 4) { const ll = G.toLL(path[q] % G.W, (path[q] / G.W) | 0), kx = Math.floor(ll.lon / 0.1), ky = Math.floor(ll.lat / 0.1); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { const lo = (kx + dx) * 0.1, la = (ky + dy) * 0.1; if (Math.abs(ll.lon - (lo + 0.05)) < 0.08 && Math.abs(ll.lat - (la + 0.05)) < 0.08) cz.set(lo.toFixed(1) + la.toFixed(1), [lo, la, lo + 0.1, la + 0.1]); } }
+      const key = [...cz.keys()].sort().join('|'); if (key === G.czKey) break;
+      const G2 = await waterGrid(a, b, k, Object.assign({}, opt, { zones: [...cz.values()] })); if (!G2) break; G2.czKey = key;
+      const [ax2, ay2] = G2.toXY(a), [bx2, by2] = G2.toXY(b); let s2 = wrSnap(G2, ax2, ay2), t2 = wrSnap(G2, bx2, by2); if (s2 < 0 || t2 < 0) { G2.snapM = 3000; if (s2 < 0) s2 = wrSnap(G2, ax2, ay2); if (t2 < 0) t2 = wrSnap(G2, bx2, by2); G2.snapM = 0; }
+      const p2 = s2 >= 0 && t2 >= 0 ? wrAstar(G2, s2, t2) : null; if (!p2) break; G = G2; path = p2; s = s2; t = t2;
+    }
+    if (path) break;
     // a pin can snap into a pocket of water that does not connect (the creek on the other side of town): try the nearest
     // water to each end that IS connected to the other end, within 3 km
     const tt = wrNearestReach(G, s, bx, by, 3000); if (tt >= 0) { path = wrAstar(G, s, tt); if (path) { t = tt; far = 1; break; } }
@@ -1264,7 +1315,15 @@ async function waterLeg(a, b) {
   const keep = [path[0]]; let k = 0;
   while (k < path.length - 1) { let j = path.length - 1; while (j > k + 1 && !wrClear(G, path[k], path[j])) j = Math.max(k + 1, Math.floor(k + (j - k) * 0.85)); keep.push(path[j]); k = j; }
   const shallow = path.some((i) => G.g[i] === 2);
-  let pts = keep.map((i) => G.toLL(i % G.W, (i / G.W) | 0)), partial = G.partial;
+  let pts = keep.map((i) => Object.assign(G.toLL(i % G.W, (i / G.W) | 0), v2 && G.ch[i] ? { ch: 1 } : {})), partial = G.partial;
+  if (v2 && !opt.noEnds) { // the last stretch into a narrow harbour channel can vanish on a coarse grid: route it again on a 10 m grid
+    const endFix = async (from, to) => { const F = await waterGrid(from, to, 0.6, Object.assign({}, opt, { cellM: 10 })); if (!F) return null; F.snapM = 300;
+      const [x0, y0] = F.toXY(from), [x1, y1] = F.toXY(to), s3 = wrSnap(F, x0, y0), t3 = wrSnap(F, x1, y1); if (s3 < 0 || t3 < 0) return null;
+      const p3 = wrAstar(F, s3, t3); if (!p3) return null; const kk = [p3[0]]; let q = 0; while (q < p3.length - 1) { let j = p3.length - 1; while (j > q + 1 && !wrClear(F, p3[q], p3[j])) j = Math.max(q + 1, Math.floor(q + (j - q) * 0.85)); kk.push(p3[j]); q = j; }
+      return kk.map((c) => Object.assign(F.toLL(c % F.W, (c / F.W) | 0), F.ch[c] ? { ch: 1 } : {})); };
+    if (distNm(b, pts[pts.length - 1]) > 0.08) { const e = await endFix(pts[pts.length - 1], b).catch(() => null); if (e && e.length > 1 && distNm(b, e[e.length - 1]) < distNm(b, pts[pts.length - 1]) - 0.03) pts = pts.slice(0, -1).concat(e); }
+    if (distNm(a, pts[0]) > 0.08) { const e = await endFix(a, pts[0]).catch(() => null); if (e && e.length > 1 && distNm(a, e[0]) < distNm(a, pts[0]) - 0.03) pts = e.concat(pts.slice(1)); }
+  }
   const sP = pts[0], tP = pts[pts.length - 1], dockA = distNm(a, sP), dockB = distNm(b, tP);
   // the search grid gets coarser over long distances; re-check every straight piece (water to water) on a fine grid so a thin spit or jetty can't slip through
   const allowMaybe = S.settings.routeMaybe !== false;
@@ -1274,15 +1333,24 @@ async function waterLeg(a, b) {
   for (let i = 1; i < pts.length; i++) {
     const p0 = pts[i - 1], p1 = pts[i], d = distNm(p0, p1); if (d < 0.05) continue;
     const skipA = i === 1 ? 150 : 0, skipB = i === pts.length - 1 ? 150 : 0; // the first/last 150 m are the way out of the slip
-    const F = await waterGrid(p0, p1, 0.02); if (!F) { partial = true; continue; } if (F.partial) partial = true;
+    const F = await waterGrid(p0, p1, 0.02, opt); if (!F) { partial = true; continue; } if (F.partial) partial = true;
     if (fineBad(F, p0, p1, d, skipA, skipB) <= 1) continue;
     // the coarse search cut a corner (a shoal point, a spit): find this piece again on a fine grid and splice it in
-    const L2 = await waterGrid(p0, p1, 0.3); if (!L2) { partial = true; continue; }
-    const [x0, y0] = L2.toXY(p0), [x1, y1] = L2.toXY(p1), s2 = wrSnap(L2, x0, y0), t2 = wrSnap(L2, x1, y1), path2 = s2 >= 0 && t2 >= 0 ? wrAstar(L2, s2, t2) || ((r) => r >= 0 ? wrAstar(L2, s2, r) : null)(wrNearestReach(L2, s2, x1, y1, 400)) : null;
+    // (new router: if the way round is wider than this box, an island or a long spit, look wider before giving up)
+    let L2 = null, path2 = null;
+    for (const pk of v2 ? [0.3, 1, 2.5] : [0.3]) {
+      L2 = await waterGrid(p0, p1, pk, Object.assign({}, opt, v2 && pk > 0.3 ? { cellM: null } : {})); if (!L2) break;
+      const [x0, y0] = L2.toXY(p0), [x1, y1] = L2.toXY(p1), s2 = wrSnap(L2, x0, y0), t2 = wrSnap(L2, x1, y1);
+      path2 = s2 >= 0 && t2 >= 0 ? wrAstar(L2, s2, t2) || ((r) => r >= 0 ? wrAstar(L2, s2, r) : null)(wrNearestReach(L2, s2, x1, y1, 400)) : null;
+      if (path2) break;
+    }
+    if (!L2) { partial = true; continue; }
     if (!path2) return { ok: false, why: 'fine', pts, at: p0 }; // keep the rough path; it is drawn dashed
     const kp = [path2[0]]; let k2 = 0; while (k2 < path2.length - 1) { let j = path2.length - 1; while (j > k2 + 1 && !wrClear(L2, path2[k2], path2[j])) j = Math.max(k2 + 1, Math.floor(k2 + (j - k2) * 0.85)); kp.push(path2[j]); k2 = j; }
-    const mid = kp.slice(1, -1).map((c) => L2.toLL(c % L2.W, (c / L2.W) | 0));
+    const mid = kp.slice(1, -1).map((c) => Object.assign(L2.toLL(c % L2.W, (c / L2.W) | 0), v2 && L2.ch[c] ? { ch: 1 } : {}));
     pts.splice(i, 0, ...mid); i += mid.length; // the spliced pieces come from a 30 m grid: no further re-check needed
+    if (v2 && L2.cell > 45 && mid.length) { // a wide box has coarser cells: check the spliced pieces once more on a fine grid
+      for (let q = i - mid.length; q <= i; q++) { const u0 = pts[q], u1 = pts[q + 1]; if (!u0 || !u1) continue; const dd = distNm(u0, u1); if (dd < 0.05) continue; const F2 = await waterGrid(u0, u1, 0.02, opt); if (F2 && fineBad(F2, u0, u1, dd, 0, 0) > 1) return { ok: false, why: 'fine', pts, at: u0 }; } }
     if (pts.length > 400) return { ok: false, why: 'fine', pts, at: p0 };
   }
   if (partial) return { ok: false, why: 'partial', pts, shallow };
@@ -1305,16 +1373,29 @@ const PN = {
   hen: [38.800, -75.030, 'off Cape Henlopen'], ocm: [38.320, -75.030, 'off Ocean City Inlet'], chn: [37.850, -75.260, 'off Chincoteague'], chy: [36.930, -75.950, 'off Cape Henry'],
   cbt: [36.965, -76.040, 'Chesapeake Bay Bridge-Tunnel (Thimble Shoal Channel)'], hrd: [36.985, -76.300, 'Hampton Roads'], wtp: [37.390, -76.190, 'off Wolf Trap Light'], smp: [37.880, -76.180, 'off Smith Point'],
   plk: [38.030, -76.250, 'off Point Lookout'], cvp: [38.385, -76.360, 'off Cove Point'], sha: [38.650, -76.420, 'off Sharps Island / Choptank mouth'], pax: [38.305, -76.400, 'Patuxent River mouth (Solomons)'],
+  // new router only (build 187): the inside way through the Cape May Canal, and offshore points that keep the Jersey run a steady 3 nm or so off the beach
+  cmcw: [38.9705, -74.9690, 'Cape May Canal west entrance (ferry terminal)'], cmce: [38.9585, -74.9100, 'Cape May Canal east end'], cmh: [38.9500, -74.8800, 'Cape May Harbor'],
+  wwd: [39.000, -74.705, 'off Wildwood'], ocnj: [39.220, -74.530, 'off Ocean City, NJ'],
 };
+const PN_V2 = { add: [['bwy', 'cmcw'], ['cmcw', 'cmce'], ['cmce', 'cmh'], ['cmh', 'cmi'], ['cmi', 'wwd'], ['wwd', 'ocnj'], ['ocnj', 'acy']], drop: ['cmi|acy'] };
+// hops through a canal get a fine grid; hops along the open coast keep well off the shore
+const PN_CANAL = new Set(['cdw', 'cdc', 'cds', 'cdg', 'cde', 'cmcw', 'cmce']), PN_SEA = new Set(['cmp', 'cmi', 'wwd', 'ocnj', 'acy', 'bgt', 'msq', 'shk', 'hen', 'ocm', 'chn', 'chy']);
+// places with two sensible ways round: the route takes the shorter, and the route sheet offers the other with its trade-offs
+const PN_ALT = [{ id: 'capemay', place: 'Cape May', inside: ['cmcw', 'cmce'], outside: ['cmp'], clearFt: 55,
+  inName: 'Inside: through the Cape May Canal', outName: 'Outside: around Cape May Point',
+  inNote: 'Sheltered. Two fixed bridges with about 55 ft clearance (verify on the chart before you go) and a railroad bridge; shoaling is reported in the canal, so check the latest Local Notice to Mariners and go on a rising tide if you are deep.',
+  outNote: 'Open water at the mouth of Delaware Bay. The shoals off Cape May Point break in wind against tide and the current there runs hard: time it with the tide and check the wave forecast.' }];
+function pnEdges() { if (!S.settings.newRouter) return PE; const drop = new Set(PN_V2.drop); return PE.filter(([x, y]) => !drop.has(x + '|' + y) && !drop.has(y + '|' + x)).concat(PN_V2.add); }
 const PE = [['ann', 'tpt'], ['ann', 'bbr'], ['tpt', 'bbr'], ['bbr', 'spt'], ['spt', 'bal1'], ['bal1', 'balt'], ['spt', 'pool'], ['bal1', 'pool'], ['pool', 'wort'], ['wort', 'tky'], ['tky', 'elk'], ['elk', 'cdw'], ['cdw', 'cdc'], ['cdc', 'cds'], ['cds', 'cdg'], ['cdg', 'cde'],
   ['cde', 'dlr'], ['dlr', 'sjs'], ['sjs', 'mmh'], ['mmh', 'bwy'], ['bwy', 'cmp'], ['bwy', 'hen'], ['cmp', 'cmi'], ['cmi', 'acy'], ['acy', 'bgt'], ['bgt', 'msq'], ['msq', 'shk'], ['shk', 'lbay'], ['lbay', 'vrz'], ['vrz', 'ubay'], ['ubay', 'lib'], ['ubay', 'bat'], ['bat', 'lib'],
   ['bat', 'hud'], ['hud', 'tpz'], ['bat', 'ers'], ['ers', 'hgt'], ['hgt', 'thr'], ['thr', 'exr'], ['exr', 'nhv'], ['nhv', 'race'], ['race', 'npt'],
   ['hen', 'ocm'], ['ocm', 'chn'], ['chn', 'chy'], ['chy', 'cbt'], ['cbt', 'hrd'], ['cbt', 'wtp'], ['wtp', 'smp'], ['smp', 'plk'], ['plk', 'cvp'], ['cvp', 'pax'], ['cvp', 'sha'], ['sha', 'tpt']];
-function pnPath(a, b) { // shortest way through the passage network from the nodes nearest a and b
-  const ll = (k) => ({ lat: PN[k][0], lon: PN[k][1] }), near = (p) => Object.keys(PN).map((k) => [k, distNm(p, ll(k))]).sort((x, y) => x[1] - y[1])[0];
-  const [sa, da] = near(a), [sb, db] = near(b); if (da > 30 || db > 30 || sa === sb) return null;
-  const adj = {}; PE.forEach(([x, y]) => { const d = distNm(ll(x), ll(y)); (adj[x] = adj[x] || []).push([y, d]); (adj[y] = adj[y] || []).push([x, d]); });
-  const dist = { [sa]: 0 }, prev = {}, Q = new Set(Object.keys(PN));
+function pnPath(a, b, excl) { // shortest way through the passage network from the nodes nearest a and b (excl: nodes to leave out, for the other way round)
+  excl = excl || new Set(); const E = pnEdges().filter(([x, y]) => !excl.has(x) && !excl.has(y)), used = new Set(E.flat());
+  const ll = (k) => ({ lat: PN[k][0], lon: PN[k][1] }), near = (p) => [...used].map((k) => [k, distNm(p, ll(k))]).sort((x, y) => x[1] - y[1])[0];
+  if (!used.size) return null; const [sa, da] = near(a), [sb, db] = near(b); if (da > 30 || db > 30 || sa === sb) return null;
+  const adj = {}; E.forEach(([x, y]) => { const d = distNm(ll(x), ll(y)); (adj[x] = adj[x] || []).push([y, d]); (adj[y] = adj[y] || []).push([x, d]); });
+  const dist = { [sa]: 0 }, prev = {}, Q = new Set(used);
   while (Q.size) { let u = null; Q.forEach((k) => { if (dist[k] != null && (u == null || dist[k] < dist[u])) u = k; }); if (u == null) break; Q.delete(u); if (u === sb) break; (adj[u] || []).forEach(([v, d]) => { if (dist[u] + d < (dist[v] == null ? Infinity : dist[v])) { dist[v] = dist[u] + d; prev[v] = u; } }); }
   if (dist[sb] == null) return null; const path = [sb]; while (path[0] !== sa) path.unshift(prev[path[0]]);
   // skip a first/last node that lies behind you (start already past it)
@@ -1322,37 +1403,41 @@ function pnPath(a, b) { // shortest way through the passage network from the nod
 }
 function pnName(p, max) { let best = null, bd = max || 1.2; Object.keys(PN).forEach((k) => { const d = distNm(p, { lat: PN[k][0], lon: PN[k][1] }); if (d < bd) { bd = d; best = PN[k][2]; } });
   try { (TG.stops || []).forEach((x) => { const d = distNm(p, x); if (d < bd) { bd = d; best = x.name; } }); } catch (e) { /* */ } return best; }
-async function passageLeg(a, b) { // long legs: by water to the nearest passage node, along the known passage, then by water to the stop
-  const P = pnPath(a, b); if (!P || P.length < 2) return null;
+async function passageLeg(a, b, ropt) { // long legs: by water to the nearest passage node, along the known passage, then by water to the stop
+  ropt = ropt || {}; const v2 = !!S.settings.newRouter;
+  const P = pnPath(a, b, v2 ? ropt.excl : null); if (!P || P.length < 2) return null;
   // drop nodes that would make you double back at either end
   while (P.length > 2 && distNm(a, P[1]) < distNm(a, P[0]) + 0.5 && distNm(P[1], b) < distNm(P[0], b)) P.shift();
   while (P.length > 2 && distNm(P[P.length - 2], b) < distNm(P[P.length - 1], b) + 0.5 && distNm(a, P[P.length - 2]) < distNm(a, P[P.length - 1])) P.pop();
   const nf = () => ({ ok: false, why: 'net' }), head = await waterLeg(a, P[0]).catch(nf), tail = await waterLeg(P[P.length - 1], b).catch(nf);
   // each passage hop is then checked against the chart like any short leg, so a canal bend, an island or a point of land is followed, not cut
   const hops = new Array(P.length - 1); let next = 0, bad = 0;
-  await Promise.all([0, 1, 2, 3].map(async () => { while (next < hops.length) { const k = next++; try { const r = await waterLeg(P[k], P[k + 1]); const L1 = (r.pts || []).reduce((m, q, i, A) => i ? m + distNm(A[i - 1], q) : 0, 0);
+  await Promise.all([0, 1, 2, 3].map(async () => { while (next < hops.length) { const k = next++; try { const ck = PN_CANAL.has(P[k].pn) && PN_CANAL.has(P[k + 1].pn), sk = PN_SEA.has(P[k].pn) && PN_SEA.has(P[k + 1].pn);
+    const r = await waterLeg(P[k], P[k + 1], v2 ? (ck ? { cellM: 15 } : sk ? { keepOffM: 900, noEnds: true } : { noEnds: true }) : undefined); if (v2 && r.pts) r.pts.forEach((q) => { if (ck) q.cnl = 1; if (sk) q.sea = 1; }); const L1 = (r.pts || []).reduce((m, q, i, A) => i ? m + distNm(A[i - 1], q) : 0, 0);
     hops[k] = r.ok && r.pts && r.pts.length > 1 && L1 < distNm(P[k], P[k + 1]) * 1.6 ? r.pts : null; } catch (e) { hops[k] = null; } if (!hops[k]) bad++; } }));
   // chain the hops end to end. Each hop starts and ends on charted water (the search moves a node that sits on the bank into the channel), so use
   // those points, never the raw node position, and keep only one point at each join so the line doesn't jog back and forth at a node
   const mid = [];
-  hops.forEach((h, k) => { const seg = h || [P[k], P[k + 1]]; seg.forEach((q, j) => { if (j === seg.length - 1 && k < hops.length - 1) return; const o = { lat: q.lat, lon: q.lon }; if (j === 0) { o.name = P[k].name; o.pn = P[k].pn; } if (j === seg.length - 1) { o.name = P[k + 1].name; o.pn = P[k + 1].pn; } if (!h) o.unk = 1; mid.push(o); }); });
+  hops.forEach((h, k) => { const seg = h || [P[k], P[k + 1]]; seg.forEach((q, j) => { if (j === seg.length - 1 && k < hops.length - 1) return; const o = { lat: q.lat, lon: q.lon }; if (j === 0) { o.name = P[k].name; o.pn = P[k].pn; } if (j === seg.length - 1) { o.name = P[k + 1].name; o.pn = P[k + 1].pn; } if (!h) o.unk = 1; if (q.sea) o.sea = 1; if (q.cnl) o.cnl = 1; if (q.ch) o.ch = 1; mid.push(o); }); });
   const hp = (head.pts || [a]).slice(0, -1), tp = (tail.pts || [b]).slice(1);
   const pts = [].concat(hp.length ? hp : [a], mid, tp.length ? tp : [b]);
   const why = head.ok ? tail.why : head.why; // no signal at an end: the passage itself is still the known way, so say 'not fully checked', not 'a straight line'
   return { ok: !!(head.ok && tail.ok && !bad), why: !bad || !head.ok || !tail.ok ? (why === 'net' ? 'partial' : why) : 'partial', pts, shallow: !!(head.shallow || tail.shallow), dockB: tail.dockB, passage: true };
 }
 // turn a list of stops into stops plus turning points that stay in the water
-async function routeByWater(stops) {
-  const out = [], notes = []; let failed = 0;
+async function routeByWater(stops, ropt) {
+  const out = [], notes = []; let failed = 0; ropt = ropt || {};
+  const excl = new Set(ropt.excl || []);
+  if (S.settings.newRouter && S.boat.airDraftFt) PN_ALT.forEach((g) => { if (S.boat.airDraftFt + (S.settings.bridgeMargin || 3) >= g.clearFt && g.inside.some((k) => !excl.has(k))) { g.inside.forEach((k) => excl.add(k)); out.noInside = (out.noInside || []).concat(g.id); } });
   toast('Finding a route through the water…', 20000);
   for (let i = 0; i < stops.length; i++) {
     const p = stops[i];
     if (i) {
       const prev = stops[i - 1];
-      let r; try { r = distNm(prev, p) > 35 ? await passageLeg(prev, p) : null; if (!r) r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
+      let r; try { r = distNm(prev, p) > 35 ? await passageLeg(prev, p, { excl }) : null; if (!r) r = await waterLeg(prev, p); } catch (e) { r = { ok: false, why: 'net' }; WR.lastErr = e.message || String(e); }
       p.__ok = r.ok; p.__why = r.why; p.__sh = !!r.shallow;
       if (r.ok || ((r.why === 'partial' || r.why === 'fine' || r.passage) && r.pts)) { // a passage keeps its known route even when an end could not be checked (no signal): dashed, but not a straight line over land
-        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push(Object.assign({ lat: q.lat, lon: q.lon, turn: true }, q.name ? { name: q.name, via: 1, pn: q.pn } : {}, q.unk ? { unk: 1 } : {})); });
+        r.pts.forEach((q, k) => { if (k === 0 && distNm(q, prev) < 0.12) return; if (k === r.pts.length - 1 && distNm(q, p) < 0.12) return; out.push(Object.assign({ lat: q.lat, lon: q.lon, turn: true }, q.name ? { name: q.name, via: 1, pn: q.pn } : {}, q.unk ? { unk: 1 } : {}, q.sea ? { sea: 1 } : {}, q.cnl ? { cnl: 1 } : {}, q.ch ? { ch: 1 } : {})); });
         if (r.ok && r.dockB > 0.15 && r.pts && r.pts.length) { // a pin on land (a town): go to the nearest marina that is on the water instead of stopping at a shoreline
           try { const end = r.pts[r.pts.length - 1], els = await overpass(around('nwr[leisure=marina];nwr[waterway=fuel];nwr["seamark:harbour:category"~"marina"]', 1.6, p)).catch(() => []);
             const ms = els.map(toPlace).filter((m) => m && m.lat != null).sort((x, y) => distNm(p, x) - distNm(p, y)).slice(0, 4);
@@ -1366,6 +1451,7 @@ async function routeByWater(stops) {
     }
     const o = Object.assign({}, p, { stop: true }); delete o.__ok; delete o.__why; delete o.unchecked; delete o.caution; if (p.__sh) o.caution = 1; delete o.__sh; if (i && p.__ok === false) o.unchecked = p.__why || 'net'; else if (i && p.__land > 0.15) { o.unchecked = 'land'; o.land = p.__land; } delete o.__land; out.push(o);
   }
+  (out.noInside || []).forEach((id) => { const g = PN_ALT.find((x) => x.id === id); if (g && out.some((q) => q.pn && g.outside.includes(q.pn))) notes.push(g.place + ': the inside way is not offered, your air draft does not clear its fixed bridges (about ' + g.clearFt + ' ft, verify). The route goes outside.'); });
   if (S.boat.engineKind === 'pod' && out.length > 1) notes.push('Pod drive: the route keeps your draft plus buffer, but pods are the deepest point of the boat. Idle through channels and anything near the shallow tint.');
   if (failed) toast(wrWhy((out.find((q) => q.unchecked) || {}).unchecked), 8000);
   else toast(notes.length ? notes[0] : 'Route stays in water NOAA charts at ' + fmtLen(wrNeedM() / 0.3048) + ' or deeper (your draft plus buffer). Still watch the chart and depth.', 5000);
@@ -1710,7 +1796,7 @@ function onFix(f) {
   else setGps(f.acc <= 12 ? 'good' : f.acc <= 35 ? 'fair' : 'bad', 'GPS ' + accTxt);
 
   updateBoat(); updateGoto(); checkAnchor(f); updateMob();
-  try { canalWatch(); podWatch(); } catch (e) { /* safety extras must never break the fix loop */ }
+  try { canalWatch(); podWatch(); narrowWatch(); } catch (e) { /* safety extras must never break the fix loop */ }
   if (S.settings.sim) simAis();
   if (Date.now() - (S.aisFixAt || 0) > 2000) { S.aisFixAt = Date.now(); updateAis(); } renderStrip(); renderLive();
   maybeWeather(); maybeTide(); maybeObsWind();
@@ -1734,8 +1820,7 @@ function updateBoat() {
     else d = 'M18 2 C25.5 8 27 19 26 34 L10 34 C9 19 10.5 8 18 2 Z M12.5 17 Q18 13 23.5 17';
     if (shape) { shape.setAttribute('d', d); shape.setAttribute('fill', useBoat ? (S.settings.night ? '#E5544A' : '#0E3A5B') : '#0E1F2E'); }
   }
-  if (moving && S.cog != null) { const e = destination(f, S.cog, S.sog * 10 / 60); projLine.setLatLngs([ll, [e.lat, e.lon]]); }
-  else projLine.setLatLngs([]);
+  projDraw(f, moving);
   drawRings();
   if (S.firstFix) { S.firstFix = false; const z = map.getZoom(); map.setView(ll, z >= 11 && z <= 14 ? z : 12); }
   else if (S.follow) map.panTo(ll, { animate: true, duration: 0.5 });
@@ -3300,7 +3385,7 @@ $('panelNav').addEventListener('click', async (e) => {
     b.disabled = true; b.textContent = 'Finding the water route…';
     RT.depart = S.plan.depart && S.plan.depart > Date.now() ? S.plan.depart : Date.now();
     const pts = await routeByWater([f].concat(S.plan.via, [t]).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name })));
-    RT.pts = pts; store.set('routeDraft', RT.pts); setTab('chart'); routeMode(true); map.fitBounds(L.latLngBounds(pts.map((p) => [p.lat, p.lon])).pad(0.15));
+    if (RT.pts.length) rtPush(); RT.pts = pts; store.set('routeDraft', RT.pts); setTab('chart'); routeMode(true); map.fitBounds(L.latLngBounds(pts.map((p) => [p.lat, p.lon])).pad(0.15));
   }
 });
 function optSeg2(name, opts, cur) {
@@ -3841,6 +3926,10 @@ function renderSettings() {
     gpsSpotHtml() +
     numRow('cruise', 'Usual speed (' + SPEED_LBL[S.settings.speedUnit] + ')', 'Your normal speed under power. Used to estimate arrival times when you are planning or not moving yet', speedOut) +
     numRow('bridgeMargin', 'Bridge safety margin (' + lenUnit() + ')', 'Warns when a bridge leaves less room than this over your air draft', ftToLen) + '</div>' +
+    '<div class="card" id="setRouting"><h4>Routing</h4>' + sw('newRouter', 'New router (testing)', 'Follows charted channels, keeps off shoals and offers the other way round (Cape May inside or outside). Being tested; routes are always advisory.') +
+    '<div class="set-row"><div class="sr-text"><b>Course projection</b><span>A line or a cone ahead of your boat while you are moving</span></div></div>' + seg('projMode', [['line', 'Line'], ['cone', 'Cone'], ['off', 'Off']]) +
+    (S.settings.projMode === 'off' ? '' : '<div class="set-row"><div class="sr-text"><b>How far ahead</b></div></div>' + seg('projBy', [['time', 'By time'], ['dist', 'By distance']]) + '<div style="height:8px"></div>' +
+      (S.settings.projBy === 'dist' ? seg('projNm', [[0.5, fmtDist(0.5)], [1, fmtDist(1)], [2, fmtDist(2)]]) : seg('projMin', [[1, '1 min'], [5, '5 min'], [10, '10 min']]))) + '<div style="height:12px"></div></div>' +
     '<div class="card"><h4>Captain\'s coach</h4><div class="set-row"><div class="sr-text"><b>How the coach speaks up</b><span>Off: no tips. Chime: a gentle ding-ding and a card you can tap for more. Spoken: a calm voice too, like turn-by-turn directions.</span></div></div>' + seg('coachMode', [['off', 'Off'], ['chime', 'Chime'], ['voice', 'Spoken']]) + '<div style="height:10px"></div><div class="row-btns"><button class="btn" data-act="testvoice">Test the sound</button>' + (('speechSynthesis' in window) ? '<div class="field" style="margin-top:8px"><label for="voicePick">Voice</label><select id="voicePick"><option value="">Best on this device' + (bestVoice() ? ' (' + esc(bestVoice().name) + ')' : '') + '</option>' + voiceOptions().map((v) => '<option value="' + esc(v.name) + '"' + (S.settings.voiceName === v.name ? ' selected' : '') + '>' + esc(v.name) + '</option>').join('') + '</select><p class="hint" style="margin:4px 0 0">For a more natural voice on iPhone or Mac: Settings › Accessibility › Spoken Content › Voices › English, and download an Enhanced or Premium voice. Then pick it here.</p></div>' : '') + '</div><div style="height:10px"></div>' +
     '<p class="hint" style="margin:0 0 12px">Live AIS needs the app-store version with an AIS receiver or feed. Demo mode shows simulated traffic so you can try the coach.</p></div>' +
     '<div class="card"><h4>Display</h4><div class="set-row"><div class="sr-text"><b>Light</b><span>Auto switches day, dusk and red night at civil twilight</span></div></div>' + seg('theme', [['auto', 'Auto'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']]) + '<div style="height:10px"></div>' + sw('keepAwake', 'Keep screen on', 'Recommended underway and at anchor') +
@@ -3863,6 +3952,7 @@ $('panelSettings').addEventListener('click', async (e) => {
   if (sb) {
     const k = sb.dataset.seg, v = sb.dataset.val; S.settings[k] = k === 'simRate' ? +v : v; saveSettings();
     if (k === 'theme') { applyNight(); updateBoat(); }
+    if (/^proj/.test(k)) updateBoat();
     if (k === 'coachMode') { syncCoach(); if (v !== 'off') { unlockSound(); v === 'voice' ? speak('Coach on. I will speak up only when it matters.') : chime(); } }
     renderSettings(); renderStrip(); renderChips(); updateGoto(); renderModeChip(); updateAis();
     return;
@@ -8051,8 +8141,9 @@ function openSpotCard(latlng) {
   const from = S.fix || homePort(), d = from ? distNm(from, p) : null;
   const el = document.createElement('div'); el.className = 'spot-card'; el.innerHTML =
     '<div class="sp-head"><div><b>' + (d != null ? fmtDist(d) + ' · ' + fmtBrg(bearing(from, p)) + '°' + (S.fix && (S.sog || 0) > 1 ? ' · ' + fmtDur(d / S.sog) : '') : 'This spot') + '</b><span>' + ddm(p.lat, true) + '  ' + ddm(p.lon, false) + (d != null && !S.fix ? ' · from ' + esc(from.name) : '') + '</span></div><button type="button" class="sp-x" data-spx aria-label="Close">×</button></div>' +
-    '<div class="sp-grid" id="spGrid"><div class="sp-load">Reading this spot…</div></div>' +
-    '<div class="sp-acts"><button type="button" class="sp-btn pri" data-spact="goto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 18-7-4-7 4z"/></svg>Navigate</button>' + (S.settings.boatType === 'sail' ? '<button type="button" class="sp-btn" data-spact="ptsail"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v15M12 4c3.5 3 5.5 7 6 12h-6M11 6c-2.5 3-4 6-4.5 10H11M4 19h16l-2 2H6z"/></svg>Sail</button>' : '') + '<button type="button" class="sp-btn ic" data-spact="more" aria-label="More details" title="More details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></div>';
+    rtLpActsHtml() +
+    '<div class="sp-acts"><button type="button" class="sp-btn' + (RT.lp || S.fix ? '' : ' pri') + '" data-spact="goto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 18-7-4-7 4z"/></svg>Navigate</button>' + (S.settings.boatType === 'sail' ? '<button type="button" class="sp-btn" data-spact="ptsail"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v15M12 4c3.5 3 5.5 7 6 12h-6M11 6c-2.5 3-4 6-4.5 10H11M4 19h16l-2 2H6z"/></svg>Sail</button>' : '') + '<button type="button" class="sp-btn ic" data-spact="more" aria-label="More details" title="More details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></div>' +
+    '<div class="sp-grid" id="spGrid"><div class="sp-load">Reading this spot…</div></div>';
   document.body.appendChild(el); SPOT.el = el; placeSpot();
   spotFill(p, seq);
 }
@@ -10469,7 +10560,114 @@ function lift13(root) { if (!root || root.nodeType !== 1 || root.closest('.leafl
     mb.observe(document.body, { childList: true }); mb.observe($('app'), { childList: true });
     document.addEventListener('toggle', (e) => add(e.target), true); };
   if (document.readyState !== 'loading') go(); else document.addEventListener('DOMContentLoaded', go); })();
-window.Tideline = { PB, RP, flySeek, tgPlace, tgDecide, tgPickImg, tgSetState, tgSummary, tgAll, playTrip, openCgNotices, brSummary, DEP, SH, canalWatch, canalProj, podWatch, encDepthAt, CNL, POD, openSos, closeSos, safetyPos, okPos, openBriefing, BRF, FLY, pnPath, flyStart, legSay, setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L, ALR, renderAlertBar }; // debugging and demo recording
+/* ---------- build 187: route confidence and tested areas, the other way round, long-press routing, course projection, narrow-channel watch ---------- */
+// Areas where the route test set (tests/route-cases.json) has passed. Grow this only when trips there pass the replay and Andy's on-the-water runs.
+const ROUTE_TESTED = [{ name: 'Annapolis, Baltimore, the Chester, Eastern Bay and the Choptank', bb: [-76.75, 38.55, -75.95, 39.40] }];
+function routeTestedAt(p) { return ROUTE_TESTED.find((r) => p.lon >= r.bb[0] && p.lon <= r.bb[2] && p.lat >= r.bb[1] && p.lat <= r.bb[3]) || null; }
+function routeConfidence(pts) {
+  pts = pts || RT.pts; if (!pts || pts.length < 2) return null;
+  const bad = pts.some((p, i) => i && p.unchecked && p.unchecked !== 'land'), unk = pts.some((p) => p.unk), land = pts.some((p) => p.unchecked === 'land');
+  if (bad || unk) return { level: 'low', label: 'Low', text: 'Not fully checked against the chart. Follow the dashed legs only with the chart, a lookout and the depth sounder.' };
+  const untested = pts.some((p) => !routeTestedAt(p)), shallow = pts.some((p) => p.caution), extra = (shallow ? ' Some stretches are only charted as a depth range: watch the depth.' : '') + (land ? ' The last stretch to a stop on land is not routed.' : '');
+  if (untested) return { level: 'medium', label: 'Medium', text: 'Checked against the NOAA chart, but not yet tested in this area (no known-good trips here yet). Check each leg on the chart.' + extra };
+  return { level: shallow || land ? 'medium' : 'high', label: shallow || land ? 'Medium' : 'High', text: 'Checked against the NOAA chart, in an area the route test set covers. Still advisory: keep a lookout and watch the depth.' + extra };
+}
+// ---- the other way round (new router): Cape May inside through the canal, or outside around the Point
+function rtWays(pts) { const pn = new Set((pts || RT.pts).filter((p) => p.pn).map((p) => p.pn)); return PN_ALT.map((g) => g.inside.some((k) => pn.has(k)) ? { g, way: 'in' } : g.outside.some((k) => pn.has(k)) ? { g, way: 'out' } : null).filter(Boolean); }
+function rtWayStats(pts) { let d = 0, sea = 0; for (let i = 1; i < pts.length; i++) { const x = distNm(pts[i - 1], pts[i]); d += x; if (pts[i].sea && pts[i - 1].sea) sea += x; } return { d, sea, hrs: d / navSpeed(), ok: !pts.some((p, i) => i && p.unchecked && p.unchecked !== 'land') }; }
+function rtAltHtml() {
+  if (!S.settings.newRouter || RT.pts.length < 2) return '';
+  return rtWays().map(({ g, way }) => {
+    const cur = rtWayStats(RT.pts), alt = RT.alt && RT.alt.id === g.id ? RT.alt : null, inUse = way === 'in';
+    const row = (name, note, st, using) => '<div class="rt-way' + (using ? ' on' : '') + '"><div class="rt-way-t"><b>' + esc(name) + (using ? ' (in use)' : '') + '</b><span class="tnum">' + (st ? fmtDist(st.d) + ' · ' + fmtDur(st.hrs) + ' · ' + (st.sea > 0.5 ? fmtDist(st.sea) + ' on the open coast' : 'no open coast') + (st.ok ? '' : ' · not fully checked') : 'Not worked out yet') + '</span><small>' + esc(note) + '</small></div>' +
+      (using ? '' : st ? '<button type="button" class="btn small" data-act="rtwayuse">Use this way</button>' : '<button type="button" class="btn small" data-act="rtwaycmp" data-way="' + g.id + '"' + (RT.busy ? ' disabled' : '') + '>Compare</button>') + '</div>';
+    return '<div class="rt-ways"><div class="mo-h">' + esc(g.place) + ': two ways</div>' + row(g.inName, g.inNote, inUse ? cur : alt && alt.stats, inUse) + row(g.outName, g.outNote, inUse ? alt && alt.stats : cur, !inUse) + '<p class="hint">Compare works out the other way on the chart; pick by the weather, your mast height and the tide.</p></div>';
+  }).join('');
+}
+sheet.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act="rtwaycmp"],[data-act="rtwayuse"]'); if (!b) return;
+  if (!RT.altLine) RT.altLine = L.polyline([], { color: '#7A8794', weight: 4, opacity: 0.85, dashArray: '6 8', interactive: false }).addTo(map);
+  if (b.dataset.act === 'rtwayuse' && RT.alt) { const other = RT.alt, cur = RT.pts; rtPush(); RT.pts = other.pts; RT.alt = { id: other.id, pts: cur, stats: rtWayStats(cur) }; RT.altLine.setLatLngs(cur.map((q) => [q.lat, q.lon])); store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); toast('Route changed to the other way round. Undo puts it back.', 3500); return; }
+  const g = PN_ALT.find((x) => x.id === b.dataset.way), w = g && rtWays().find((x) => x.g === g); if (!w) return;
+  const stops = RT.pts.filter((p) => !p.turn).map((p) => ({ lat: p.lat, lon: p.lon, name: p.name }));
+  RT.busy = (RT.busy || 0) + 1; renderRouteSheet();
+  let pts = null; try { pts = await routeByWater(stops, { excl: w.way === 'in' ? g.inside : g.outside }); } catch (err) { pts = null; } finally { RT.busy--; }
+  const w2 = pts && rtWays(pts).find((x) => x.g === g);
+  if (!w2 || w2.way === w.way) { toast('Could not work out the other way round from the chart just now.', 5000); renderRouteSheet(); return; }
+  RT.alt = { id: g.id, pts, stats: rtWayStats(pts) }; RT.altLine.setLatLngs(pts.map((q) => [q.lat, q.lon])); renderRouteSheet();
+});
+// ---- long-press routing: press and hold a spot, "Route from here"; press and hold another, "Route to here"
+function rtLpBtns(cls) {
+  const lp = RT.lp, toFirst = !!(lp || S.fix), ic = (d) => cls === 'sp-btn' ? '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>' : '';
+  const to = '<button type="button" class="' + cls + (toFirst ? (cls === 'btn' ? ' primary' : ' pri') : '') + '" data-' + (cls === 'btn' ? 'act' : 'spact') + '="rtto">' + ic('<path d="M6 21V4h11l-2.5 4 2.5 4H6"/>') + 'Route to here' + (lp ? '' : S.fix ? ' from you' : '') + '</button>';
+  const from = '<button type="button" class="' + cls + (toFirst ? '' : (cls === 'btn' ? ' primary' : ' pri')) + '" data-' + (cls === 'btn' ? 'act' : 'spact') + '="rtfrom">' + ic('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/>') + (lp ? 'Start here instead' : 'Route from here') + '</button>';
+  return toFirst ? to + from : from + to;
+}
+function rtLpActsHtml() { return '<div class="sp-acts sp-route">' + rtLpBtns('sp-btn') + '</div>' + (RT.lp ? '<div class="sp-lp">Start set at the green A pin, ' + fmtDist(distNm(RT.lp, SPOT.p || RT.lp)) + ' away</div>' : ''); }
+function rtLpMark() { if (RT.lpMk) { RT.lpMk.remove(); RT.lpMk = null; } if (RT.lp) RT.lpMk = L.marker([RT.lp.lat, RT.lp.lon], { interactive: false, keyboard: false, zIndexOffset: 1900, icon: L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: '<div class="rt-pt rt-lp-pin">A</div>' }) }).addTo(map); }
+sheet.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act="rtfrom"],[data-act="rtto"]'); if (!b || !S.sheetPoint) return;
+  const p = S.sheetPoint.p, here = { lat: p.lat, lon: p.lon, name: b.dataset.act === 'rtfrom' ? 'Start pin' : 'Destination pin' };
+  if (b.dataset.act === 'rtfrom') { RT.lp = here; rtLpMark(); closeSheet(); toast('Start set. Now press and hold where you want to go, then Route to here.', 5000); return; }
+  const from = RT.lp || (S.fix ? { lat: S.fix.lat, lon: S.fix.lon, name: boatLabel() } : null);
+  if (!from) { RT.lp = Object.assign(here, { name: 'Start pin' }); rtLpMark(); closeSheet(); toast('No GPS position yet, so this is your start. Press and hold where you want to go.', 5000); return; }
+  if (distNm(from, here) < 0.05) { toast('That is where the route starts. Press and hold somewhere else.', 3000); return; }
+  closeSheet(); RT.lp = null; rtLpMark();
+  if (RT.pts.length) rtPush(); RT.pts = [Object.assign({}, from), here]; store.set('routeDraft', RT.pts); setTab('chart'); routeMode(true); rtFit();
+  RT.busy = (RT.busy || 0) + 1; renderRouteSheet();
+  try { RT.pts = await routeByWater([from, here]); } catch (err) { /* keep the straight draft, shown dashed */ } finally { RT.busy--; }
+  store.set('routeDraft', RT.pts); drawRoute(); renderRouteSheet(); rtFit();
+});
+// ---- course projection: a line or a cone ahead of the boat, by time (1, 5 or 10 minutes) or by distance
+const projCone = L.polygon([], { color: C.navy, weight: 1, opacity: 0.55, fillOpacity: 0.12, interactive: false }).addTo(map);
+function projDraw(f, moving) {
+  const st = S.settings, mode = st.projMode || 'line';
+  if (!f || !moving || S.cog == null || mode === 'off') { projLine.setLatLngs([]); projCone.setLatLngs([]); return; }
+  const nmAhead = st.projBy === 'dist' ? +(st.projNm || 1) : (S.sog || 0) * (+(st.projMin || 10)) / 60, e = destination(f, S.cog, nmAhead);
+  projLine.setLatLngs([[f.lat, f.lon], [e.lat, e.lon]]);
+  const night = document.documentElement.hasAttribute('data-night'), col = night ? '#FF8A80' : C.navy; // the navy cone vanishes on a dark chart
+  projLine.setStyle({ color: col, weight: night ? 2.5 : 2 }); projCone.setStyle({ color: col, fillColor: col, fillOpacity: night ? 0.22 : 0.12, opacity: night ? 0.8 : 0.55 });
+  if (mode !== 'cone') { projCone.setLatLngs([]); return; }
+  const kn = S.sog || 0, half = kn < 2 ? 12 : kn < 5 ? 7 : 4, arc = []; // course over ground wanders more at low speed: a wider cone
+  for (let k = -half; k <= half; k += half / 3) { const q = destination(f, S.cog + k, nmAhead); arc.push([q.lat, q.lon]); }
+  projCone.setLatLngs([[f.lat, f.lon]].concat(arc));
+}
+// ---- narrow channels read from the chart (new router, underway): a short Rule 9 brief, and the ship-meeting alert the C&D has, for any narrow dredged channel
+const NCH = { at: 0, cur: null, briefed: new Map(), warned: new Map(), busy: false };
+function nchAxis(ft, lat0) { // principal axis and width of a dredged-area polygon, near the boat
+  const cosL = Math.cos(lat0 * Math.PI / 180), P = []; (ft.rings || []).forEach((r) => r.forEach(([x, y]) => P.push([(x) * cosL * 60, y * 60]))); if (P.length < 4) return null;
+  const mx = P.reduce((a, p) => a + p[0], 0) / P.length, my = P.reduce((a, p) => a + p[1], 0) / P.length; let sxx = 0, syy = 0, sxy = 0;
+  P.forEach(([x, y]) => { sxx += (x - mx) ** 2; syy += (y - my) ** 2; sxy += (x - mx) * (y - my); });
+  const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(th), uy = Math.sin(th); let lo = 1e9, hi = -1e9, a0 = 1e9, a1 = -1e9;
+  P.forEach(([x, y]) => { const across = -(x - mx) * uy + (y - my) * ux, along = (x - mx) * ux + (y - my) * uy; lo = Math.min(lo, across); hi = Math.max(hi, across); a0 = Math.min(a0, along); a1 = Math.max(a1, along); });
+  return { mx, my, ux, uy, cosL, widthNm: hi - lo, lenNm: a1 - a0, dir: (90 - th * 180 / Math.PI + 360) % 180 };
+}
+function nchProj(ax, p) { const x = p.lon * ax.cosL * 60 - ax.mx, y = p.lat * 60 - ax.my; return { s: x * ax.ux + y * ax.uy, off: Math.abs(-x * ax.uy + y * ax.ux) }; }
+async function narrowWatch() {
+  if (!S.settings.newRouter || NCH.busy || Date.now() - NCH.at < 15000) return; const f = S.fix; if (!okPos(f) || (S.sog || 0) < 1.5 || CNL.inside) return;
+  NCH.at = Date.now(); NCH.busy = true;
+  try {
+    const e = 0.0006, bb = [f.lon - e, f.lat - e, f.lon + e, f.lat + e]; let hit = null;
+    for (const svc of ['enc_harbour', 'enc_approach']) { const d = await encQuery(svc, 'dredged', bb).catch(() => []); hit = d.find((x) => x.rings && encInside(x.rings, f.lon, f.lat)); if (hit) break; }
+    const ax = hit && nchAxis(hit, f.lat); NCH.cur = ax && ax.widthNm < 0.3 && ax.lenNm > ax.widthNm * 3 ? Object.assign(ax, { name: (hit.a && hit.a.OBJNAM) || 'this channel', key: hit.id != null ? hit.id : ax.mx.toFixed(2) + ax.my.toFixed(2) }) : null;
+    const c = NCH.cur; if (!c) return;
+    if (Date.now() - (NCH.briefed.get(c.key) || 0) > 6 * 3600000) { NCH.briefed.set(c.key, Date.now()); toast('Narrow channel: ' + c.name + ' (about ' + Math.round(c.widthNm * 1852) + ' m wide). Keep to the starboard side and don\'t impede a vessel that can only navigate inside it (Rule 9).', 9000); }
+    const me = nchProj(c, f), myV = (S.sog || 0) * Math.cos(((S.cog || 0) - c.dir) * Math.PI / 180);
+    ais.forEach((t) => {
+      if (!okPos(t) || !BIGSHIP(t) || Date.now() - (t.seen || 0) > 300000) return;
+      const tp = nchProj(c, t); if (tp.off > c.widthNm / 2 + 0.3 || Math.abs(tp.s) > c.lenNm / 2 + 1.5) return;
+      const tv = Number.isFinite(t.sog) && Number.isFinite(t.cog) ? t.sog * Math.cos((t.cog - c.dir) * Math.PI / 180) : 0, gap = tp.s - me.s, closing = gap * (myV - tv) > 0 ? Math.abs(myV - tv) : 0; if (closing < 0.5) return;
+      const mins = Math.abs(gap) / closing * 60, at = me.s + myV * mins / 60; if (mins > 20 || Math.abs(at) > c.lenNm / 2 + 0.2) return; // meets outside the channel: the open-water coach handles that
+      const meeting = Math.sign(tv) !== Math.sign(myV) || Math.abs(myV) < 0.5, kind = meeting ? 'meet' : Math.sign(gap) !== Math.sign(myV) ? 'pass' : 'catch';
+      const k = t.id + kind + c.key; if (Date.now() - (NCH.warned.get(k) || 0) < 8 * 60000) return; NCH.warned.set(k, Date.now());
+      const who = (t.name || (t.type === 'tug' ? 'A tug and tow' : 'A large ship')) + (t.len ? ' (' + Math.round(t.len * 3.28084) + ' ft)' : ''), m = Math.max(1, Math.round(mins));
+      const msg = kind === 'meet' ? who + ' will meet you in ' + c.name + ' in about ' + m + ' min. Keep to the starboard edge, slow down, hand-steer.' : kind === 'pass' ? who + ' is overtaking you in ' + c.name + ' in about ' + m + ' min. Keep right and let it by.' : 'You are catching up with ' + who + ' in ' + c.name + '. Don\'t overtake in the channel unless it agrees on VHF 13.';
+      toast(msg, 9000); headsUp(kind === 'meet' ? 'Ship meeting you in the channel in about ' + m + ' minutes. Keep right.' : kind === 'pass' ? 'Ship overtaking you in the channel. Keep right.' : 'Ship ahead in the channel. Do not overtake.');
+      try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (err) { /* */ }
+    });
+  } catch (err) { /* a safety extra must never break the fix loop */ } finally { NCH.busy = false; }
+}
+window.Tideline = { PB, RP, wrSnap, wrAstar, wrNearestReach, wrClear, routeConfidence, rtWays, rtWayStats, rtUndo, rtPush, pnPath, PN_ALT, projDraw, narrowWatch, NCH, ROUTE_TESTED, flySeek, tgPlace, tgDecide, tgPickImg, tgSetState, tgSummary, tgAll, playTrip, openCgNotices, brSummary, DEP, SH, canalWatch, canalProj, podWatch, encDepthAt, CNL, POD, openSos, closeSos, safetyPos, okPos, openBriefing, BRF, FLY, pnPath, flyStart, legSay, setDeskView, setHelm, rtOpen, RT2, miResize, pcHtml, FM, fmFix, setTab, ftStart, ftRun, fmUnderstand, WX, setWxL, wfPaint, drawGrid, openLooks, openTour, TG, tgShow, tgTick, openCoach, RC, KB, kbLoad, navStartIdx, fmUnderstand, offNow, glPrev, ltIds: () => ltOrder().filter((t) => t.shape === 'round').map((t) => t.id), S, map, ais, setTab, resetDemoAis: () => { ais.clear(); demoAisAt = 0; spoken.clear(); }, openAis: (id) => { const t = ais.get(id); if (t) openAisSheet(t); }, closeSheet, WS, AST, skyNotes, bridgeSchedule, routeByWater, waterLeg, waterGrid, WR, encLayerIds, encQuery, drawClean, CLN, wrWhy, routeMode, drawRoute, hiloToHourly, routeLeg, RT, L, ALR, renderAlertBar }; // debugging and demo recording
 })();
 // MOB sits small in the bottom-left corner; on phones it rides just above the instrument card
 (() => { const st = document.getElementById('bottomStack'); if (!st || !window.ResizeObserver) return; new ResizeObserver(() => { const h = st.getBoundingClientRect().height; document.documentElement.style.setProperty('--stackH', Math.round(h) + 'px'); }).observe(st); })();

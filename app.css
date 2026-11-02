@@ -3314,3 +3314,22 @@ html:root #wxBar.tl .tl-chips button { min-width: 44px; }
 html.helm #app:not(.wide) #deskSw { bottom: calc(var(--tabbar-h, 0px) + 30px + 56px); }
 /* Looks: a section that is only partly drawn keeps its height without stretching the tile rows */
 html:root .lk-grid { align-content: start; }
+
+/* ---------- build 187: route confidence, the other way round, route undo/redo, long-press routing ---------- */
+.rt-h { display: flex; align-items: center; gap: 8px; }
+.rt-h .rt-ur { margin-left: auto; }
+.rt-ur .ur-btn.off { opacity: .35; }
+.rt-conf { margin: 6px 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; border-left: 4px solid currentColor; background: var(--surface2); color: var(--ink); }
+.rt-conf b { display: block; margin-bottom: 2px; }
+.rt-conf.c-high { border-left-color: #2E7D4F; } .rt-conf.c-medium { border-left-color: #C88A12; } .rt-conf.c-low { border-left-color: #C2410C; }
+.rt-ways { margin: 8px 0; }
+.rt-way { display: flex; align-items: center; gap: 10px; padding: 9px 10px; margin: 6px 0; border: 1px solid var(--line); border-radius: 12px; }
+.rt-way.on { border-color: #C2185B; box-shadow: inset 3px 0 0 #C2185B; }
+.rt-way-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rt-way-t b { font-size: 14px; } .rt-way-t span { font-size: 13px; } .rt-way-t small { font-size: 13px; opacity: .8; line-height: 1.35; }
+.rt-way .btn { flex: 0 0 auto; }
+.sp-route { margin-top: 6px; }
+.sp-lp { font-size: 13px; margin-top: 6px; opacity: .85; }
+.rt-lp-pin { background: #2E7D4F; }
+.pt-acts.rt-lp { margin-top: 8px; }
+@media (max-width: 420px) { .rt-way { flex-wrap: wrap; } .rt-way .btn { width: 100%; } }

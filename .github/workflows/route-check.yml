@@ -1,28 +1,41 @@
 name: Live route check
-# Runs real routes against live NOAA chart data (the build workspace cannot reach NOAA)
+# Runs the known-good route test set (tests/route-cases.json) against live NOAA chart data with both routers
+# (the build workspace cannot reach NOAA). Snapshots for offline replay are refreshed only on a manual run.
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['tests/live-route.mjs', 'tests/enc-snapshot.mjs', '.github/workflows/route-check.yml']
+    paths: ['app.js', 'tests/route-cases.json', 'tests/live-route.mjs', 'tests/enc-snapshot.mjs', '.github/workflows/route-check.yml']
 permissions:
   contents: write
 jobs:
   routes:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm i --no-save playwright@1.47.2 && npx playwright install --with-deps chromium
-      - run: node tests/enc-snapshot.mjs
+      - name: Snapshot NOAA charts for offline replay (Annapolis area, then C&D and Cape May)
+        if: github.event_name == 'workflow_dispatch'
+        run: node tests/enc-snapshot.mjs && BOX=cd node tests/enc-snapshot.mjs
         continue-on-error: true
-        timeout-minutes: 25
-      - run: (python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 1 && node tests/live-route.mjs
+        timeout-minutes: 50
+      - name: Run the route test set
+        run: (python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 1 && node tests/live-route.mjs
         continue-on-error: true
+        timeout-minutes: 60
       - name: Publish report to the diag branch
         run: |
           mkdir -p /tmp/out && cp -r diag/* /tmp/out/ || true
+          git fetch -q origin diag || true
           git config user.name "route-check" && git config user.email "actions@users.noreply.github.com"
-          git checkout --orphan diag-tmp && git rm -rfq . && cp -r /tmp/out/* . && git add -A && git commit -qm "Route check $(date -u +%FT%TZ) for ${GITHUB_SHA::7}" && git push -f origin diag-tmp:diag
+          git checkout --orphan diag-tmp
+          git rm -rfq .
+          git checkout origin/diag -- diag/enc 2>/dev/null || true
+          git checkout origin/diag -- diag/enc-cd 2>/dev/null || true
+          find /tmp/out -maxdepth 1 -type f -exec cp {} . \;
+          mkdir -p diag
+          for d in enc enc-cd; do if [ -d "/tmp/out/$d" ]; then rm -rf "diag/$d"; cp -r "/tmp/out/$d" diag/; fi; done
+          git add -A && git commit -qm "Route check $(date -u +%FT%TZ) for ${GITHUB_SHA::7}" && git push -f origin diag-tmp:diag

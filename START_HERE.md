@@ -2,7 +2,7 @@
 
 Live app: https://olbucky1.github.io/Tideline/ · repo: github.com/Olbucky1/Tideline (branch main).
 Owner: Andy Brickman (andy.brickman@gmail.com), Annapolis. Sails a 1976 Catalina 27. Tests mostly on a MacBook in Safari, also on an iPad Pro and an iPhone. Most users will be on iPhones.
-Current build: 186 (17 Oct 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
+Current build: 187 (2 Nov 2026). History, file layout and data sources are in HANDOFF.md. Read only the sections you need; it is long.
 
 ## Working rules (standing orders from Andy)
 1. **Queue, don't build.** When Andy gives feedback while testing, add it to the queue below and reply briefly. Change no code until he says **"now execute the changes"**. "Go" alone is not the trigger.
@@ -25,6 +25,7 @@ Current build: 186 (17 Oct 2026). History, file layout and data sources are in H
   - `tl-app-vN` in sw.js
   - `const BUILD = N` near the top of app.js (Menu and Settings both read it)
 - **Check:** run `node --check app.js` and test with Playwright. The sandbox has no internet, so NOAA, tiles and Overpass are unavailable; abort non-localhost requests and seed localStorage `tl.settings`.
+- **Route test set (anything touching routing):** `git archive origin/diag diag/enc | tar x -C <scratch>` then `node tests/route-replay.mjs <scratch>/diag/enc` (needs `playwright` resolvable, e.g. symlink a node_modules into a parent folder). It replays the trips in `tests/route-cases.json` that sit inside the snapshot, both routers, with an independent land check. After pushing, read the live check (all 30 trips against real NOAA) in `report.md` on the `diag` branch.
 - **Commit and push:**
   - Commit as Andy Brickman <andy.brickman@gmail.com>. End the message with the Co-Authored-By and Claude-Session lines the harness provides.
   - `git push` to main; GitHub Pages deploys it.
@@ -44,11 +45,14 @@ Current build: 186 (17 Oct 2026). History, file layout and data sources are in H
 
 ## Queue (not started; build only on "now execute the changes")
 
-### Next: build 187 = routing batch (top model). Settled 16 Oct
-- Order: 186 was the design cleanup (done). 187 = routing overhaul + route-edit undo (kept, Andy 16 Oct) + test set + the items below. Time zones, Race Coach, route waits, destination search, events move to 188.
-- **Long-press routing:** long-press "Route from here", long-press another spot "Route to here", draw the water route. Move weather, tides and other options lower in that menu or behind "More". GPS app first.
-- **Course projection:** line or cone ahead of the boat; length by time (1/5/10 min) with distance as an option.
-- Undo for appearance only outside route editing (Andy 16 Oct); route-edit undo stays in 187.
+### Built in 187 (2 Nov), waiting on Andy's test
+- **New router (testing)**, Settings › Routing, off by default: chart channels, depth margin, shore distance in metres, canal fine grid, harbour-channel last stretch, Cape May inside/outside with a Compare card, more offshore points on the Jersey run. Route confidence High/Medium/Low on every route, "not yet tested in this area" outside the tested box. Route-edit undo/redo. Long-press routing. Course projection (line/cone, time/distance). Narrow-channel ship-meeting alert from the chart (new router only).
+- **Andy, please:** (1) turn the new router on and run your usual trips on the Mac, then the C&D and Cape May both ways; (2) read the live route check on the diag branch (`report.md`, screenshots per trip); (3) send GPX tracks of real trips to replace the chart-picked end points in `tests/route-cases.json`; (4) check the Cape May Canal node positions and the 55 ft bridge figure against the chart (they are marked "verify").
+- **Make the new router the default** only after (1)–(2) pass. Then grow `ROUTE_TESTED` area by area as trips pass.
+
+### Next: build 188 (settled 16 Oct)
+- Time zones, Race Coach, route waits (progress, cancel, retry, stale results), destination search ranking, events (stabilization #4, #7, #8, #9, #10).
+- Undo for appearance only outside route editing (Andy 16 Oct): already true today (the app undo covers looks only); nothing to build unless Andy sees otherwise.
 
 ### Left over from build 186 (small, any batch)
 - Weather card title truncates to "W.." on phone (header buttons squeeze it, same fix as the Boat header).
@@ -111,6 +115,7 @@ Confirmed by reading the code (not yet run): #1 header says "GPS live" even in d
 **Still needs real-world validation:** real GPS and sensors, Safari and Android, locked-screen alarms, offline, voice, multi-device sync, backup/restore, GPX, photos, route-edit regression, accessibility, performance, on-water accuracy.
 
 ### Batch B: routing and safety (new session, top model)
+*18–22 built in 187 behind the new-router switch (see above); 23–25 still open. San Diego trips are in the test set but Navy security zones are not modelled yet.*
 18. **Routing overhaul (top priority):**
     - Follow the chart's own channels: dredged areas, fairways, recommended tracks.
     - Score routes, not just distance: depth margin, distance from shore, staying in channels, offshore exposure.
@@ -119,6 +124,7 @@ Confirmed by reading the code (not yet run): #1 header says "GPS live" even in d
     - Fix the weak spots around Cape May and the run offshore.
 19. **Boat profile:** power or sail, draft, air draft, cruising speed. Power boats route point to point at steady speed.
 20. **Narrow-channel safety:** C&D brief and canal ship-meeting alert built in 185. Still to do with the overhaul: the same meeting alert for any narrow channel read from the chart (dredged areas, fairways), and briefs for other cuts.
+    - Built in 187: the meeting alert for any narrow dredged channel (new router), with a short Rule 9 brief. Still open: written briefs for other cuts (Kent Narrows, Knapps Narrows, the Cape May Canal, Hell Gate).
     - C&D Canal brief: ship traffic and wake, passing port to port, bank effect and ship suction, hand-steer instead of autopilot, current, canal rules (33 CFR 162.40; verify).
     - AIS alert when a large ship or tug and barge will meet you in a canal or narrow channel.
 21. **Route undo/redo:** multi-level undo for route edits (e.g. a line moved by accident snaps back), small curved arrows shown only while plotting.

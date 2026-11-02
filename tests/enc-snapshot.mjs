@@ -1,14 +1,15 @@
 // Download a snapshot of NOAA ENC Direct layers for the Annapolis area so routing can be replayed offline.
 import fs from 'node:fs';
 const ENC = 'https://encdirect.noaa.gov/arcgis/rest/services/encdirect/';
-const BB = [-76.75, 38.55, -75.95, 39.40];
-const WANT = /\.(Depth_Area|Dredged_Area|Land_Area|Restricted_Area|Bridge_line|Bridge_area|Shoreline_Construction_area|Shoreline_Construction_line|Wreck_point|Obstruction_point|Coastline_line)$/i;
-fs.mkdirSync('diag/enc', { recursive: true });
+// BOX=cd for the C&D Canal, Delaware Bay and Cape May (written to diag/enc-cd); the default is the Annapolis area (diag/enc)
+const BOXES = { ann: [-76.75, 38.55, -75.95, 39.40], cd: [-75.95, 38.75, -74.70, 39.62] }, BOX = process.env.BOX || 'ann', BB = BOXES[BOX], OUT = BOX === 'ann' ? 'diag/enc' : 'diag/enc-' + BOX;
+const WANT = /\.(Depth_Area|Dredged_Area|Land_Area|Restricted_Area|Bridge_line|Bridge_area|Shoreline_Construction_area|Shoreline_Construction_line|Wreck_point|Obstruction_point|Coastline_line|Fairway_area|Recommended_Track_line|Recommended_Route_Centerline_line)$/i;
+fs.mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function getJ(u, tries = 4) { for (let i = 0; i < tries; i++) { try { const r = await fetch(u); if (r.status === 429 || r.status >= 500) { await sleep(3000 * (i + 1)); continue; } return await r.json(); } catch (e) { await sleep(2000); } } throw new Error('failed ' + u.slice(0, 120)); }
 const log = [];
 for (const svc of ['enc_general', 'enc_coastal', 'enc_approach', 'enc_harbour']) {
-  const meta = await getJ(ENC + svc + '/MapServer?f=json'); fs.writeFileSync('diag/enc/' + svc + '.meta.json', JSON.stringify(meta));
+  const meta = await getJ(ENC + svc + '/MapServer?f=json'); fs.writeFileSync(OUT + '/' + svc + '.meta.json', JSON.stringify(meta));
   for (const l of (meta.layers || []).filter((x) => WANT.test(x.name))) {
     const feats = []; let tiles = 0;
     // tile the box so each request stays small
@@ -23,11 +24,11 @@ for (const svc of ['enc_general', 'enc_coastal', 'enc_approach', 'enc_harbour'])
         if (!j.exceededTransferLimit) break;
       }
     }
-    fs.writeFileSync('diag/enc/' + svc + '.' + l.id + '.json', JSON.stringify({ name: l.name, features: feats }));
+    fs.writeFileSync(OUT + '/' + svc + '.' + l.id + '.json', JSON.stringify({ name: l.name, features: feats }));
     log.push(svc + ' ' + l.id + ' ' + l.name + ' ' + feats.length + ' features, ' + tiles + ' requests');
     console.log(log[log.length - 1]);
   }
   const lm = (meta.layers || []).filter((x) => WANT.test(x.name)).map((x) => x.id);
-  for (const id of lm) { try { fs.writeFileSync('diag/enc/' + svc + '.' + id + '.meta.json', JSON.stringify(await getJ(ENC + svc + '/MapServer/' + id + '?f=json'))); } catch (e) {} }
+  for (const id of lm) { try { fs.writeFileSync(OUT + '/' + svc + '.' + id + '.meta.json', JSON.stringify(await getJ(ENC + svc + '/MapServer/' + id + '?f=json'))); } catch (e) {} }
 }
-fs.writeFileSync('diag/enc/log.txt', log.join('\n'));
+fs.writeFileSync(OUT + '/log.txt', log.join('\n'));
